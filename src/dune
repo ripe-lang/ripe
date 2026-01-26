@@ -1,0 +1,5 @@
+(library
+ (name ripe)
+ (modules token lexer))
+
+(ocamllex lexer)
