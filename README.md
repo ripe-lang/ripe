@@ -1,4 +1,4 @@
-# Ripe
+# Ripe Programming Language
 
 ## Installation
 
@@ -6,4 +6,12 @@
 
 ```
 sudo apt install opam
+```
+
+## Usage
+
+```
+dune build       # Compile
+dune exec ripe   # Run
+dune test        # Run tests
 ```
