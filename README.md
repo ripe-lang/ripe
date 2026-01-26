@@ -11,7 +11,7 @@ sudo apt install opam
 ## Usage
 
 ```
-dune build       # Compile
-dune exec ripe   # Run
-dune test        # Run tests
+dune build                            # Compile
+dune exec ripe -- <file.rp>           # Run on a file
+dune exec ripe -- examples/hello.rp   # Example
 ```
