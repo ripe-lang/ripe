@@ -1,4 +1,0 @@
-(lang dune 3.21)
-(name ripe)
-(sections (lib .) (bin ../../bin) (doc ../../doc/ripe))
-(files (lib (META dune-package opam)) (bin (ripe)) (doc (README.md)))
