@@ -1,0 +1,7 @@
+_build/
+*.install
+_opam/
+*~
+\#*\#
+.#*
+.DS_Store
