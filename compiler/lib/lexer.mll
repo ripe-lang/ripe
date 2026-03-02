@@ -18,10 +18,32 @@ rule read = parse
   | newline  { next_line lexbuf; read lexbuf }
   | digit+ as n       { INT (int_of_string n) }
   | alpha alnum* as s { IDENT s }
+  | "=="     { EQ }
+  | "!="     { NEQ }
+  | "<="     { LTE }
+  | ">="     { GTE }
+  | "<<"     { LSHIFT }
+  | ">>"     { RSHIFT }
+  | '<'      { LT }
+  | '>'      { GT }
+  | "&&"     { AND }
+  | "||"     { OR }
+  | "++"     { INCR }
+  | "--"     { DECR }
+  | "+="     { PLUS_ASSIGN }
+  | "-="     { MINUS_ASSIGN }
+  | "*="     { STAR_ASSIGN }
+  | "/="     { SLASH_ASSIGN }
+  | '!'      { BANG }
   | '+'      { PLUS }
   | '-'      { MINUS }
   | '*'      { STAR }
   | '/'      { SLASH }
+  | '%'      { PERCENT }
+  | '&'      { AMP }
+  | '|'      { PIPE }
+  | '~'      { TILDE }
+  | '='      { ASSIGN }
   | '('      { LPAREN }
   | ')'      { RPAREN }
   | '{'      { LBRACE }
