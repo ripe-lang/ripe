@@ -20,7 +20,7 @@
  (name ripe)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml menhir (ppx_show (= "0.2.1")) (ppxlib (= "0.37.0")))
+ (depends ocaml menhir ppx_deriving)
  (tags
   ("add topics" "to describe" your project)))
 
