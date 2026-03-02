@@ -13,6 +13,7 @@ open Ast
 %token INCR DECR
 %token LET VAR RETURN
 %token IF ELSEIF ELSE WHILE FOR IN
+%token BREAK CONTINUE
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
@@ -72,6 +73,8 @@ simple_stmt:
   | LET; name = IDENT; ASSIGN; e = expr { Let    (name, e) }
   | VAR; name = IDENT; ASSIGN; e = expr { Var    (name, e) }
   | RETURN; e = expr                    { Return e }
+  | BREAK                               { Break }
+  | CONTINUE                            { Continue }
   | e = expr                            { Expr   e }
 
 block_stmt:
