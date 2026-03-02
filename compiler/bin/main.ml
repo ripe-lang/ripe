@@ -1,14 +1,19 @@
-let tokenize_file filename =
+let debug = ref false
+let file  = ref ""
+
+let spec = [
+  ("-debug", Arg.Set debug, "Print AST");
+]
+
+let parse_file filename =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
-  let rec loop () =
-    let tok = Ripe.Lexer.read lexbuf in
-    print_endline (Ripe.Token.to_string tok);
-    if tok <> Ripe.Token.EOF then loop ()
-  in
-  loop ();
-  close_in ic
+  let decls = Ripe.Parser.program Ripe.Lexer.read lexbuf in
+  close_in ic;
+  if !debug then
+    List.iter (fun d -> print_endline (Ripe.Debug.decl_to_string d)) decls
 
 let () =
-  if Array.length Sys.argv < 2 then print_endline "Usage: ripe <file.rp>"
-  else tokenize_file Sys.argv.(1)
+  Arg.parse spec (fun f -> file := f) "Usage: ripe <file.rp>";
+  if !file = "" then Arg.usage spec "Usage: ripe <file.rp>"
+  else parse_file !file
