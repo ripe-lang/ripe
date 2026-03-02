@@ -23,6 +23,9 @@ sudo apt install opam
 - https://discuss.ocaml.org/t/handling-blank-lines-in-a-list-of-values/9196
 - https://twolodzko.github.io/posts/ocaml-parser.html
 - https://ezb.io/thoughts/programming/myth-lang/2019-03-15_lexer-and-parser.html
+- https://blog.neil.brown.name/2021/03/lr-parsing-with-line-breaks-2021-edition/
+- https://docs.python.org/3/reference/grammar.html
+- https://discuss.ocaml.org/t/menhir-conflict-for-julia-grammar/6662/3
 
 ## Usage
 

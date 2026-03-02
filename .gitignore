@@ -6,3 +6,5 @@ _opam/
 .#*
 .DS_Store
 compiler/lib/debug.ml
+examples/
+lib/
