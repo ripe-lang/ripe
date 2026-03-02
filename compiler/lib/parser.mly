@@ -20,7 +20,7 @@ open Ast
 %token COMMA COLON NEWLINE DOTDOT SEMI
 %token EOF
 
-(* TODO: add remaining compound assignments and postfix increment, decrement *)
+(* TODO: add remaining compound assignments *)
 (* precedence, lowest to highest *)
 %right ASSIGN PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN
 %left  DOTDOT
@@ -76,10 +76,10 @@ stmts:
 simple_stmt:
   | LET; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Let (name, t, e) }
   | VAR; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Var (name, t, e) }
-  | RETURN; e = expr                    { Return e }
-  | BREAK                               { Break }
-  | CONTINUE                            { Continue }
-  | e = expr                            { Expr   e }
+  | RETURN; e = expr { Return e }
+  | BREAK            { Break }
+  | CONTINUE         { Continue }
+  | e = expr         { Expr e }
 
 block_stmt:
   | IF; cond = expr; body = block;
@@ -94,10 +94,11 @@ block_stmt:
     { CFor (init, cond, post, body) }
 
 expr:
-  | n = INT                          { Int n }
-  | TRUE                             { Bool true }
-  | FALSE                            { Bool false }
-  | s = IDENT                        { Ident s }
+  | n = INT    { Int n }
+  | TRUE       { Bool true }
+  | FALSE      { Bool false }
+  | name = IDENT; LPAREN; args = separated_list(COMMA, expr); RPAREN { Call (name, args) }
+  | s = IDENT  { Ident s }
   | l = expr; PLUS;         r = expr { BinOp (Add,       l, r) }
   | l = expr; MINUS;        r = expr { BinOp (Sub,       l, r) }
   | l = expr; STAR;         r = expr { BinOp (Mul,       l, r) }
