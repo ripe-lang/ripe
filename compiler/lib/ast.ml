@@ -33,6 +33,7 @@ type expr =
   | Int of int
   | Bool of bool
   | Ident of string
+  | Call of string * expr list
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
