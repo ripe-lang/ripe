@@ -55,7 +55,12 @@ type stmt =
 type param = { name : string; typ : typ } [@@deriving show]
 
 (* TODO: add pointer and array types *)
-type func_def = { name : string; params : param list; ret : typ option; body : stmt list }
+type func_def = {
+  name : string;
+  params : param list;
+  ret : typ option;
+  body : stmt list;
+}
 [@@deriving show]
 
 type decl = Func of func_def [@@deriving show]
