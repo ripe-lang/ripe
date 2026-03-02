@@ -10,6 +10,14 @@ A systems programming language.
 sudo apt install opam
 ```
 
+## Usage
+
+```
+dune build                            # Compile
+dune exec ripe -- <file.rp>           # Run on a file
+dune exec ripe -- examples/hello.rp   # Example
+```
+
 ## References
 
 - https://cs3110.github.io/textbook/chapters/interp/parsing.html
@@ -26,12 +34,8 @@ sudo apt install opam
 - https://blog.neil.brown.name/2021/03/lr-parsing-with-line-breaks-2021-edition/
 - https://docs.python.org/3/reference/grammar.html
 - https://discuss.ocaml.org/t/menhir-conflict-for-julia-grammar/6662/3
-
-## Usage
-
-```
-dune build                            # Compile
-dune exec ripe -- <file.rp>           # Run on a file
-dune exec ripe -- examples/hello.rp   # Example
-```
-
+- https://cs3110.github.io/textbook/chapters/interp/typecheck.html
+- https://mukulrathi.com/create-your-own-programming-language/intro-to-type-checking/
+- https://arxiv.org/abs/1908.05839
+- https://davidchristiansen.dk/tutorials/bidirectional.pdf
+- https://thunderseethe.dev/posts/how-to-choose-between-hm-and-bidir/

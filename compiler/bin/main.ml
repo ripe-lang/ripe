@@ -3,6 +3,7 @@ let file = ref ""
 let spec = [ ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST") ]
 
 let parse_file filename =
+  (* TODO: make this exception safe *)
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
   let decls = Ripe.Parser.program Ripe.Lexer.read lexbuf in
