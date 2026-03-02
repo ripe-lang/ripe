@@ -22,8 +22,10 @@ type binop =
   | SubAssign
   | MulAssign
   | DivAssign
+[@@deriving show]
 
 type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec
+[@@deriving show]
 
 type expr =
   | Int of int
@@ -31,6 +33,7 @@ type expr =
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
+[@@deriving show]
 
 type stmt =
   | Let of string * expr
@@ -41,7 +44,13 @@ type stmt =
   | For of string * expr * stmt list
   | CFor of stmt * expr * expr * stmt list
   | Expr of expr
+[@@deriving show]
 
-type param = { name : string }
+type param = { name : string } [@@deriving show]
+
 type func_def = { name : string; params : param list; body : stmt list }
-type decl = Func of func_def
+[@@deriving show]
+
+type decl = Func of func_def [@@deriving show]
+
+let decl_to_string = show_decl

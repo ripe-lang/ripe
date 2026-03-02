@@ -1,8 +1,12 @@
 (library
  (name ripe)
- (modules ast debug lexer parser)
- (libraries menhirLib))
+ (modules ast lexer parser)
+ (libraries menhirLib ppx_show.runtime)
+ (preprocess
+  (pps ppx_show)))
 
-(ocamllex (modules lexer))
+(ocamllex
+ (modules lexer))
 
-(menhir (modules parser))
+(menhir
+ (modules parser))
