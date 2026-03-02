@@ -22,6 +22,12 @@ rule read = parse
       | "let"    -> LET
       | "var"    -> VAR
       | "return" -> RETURN
+      | "if"     -> IF
+      | "elseif" -> ELSEIF
+      | "else"   -> ELSE
+      | "while"  -> WHILE
+      | "for"    -> FOR
+      | "in"     -> IN
       | _        -> IDENT s
     }
   | "=="     { EQ }
@@ -49,6 +55,8 @@ rule read = parse
   | '&'      { AMP }
   | '|'      { PIPE }
   | '~'      { TILDE }
+  | ".."     { DOTDOT }
+  | ';'      { SEMI }
   | '='      { ASSIGN }
   | '('      { LPAREN }
   | ')'      { RPAREN }
