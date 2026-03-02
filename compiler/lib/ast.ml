@@ -1,3 +1,5 @@
+type typ = Named of string [@@deriving show]
+
 type binop =
   | Add
   | Sub
@@ -37,8 +39,8 @@ type expr =
 [@@deriving show]
 
 type stmt =
-  | Let of string * expr
-  | Var of string * expr
+  | Let of string * typ option * expr
+  | Var of string * typ option * expr
   | Return of expr
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list
@@ -47,9 +49,10 @@ type stmt =
   | Expr of expr
 [@@deriving show]
 
-type param = { name : string } [@@deriving show]
+type param = { name : string; typ : typ } [@@deriving show]
 
-type func_def = { name : string; params : param list; body : stmt list }
+(* TODO: add pointer and array types *)
+type func_def = { name : string; params : param list; ret : typ option; body : stmt list }
 [@@deriving show]
 
 type decl = Func of func_def [@@deriving show]

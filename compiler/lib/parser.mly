@@ -16,7 +16,7 @@ open Ast
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
-%token COMMA NEWLINE DOTDOT SEMI
+%token COMMA COLON NEWLINE DOTDOT SEMI
 %token EOF
 
 (* TODO: add remaining compound assignments and postfix increment, decrement *)
@@ -47,11 +47,15 @@ program:
 
 decl:
   | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
+    ret = option(preceded(COLON, typ));
     list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
-    { Func { name; params; body } }
+    { Func { name; params; ret; body } }
 
 param:
-  | name = IDENT { { name } }
+  | name = IDENT; COLON; t = typ { { name; typ = t } }
+
+typ:
+  | name = IDENT { Named name }
 
 block:
   | list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
@@ -69,8 +73,8 @@ stmts:
   | s = block_stmt;  rest = stmts                          { s :: rest }
 
 simple_stmt:
-  | LET; name = IDENT; ASSIGN; e = expr { Let    (name, e) }
-  | VAR; name = IDENT; ASSIGN; e = expr { Var    (name, e) }
+  | LET; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Let (name, t, e) }
+  | VAR; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Var (name, t, e) }
   | RETURN; e = expr                    { Return e }
   | e = expr                            { Expr   e }
 
