@@ -13,6 +13,7 @@ open Ast
 %token INCR DECR
 %token LET VAR RETURN
 %token IF ELSEIF ELSE WHILE FOR IN
+%token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token COMMA NEWLINE DOTDOT SEMI
@@ -87,6 +88,8 @@ block_stmt:
 
 expr:
   | n = INT                          { Int n }
+  | TRUE                             { Bool true }
+  | FALSE                            { Bool false }
   | s = IDENT                        { Ident s }
   | l = expr; PLUS;         r = expr { BinOp (Add,       l, r) }
   | l = expr; MINUS;        r = expr { BinOp (Sub,       l, r) }
