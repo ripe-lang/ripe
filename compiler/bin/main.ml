@@ -2,7 +2,7 @@ let tokenize_file filename =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
   let rec loop () =
-    let tok = Ripe.Lexer.tokenize lexbuf in
+    let tok = Ripe.Lexer.read lexbuf in
     print_endline (Ripe.Token.to_string tok);
     if tok <> Ripe.Token.EOF then loop ()
   in
