@@ -18,6 +18,11 @@ sudo apt install opam
 - https://gallium.inria.fr/~fpottier/menhir/manual.html
 - https://ocaml.org/manual/5.1/parsing.html
 - https://ocaml.org/docs/cli-arguments
+- https://www.geeksforgeeks.org/c/operator-precedence-and-associativity-in-c/
+- https://doc.rust-lang.org/beta/reference/expressions/operator-expr.html
+- https://discuss.ocaml.org/t/handling-blank-lines-in-a-list-of-values/9196
+- https://twolodzko.github.io/posts/ocaml-parser.html
+- https://ezb.io/thoughts/programming/myth-lang/2019-03-15_lexer-and-parser.html
 
 ## Usage
 

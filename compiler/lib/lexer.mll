@@ -15,9 +15,15 @@ let newline = '\r' | '\n' | "\r\n"
 
 rule read = parse
   | white    { read lexbuf }
-  | newline  { next_line lexbuf; read lexbuf }
+  | newline  { next_line lexbuf; NEWLINE }
   | digit+ as n       { INT (int_of_string n) }
-  | alpha alnum* as s { IDENT s }
+  | alpha alnum* as s {
+      match s with
+      | "let"    -> LET
+      | "var"    -> VAR
+      | "return" -> RETURN
+      | _        -> IDENT s
+    }
   | "=="     { EQ }
   | "!="     { NEQ }
   | "<="     { LTE }

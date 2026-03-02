@@ -23,29 +23,20 @@ type binop =
   | MulAssign
   | DivAssign
 
-type unop =
-  | Neg
-  | Not
-  | BitNot
-  | PreInc
-  | PreDec
+type unop = Neg | Not | BitNot | PreInc | PreDec
 
 type expr =
-  | Int   of int
+  | Int of int
   | Ident of string
   | BinOp of binop * expr * expr
-  | UnOp  of unop  * expr
+  | UnOp of unop * expr
 
-type param = {
-  name : string;
-}
+type stmt =
+  | Let of string * expr
+  | Var of string * expr
+  | Return of expr
+  | Expr of expr
 
-type func_def = {
-  name   : string;
-  params : param list;
-  body   : expr;
-}
-
-type decl =
-  | Func of func_def
-
+type param = { name : string }
+type func_def = { name : string; params : param list; body : stmt list }
+type decl = Func of func_def

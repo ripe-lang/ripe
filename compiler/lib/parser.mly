@@ -11,11 +11,13 @@ open Ast
 %token AND OR BANG
 %token ASSIGN PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN
 %token INCR DECR
+%token LET VAR RETURN
 %token LPAREN RPAREN
 %token LBRACE RBRACE
-%token COMMA
+%token COMMA NEWLINE
 %token EOF
 
+(* TODO: add remaining compound assignments and postfix increment, decrement *)
 (* precedence, lowest to highest *)
 %right ASSIGN PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN
 %left OR
@@ -34,16 +36,28 @@ open Ast
 
 %%
 
+(* FIXME: newlines break multiline expressions in () *)
+
 program:
-  | decls = list(decl); EOF { decls }
+  | list(NEWLINE); decls = list(decl); EOF { decls }
 
 decl:
   | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
-    LBRACE; body = expr; RBRACE
+    list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
     { Func { name; params; body } }
 
 param:
   | name = IDENT { { name } }
+
+stmts:
+  |                                              { [] }
+  | s = stmt; nonempty_list(NEWLINE); rest = stmts { s :: rest }
+
+stmt:
+  | LET; name = IDENT; ASSIGN; e = expr { Let    (name, e) }
+  | VAR; name = IDENT; ASSIGN; e = expr { Var    (name, e) }
+  | RETURN; e = expr                    { Return e }
+  | e = expr                            { Expr   e }
 
 expr:
   | n = INT                         { Int n }
