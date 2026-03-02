@@ -20,7 +20,7 @@
  (name ripe)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml menhir)
+ (depends ocaml menhir ppx_show)
  (tags
   ("add topics" "to describe" your project)))
 
