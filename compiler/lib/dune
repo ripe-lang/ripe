@@ -1,5 +1,8 @@
 (library
  (name ripe)
- (modules token lexer))
+ (modules ast debug lexer parser)
+ (libraries menhirLib))
 
-(ocamllex lexer)
+(ocamllex (modules lexer))
+
+(menhir (modules parser))

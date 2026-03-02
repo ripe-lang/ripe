@@ -1,4 +1,5 @@
 (lang dune 3.21)
+(using menhir 3.0)
 
 (name ripe)
 
@@ -19,7 +20,7 @@
  (name ripe)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml)
+ (depends ocaml menhir)
  (tags
   ("add topics" "to describe" your project)))
 
