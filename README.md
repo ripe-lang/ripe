@@ -17,6 +17,7 @@ sudo apt install opam
 - https://dev.realworldocaml.org/parsing-with-ocamllex-and-menhir.html
 - https://gallium.inria.fr/~fpottier/menhir/manual.html
 - https://ocaml.org/manual/5.1/parsing.html
+- https://ocaml.org/docs/cli-arguments
 
 ## Usage
 
