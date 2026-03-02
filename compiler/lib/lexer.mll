@@ -28,9 +28,11 @@ rule read = parse
       | "while"  -> WHILE
       | "for"    -> FOR
       | "in"     -> IN
-      | "true"   -> TRUE
-      | "false"  -> FALSE
-      | _        -> IDENT s
+      | "true"     -> TRUE
+      | "false"    -> FALSE
+      | "break"    -> BREAK
+      | "continue" -> CONTINUE
+      | _          -> IDENT s
     }
   | "=="     { EQ }
   | "!="     { NEQ }

@@ -44,6 +44,8 @@ type stmt =
   | While of expr * stmt list
   | For of string * expr * stmt list
   | CFor of stmt * expr * expr * stmt list
+  | Break
+  | Continue
   | Expr of expr
 [@@deriving show]
 
