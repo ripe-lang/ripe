@@ -1,9 +1,6 @@
 let debug = ref false
-let file  = ref ""
-
-let spec = [
-  ("-debug", Arg.Set debug, "Print AST");
-]
+let file = ref ""
+let spec = [ ("-debug", Arg.Set debug, "Print AST") ]
 
 let parse_file filename =
   let ic = open_in filename in
