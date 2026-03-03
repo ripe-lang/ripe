@@ -14,6 +14,7 @@ open Ast
 %token LET VAR RETURN
 %token IF ELSEIF ELSE WHILE FOR IN
 %token BREAK CONTINUE
+%token STRUCT
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
@@ -47,18 +48,41 @@ program:
   | list(NEWLINE); decls = list(decl); EOF { decls }
 
 decl:
+  | s = struct_decl { s }
   | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
     ret = option(preceded(COLON, typ));
     list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
     { Func { name; params; ret; body } }
 
 param:
-  | name = IDENT; COLON; t = typ { { name; typ = t } }
+  | name = IDENT; COLON; t = typ { ({ name; typ = t } : Ast.param) }
+
+field:
+  | name = IDENT; COLON; t = typ { ({ name; typ = t } : Ast.field) }
+
+nonempty_fields:
+  (* last field, no trailing comma *)
+  | f = field                                                    { [f] }
+  (* last field, optional trailing comma *)
+  | f = field; COMMA; list(NEWLINE)                              { [f] }
+  (* more fields follow *)
+  | f = field; COMMA; list(NEWLINE); rest = nonempty_fields      { f :: rest }
+
+struct_decl:
+  (* empty struct: STRUCT name { } *)
+  | STRUCT; name = IDENT; list(NEWLINE);
+    LBRACE; list(NEWLINE); RBRACE; list(NEWLINE)
+    { Struct { name; fields = [] } }
+  (* non-empty struct: STRUCT name { fields } *)
+  | STRUCT; name = IDENT; list(NEWLINE);
+    LBRACE; list(NEWLINE); fs = nonempty_fields; list(NEWLINE); RBRACE; list(NEWLINE)
+    { Struct { name; fields = fs } }
 
 typ:
   | name = IDENT { Named name }
 
 block:
+  (* { stmts } *)
   | list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
     { body }
 
