@@ -4,6 +4,7 @@ open Ast
 
 %token <int>    INT
 %token <string> IDENT
+%token <string> STRING
 %token PLUS MINUS STAR SLASH PERCENT
 %token EQ NEQ LT GT LTE GTE
 %token LSHIFT RSHIFT
@@ -120,6 +121,7 @@ block_stmt:
 
 expr:
   | n = INT    { Int n }
+  | s = STRING { String s }
   | TRUE       { Bool true }
   | FALSE      { Bool false }
   | name = IDENT; LPAREN; args = separated_list(COMMA, expr); RPAREN { Call (name, args) }

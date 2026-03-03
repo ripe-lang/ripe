@@ -5,6 +5,8 @@ exception SyntaxError of string
 
 let next_line lexbuf =
   Lexing.new_line lexbuf
+
+let buf = Buffer.create 64 (* auto buffer resize *)
 }
 
 let digit   = ['0'-'9']
@@ -71,8 +73,19 @@ rule read = parse
   | '}'  { RBRACE }
   | ':'  { COLON }
   | ','  { COMMA }
+  | '"'  { Buffer.clear buf; read_string lexbuf }
   | eof  { EOF }
   | _        { raise (SyntaxError ("line "
                ^ string_of_int lexbuf.Lexing.lex_curr_p.Lexing.pos_lnum
                ^ ": unexpected character: "
                ^ Lexing.lexeme lexbuf)) }
+
+(* TODO: pass buffer as param instead of global and handle illegal escape *)
+and read_string = parse
+  | '"'           { STRING (Buffer.contents buf) }
+  | '\\' 'n'      { Buffer.add_char buf '\n'; read_string lexbuf }
+  | '\\' 't'      { Buffer.add_char buf '\t'; read_string lexbuf }
+  | '\\' '\\'     { Buffer.add_char buf '\\'; read_string lexbuf }
+  | '\\' '"'      { Buffer.add_char buf '"';  read_string lexbuf }
+  | [^ '"' '\\']+  { Buffer.add_string buf (Lexing.lexeme lexbuf); read_string lexbuf }
+  | eof           { raise (SyntaxError "unterminated string") }
