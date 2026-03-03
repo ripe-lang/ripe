@@ -1,11 +1,8 @@
-_build/
-*.install
-_opam/
 *~
 \#*\#
 .#*
 .DS_Store
-compiler/lib/debug.ml
-extras/
-lib/
-note.rp
+
+/main
+/extras/
+/lib/
