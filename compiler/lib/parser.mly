@@ -15,7 +15,7 @@ open Ast
 %token LET VAR RETURN
 %token IF ELSEIF ELSE WHILE FOR IN
 %token BREAK CONTINUE
-%token STRUCT
+%token STRUCT EXTERN
 %token CARET AT
 %token TRUE FALSE NULL
 %token AS SIZEOF
@@ -54,6 +54,10 @@ program:
 
 decl:
   | s = struct_decl { s }
+  (* extern name(params): ret with no body *)
+  | EXTERN; name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
+    ret = option(preceded(COLON, typ)); list(NEWLINE)
+    { Extern { name; params; ret; body = [] } }
   | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
     ret = option(preceded(COLON, typ));
     list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
