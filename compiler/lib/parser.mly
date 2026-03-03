@@ -16,7 +16,7 @@ open Ast
 %token IF ELSEIF ELSE WHILE FOR IN
 %token BREAK CONTINUE
 %token STRUCT
-%token CARET
+%token CARET AT
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
@@ -37,7 +37,7 @@ open Ast
 %left  LSHIFT RSHIFT
 %left  PLUS MINUS
 %left  STAR SLASH PERCENT
-%right BANG UMINUS UBITNOT PREFIX
+%right BANG UMINUS UBITNOT PREFIX UCARET UAT
 %left  INCR DECR
 %left  DOT
 
@@ -105,7 +105,7 @@ simple_stmt:
   | LET; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Let (name, t, e) }
   | VAR; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Var (name, t, e) }
   | RETURN; e = expr { Return (Some e) }
-  | RETURN            { Return None }
+  | RETURN           { Return None }
   | BREAK            { Break }
   | CONTINUE         { Continue }
   | e = expr         { Expr e }
@@ -153,11 +153,13 @@ expr:
   | l = expr; STAR_ASSIGN;  r = expr { BinOp (MulAssign, l, r) }
   | l = expr; SLASH_ASSIGN; r = expr { BinOp (DivAssign, l, r) }
   | l = expr; DOTDOT;       r = expr { Range (l, r) }
-  | BANG;  e = expr %prec BANG       { UnOp (Not,     e) }
-  | MINUS; e = expr %prec UMINUS     { UnOp (Neg,     e) }
-  | TILDE; e = expr %prec UBITNOT    { UnOp (BitNot,  e) }
-  | INCR;  e = expr %prec PREFIX     { UnOp (PreInc,  e) }
-  | DECR;  e = expr %prec PREFIX     { UnOp (PreDec,  e) }
+  | BANG;  e = expr %prec BANG       { UnOp (Not,       e) }
+  | MINUS; e = expr %prec UMINUS     { UnOp (Neg,       e) }
+  | TILDE; e = expr %prec UBITNOT    { UnOp (BitNot,    e) }
+  | INCR;  e = expr %prec PREFIX     { UnOp (PreInc,    e) }
+  | DECR;  e = expr %prec PREFIX     { UnOp (PreDec,    e) }
+  | CARET; e = expr %prec UCARET     { UnOp (Deref,     e) }
+  | AT;    e = expr %prec UAT        { UnOp (AddressOf, e) }
   | e = expr; INCR                   { UnOp (PostInc, e) }
   | e = expr; DECR                   { UnOp (PostDec, e) }
   | LPAREN; e = expr; RPAREN         { e }

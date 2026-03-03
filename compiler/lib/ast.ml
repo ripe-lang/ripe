@@ -26,7 +26,7 @@ type binop =
   | DivAssign
 [@@deriving show]
 
-type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec
+type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec | Deref | AddressOf
 [@@deriving show]
 
 type expr =
