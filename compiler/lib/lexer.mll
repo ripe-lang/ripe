@@ -38,6 +38,7 @@ rule read = parse
       | "as"       -> AS
       | "sizeof"   -> SIZEOF
       | "null"     -> NULL
+      | "extern"   -> EXTERN
       | "struct"   -> STRUCT
       | _          -> IDENT s
     }

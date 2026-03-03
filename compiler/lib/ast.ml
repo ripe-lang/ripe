@@ -81,6 +81,8 @@ type func_def = {
 [@@deriving show]
 
 type struct_def = { name : string; fields : field list } [@@deriving show]
-type decl = Func of func_def | Struct of struct_def [@@deriving show]
+
+type decl = Func of func_def | Struct of struct_def | Extern of func_def
+[@@deriving show]
 
 let decl_to_string = show_decl
