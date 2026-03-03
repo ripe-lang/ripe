@@ -18,6 +18,7 @@ open Ast
 %token STRUCT
 %token CARET AT
 %token TRUE FALSE NULL
+%token AS
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token COMMA COLON NEWLINE DOTDOT DOT SEMI
@@ -37,6 +38,7 @@ open Ast
 %left  LSHIFT RSHIFT
 %left  PLUS MINUS
 %left  STAR SLASH PERCENT
+%left  AS
 %right BANG UMINUS UBITNOT PREFIX UCARET UAT
 %left  INCR DECR
 %left  DOT
@@ -165,3 +167,4 @@ expr:
   | e = expr; DECR                   { UnOp (PostDec, e) }
   | LPAREN; e = expr; RPAREN         { e }
   | e = expr; DOT; fname = IDENT     { FieldAccess (e, fname) }
+  | e = expr; AS; t = typ            { Cast (e, t) }

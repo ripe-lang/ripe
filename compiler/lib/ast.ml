@@ -50,6 +50,7 @@ type expr =
   | UnOp of unop * expr
   | Range of expr * expr
   | FieldAccess of expr * string
+  | Cast of expr * typ
 [@@deriving show]
 
 type stmt =
