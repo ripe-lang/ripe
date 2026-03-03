@@ -6,22 +6,22 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github ripe-lang/ripe))
 
-(authors "Author Name <author@example.com>")
+(authors "Ripe contributors")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Ripe contributors")
 
-(license LICENSE)
+(license "GPL-2.0-only")
 
-(documentation https://url/to/documentation)
+(documentation https://github.com/ripe-lang/ripe#readme)
 
 (package
  (name ripe)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "Ripe compiler and language tooling")
+ (description "Ripe is a systems programming language with an OCaml compiler and QBE backend.")
  (depends ocaml menhir ppx_deriving ocamlformat)
  (tags
-  ("add topics" "to describe" your project)))
+  ("compiler" "language" "systems" "qbe")))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
