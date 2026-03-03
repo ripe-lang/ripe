@@ -102,7 +102,8 @@ stmts:
 simple_stmt:
   | LET; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Let (name, t, e) }
   | VAR; name = IDENT; t = option(preceded(COLON, typ)); ASSIGN; e = expr { Var (name, t, e) }
-  | RETURN; e = expr { Return e }
+  | RETURN; e = expr { Return (Some e) }
+  | RETURN            { Return None }
   | BREAK            { Break }
   | CONTINUE         { Continue }
   | e = expr         { Expr e }

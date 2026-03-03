@@ -44,7 +44,7 @@ type expr =
 type stmt =
   | Let of string * typ option * expr
   | Var of string * typ option * expr
-  | Return of expr
+  | Return of expr option
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list
   | For of string * expr * stmt list
