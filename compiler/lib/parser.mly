@@ -17,7 +17,7 @@ open Ast
 %token BREAK CONTINUE
 %token STRUCT
 %token CARET AT
-%token TRUE FALSE
+%token TRUE FALSE NULL
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token COMMA COLON NEWLINE DOTDOT DOT SEMI
@@ -127,6 +127,7 @@ expr:
   | s = STRING { String s }
   | TRUE       { Bool true }
   | FALSE      { Bool false }
+  | NULL       { Null }
   | name = IDENT; LPAREN; args = separated_list(COMMA, expr); RPAREN { Call (name, args) }
   | s = IDENT  { Ident s }
   | l = expr; PLUS;         r = expr { BinOp (Add,       l, r) }

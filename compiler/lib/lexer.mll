@@ -35,6 +35,7 @@ rule read = parse
       | "false"    -> FALSE
       | "break"    -> BREAK
       | "continue" -> CONTINUE
+      | "null"     -> NULL
       | "struct"   -> STRUCT
       | _          -> IDENT s
     }

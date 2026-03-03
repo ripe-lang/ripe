@@ -32,6 +32,7 @@ type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec | Deref | A
 type expr =
   | Int of int
   | Bool of bool
+  | Null
   | Char of char
   | String of string
   | Ident of string
