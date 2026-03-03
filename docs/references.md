@@ -18,6 +18,7 @@
 
 - [C Operator Precedence — GeeksforGeeks](https://www.geeksforgeeks.org/c/operator-precedence-and-associativity-in-c/)
 - [Rust Operator Expressions](https://doc.rust-lang.org/beta/reference/expressions/operator-expr.html)
+- [Rust Expression Precedence](https://doc.rust-lang.org/reference/expressions.html)
 
 ## Type Checking
 

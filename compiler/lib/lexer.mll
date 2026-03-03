@@ -35,6 +35,9 @@ rule read = parse
       | "false"    -> FALSE
       | "break"    -> BREAK
       | "continue" -> CONTINUE
+      | "as"       -> AS
+      | "sizeof"   -> SIZEOF
+      | "null"     -> NULL
       | "struct"   -> STRUCT
       | _          -> IDENT s
     }
@@ -73,6 +76,8 @@ rule read = parse
   | '}'  { RBRACE }
   | ':'  { COLON }
   | ','  { COMMA }
+  | '^'  { CARET }
+  | '@'  { AT }
   | '"'  { Buffer.clear buf; read_string lexbuf }
   | eof  { EOF }
   | _        { raise (SyntaxError ("line "

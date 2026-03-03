@@ -11,8 +11,14 @@ add_point(p: point): i32 {
   return p.x + p.y
 }
 
+scale(p: ^point, factor: i32) {
+  return
+}
+
 main() {
   let x = add(1, 2)
   let y = add(x, add(3, 4))
   let s = "hello, world"
+  let n = x as i64
+  let size = sizeof(point)
 }

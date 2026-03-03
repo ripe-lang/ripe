@@ -1,4 +1,4 @@
-type typ = Named of string [@@deriving show]
+type typ = Named of string | Pointer of typ [@@deriving show]
 
 type binop =
   | Add
@@ -26,12 +26,23 @@ type binop =
   | DivAssign
 [@@deriving show]
 
-type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec
+type unop =
+  | Neg
+  | Not
+  | BitNot
+  | PreInc
+  | PreDec
+  | PostInc
+  | PostDec
+  | Deref
+  | AddressOf
 [@@deriving show]
 
 type expr =
   | Int of int
   | Bool of bool
+  | Null
+  | Char of char
   | String of string
   | Ident of string
   | Call of string * expr list
@@ -39,12 +50,14 @@ type expr =
   | UnOp of unop * expr
   | Range of expr * expr
   | FieldAccess of expr * string
+  | Cast of expr * typ
+  | SizeOf of typ
 [@@deriving show]
 
 type stmt =
   | Let of string * typ option * expr
   | Var of string * typ option * expr
-  | Return of expr
+  | Return of expr option
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list
   | For of string * expr * stmt list
@@ -58,7 +71,7 @@ type stmt =
 type param = { name : string; typ : typ } [@@deriving show]
 type field = { name : string; typ : typ } [@@deriving show]
 
-(* TODO: add pointer and array types *)
+(* TODO: add array types *)
 type func_def = {
   name : string;
   params : param list;
