@@ -1,0 +1,21 @@
+# References
+
+- https://cs3110.github.io/textbook/chapters/interp/parsing.html
+- https://mukulrathi.com/create-your-own-programming-language/parsing-ocamllex-menhir/
+- https://dev.realworldocaml.org/parsing-with-ocamllex-and-menhir.html
+- https://gallium.inria.fr/~fpottier/menhir/manual.html
+- https://ocaml.org/manual/5.1/parsing.html
+- https://ocaml.org/docs/cli-arguments
+- https://www.geeksforgeeks.org/c/operator-precedence-and-associativity-in-c/
+- https://doc.rust-lang.org/beta/reference/expressions/operator-expr.html
+- https://discuss.ocaml.org/t/handling-blank-lines-in-a-list-of-values/9196
+- https://twolodzki.github.io/posts/ocaml-parser.html
+- https://ezb.io/thoughts/programming/myth-lang/2019-03-15_lexer-and-parser.html
+- https://blog.neil.brown.name/2021/03/lr-parsing-with-line-breaks-2021-edition/
+- https://docs.python.org/3/reference/grammar.html
+- https://discuss.ocaml.org/t/menhir-conflict-for-julia-grammar/6662/3
+- https://cs3110.github.io/textbook/chapters/interp/typecheck.html
+- https://mukulrathi.com/create-your-own-programming-language/intro-to-type-checking/
+- https://arxiv.org/abs/1908.05839
+- https://davidchristiansen.dk/tutorials/bidirectional.pdf
+- https://thunderseethe.dev/posts/how-to-choose-between-hm-and-bidir/
