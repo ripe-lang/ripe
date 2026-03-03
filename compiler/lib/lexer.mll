@@ -73,6 +73,7 @@ rule read = parse
   | '}'  { RBRACE }
   | ':'  { COLON }
   | ','  { COMMA }
+  | '^'  { CARET }
   | '"'  { Buffer.clear buf; read_string lexbuf }
   | eof  { EOF }
   | _        { raise (SyntaxError ("line "

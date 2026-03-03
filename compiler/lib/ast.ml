@@ -1,4 +1,4 @@
-type typ = Named of string [@@deriving show]
+type typ = Named of string | Pointer of typ [@@deriving show]
 
 type binop =
   | Add
@@ -32,6 +32,7 @@ type unop = Neg | Not | BitNot | PreInc | PreDec | PostInc | PostDec
 type expr =
   | Int of int
   | Bool of bool
+  | Char of char
   | String of string
   | Ident of string
   | Call of string * expr list
@@ -58,7 +59,7 @@ type stmt =
 type param = { name : string; typ : typ } [@@deriving show]
 type field = { name : string; typ : typ } [@@deriving show]
 
-(* TODO: add pointer and array types *)
+(* TODO: add array types *)
 type func_def = {
   name : string;
   params : param list;

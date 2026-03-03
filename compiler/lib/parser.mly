@@ -16,6 +16,7 @@ open Ast
 %token IF ELSEIF ELSE WHILE FOR IN
 %token BREAK CONTINUE
 %token STRUCT
+%token CARET
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
@@ -81,7 +82,8 @@ struct_decl:
     { Struct { name; fields = fs } }
 
 typ:
-  | name = IDENT { Named name }
+  | name = IDENT   { Named name }
+  | CARET; t = typ { Pointer t }
 
 block:
   (* { stmts } *)
