@@ -54,6 +54,7 @@ program:
 
 decl:
   | s = struct_decl { s }
+  (* extern name(params): ret with no body *)
   | EXTERN; name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
     ret = option(preceded(COLON, typ)); list(NEWLINE)
     { Extern { name; params; ret; body = [] } }
