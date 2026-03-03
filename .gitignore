@@ -8,3 +8,4 @@ _opam/
 compiler/lib/debug.ml
 extras/
 lib/
+note.rp

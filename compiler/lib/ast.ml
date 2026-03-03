@@ -52,7 +52,9 @@ type stmt =
   | Expr of expr
 [@@deriving show]
 
+(* kept separate for distinction *)
 type param = { name : string; typ : typ } [@@deriving show]
+type field = { name : string; typ : typ } [@@deriving show]
 
 (* TODO: add pointer and array types *)
 type func_def = {
@@ -63,6 +65,7 @@ type func_def = {
 }
 [@@deriving show]
 
-type decl = Func of func_def [@@deriving show]
+type struct_def = { name : string; fields : field list } [@@deriving show]
+type decl = Func of func_def | Struct of struct_def [@@deriving show]
 
 let decl_to_string = show_decl
