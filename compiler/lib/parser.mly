@@ -18,7 +18,7 @@ open Ast
 %token STRUCT
 %token CARET AT
 %token TRUE FALSE NULL
-%token AS
+%token AS SIZEOF
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token COMMA COLON NEWLINE DOTDOT DOT SEMI
@@ -130,6 +130,7 @@ expr:
   | TRUE       { Bool true }
   | FALSE      { Bool false }
   | NULL       { Null }
+  | SIZEOF; LPAREN; t = typ; RPAREN { SizeOf t }
   | name = IDENT; LPAREN; args = separated_list(COMMA, expr); RPAREN { Call (name, args) }
   | s = IDENT  { Ident s }
   | l = expr; PLUS;         r = expr { BinOp (Add,       l, r) }

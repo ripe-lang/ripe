@@ -51,6 +51,7 @@ type expr =
   | Range of expr * expr
   | FieldAccess of expr * string
   | Cast of expr * typ
+  | SizeOf of typ
 [@@deriving show]
 
 type stmt =

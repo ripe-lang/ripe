@@ -20,4 +20,5 @@ main() {
   let y = add(x, add(3, 4))
   let s = "hello, world"
   let n = x as i64
+  let size = sizeof(point)
 }
