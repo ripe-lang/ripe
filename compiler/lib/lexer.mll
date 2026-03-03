@@ -33,6 +33,7 @@ rule read = parse
       | "false"    -> FALSE
       | "break"    -> BREAK
       | "continue" -> CONTINUE
+      | "struct"   -> STRUCT
       | _          -> IDENT s
     }
   | "==" { EQ }
