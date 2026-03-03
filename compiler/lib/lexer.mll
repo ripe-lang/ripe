@@ -62,6 +62,7 @@ rule read = parse
   | '|'  { PIPE }
   | '~'  { TILDE }
   | ".." { DOTDOT }
+  | '.'  { DOT }
   | ';'  { SEMI }
   | '='  { ASSIGN }
   | '('  { LPAREN }

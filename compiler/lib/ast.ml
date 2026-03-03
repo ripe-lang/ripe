@@ -37,6 +37,7 @@ type expr =
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
+  | FieldAccess of expr * string
 [@@deriving show]
 
 type stmt =
