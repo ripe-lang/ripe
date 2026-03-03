@@ -18,7 +18,7 @@ open Ast
 %token TRUE FALSE
 %token LPAREN RPAREN
 %token LBRACE RBRACE
-%token COMMA COLON NEWLINE DOTDOT SEMI
+%token COMMA COLON NEWLINE DOTDOT DOT SEMI
 %token EOF
 
 (* TODO: add remaining compound assignments *)
@@ -37,6 +37,7 @@ open Ast
 %left  STAR SLASH PERCENT
 %right BANG UMINUS UBITNOT PREFIX
 %left  INCR DECR
+%left  DOT
 
 %start <Ast.decl list> program
 
@@ -155,3 +156,4 @@ expr:
   | e = expr; INCR                   { UnOp (PostInc, e) }
   | e = expr; DECR                   { UnOp (PostDec, e) }
   | LPAREN; e = expr; RPAREN         { e }
+  | e = expr; DOT; fname = IDENT     { FieldAccess (e, fname) }
