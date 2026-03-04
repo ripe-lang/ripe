@@ -1,4 +1,4 @@
 (executable
- (public_name ripe)
+ (public_name ripec)
  (name main)
  (libraries ripe))

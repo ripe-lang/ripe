@@ -26,7 +26,10 @@
 - [Create Your Own Language: Type Checking](https://mukulrathi.com/create-your-own-programming-language/intro-to-type-checking/)
 - [Bidirectional Typing Tutorial](https://davidchristiansen.dk/tutorials/bidirectional.pdf)
 - [Hindley-Milner vs Bidirectional Typing](https://thunderseethe.dev/posts/how-to-choose-between-hm-and-bidir/)
-- [Complete and Easy Bidirectional Typechecking (paper)](https://arxiv.org/abs/1908.05839)
+- [Bidirectional Typechecking (paper)](https://arxiv.org/abs/1908.05839)
+- [Type Systems Implementations in OCaml](https://github.com/tomprimozic/type-systems)
+- [Real World OCaml: Compiler Frontend](https://dev.realworldocaml.org/compiler-frontend.html)
+- [r/ProgrammingLanguages: Common ways of performing type checking](https://www.reddit.com/r/ProgrammingLanguages/comments/87c5dw/what_are_the_common_ways_of_performing/)
 
 ## Grammar
 
