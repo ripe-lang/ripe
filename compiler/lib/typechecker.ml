@@ -27,6 +27,10 @@ let make_env () : env =
     in_loop = false;
   }
 
+(* TODO: New bindings shadow older ones. *)
+let extend_var (env : env) (name : string) (t : ty) : env =
+  { env with vars = (name, t) :: env.vars }
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t with
   | Named "i8" -> TInt I8
@@ -79,25 +83,40 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 (* Second pass doing the bidirectional type checking *)
 
-let check_func (env : env) (fd : func_def) : unit =
-  (* Map AST to internal type (again) only for this function check *)
+let check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
+  (env, [])
+
+let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
+  (* Redo param types here so we can set up local scope before checking the body. *)
   let params =
     List.map (fun (p : param) -> (p.name, ty_of_ast env p.typ)) fd.params
   in
 
-  (* let param_env =
-  in *)
-  ()
+  (* Add each param to the env so the body can use them as locals. *)
+  let param_env =
+    List.fold_left (fun e (name, t) -> extend_var e name t) env params
+  in
 
-let check_decl (env : env) (decl : decl) : unit =
+  let ret_ty = match fd.ret with Some t -> ty_of_ast env t | None -> TVoid in
+  let body_env = { param_env with ret_ty } in
+
+  let _, tbody = check_stmts body_env fd.body in
+
+  { Typed_ast.name = fd.name; params; ret_ty; body = tbody }
+
+let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
   match decl with
   | Func fd ->
-      let _tfd = check_func env fd in
-      ()
-  | _ -> ()
+      let tfd = check_func env fd in
+      Typed_ast.TFunc tfd
+  | Extern fd ->
+      let tfd = check_func env fd in
+      Typed_ast.TExtern tfd
+  (* TODO: Add structs *)
+  | _ -> failwith "Declaration not supported yet"
+(* TODO: I need to think about global variables *)
 
-let typecheck (_decls : decl list) : unit =
-  let _env = make_env () in
-  List.iter (collect_decl _env) _decls;
-  List.map (check_decl _env) _decls;
-  ()
+let typecheck (decls : decl list) : Typed_ast.tdecl list =
+  let env = make_env () in
+  List.iter (collect_decl env) decls;
+  List.map (check_decl env) decls

@@ -15,11 +15,13 @@ let parse_file filename =
   let decls = Ripe.Parser.program Ripe.Lexer.read lexbuf in
   close_in ic;
 
-  if !dump_ast then
+  if !dump_ast then (
+    print_endline "--- AST Dump ---";
     List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls;
+    print_endline "--- End AST Dump ---");
 
   try
-    Ripe.Typechecker.typecheck decls;
+    let _typed_ast = Ripe.Typechecker.typecheck decls in
     print_endline "typecheck: ok"
   with Ripe.Typechecker.TypeError msg ->
     Printf.eprintf "typecheck error: %s\n" msg;
