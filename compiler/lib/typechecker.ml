@@ -16,7 +16,6 @@ type env = {
   in_loop : bool;
 }
 
-(* control flow + struct/funcs rn *)
 let make_env () : env =
   {
     vars = [];
@@ -63,8 +62,17 @@ let collect_func (env : env) (fd : func_def) : unit =
 
   Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
 
+(* TODO: Support forward reference between structs *)
+let collect_struct (env : env) (sd : struct_def) : unit =
+  let field_tys =
+    List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+  in
+  Hashtbl.replace env.structs sd.name { field_tys }
+
 let collect_decl (env : env) (decl : decl) : unit =
-  match decl with Func fd -> collect_func env fd | _ -> ()
+  match decl with
+  | Struct sd -> collect_struct env sd
+  | Func fd | Extern fd -> collect_func env fd
 
 let typecheck (_decls : decl list) : unit =
   let _env = make_env () in
