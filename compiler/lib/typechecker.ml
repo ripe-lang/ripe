@@ -31,6 +31,11 @@ let make_env () : env =
 let extend_var (env : env) (name : string) (t : ty) : env =
   { env with vars = (name, t) :: env.vars }
 
+let lookup_var (env : env) (name : string) : ty =
+  match List.assoc_opt name env.vars with
+  | Some t -> t
+  | None -> raise (TypeError ("unbound variable: " ^ name))
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t with
   | Named "i8" -> TInt I8
@@ -83,8 +88,50 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 (* Second pass doing the bidirectional type checking *)
 
-let check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
-  (env, [])
+(* Figure out the type*)
+let rec synth (env : env) (e : expr) : Typed_ast.texpr =
+  match e with
+  | Int n ->
+      Typed_ast.TInt (n, TInt I32)
+      (* TODO: Widen based on value magnitude (fall back I32) *)
+  | Bool b -> Typed_ast.TBool b
+  | Null -> Typed_ast.TNull TNull
+  | String s -> Typed_ast.TString s
+  | Char c -> Typed_ast.TChar c
+  | Ident name -> Typed_ast.TIdent (name, lookup_var env name)
+
+(* MUST be this type *)
+
+(* TODO: Better error messages *)
+let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
+  match s with
+  | Break ->
+      if not env.in_loop then
+        raise (TypeError "break statement must be inside a loop");
+      (env, Typed_ast.TBreak)
+  | Continue ->
+      if not env.in_loop then
+        raise (TypeError "continue statement must be inside a loop");
+      (env, Typed_ast.TContinue)
+  | Return None ->
+      if env.ret_ty <> TVoid then
+        raise (TypeError "empty return in non-void function");
+      (env, Typed_ast.TReturn None)
+
+(* FIXME: Temporary until exhaustive *)
+(* | _ -> (env, Typed_ast.TContinue)   *)
+
+(* Performance critical since this pass walks every statement *)
+and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
+  let final_env, tstmts_reversed =
+    List.fold_left
+      (fun (current_env, acc) s ->
+        let next_env, ts = check_stmt current_env s in
+        (* Printf.printf "Added %d to environment.\n" (List.length next_env.vars); *)
+        (next_env, ts :: acc)) (* Slow: e', acc @ [ ts ] *)
+      (env, []) stmts
+  in
+  (final_env, List.rev tstmts_reversed)
 
 let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
   (* Redo param types here so we can set up local scope before checking the body. *)
