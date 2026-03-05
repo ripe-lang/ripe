@@ -44,8 +44,9 @@ let ty_of_texpr (e : texpr) : ty =
   | TInt (_, t) -> t
   | TBool _ -> TBool
   | TNull t -> t
+  (* TODO: Revisit string/char literal typing for length/safety/etc *)
   | TString _ -> TPointer (TInt I8)
-  | TChar _ -> TInt I8
+  | TChar _ -> TInt I32
   | TIdent (_, t) -> t
   | TCall (_, _, t) -> t
   | TBinOp (_, _, _, t) -> t
