@@ -14,8 +14,8 @@ sudo apt install opam
 
 ```
 dune build                            # Compile
-dune exec ripe -- <file.rp>           # Run on a file
-dune exec ripe -- examples/hello.rp   # Example
+dune exec ripec -- <file.rp>          # Run on a file
+dune exec ripec -- examples/hello.rp  # Example
 ```
 
 ## References

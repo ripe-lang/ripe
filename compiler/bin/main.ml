@@ -1,6 +1,12 @@
 let dump_ast = ref false
+let do_typecheck = ref false
 let file = ref ""
-let spec = [ ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST") ]
+
+let spec =
+  [
+    ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST");
+    ("-typecheck", Arg.Set do_typecheck, "Run the typechecker");
+  ]
 
 let parse_file filename =
   (* TODO: make this exception safe *)
@@ -8,10 +14,21 @@ let parse_file filename =
   let lexbuf = Lexing.from_channel ic in
   let decls = Ripe.Parser.program Ripe.Lexer.read lexbuf in
   close_in ic;
-  if !dump_ast then
-    List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls
+
+  if !dump_ast then (
+    print_endline "--- AST Dump ---";
+    List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls;
+    print_endline "--- End AST Dump ---");
+
+  try
+    let _typed_ast = Ripe.Typechecker.typecheck decls in
+    print_endline "typecheck: ok"
+  with Ripe.Typechecker.TypeError msg ->
+    Printf.eprintf "typecheck error: %s\n" msg;
+    exit 1
 
 let () =
-  Arg.parse spec (fun f -> file := f) "Usage: ripe <file.rp>";
-  if !file = "" then Arg.usage spec "Usage: ripe <file.rp>"
+  (* TODO: Update usage text for options *)
+  Arg.parse spec (fun f -> file := f) "Usage: ripec file.rp>";
+  if !file = "" then Arg.usage spec "Usage: ripec <file.rp>"
   else parse_file !file
