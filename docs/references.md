@@ -30,6 +30,7 @@
 - [Type Systems Implementations in OCaml](https://github.com/tomprimozic/type-systems)
 - [Real World OCaml: Compiler Frontend](https://dev.realworldocaml.org/compiler-frontend.html)
 - [r/ProgrammingLanguages: Common ways of performing type checking](https://www.reddit.com/r/ProgrammingLanguages/comments/87c5dw/what_are_the_common_ways_of_performing/)
+- [Lecture 7: Type Checking](https://www.cse.chalmers.se/edu/year/2011/course/TIN321/lectures/proglang-07.html)
 
 ## Grammar
 
