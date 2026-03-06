@@ -18,3 +18,4 @@ jobs:
       - run: opam install . --deps-only --yes
       - run: opam exec -- dune build
       - run: opam exec -- dune build @fmt
+      - run: opam exec -- dune runtest
