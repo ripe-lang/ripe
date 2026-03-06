@@ -16,6 +16,8 @@ depends: [
   "menhir"
   "ppx_deriving"
   "ocamlformat"
+  "ppx_expect"
+  "ppx_inline_test"
   "odoc" {with-doc}
 ]
 build: [

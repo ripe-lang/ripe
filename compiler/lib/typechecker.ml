@@ -72,7 +72,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
 (* TODO: Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 (* TODO: Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
-  Printf.printf "Comparing %s with %s\n" (show_ty want) (show_ty got);
+  (* Printf.printf "Comparing %s with %s\n" (show_ty want) (show_ty got); *)
   match (want, got) with
   | TPointer _, TNull -> true
   | TPointer a, TPointer b -> compatible a b
@@ -119,25 +119,25 @@ let collect_decl (env : env) (decl : decl) : unit =
 let rec synth (env : env) (e : expr) : Typed_ast.texpr =
   match e with
   | Int n ->
-      Printf.printf "int %d\n" n;
+      (* Printf.printf "int %d\n" n; *)
       Typed_ast.TInt (n, TInt I32)
       (* TODO: Widen based on value magnitude (fall back I32) *)
   | Bool b ->
-      Printf.printf "bool %b\n" b;
+      (* Printf.printf "bool %b\n" b; *)
       Typed_ast.TBool b
   | Null ->
-      print_endline "null";
+      (* print_endline "null"; *)
       Typed_ast.TNull TNull
   | String s ->
-      Printf.printf "string \"%s\"\n" s;
+      (* Printf.printf "string \"%s\"\n" s; *)
       Typed_ast.TString s
   | Char c ->
-      Printf.printf "char: '%c'\n" c;
+      (* Printf.printf "char: '%c'\n" c; *)
       Typed_ast.TChar c
   | Ident name ->
       let t = lookup_var env name in
-      Printf.printf "ident: `%s` (found type: %s)\n" name (show_ty t);
-      Typed_ast.TIdent (name, lookup_var env name)
+      (* Printf.printf "ident: `%s` (found type: %s)\n" name (show_ty t); *)
+      Typed_ast.TIdent (name, t)
   | Call (name, args) ->
       let sig_ = lookup_func env name in
       let targs = check_args env sig_ args in
