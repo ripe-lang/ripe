@@ -2,6 +2,8 @@
 open Ast
 %}
 
+(* TODO: It's going to be a long time before I boot strap this. So I'll probably rewrite this to be a recursive descent parser *)
+
 %token <int>    INT
 %token <string> IDENT
 %token <string> STRING

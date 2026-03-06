@@ -11,17 +11,31 @@ let spec =
   ]
 
 let parse_file filename =
-  (* TODO: make this exception safe *)
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
-  let decls = Ripe.Parser.program Ripe.Lexer.read lexbuf in
-  close_in ic;
+  Lexing.set_filename lexbuf filename;
+  let decls =
+    match Ripe.Parser.program Ripe.Lexer.read lexbuf with
+    | decls ->
+        close_in ic;
+        decls
+    | exception Ripe.Parser.Error ->
+        close_in ic;
+        let pos = lexbuf.lex_curr_p in
+        Printf.eprintf "%s:%d:%d: syntax error\n" pos.pos_fname pos.pos_lnum
+          (pos.pos_cnum - pos.pos_bol);
+        exit 1
+  in
 
   if !dump_ast then
     List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls;
   if !do_typecheck || !emit_qbe || not !dump_ast then
     match Ripe.Typechecker.typecheck decls with
-    | tdecls -> if !do_typecheck then print_endline "typecheck: ok"
+    | tdecls ->
+        if !do_typecheck then print_endline "typecheck: ok"
+        else
+          let il = Ripe.Codegen.emit_qbe tdecls in
+          if !emit_qbe then print_string il
     | exception Ripe.Typechecker.TypeError msg ->
         Printf.eprintf "typecheck error: %s\n" msg;
         exit 1

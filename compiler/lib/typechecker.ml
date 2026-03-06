@@ -102,6 +102,7 @@ let collect_func (env : env) (fd : func_def) : unit =
 
 (* TODO: Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
+(* FIXME: Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
   let field_tys =
     List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields

@@ -15,4 +15,24 @@ let qbe_ty (t : ty) : string =
   | TStruct name -> ":" ^ name
   | TVoid -> assert false
 
-(* let emit_qbe (tdecls : T.tdecl list) : string = *)
+type ctx = { structs : (string, (string * ty) list) Hashtbl.t }
+
+let emit_qbe (tdecls : T.tdecl list) : string =
+  (* Collect struct layouts for offset comp *)
+  let structs = Hashtbl.create 8 in
+  List.iter
+    (function
+      | T.TStruct (name, fields) -> Hashtbl.replace structs name fields
+      | _ -> ())
+    tdecls;
+
+  let _ctx = { structs } in
+
+  Hashtbl.iter
+    (fun name fields ->
+      Printf.printf "struct %s: [%s]\n" name
+        (String.concat ", " (List.map (fun (f, _) -> f) fields)))
+    structs;
+
+  ignore tdecls;
+  ""
