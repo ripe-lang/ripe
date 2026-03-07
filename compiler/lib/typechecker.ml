@@ -100,7 +100,10 @@ let collect_func (env : env) (fd : func_def) : unit =
 
   (* FIXME: Check for duplicate function/extern definitions. Need to fix
      how extern foo() and a local foo() with the same name *)
-  (* Hashtbl.replace env.funcs fd.name { param_tys; ret_ty } *)
+  (* if Hashtbl.mem env.funcs fd.name then
+    raise (TypeError ("function already defined: " ^ fd.name)) *)
+
+  Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
 
 (* TODO: Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
