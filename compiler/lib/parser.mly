@@ -129,6 +129,8 @@ block_stmt:
     { For (name, iter, body) }
   | FOR; init = simple_stmt; SEMI; cond = expr; SEMI; post = expr; body = block
     { CFor (init, cond, post, body) }
+  | body = block
+    { Block body }
 
 expr:
   | n = INT    { Int n }

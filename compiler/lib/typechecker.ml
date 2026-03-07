@@ -10,6 +10,9 @@ exception TypeError of string
 then update collect_decl in the first pass so that they're collected and
 available for other functions *)
 
+(* TODO: I should be allowed to shadow function name with a variable but not
+with another function in the same scope. (same with structs) *)
+
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
@@ -363,6 +366,9 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       if not env.in_loop then
         raise (TypeError "continue statement must be inside a loop");
       (env, Typed_ast.TContinue)
+  | Block stmts ->
+      let _, tstmts = check_stmts env stmts in
+      (env, Typed_ast.TBlock tstmts)
 (* | _ -> failwith ("Statement not yet implemented: " ^ show_stmt s) *)
 
 (* Performance critical since this pass walks every statement *)

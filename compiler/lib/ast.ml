@@ -65,6 +65,7 @@ type stmt =
   | Break
   | Continue
   | Expr of expr
+  | Block of stmt list
 [@@deriving show]
 
 (* kept separate for distinction *)
