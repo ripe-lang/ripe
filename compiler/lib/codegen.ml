@@ -15,7 +15,26 @@ let qbe_ty (t : ty) : string =
   | TStruct name -> ":" ^ name
   | TVoid -> assert false
 
-type ctx = { structs : (string, (string * ty) list) Hashtbl.t }
+type ctx = { structs : (string, (string * ty) list) Hashtbl.t; buf : Buffer.t }
+
+let emit ctx fmt = Printf.bprintf ctx.buf fmt
+
+let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
+  let field_strs =
+    List.map
+      (fun (_, t) ->
+        match t with
+        | TInt (I8 | U8) -> "b"
+        | TInt (I16 | U16) -> "h"
+        | TInt (I32 | U32) | TBool -> "w"
+        (* null is a pointer no type but all pointers are  64-bit *)
+        | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
+        | TStruct sn -> ":" ^ sn
+        (* its nothing. like actually nothing. *)
+        | TVoid -> assert false)
+      fields
+  in
+  emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
 let emit_qbe (tdecls : T.tdecl list) : string =
   (* Collect struct layouts for offset comp *)
@@ -26,13 +45,11 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       | _ -> ())
     tdecls;
 
-  let _ctx = { structs } in
+  let ctx = { structs; buf = Buffer.create 1024 } in
 
-  Hashtbl.iter
-    (fun name fields ->
-      Printf.printf "struct %s: [%s]\n" name
-        (String.concat ", " (List.map (fun (f, _) -> f) fields)))
-    structs;
-
-  ignore tdecls;
-  ""
+  (* Struct type def *)
+  List.iter
+    (function
+      | T.TStruct (name, fields) -> emit_struct_type ctx name fields | _ -> ())
+    tdecls;
+  Buffer.contents ctx.buf
