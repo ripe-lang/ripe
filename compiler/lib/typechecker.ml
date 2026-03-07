@@ -98,12 +98,16 @@ let collect_func (env : env) (fd : func_def) : unit =
   let ret_ty = match fd.ret with Some t -> ty_of_ast env t | None -> TVoid in
   (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
 
-  Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
+  (* FIXME: Check for duplicate function/extern definitions. Need to fix
+     how extern foo() and a local foo() with the same name *)
+  (* Hashtbl.replace env.funcs fd.name { param_tys; ret_ty } *)
 
 (* TODO: Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
 (* FIXME: Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
+  if Hashtbl.mem env.structs sd.name then
+    raise (TypeError ("struct already defined: " ^ sd.name));
   let field_tys =
     List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
   in
