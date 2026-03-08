@@ -1,3 +1,5 @@
+(* SPDX-License-Identifier: GPL-2.0-only *)
+
 (* https://c9x.me/compile/doc/il.html *)
 open Types
 module T = Typed_ast
@@ -18,6 +20,8 @@ let qbe_ty (t : ty) : string =
 type ctx = { structs : (string, (string * ty) list) Hashtbl.t; buf : Buffer.t }
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
+
+(* let emit_func (ctx : ctx) (tfd : T.tfunc_def) = *)
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs =
@@ -52,4 +56,14 @@ let emit_qbe (tdecls : T.tdecl list) : string =
     (function
       | T.TStruct (name, fields) -> emit_struct_type ctx name fields | _ -> ())
     tdecls;
+  (* new line after struct(s) for clean emit output *)
+  let has_structs =
+    List.exists (function T.TStruct _ -> true | _ -> false) tdecls
+  in
+  if has_structs then emit ctx "\n";
+
+  (*function defs (externs no body)  *)
+  (* List.iter(function
+   | T.TFunc tfd -> emit_func ctx tfd | TExtern _ | T.TStruct _ -> ())
+   tdecls; *)
   Buffer.contents ctx.buf
