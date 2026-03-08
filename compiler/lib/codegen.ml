@@ -23,7 +23,6 @@ let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
 (* let emit_func (ctx : ctx) (tfd : T.tfunc_def) = *)
 
-
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs =
     List.map
@@ -63,9 +62,8 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   in
   if has_structs then emit ctx "\n";
 
-   (*function defs (externs no body)  *)
-   (* List.iter(function
+  (*function defs (externs no body)  *)
+  (* List.iter(function
    | T.TFunc tfd -> emit_func ctx tfd | TExtern _ | T.TStruct _ -> ())
    tdecls; *)
-
   Buffer.contents ctx.buf
