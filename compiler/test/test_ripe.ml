@@ -1,3 +1,5 @@
+(* SPDX-License-Identifier: GPL-2.0-only *)
+
 open Ripe.Ast
 
 let run decls =

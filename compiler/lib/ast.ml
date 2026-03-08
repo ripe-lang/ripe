@@ -1,3 +1,5 @@
+(* SPDX-License-Identifier: GPL-2.0-only *)
+
 type typ = Named of string | Pointer of typ [@@deriving show]
 
 type binop =
