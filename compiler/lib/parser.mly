@@ -2,6 +2,8 @@
 open Ast
 %}
 
+(* TODO: It's going to be a long time before I boot strap this. So I'll probably rewrite this to be a recursive descent parser *)
+
 %token <int>    INT
 %token <string> IDENT
 %token <string> STRING
@@ -127,6 +129,8 @@ block_stmt:
     { For (name, iter, body) }
   | FOR; init = simple_stmt; SEMI; cond = expr; SEMI; post = expr; body = block
     { CFor (init, cond, post, body) }
+  | body = block
+    { Block body }
 
 expr:
   | n = INT    { Int n }

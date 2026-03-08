@@ -5,6 +5,12 @@ struct point {
   y: i32
 }
 
+struct point_3d {
+  x: i32,
+  y: i32,
+  z: i32,
+}
+
 add(a: i32, b: i32): i32 {
   return a + b
 }

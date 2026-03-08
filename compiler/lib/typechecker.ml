@@ -10,6 +10,9 @@ exception TypeError of string
 then update collect_decl in the first pass so that they're collected and
 available for other functions *)
 
+(* TODO: I should be allowed to shadow function name with a variable but not
+with another function in the same scope. (same with structs) *)
+
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
@@ -98,11 +101,19 @@ let collect_func (env : env) (fd : func_def) : unit =
   let ret_ty = match fd.ret with Some t -> ty_of_ast env t | None -> TVoid in
   (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
 
+  (* FIXME: Check for duplicate function/extern definitions. Need to fix
+     how extern foo() and a local foo() with the same name *)
+  (* if Hashtbl.mem env.funcs fd.name then
+    raise (TypeError ("function already defined: " ^ fd.name)) *)
+
   Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
 
 (* TODO: Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
+(* FIXME: Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
+  if Hashtbl.mem env.structs sd.name then
+    raise (TypeError ("struct already defined: " ^ sd.name));
   let field_tys =
     List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
   in
@@ -355,6 +366,9 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       if not env.in_loop then
         raise (TypeError "continue statement must be inside a loop");
       (env, Typed_ast.TContinue)
+  | Block stmts ->
+      let _, tstmts = check_stmts env stmts in
+      (env, Typed_ast.TBlock tstmts)
 (* | _ -> failwith ("Statement not yet implemented: " ^ show_stmt s) *)
 
 (* Performance critical since this pass walks every statement *)

@@ -26,6 +26,7 @@ type tstmt =
   | TBreak
   | TContinue
   | TExpr of texpr
+  | TBlock of tstmt list
 
 type tfunc_def = {
   name : string;
