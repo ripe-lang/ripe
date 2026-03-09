@@ -1,4 +1,11 @@
-# Ripe
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_light.png">
+    <img alt="Ripe: A systems programming language"
+         src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_light.png">
+  </picture>
+</div>
 
 A systems programming language.
 
