@@ -75,7 +75,7 @@ and emit_binop ctx op l r t =
   let rv = emit_expr ctx r in
   (* type translation *)
   let qt = qbe_ty t in
-  (* let op_qt = qbe_ty (T.ty_of_texpr l) in *)
+  let op_qt = qbe_ty (T.ty_of_texpr l) in
 
   let tmp = fresh ctx in
   (match op with
@@ -83,6 +83,11 @@ and emit_binop ctx op l r t =
   | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
+  | Ast.Mod -> emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
+  (* https://c9x.me/compile/doc/il.html#Comparisons *)
+  (* TODO: Add a helper to check unsigned*)
+  | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
+  | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
   | _ -> failwith "Not impl");
   tmp
 
