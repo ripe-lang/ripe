@@ -24,6 +24,12 @@ type ctx = {
   tmp : int ref;
 }
 
+(* Get fresh temporaries: %t0, %t1, ... *)
+let fresh ctx =
+  let n = !(ctx.tmp) in
+  incr ctx.tmp;
+  Printf.sprintf "%%t%d" n
+
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
@@ -40,6 +46,25 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       incr ctx.tmp;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
+  | T.TCall (name, args, ret_ty) ->
+      (* recursively emit each arg (nested calls produce temps) *)
+      let arg_strs =
+        List.map
+          (fun a ->
+            Printf.sprintf "%s %s" (qbe_ty (T.ty_of_texpr a)) (emit_expr ctx a))
+          args
+      in
+      if ret_ty = TVoid then (
+        (* void: no result to capture, just emit the call *)
+        emit ctx "    call $%s(%s)\n" name (String.concat ", " arg_strs);
+        "")
+      else
+        (* non-void: capture result in a fresh temporary *)
+        let tmp = fresh ctx in
+        emit ctx "    %s =%s call $%s(%s)\n" tmp (qbe_ty ret_ty) name
+          (String.concat ", " arg_strs);
+        tmp
+  | T.TRange _ -> failwith "TODO: range codegen"
   | _ -> ""
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
