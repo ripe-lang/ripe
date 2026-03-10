@@ -56,14 +56,19 @@ open Ast
 program:
   | list(NEWLINE); decls = list(decl); EOF { decls }
 
+ret_type:
+  | { None }
+  | COLON; t = typ { Some t }
+  | COLON { None }
+
 decl:
   | s = struct_decl { s }
   (* extern name(params): ret with no body *)
   | EXTERN; name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
-    ret = option(preceded(COLON, typ)); list(NEWLINE)
+    ret = ret_type; list(NEWLINE)
     { Extern { name; params; ret; body = [] } }
   | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
-    ret = option(preceded(COLON, typ));
+    ret = ret_type;
     list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
     { Func { name; params; ret; body } }
 

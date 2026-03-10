@@ -1,4 +1,4 @@
-main()
+main(): i32
 {
-  let y: bool = 20
+  let y = 20
 }
