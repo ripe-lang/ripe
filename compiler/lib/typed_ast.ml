@@ -47,7 +47,7 @@ let ty_of_texpr (e : texpr) : ty =
   | TInt (_, t) -> t
   | TBool _ -> TBool
   | TNull t -> t
-  (* TODO: Revisit string/char literal typing for length/safety/etc *)
+  (* TODO: Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig. *)
   | TString _ -> TPointer (TInt I8)
   | TChar _ -> TInt I32
   | TIdent (_, t) -> t
