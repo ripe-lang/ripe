@@ -1,5 +1,4 @@
-main():
+main()
 {
-  let x = "hello"
-  10
+  let x = true || false
 }

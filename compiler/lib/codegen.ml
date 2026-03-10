@@ -95,6 +95,8 @@ and emit_binop ctx op l r t =
   | Ast.Gt -> emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.Lte -> emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.Gte -> emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.And -> emit ctx "    %s =w and %s, %s\n" tmp lv rv
+  | Ast.Or -> emit ctx "    %s =w or %s, %s\n" tmp lv rv
   | _ -> failwith "Not impl");
   tmp
 
