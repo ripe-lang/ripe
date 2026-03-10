@@ -28,6 +28,11 @@ let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   match e with
+  | T.TInt (n, _) -> string_of_int n
+  | T.TBool b -> if b then "1" else "0"
+  | T.TNull _ -> "0"
+  | T.TChar c -> string_of_int (Char.code c)
+  | T.TIdent (name, _) -> "%" ^ name
   (* TODO: TString should become TCStr (null terminated) *)
   (* TSlice (fat pointer {ptr, len}) it would need a second data section *)
   | T.TString s ->
@@ -35,7 +40,6 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       incr ctx.tmp;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
-  | T.TInt (n, _) -> string_of_int n
   | _ -> ""
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
@@ -62,6 +66,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   ctx.tmp := 0;
 
   (* FIXME: main(): with a trailing colon and no return type syntax error *)
+  (* TODO: Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
   (* TODO: Add export for pub(?) *)
