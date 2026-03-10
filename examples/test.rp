@@ -1,4 +1,4 @@
 main()
 {
-  let x = true || false
+  let y: bool = 20
 }
