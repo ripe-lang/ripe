@@ -17,6 +17,10 @@ let qbe_ty (t : ty) : string =
   | TStruct name -> ":" ^ name
   | TVoid -> assert false
 
+(* Returns "u" for unsigned integer types, "s" for signed/other *)
+let signedness (t : ty) : string =
+  match t with TInt (U8 | U16 | U32 | U64) -> "u" | _ -> "s"
+
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
   buf : Buffer.t;
@@ -76,6 +80,7 @@ and emit_binop ctx op l r t =
   (* type translation *)
   let qt = qbe_ty t in
   let op_qt = qbe_ty (T.ty_of_texpr l) in
+  let sign = signedness (T.ty_of_texpr l) in
 
   let tmp = fresh ctx in
   (match op with
@@ -84,10 +89,12 @@ and emit_binop ctx op l r t =
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
   | Ast.Mod -> emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
-  (* https://c9x.me/compile/doc/il.html#Comparisons *)
-  (* TODO: Add a helper to check unsigned*)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
+  | Ast.Lt -> emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Gt -> emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Lte -> emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Gte -> emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
   | _ -> failwith "Not impl");
   tmp
 
