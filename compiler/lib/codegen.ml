@@ -76,6 +76,10 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
+  | T.TExpr e ->
+    (* e.g. standalone function call foo(); *)
+    let _ = emit_expr ctx e in
+    ()
   | _ -> ()
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
