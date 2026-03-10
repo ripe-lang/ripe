@@ -65,8 +65,26 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s call $%s(%s)\n" tmp (qbe_ty ret_ty) name
           (String.concat ", " arg_strs);
         tmp
+  | T.TBinOp (op, l, r, t) -> emit_binop ctx op l r t
   | T.TRange _ -> failwith "TODO: range codegen"
   | _ -> ""
+
+and emit_binop ctx op l r t =
+  (* recursively evaluate *)
+  let lv = emit_expr ctx l in
+  let rv = emit_expr ctx r in
+  (* type translation *)
+  let qt = qbe_ty t in
+  (* let op_qt = qbe_ty (T.ty_of_texpr l) in *)
+
+  let tmp = fresh ctx in
+  (match op with
+  | Ast.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
+  | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
+  | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
+  | Ast.Div -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
+  | _ -> failwith "Not impl");
+  tmp
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s with
