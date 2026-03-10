@@ -70,8 +70,18 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.TBinOp (op, l, r, t) -> emit_binop ctx op l r t
+  | T.TUnOp (op, e, t) -> emit_unop ctx op e t
   | T.TRange _ -> failwith "TODO: range codegen"
   | _ -> ""
+
+and emit_unop ctx op e t =
+  let ev = emit_expr ctx e in
+  let qt = qbe_ty t in
+  let tmp = fresh ctx in
+  (match op with
+  | Ast.Neg -> emit ctx "    %s =%s neg %s\n" tmp qt ev
+  | _ -> failwith "Not impl");
+  tmp
 
 and emit_binop ctx op l r t =
   (* recursively evaluate *)
@@ -97,6 +107,13 @@ and emit_binop ctx op l r t =
   | Ast.Gte -> emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.And -> emit ctx "    %s =w and %s, %s\n" tmp lv rv
   | Ast.Or -> emit ctx "    %s =w or %s, %s\n" tmp lv rv
+  | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
+  | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
+  | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
+  | Ast.Lshift -> emit ctx "    %s =%s shl %s, %s\n" tmp qt lv rv
+  | Ast.Rshift ->
+      let instr = if sign = "s" then "sar" else "shr" in
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | _ -> failwith "Not impl");
   tmp
 
