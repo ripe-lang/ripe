@@ -22,6 +22,7 @@ type ctx = {
   buf : Buffer.t;
   strings : (string * string) list ref;
   tmp : int ref;
+  str_ctr : int ref;
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -42,8 +43,8 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   (* TODO: TString should become TCStr (null terminated) *)
   (* TSlice (fat pointer {ptr, len}) it would need a second data section *)
   | T.TString s ->
-      let lbl = Printf.sprintf "$str%d" !(ctx.tmp) in
-      incr ctx.tmp;
+      let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
+      incr ctx.str_ctr;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
   | T.TCall (name, args, ret_ty) ->
@@ -77,9 +78,9 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
   | T.TExpr e ->
-    (* e.g. standalone function call foo(); *)
-    let _ = emit_expr ctx e in
-    ()
+      (* e.g. standalone function call foo(); *)
+      let _ = emit_expr ctx e in
+      ()
   | _ -> ()
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
@@ -152,7 +153,13 @@ let emit_qbe (tdecls : T.tdecl list) : string =
     tdecls;
 
   let ctx =
-    { structs; buf = Buffer.create 1024; strings = ref []; tmp = ref 0 }
+    {
+      structs;
+      buf = Buffer.create 1024;
+      strings = ref [];
+      tmp = ref 0;
+      str_ctr = ref 0;
+    }
   in
 
   (* Struct type def *)
