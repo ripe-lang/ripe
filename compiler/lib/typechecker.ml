@@ -99,8 +99,12 @@ let collect_func (env : env) (fd : func_def) : unit =
       fd.params
   in
 
-  (* Default to void type when user omits the return type *)
-  let ret_ty = match fd.ret with Some t -> ty_of_ast env t | None -> TVoid in
+  (* Default to void, except main implicitly returns i32 for the C runtime *)
+  let ret_ty =
+    match fd.ret with
+    | Some t -> ty_of_ast env t
+    | None -> if fd.name = "main" then TInt I32 else TVoid
+  in
   (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
 
   (* FIXME: Check for duplicate function/extern definitions. Need to fix
@@ -399,7 +403,11 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
     List.fold_left (fun e (name, t) -> extend_var e name t) env params
   in
 
-  let ret_ty = match fd.ret with Some t -> ty_of_ast env t | None -> TVoid in
+  let ret_ty =
+    match fd.ret with
+    | Some t -> ty_of_ast env t
+    | None -> if fd.name = "main" then TInt I32 else TVoid
+  in
   let body_env = { param_env with ret_ty } in
 
   (* TODO: I need to note "missing return statement" *)

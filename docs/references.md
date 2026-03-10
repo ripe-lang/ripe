@@ -35,3 +35,7 @@
 ## Grammar
 
 - [Python Grammar Reference](https://docs.python.org/3/reference/grammar.html)
+
+## Docs
+
+- [The four kinds of documentation, and why you need to understand what they are](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/)
