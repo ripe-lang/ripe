@@ -243,15 +243,23 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 
 let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
-  let params_strs =
-    List.map
-      (fun (name, t) -> Printf.sprintf "%s %%%s" (qbe_ty t) name)
-      tfd.params
-  in
-  (* print_endline (String.concat ", " params_strs) *)
   (* temporaries and locals are function scoped *)
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
+
+  (* Use temporary names for params to spill them to stack slots *)
+  let param_tmps =
+    List.map
+      (fun (name, t) ->
+        let tmp = fresh ctx in
+        (name, t, tmp))
+      tfd.params
+  in
+  let params_strs =
+    List.map
+      (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
+      param_tmps
+  in
 
   (* FIXME: main(): with a trailing colon and no return type syntax error *)
   (* TODO: Create a custom _start. *)
@@ -261,6 +269,16 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   emit ctx "function %s$%s(%s) {\n" ret_part tfd.name
     (String.concat ", " params_strs);
   emit ctx "@start\n";
+
+  (* Spill params to stack slots so they can be reassigned *)
+  List.iter
+    (fun (name, t, tmp) ->
+      emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
+        (ty_size ctx.structs t);
+      emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
+      Hashtbl.replace ctx.locals name ())
+    param_tmps;
+
   emit_stmts ctx tfd.body;
   let already_returns =
     match List.rev tfd.body with T.TReturn _ :: _ -> true | _ -> false

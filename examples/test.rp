@@ -1,12 +1,10 @@
-struct test {
-  x
+add(a: i32, b: i32): i32 {
+  a = a + b
+  return a
 }
 
-main(): i32
-{
-  var x = 5
-  var y = 0
-  var z = 0
-  z=y=x
-  return z
+main(): i32 {
+  var x = add(3, 4)
+  x = 10
+  return x
 }
