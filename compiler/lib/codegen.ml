@@ -28,6 +28,7 @@ let int_kind_size = function
   | I32 | U32 -> 4
   | I64 | U64 -> 8
 
+(* C ABI alignment and padding rules *)
 (* TODO: Reordering struct fields by alignment to minimize padding  *)
 (* TODO: Add a packed attr to strip padding for exact memory layout *)
 let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
@@ -109,6 +110,12 @@ let fresh ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
   Printf.sprintf "%%t%d" n
+
+(* Fresh label ID but counter is shared *)
+let fresh_id ctx =
+  let n = !(ctx.tmp) in
+  incr ctx.tmp;
+  n
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
@@ -237,6 +244,36 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TExpr e ->
       let _ = emit_expr ctx e in
       ()
+  | T.TFor (name, elem_ty, _iter, body) ->
+      (* TODO: proper range iteration *)
+      let _ = name in
+      let _ = elem_ty in
+      emit_stmts ctx body
+  | T.TIf (branches, else_body) -> (
+      let id = fresh_id ctx in
+      let n = List.length branches in
+      let cond_lbls = List.init n (fun i -> Printf.sprintf "@cond%d_%d" id i) in
+      let then_lbls = List.init n (fun i -> Printf.sprintf "@then%d_%d" id i) in
+      let else_lbl = Printf.sprintf "@else%d" id in
+      let end_lbl = Printf.sprintf "@end%d" id in
+      match branches with
+      | [] -> emit_stmts ctx else_body
+      | _ ->
+          List.iteri
+            (fun i (cond, body) ->
+              let next_lbl =
+                if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
+              in
+              emit ctx "%s\n" (List.nth cond_lbls i);
+              let cv = emit_expr ctx cond in
+              emit ctx "    jnz %s, %s, %s\n" cv (List.nth then_lbls i) next_lbl;
+              emit ctx "%s\n" (List.nth then_lbls i);
+              emit_stmts ctx body;
+              emit ctx "    jmp %s\n" end_lbl)
+            branches;
+          emit ctx "%s\n" else_lbl;
+          emit_stmts ctx else_body;
+          emit ctx "%s\n" end_lbl)
   | T.TBreak | T.TContinue -> () (* TODO: target labels *)
   | _ -> ()
 
@@ -283,6 +320,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   let already_returns =
     match List.rev tfd.body with T.TReturn _ :: _ -> true | _ -> false
   in
+  (* The ret ends the last block *)
   (* TODO: Emit implicit return for non-void functions where the last expression is the return value. *)
   if not already_returns then
     if is_main then emit ctx "    ret 0\n"
