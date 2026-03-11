@@ -1,5 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
+(* TODO:  need a total rewrite of this once *)
+
 let dump_ast = ref false
 let do_typecheck = ref false
 let emit_qbe = ref false

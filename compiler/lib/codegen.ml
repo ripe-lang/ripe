@@ -21,8 +21,54 @@ let qbe_ty (t : ty) : string =
 let signedness (t : ty) : string =
   match t with TInt (U8 | U16 | U32 | U64) -> "u" | _ -> "s"
 
+(* byte size of each integer kind: bit width / 8 *)
+let int_kind_size = function
+  | I8 | U8 -> 1
+  | I16 | U16 -> 2
+  | I32 | U32 -> 4
+  | I64 | U64 -> 8
+
+(* TODO: band aid approach for now for adding everything up. I need to consider how structs are aligned/padding *)
+let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
+    int =
+  match t with
+  | TInt k -> int_kind_size k
+  | TBool -> 1
+  | TPointer _ | TNull | TString -> 8
+  | TVoid -> 0
+  | TStruct name -> (
+      match Hashtbl.find_opt structs name with
+      | Some fields ->
+          List.fold_left (fun acc (_, ft) -> acc + ty_size structs ft) 0 fields
+      | None -> 0)
+
+(* TODO: maybe look into escape analysis *)
+let alloc_instr (t : ty) : string =
+  match t with
+  | TInt (I64 | U64) | TPointer _ | TNull | TString | TStruct _ -> "alloc8"
+  | _ -> "alloc4"
+
+let qbe_load (t : ty) : string =
+  match t with
+  | TInt I8 -> "loadsb"
+  | TInt U8 | TBool -> "loadub"
+  | TInt I16 -> "loadsh"
+  | TInt U16 -> "loaduh"
+  | TInt (I32 | U32) -> "loadsw"
+  | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
+  | TStruct _ | TVoid -> assert false
+
+let qbe_store (t : ty) : string =
+  match t with
+  | TInt (I8 | U8) | TBool -> "storeb"
+  | TInt (I16 | U16) -> "storeh"
+  | TInt (I32 | U32) -> "storew"
+  | TInt (I64 | U64) | TPointer _ | TNull | TString -> "storel"
+  | TStruct _ | TVoid -> assert false
+
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
+  locals : (string, unit) Hashtbl.t;
   buf : Buffer.t;
   strings : (string * string) list ref;
   tmp : int ref;
@@ -43,7 +89,12 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBool b -> if b then "1" else "0"
   | T.TNull _ -> "0"
   | T.TChar c -> string_of_int (Char.code c)
-  | T.TIdent (name, _) -> "%" ^ name
+  | T.TIdent (name, t) ->
+      if Hashtbl.mem ctx.locals name then (
+        let tmp = fresh ctx in
+        emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) name;
+        tmp)
+      else "%" ^ name
   (* TODO: TString should become TCStr (null terminated) *)
   (* TSlice (fat pointer {ptr, len}) it would need a second data section *)
   | T.TString s ->
@@ -84,6 +135,7 @@ and emit_unop ctx op e t =
   tmp
 
 and emit_binop ctx op l r t =
+  (* TODO: avoid evaluating lv for Assign, it emits a dead load *)
   (* recursively evaluate *)
   let lv = emit_expr ctx l in
   let rv = emit_expr ctx r in
@@ -117,10 +169,13 @@ and emit_binop ctx op l r t =
   (* x = rhs *)
   | Ast.Assign -> (
       match l with
+      | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
+          emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name;
+          emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty lt) (qbe_load lt) name
       | T.TIdent (name, _) ->
           emit ctx "    %%%s =%s copy %s\n" name qt rv;
           emit ctx "    %s =%s copy %%%s\n" tmp qt name
-      | _ -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv)
+      | _ -> emit ctx "    %s =%s copy %s\n" tmp qt rv)
   (* x += rhs -> x = x + rhs *)
   (* | Ast.AddAssign -> (
       match l with
@@ -136,19 +191,20 @@ and emit_binop ctx op l r t =
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s with
   | T.TLet (name, t, e) | T.TVar (name, t, e) ->
+      (* stack slot sized by type (struct sizes resolved from context) *)
+      emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
+        (ty_size ctx.structs t);
+      Hashtbl.replace ctx.locals name ();
       let v = emit_expr ctx e in
-      emit ctx "    %%%s =%s copy %s\n" name (qbe_ty t) v
+      emit ctx "    %s %s, %%%s\n" (qbe_store t) v name
   | T.TReturn None -> emit ctx "    ret\n"
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
-  (* FIXME: fixes simple variable assignment but other assignment forms still generate dead copies (band aid for now) *)
-  | T.TExpr (T.TBinOp (Ast.Assign, T.TIdent (name, _), r, t)) ->
-      let rv = emit_expr ctx r in
-      emit ctx "    %%%s =%s copy %s\n" name (qbe_ty t) rv
   | T.TExpr e ->
       let _ = emit_expr ctx e in
       ()
+  | T.TBreak | T.TContinue -> () (* TODO: target labels *)
   | _ -> ()
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
@@ -160,8 +216,9 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
       tfd.params
   in
   (* print_endline (String.concat ", " params_strs) *)
-  (* reset temporaries *)
+  (* temporaries and locals are function scoped *)
   ctx.tmp := 0;
+  Hashtbl.clear ctx.locals;
 
   (* FIXME: main(): with a trailing colon and no return type syntax error *)
   (* TODO: Create a custom _start. *)
@@ -188,7 +245,8 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
         match t with
         | TInt (I8 | U8) -> "b"
         | TInt (I16 | U16) -> "h"
-        | TInt (I32 | U32) | TBool -> "w"
+        | TInt (I32 | U32) -> "w"
+        | TBool -> "b"
         (* null is a pointer no type but all pointers are  64-bit *)
         | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
         | TStruct sn -> ":" ^ sn
@@ -223,6 +281,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   let ctx =
     {
       structs;
+      locals = Hashtbl.create 16;
       buf = Buffer.create 1024;
       strings = ref [];
       tmp = ref 0;

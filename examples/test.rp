@@ -1,5 +1,8 @@
 main(): i32
 {
-  let x = 0
-  x += 5
+  var x = 5
+  var y = 0
+  var z = 0
+  z=y=x
+  return z
 }
