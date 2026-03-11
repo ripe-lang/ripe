@@ -56,6 +56,7 @@ type expr =
   | SizeOf of typ
 [@@deriving show]
 
+(* TODO: Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt =
   | Let of string * typ option * expr
   | Var of string * typ option * expr

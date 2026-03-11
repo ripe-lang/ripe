@@ -175,14 +175,27 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
-  let te = synth env e in
-  let got = Typed_ast.ty_of_texpr te in
-  if not (compatible want got) then
-    raise
-      (TypeError
-         (Printf.sprintf "type mismatch: expected %s, got %s" (show_ty want)
-            (show_ty got)));
-  te
+  match e with
+  | Int n -> (
+      (* TODO: Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
+      match want with
+      | TInt _ -> Typed_ast.TInt (n, want)
+      (* want is not an integer type at all e.g. let y: bool = 20 *)
+      | _ ->
+          raise
+            (TypeError
+               (Printf.sprintf "type mismatch: expected %s, got (TInt I32)"
+                  (show_ty want))))
+  (* not a flexible literal, just check it matches want *)
+  | _ ->
+      let te = synth env e in
+      let got = Typed_ast.ty_of_texpr te in
+      if not (compatible want got) then
+        raise
+          (TypeError
+             (Printf.sprintf "type mismatch: expected %s, got %s" (show_ty want)
+                (show_ty got)));
+      te
 
 and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     Typed_ast.texpr list =

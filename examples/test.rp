@@ -1,5 +1,5 @@
-main():
+main(): i32
 {
-  let x = "hello"
-  10
+  let x = 0
+  x += 5
 }
