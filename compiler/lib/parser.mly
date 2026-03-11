@@ -51,8 +51,6 @@ open Ast
 
 %%
 
-(* FIXME: newlines break multiline expressions in () *)
-
 program:
   | list(NEWLINE); decls = list(decl); EOF { decls }
 

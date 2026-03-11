@@ -18,6 +18,7 @@ let parse_file filename =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
   Lexing.set_filename lexbuf filename;
+  Ripe.Lexer.paren_depth := 0;
   let decls =
     match Ripe.Parser.program Ripe.Lexer.read lexbuf with
     | decls ->
