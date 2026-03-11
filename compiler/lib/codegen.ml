@@ -54,7 +54,8 @@ let qbe_load (t : ty) : string =
   | TInt U8 | TBool -> "loadub"
   | TInt I16 -> "loadsh"
   | TInt U16 -> "loaduh"
-  | TInt (I32 | U32) -> "loadsw"
+  | TInt I32 -> "loadsw"
+  | TInt U32 -> "loaduw"
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
   | TStruct _ | TVoid -> assert false
 
