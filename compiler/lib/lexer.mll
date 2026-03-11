@@ -9,6 +9,10 @@ let next_line lexbuf =
   Lexing.new_line lexbuf
 
 let buf = Buffer.create 64 (* auto buffer resize *)
+
+(* FIXME: fixes multiline expressions in () but 
+  new error w/ newlines forever on unclosed parens *)
+let paren_depth = ref 0
 }
 
 let digit   = ['0'-'9']
@@ -20,7 +24,9 @@ let newline = '\r' | '\n' | "\r\n"
 rule read = parse
   | white              { read lexbuf }
   | '#' [^ '\n' '\r']* { read lexbuf }
-  | newline            { next_line lexbuf; NEWLINE }
+  | newline            { next_line lexbuf;
+                         if !paren_depth > 0 then read lexbuf
+                         else NEWLINE }
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {
       match s with
@@ -73,8 +79,8 @@ rule read = parse
   | '.'  { DOT }
   | ';'  { SEMI }
   | '='  { ASSIGN }
-  | '('  { LPAREN }
-  | ')'  { RPAREN }
+  | '('  { incr paren_depth; LPAREN }
+  | ')'  { decr paren_depth; RPAREN }
   | '{'  { LBRACE }
   | '}'  { RBRACE }
   | ':'  { COLON }
