@@ -149,8 +149,12 @@ and emit_binop ctx op l r t =
   | Ast.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
   | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
-  | Ast.Div -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
-  | Ast.Mod -> emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
+  | Ast.Div ->
+      let instr = if sign = "u" then "udiv" else "div" in
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+  | Ast.Mod ->
+      let instr = if sign = "u" then "urem" else "rem" in
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
   | Ast.Lt -> emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
