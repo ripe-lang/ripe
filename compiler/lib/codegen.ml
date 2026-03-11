@@ -114,6 +114,22 @@ and emit_binop ctx op l r t =
   | Ast.Rshift ->
       let instr = if sign = "s" then "sar" else "shr" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+  (* x = rhs *)
+  | Ast.Assign -> (
+      match l with
+      | T.TIdent (name, _) ->
+          emit ctx "    %%%s =%s copy %s\n" name qt rv;
+          emit ctx "    %s =%s copy %%%s\n" tmp qt name
+      | _ -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv)
+  (* x += rhs -> x = x + rhs *)
+  (* | Ast.AddAssign -> (
+      match l with
+      | T.TIdent (name, _) ->
+          emit ctx "    %%%s =%s add %%%s, %s\n" name qt name rv;
+          emit ctx "    %s =%s copy %%%s\n" tmp qt name
+      | _ -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv) *)
+  (* TODO: I'll come back to the compound ops since I have to deal with
+  field access, etc foo.bar += 1? *)
   | _ -> failwith "Not impl");
   tmp
 
@@ -126,8 +142,11 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
+  (* FIXME: fixes simple variable assignment but other assignment forms still generate dead copies (band aid for now) *)
+  | T.TExpr (T.TBinOp (Ast.Assign, T.TIdent (name, _), r, t)) ->
+      let rv = emit_expr ctx r in
+      emit ctx "    %%%s =%s copy %s\n" name (qbe_ty t) rv
   | T.TExpr e ->
-      (* e.g. standalone function call foo(); *)
       let _ = emit_expr ctx e in
       ()
   | _ -> ()
