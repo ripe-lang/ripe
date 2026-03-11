@@ -156,9 +156,11 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s call $%s(%s)\n" tmp (qbe_ty ret_ty) name
           (String.concat ", " arg_strs);
         tmp
+  | T.TBinOp (Ast.Assign, l, r, t) -> emit_assign ctx l r t
   | T.TBinOp (op, l, r, t) -> emit_binop ctx op l r t
   | T.TUnOp (op, e, t) -> emit_unop ctx op e t
   | T.TRange _ -> failwith "TODO: range codegen"
+  | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   | _ -> ""
 
 and emit_unop ctx op e t =
@@ -170,8 +172,18 @@ and emit_unop ctx op e t =
   | _ -> failwith "Not impl");
   tmp
 
+(* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
+and emit_assign ctx l r _t =
+  let rv = emit_expr ctx r in
+  (match l with
+  | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
+      emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name
+  | T.TIdent (name, _) ->
+      emit ctx "    %%%s =%s copy %s\n" name (qbe_ty (T.ty_of_texpr r)) rv
+  | _ -> ());
+  rv
+
 and emit_binop ctx op l r t =
-  (* TODO: avoid evaluating lv for Assign, it emits a dead load *)
   (* recursively evaluate *)
   let lv = emit_expr ctx l in
   let rv = emit_expr ctx r in
@@ -206,25 +218,6 @@ and emit_binop ctx op l r t =
   | Ast.Rshift ->
       let instr = if sign = "s" then "sar" else "shr" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
-  (* x = rhs *)
-  | Ast.Assign -> (
-      match l with
-      | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
-          emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name;
-          emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty lt) (qbe_load lt) name
-      | T.TIdent (name, _) ->
-          emit ctx "    %%%s =%s copy %s\n" name qt rv;
-          emit ctx "    %s =%s copy %%%s\n" tmp qt name
-      | _ -> emit ctx "    %s =%s copy %s\n" tmp qt rv)
-  (* x += rhs -> x = x + rhs *)
-  (* | Ast.AddAssign -> (
-      match l with
-      | T.TIdent (name, _) ->
-          emit ctx "    %%%s =%s add %%%s, %s\n" name qt name rv;
-          emit ctx "    %s =%s copy %%%s\n" tmp qt name
-      | _ -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv) *)
-  (* TODO: I'll come back to the compound ops since I have to deal with
-  field access, etc foo.bar += 1? *)
   | _ -> failwith "Not impl");
   tmp
 
@@ -241,6 +234,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
+  (* TODO: emit_expr in statement position emits dead loads for idents *)
   | T.TExpr e ->
       let _ = emit_expr ctx e in
       ()
@@ -252,10 +246,10 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
-      let cond_lbls = List.init n (fun i -> Printf.sprintf "@cond%d_%d" id i) in
-      let then_lbls = List.init n (fun i -> Printf.sprintf "@then%d_%d" id i) in
-      let else_lbl = Printf.sprintf "@else%d" id in
-      let end_lbl = Printf.sprintf "@end%d" id in
+      let cond_lbls = List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i) in
+      let then_lbls = List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i) in
+      let else_lbl = Printf.sprintf "@if.else%d" id in
+      let end_lbl = Printf.sprintf "@if.end%d" id in
       match branches with
       | [] -> emit_stmts ctx else_body
       | _ ->
@@ -275,6 +269,21 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit_stmts ctx else_body;
           emit ctx "%s\n" end_lbl)
   | T.TBreak | T.TContinue -> () (* TODO: target labels *)
+  | T.TCFor (init, cond, post, body) ->
+      let id = fresh_id ctx in
+      let test_lbl = Printf.sprintf "@for.cond%d" id in
+      let body_lbl = Printf.sprintf "@for.body%d" id in
+      let end_lbl = Printf.sprintf "@for.end%d" id in
+      emit_stmt ctx init;
+      emit ctx "%s\n" test_lbl;
+      let cv = emit_expr ctx cond in
+      emit ctx "    jnz %s, %s, %s\n" cv body_lbl end_lbl;
+      emit ctx "%s\n" body_lbl;
+      emit_stmts ctx body;
+      let _ = emit_expr ctx post in
+      ();
+      emit ctx "    jmp %s\n" test_lbl;
+      emit ctx "%s\n" end_lbl
   | _ -> ()
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
