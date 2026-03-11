@@ -28,18 +28,46 @@ let int_kind_size = function
   | I32 | U32 -> 4
   | I64 | U64 -> 8
 
-(* TODO: band aid approach for now for adding everything up. I need to consider how structs are aligned/padding *)
+(* TODO: Reordering struct fields by alignment to minimize padding  *)
+(* TODO: Add a packed attr to strip padding for exact memory layout *)
+let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
+    int =
+  match t with
+  | TInt k -> int_kind_size k
+  | TBool -> 1
+  | TPointer _ | TNull | TString -> 8
+  | TVoid -> assert false
+  | TStruct name -> (
+      match Hashtbl.find_opt structs name with
+      | Some fields ->
+          List.fold_left
+            (fun acc (_, ft) -> max acc (ty_align structs ft))
+            1 fields
+      | None -> assert false)
+
+(* n and a must be non-negative *)
+let align_to n a = (n + a - 1) / a * a
+
 let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
   match t with
   | TInt k -> int_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TString -> 8
-  | TVoid -> 0
+  | TVoid -> assert false
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
-          List.fold_left (fun acc (_, ft) -> acc + ty_size structs ft) 0 fields
+          let struct_align = ty_align structs t in
+          let offset =
+            List.fold_left
+              (fun off (_, ft) ->
+                let a = ty_align structs ft in
+                let off = align_to off a in
+                off + ty_size structs ft)
+              0 fields
+          in
+          align_to offset struct_align
       | None -> 0)
 
 (* TODO: maybe look into escape analysis *)
@@ -54,7 +82,8 @@ let qbe_load (t : ty) : string =
   | TInt U8 | TBool -> "loadub"
   | TInt I16 -> "loadsh"
   | TInt U16 -> "loaduh"
-  | TInt (I32 | U32) -> "loadsw"
+  | TInt I32 -> "loadsw"
+  | TInt U32 -> "loaduw"
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
   | TStruct _ | TVoid -> assert false
 
@@ -149,8 +178,12 @@ and emit_binop ctx op l r t =
   | Ast.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
   | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
-  | Ast.Div -> emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
-  | Ast.Mod -> emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
+  | Ast.Div ->
+      let instr = if sign = "u" then "udiv" else "div" in
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+  | Ast.Mod ->
+      let instr = if sign = "u" then "urem" else "rem" in
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
   | Ast.Lt -> emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
@@ -210,15 +243,23 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 
 let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
-  let params_strs =
-    List.map
-      (fun (name, t) -> Printf.sprintf "%s %%%s" (qbe_ty t) name)
-      tfd.params
-  in
-  (* print_endline (String.concat ", " params_strs) *)
   (* temporaries and locals are function scoped *)
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
+
+  (* Use temporary names for params to spill them to stack slots *)
+  let param_tmps =
+    List.map
+      (fun (name, t) ->
+        let tmp = fresh ctx in
+        (name, t, tmp))
+      tfd.params
+  in
+  let params_strs =
+    List.map
+      (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
+      param_tmps
+  in
 
   (* FIXME: main(): with a trailing colon and no return type syntax error *)
   (* TODO: Create a custom _start. *)
@@ -228,6 +269,16 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   emit ctx "function %s$%s(%s) {\n" ret_part tfd.name
     (String.concat ", " params_strs);
   emit ctx "@start\n";
+
+  (* Spill params to stack slots so they can be reassigned *)
+  List.iter
+    (fun (name, t, tmp) ->
+      emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
+        (ty_size ctx.structs t);
+      emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
+      Hashtbl.replace ctx.locals name ())
+    param_tmps;
+
   emit_stmts ctx tfd.body;
   let already_returns =
     match List.rev tfd.body with T.TReturn _ :: _ -> true | _ -> false

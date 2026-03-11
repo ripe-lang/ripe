@@ -120,6 +120,7 @@ let collect_func (env : env) (fd : func_def) : unit =
 let collect_struct (env : env) (sd : struct_def) : unit =
   if Hashtbl.mem env.structs sd.name then
     raise (TypeError ("struct already defined: " ^ sd.name));
+  (* TODO: Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
   let field_tys =
     List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
   in
