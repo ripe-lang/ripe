@@ -281,7 +281,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
       (* TODO: restrict to integer *)
   | PreInc | PreDec | PostInc | PostDec ->
-      (* FIXME: should ++/-- be a statement to avoid to be more explicit? *)
+      (* TODO: ++/-- should only be valid as statements, not expressions *)
       (* TODO: requires an lvalue too *)
       let te = synth env e in
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
