@@ -1,8 +1,22 @@
+extern printf(s: ^i8): i32
+
 main(): i32
 {
-  var x = 5
-  var y = 0
-  var z = 0
-  z=y=x
-  return z
+  let x = 10
+
+  if x > 20 {
+    printf("x > 20\n")
+  } elseif x > 5 {
+    if x > 15 {
+      printf("x > 15\n")
+    } elseif x > 8 {
+      printf("x > 8\n")
+    } else {
+      printf("x > 5\n")
+    }
+  } else {
+    printf("x <= 5\n")
+  }
+
+  return 0
 }
