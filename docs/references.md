@@ -36,6 +36,12 @@
 
 - [Python Grammar Reference](https://docs.python.org/3/reference/grammar.html)
 
+## Struct Layout
+
+- [The Lost Art of Structure Packing Eric S. Raymond](http://www.catb.org/esr/structure-packing/)
+- [Structure Padding and Packing DevTut](https://devtut.github.io/c/structure-padding-and-packing.html)
+- [Structure Member Alignment, Padding and Data Packing GeeksforGeeks](https://www.geeksforgeeks.org/c/structure-member-alignment-padding-and-data-packing/)
+
 ## Docs
 
 - [The four kinds of documentation, and why you need to understand what they are](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/)

@@ -1,7 +1,12 @@
+struct test {
+  x
+}
+
 main(): i32
 {
-  var x: i32 = 5
-  var y: i32 = 1
-  x = x % y
-  return x
+  var x = 5
+  var y = 0
+  var z = 0
+  z=y=x
+  return z
 }

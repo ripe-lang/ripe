@@ -28,18 +28,46 @@ let int_kind_size = function
   | I32 | U32 -> 4
   | I64 | U64 -> 8
 
-(* TODO: band aid approach for now for adding everything up. I need to consider how structs are aligned/padding *)
+(* TODO: Reordering struct fields by alignment to minimize padding  *)
+(* TODO: Add a packed attr to strip padding for exact memory layout *)
+let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
+    int =
+  match t with
+  | TInt k -> int_kind_size k
+  | TBool -> 1
+  | TPointer _ | TNull | TString -> 8
+  | TVoid -> assert false
+  | TStruct name -> (
+      match Hashtbl.find_opt structs name with
+      | Some fields ->
+          List.fold_left
+            (fun acc (_, ft) -> max acc (ty_align structs ft))
+            1 fields
+      | None -> assert false)
+
+(* n and a must be non-negative *)
+let align_to n a = (n + a - 1) / a * a
+
 let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
   match t with
   | TInt k -> int_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TString -> 8
-  | TVoid -> 0
+  | TVoid -> assert false
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
-          List.fold_left (fun acc (_, ft) -> acc + ty_size structs ft) 0 fields
+          let struct_align = ty_align structs t in
+          let offset =
+            List.fold_left
+              (fun off (_, ft) ->
+                let a = ty_align structs ft in
+                let off = align_to off a in
+                off + ty_size structs ft)
+              0 fields
+          in
+          align_to offset struct_align
       | None -> 0)
 
 (* TODO: maybe look into escape analysis *)
