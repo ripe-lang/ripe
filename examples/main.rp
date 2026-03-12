@@ -1,12 +1,8 @@
-struct point {
-  x: i32,
-  y: i32
-}
-
-add_point(p: point): i32 {
-  return p.x + p.y
-}
-
-add_point_ptr(p: ^point): i32 {
-  return p^.x + p^.y
+main() {
+  let x = 5
+  {
+    let y = 10
+    x = y
+  }
+  return x
 }
