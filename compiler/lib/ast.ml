@@ -79,7 +79,9 @@ type modifier = Pub | Inline [@@deriving show]
 
 (* kept separate for distinction *)
 type param = { name : string; typ : typ } [@@deriving show]
-type field = { name : string; typ : typ; modifiers : modifier list } [@@deriving show]
+
+type field = { name : string; typ : typ; modifiers : modifier list }
+[@@deriving show]
 
 (* TODO: add array types *)
 type func_def = {
@@ -91,7 +93,11 @@ type func_def = {
 }
 [@@deriving show]
 
-type struct_def = { name : string; fields : field list; modifiers : modifier list }
+type struct_def = {
+  name : string;
+  fields : field list;
+  modifiers : modifier list;
+}
 [@@deriving show]
 
 type decl = Func of func_def | Struct of struct_def | Extern of func_def

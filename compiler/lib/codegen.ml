@@ -514,8 +514,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   let structs = Hashtbl.create 8 in
   List.iter
     (function
-      | T.TStruct (name, fields, _) ->
-          Hashtbl.replace structs name fields
+      | T.TStruct (name, fields, _) -> Hashtbl.replace structs name fields
       | _ -> ())
     tdecls;
 
@@ -534,8 +533,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   (* TODO: enforce pub visibility on struct fields *)
   List.iter
     (function
-      | T.TStruct (name, fields, _) ->
-          emit_struct_type ctx name fields
+      | T.TStruct (name, fields, _) -> emit_struct_type ctx name fields
       | _ -> ())
     tdecls;
   (* new line after struct(s) for clean emit output *)
