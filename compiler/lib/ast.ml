@@ -42,6 +42,7 @@ type unop =
 
 type expr =
   | Int of int
+  | Float of float
   | Bool of bool
   | Null
   | Char of char

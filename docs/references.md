@@ -42,6 +42,12 @@
 - [Structure Padding and Packing DevTut](https://devtut.github.io/c/structure-padding-and-packing.html)
 - [Structure Member Alignment, Padding and Data Packing GeeksforGeeks](https://www.geeksforgeeks.org/c/structure-member-alignment-padding-and-data-packing/)
 
+## Floating Point
+
+- [IEEE 754 Wikipedia](https://en.wikipedia.org/wiki/IEEE_754)
+- [What Every Computer Scientist Should Know About Floating-Point Arithmetic David Goldberg (1991)](https://www.itu.dk/~sestoft/bachelor/IEEE754_article.pdf)
+- [C Numeric Limits (FLT_DECIMAL_DIG, DBL_DECIMAL_DIG) cppreference](https://en.cppreference.com/w/c/types/limits.html)
+
 ## Docs
 
 - [The four kinds of documentation, and why you need to understand what they are](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/)

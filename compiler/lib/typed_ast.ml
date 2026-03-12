@@ -4,6 +4,7 @@ open Types
 
 type texpr =
   | TInt of int * ty
+  | TFloat of float * ty
   | TBool of bool
   | TNull of ty
   | TString of string
@@ -45,6 +46,7 @@ type tdecl =
 let ty_of_texpr (e : texpr) : ty =
   match e with
   | TInt (_, t) -> t
+  | TFloat (_, t) -> t
   | TBool _ -> TBool
   | TNull t -> t
   (* TODO: Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig. *)

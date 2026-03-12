@@ -27,6 +27,7 @@ rule read = parse
   | newline            { next_line lexbuf;
                          if !paren_depth > 0 then read lexbuf
                          else NEWLINE }
+  | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {
       match s with

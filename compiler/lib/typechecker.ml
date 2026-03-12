@@ -67,6 +67,8 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named "u16" -> TInt U16
   | Named "u32" -> TInt U32
   | Named "u64" -> TInt U64
+  | Named "f32" -> TFloat F32
+  | Named "f64" -> TFloat F64
   | Named "bool" -> TBool
   | Named name ->
       if Hashtbl.mem env.structs name then TStruct name
@@ -140,6 +142,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       (* Printf.printf "int %d\n" n; *)
       Typed_ast.TInt (n, TInt I32)
       (* TODO: Widen based on value magnitude (fall back I32) *)
+  | Float f -> Typed_ast.TFloat (f, TFloat F64)
   | Bool b ->
       (* Printf.printf "bool %b\n" b; *)
       Typed_ast.TBool b
@@ -186,6 +189,14 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
           raise
             (TypeError
                (Printf.sprintf "type mismatch: expected %s, got (TInt I32)"
+                  (show_ty want))))
+  | Float f -> (
+      match want with
+      | TFloat _ -> Typed_ast.TFloat (f, want)
+      | _ ->
+          raise
+            (TypeError
+               (Printf.sprintf "type mismatch: expected %s, got (TFloat F64)"
                   (show_ty want))))
   (* not a flexible literal, just check it matches want *)
   | _ ->
