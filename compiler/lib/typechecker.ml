@@ -175,6 +175,18 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let ta = synth env a in
       let tb = synth env b in
       Typed_ast.TRange (ta, tb)
+  | InterpString parts ->
+      let tparts =
+        List.map
+          (fun (p : interp_part) ->
+            match p with
+            | Lit s -> Typed_ast.TLit s
+            | Interp e ->
+                let te = synth env e in
+                Typed_ast.TInterp te)
+          parts
+      in
+      Typed_ast.TInterpString tparts
 (* | _ -> failwith ("Expression not yet implemented: " ^ show_expr e) *)
 
 (* MUST be this type *)
@@ -448,7 +460,13 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
   (* TODO: I need to note "missing return statement" *)
   let _, tbody = check_stmts body_env fd.body in
 
-  { Typed_ast.name = fd.name; params; ret_ty; body = tbody }
+  {
+    Typed_ast.name = fd.name;
+    params;
+    ret_ty;
+    body = tbody;
+    modifiers = fd.modifiers;
+  }
 
 let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
   match decl with
@@ -460,7 +478,7 @@ let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
       Typed_ast.TExtern tfd
   | Struct sd ->
       let info = lookup_struct env sd.name in
-      Typed_ast.TStruct (sd.name, info.field_tys)
+      Typed_ast.TStruct (sd.name, info.field_tys, sd.modifiers)
 (* | _ -> failwith "Declaration not supported yet" *)
 (* TODO: I need to think about global variables *)
 

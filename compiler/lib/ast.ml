@@ -40,7 +40,9 @@ type unop =
   | AddressOf
 [@@deriving show]
 
-type expr =
+type interp_part = Lit of string | Interp of expr [@@deriving show]
+
+and expr =
   | Int of int
   | Float of float
   | Bool of bool
@@ -55,6 +57,7 @@ type expr =
   | FieldAccess of expr * string
   | Cast of expr * typ
   | SizeOf of typ
+  | InterpString of interp_part list
 [@@deriving show]
 
 (* TODO: Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
@@ -72,9 +75,13 @@ type stmt =
   | Block of stmt list
 [@@deriving show]
 
+type modifier = Pub | Inline [@@deriving show]
+
 (* kept separate for distinction *)
 type param = { name : string; typ : typ } [@@deriving show]
-type field = { name : string; typ : typ } [@@deriving show]
+
+type field = { name : string; typ : typ; modifiers : modifier list }
+[@@deriving show]
 
 (* TODO: add array types *)
 type func_def = {
@@ -82,10 +89,16 @@ type func_def = {
   params : param list;
   ret : typ option;
   body : stmt list;
+  modifiers : modifier list;
 }
 [@@deriving show]
 
-type struct_def = { name : string; fields : field list } [@@deriving show]
+type struct_def = {
+  name : string;
+  fields : field list;
+  modifiers : modifier list;
+}
+[@@deriving show]
 
 type decl = Func of func_def | Struct of struct_def | Extern of func_def
 [@@deriving show]

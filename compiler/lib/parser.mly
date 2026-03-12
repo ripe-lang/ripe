@@ -9,7 +9,8 @@ open Ast
 %token <int>    INT
 %token <float>  FLOAT
 %token <string> IDENT
-%token <string> STRING
+%token <string> STRING_PART
+%token STRING_START STRING_END INTERP_START INTERP_END
 %token PLUS MINUS STAR SLASH PERCENT
 %token EQ NEQ LT GT LTE GTE
 %token LSHIFT RSHIFT
@@ -20,7 +21,7 @@ open Ast
 %token LET VAR RETURN
 %token IF ELSEIF ELSE WHILE FOR IN
 %token BREAK CONTINUE
-%token STRUCT EXTERN
+%token STRUCT EXTERN INLINE PUBLIC
 %token CARET AT
 %token TRUE FALSE NULL
 %token AS SIZEOF
@@ -60,22 +61,29 @@ ret_type:
   | COLON; t = typ { Some t }
   | COLON { None }
 
+modifier:
+  | PUBLIC { Pub }
+  | INLINE { Inline }
+
 decl:
-  | s = struct_decl { s }
+  | mods = list(modifier); s = struct_decl
+    { match s with Struct sd -> Struct { sd with modifiers = mods } | d -> d }
   (* extern name(params): ret with no body *)
   | EXTERN; name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
     ret = ret_type; list(NEWLINE)
-    { Extern { name; params; ret; body = [] } }
-  | name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
+    { Extern { name; params; ret; body = []; modifiers = [] } }
+  (* [modifiers] name(...) { ... } *)
+  | mods = list(modifier); name = IDENT; LPAREN; params = separated_list(COMMA, param); RPAREN;
     ret = ret_type;
     list(NEWLINE); LBRACE; list(NEWLINE); body = stmts; RBRACE; list(NEWLINE)
-    { Func { name; params; ret; body } }
+    { Func { name; params; ret; body; modifiers = mods } }
 
 param:
   | name = IDENT; COLON; t = typ { ({ name; typ = t } : Ast.param) }
 
 field:
-  | name = IDENT; COLON; t = typ { ({ name; typ = t } : Ast.field) }
+  | mods = list(modifier); name = IDENT; COLON; t = typ
+    { ({ name; typ = t; modifiers = mods } : Ast.field) }
 
 nonempty_fields:
   (* last field, no trailing comma *)
@@ -86,14 +94,14 @@ nonempty_fields:
   | f = field; COMMA; list(NEWLINE); rest = nonempty_fields      { f :: rest }
 
 struct_decl:
-  (* empty struct: STRUCT name { } *)
+  (* empty struct: struct name { } *)
   | STRUCT; name = IDENT; list(NEWLINE);
     LBRACE; list(NEWLINE); RBRACE; list(NEWLINE)
-    { Struct { name; fields = [] } }
-  (* non-empty struct: STRUCT name { fields } *)
+    { Struct { name; fields = []; modifiers = [] } }
+  (* non-empty struct: struct name { fields } *)
   | STRUCT; name = IDENT; list(NEWLINE);
     LBRACE; list(NEWLINE); fs = nonempty_fields; list(NEWLINE); RBRACE; list(NEWLINE)
-    { Struct { name; fields = fs } }
+    { Struct { name; fields = fs; modifiers = [] } }
 
 typ:
   | name = IDENT   { Named name }
@@ -110,6 +118,7 @@ elseif_clause:
 else_clause:
   | ELSE; body = block { body }
 
+(* BUG: simple_stmt requires a newline so single line blocks fail e.g. if x { return a } *)
 stmts:
   |                                                        { [] }
   | s = simple_stmt; nonempty_list(NEWLINE); rest = stmts  { s :: rest }
@@ -138,10 +147,14 @@ block_stmt:
   | body = block
     { Block body }
 
+string_part:
+  | s = STRING_PART { Lit s }
+  | INTERP_START; e = expr; INTERP_END { Interp e }
+
 expr:
   | n = INT    { Int n }
   | f = FLOAT  { Float f }
-  | s = STRING { String s }
+  | STRING_START; parts = list(string_part); STRING_END { InterpString parts }
   | TRUE       { Bool true }
   | FALSE      { Bool false }
   | NULL       { Null }

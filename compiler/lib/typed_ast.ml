@@ -2,7 +2,9 @@
 
 open Types
 
-type texpr =
+type tinterp_part = TLit of string | TInterp of texpr
+
+and texpr =
   | TInt of int * ty
   | TFloat of float * ty
   | TBool of bool
@@ -17,6 +19,7 @@ type texpr =
   | TCast of texpr * ty
   | TSizeOf of Types.ty
   | TRange of texpr * texpr
+  | TInterpString of tinterp_part list
 
 type tstmt =
   | TLet of string * ty * texpr
@@ -36,11 +39,13 @@ type tfunc_def = {
   params : (string * ty) list;
   ret_ty : ty;
   body : tstmt list;
+  modifiers : Ast.modifier list;
 }
 
 type tdecl =
   | TFunc of tfunc_def
-  | TStruct of string * (string * ty) list (* name, typed fields *)
+  | TStruct of string * (string * ty) list * Ast.modifier list
+    (* name, typed fields, modifiers *)
   | TExtern of tfunc_def
 
 let ty_of_texpr (e : texpr) : ty =
@@ -60,3 +65,4 @@ let ty_of_texpr (e : texpr) : ty =
   | TCast (_, t) -> t
   | TSizeOf _ -> TInt I64
   | TRange _ -> raise (Invalid_argument "TODO: range type not yet defined")
+  | TInterpString _ -> TPointer (TInt I8)
