@@ -307,17 +307,19 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
 
 (* Synthesize the type of a field access expression. *)
 and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
-  (* TODO: auto-deref ^struct so ptr.field works like ptr->field in C. *)
   let te = synth env e in
-  match Typed_ast.ty_of_texpr te with
-  | TStruct sname -> (
-      let info = lookup_struct env sname in
-      match List.assoc_opt fname info.field_tys with
-      | Some ft -> Typed_ast.TFieldAccess (te, fname, ft)
-      | None -> raise (TypeError ("struct " ^ sname ^ " has no field " ^ fname))
-      )
-  | t -> raise (TypeError ("field access on non-struct type: " ^ show_ty t))
+  let rec peel = function
+    | TStruct sname -> sname
+    | TPointer t -> peel t
+    | t -> raise (TypeError ("field access on non-struct type: " ^ show_ty t))
+  in
+  let sname = peel (Typed_ast.ty_of_texpr te) in
+  let info = lookup_struct env sname in
+  match List.assoc_opt fname info.field_tys with
+  | Some ft -> Typed_ast.TFieldAccess (te, fname, ft)
+  | None -> raise (TypeError ("struct " ^ sname ^ " has no field " ^ fname))
 
+(* TODO: Validate that the operand is a numeric type *)
 let synth_inc_dec (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
   let te = synth env e in
   Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
