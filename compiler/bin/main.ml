@@ -41,6 +41,26 @@ let parse_file filename =
         else
           let il = Ripe.Codegen.emit_qbe tdecls in
           if !emit_qbe then print_string il
+          else
+            let dir = Filename.dirname !file in
+            let base =
+              Filename.concat dir
+                (Filename.remove_extension (Filename.basename !file))
+            in
+            let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
+            let tmp_asm = Filename.temp_file "ripe" ".s" in
+            let oc = open_out tmp_qbe in
+            output_string oc il;
+            close_out oc;
+            let run cmd =
+              if Sys.command cmd <> 0 then (
+                Printf.eprintf "ripec: command failed: %s\n" cmd;
+                exit 1)
+            in
+            run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
+            run (Printf.sprintf "cc -o %s %s" base tmp_asm);
+            Sys.remove tmp_qbe;
+            Sys.remove tmp_asm
     | exception Ripe.Typechecker.TypeError msg ->
         Printf.eprintf "typecheck error: %s\n" msg;
         exit 1
