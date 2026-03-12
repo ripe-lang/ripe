@@ -23,7 +23,6 @@ sudo apt install opam
 ```
 dune build                            # Compile
 dune exec ripec -- <file.rp>          # Run on a file
-dune exec ripec -- examples/hello.rp  # Example
 ```
 
 ## Contributing
