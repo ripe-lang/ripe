@@ -382,6 +382,17 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit ctx "%s\n" else_lbl;
           emit_stmts ctx else_body;
           emit ctx "%s\n" end_lbl)
+  | T.TBlock stmts ->
+      (* TODO: blocks as expressions e.g. let x = { 5 } *)
+      (* locals is a flat hashtable, save and restore for block scope *)
+      let saved = Hashtbl.copy ctx.locals in
+      emit_stmts ctx stmts;
+      let to_remove =
+        Hashtbl.fold
+          (fun k () acc -> if Hashtbl.mem saved k then acc else k :: acc)
+          ctx.locals []
+      in
+      List.iter (Hashtbl.remove ctx.locals) to_remove
   | T.TBreak | T.TContinue -> () (* TODO: target labels *)
   | T.TCFor (init, cond, post, body) ->
       let id = fresh_id ctx in
@@ -411,7 +422,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       emit_stmts ctx body;
       emit ctx "    jmp %s\n" test_lbl;
       emit ctx "%s\n" end_lbl
-  | _ -> ()
+(* | _ -> () *)
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 
@@ -434,7 +445,6 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
       param_tmps
   in
 
-  (* FIXME: main(): with a trailing colon and no return type syntax error *)
   (* TODO: Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   let export_part = if is_main then "export " else "" in
@@ -535,7 +545,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   (* No benefit only format *)
   if has_structs then emit ctx "\n";
 
-  (* TODO: function defs (externs no body)  *)
+  (* Function defs (externs no body)  *)
   List.iter
     (function
       | T.TFunc tfd -> emit_func ctx tfd | TExtern _ | T.TStruct _ -> ())
