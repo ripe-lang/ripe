@@ -15,6 +15,7 @@ jobs:
       - uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.3.0
+          dune-cache: true
       - run: opam install . --deps-only --yes
       - run: opam exec -- dune build
       - run: opam exec -- dune build @fmt
