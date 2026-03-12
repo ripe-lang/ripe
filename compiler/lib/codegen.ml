@@ -314,9 +314,10 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* FIXME: main(): with a trailing colon and no return type syntax error *)
   (* TODO: Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
+  let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
   (* TODO: Add export for pub(?) *)
-  emit ctx "function %s$%s(%s) {\n" ret_part tfd.name
+  emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
   emit ctx "@start\n";
 
