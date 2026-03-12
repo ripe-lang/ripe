@@ -136,8 +136,7 @@ let field_offset structs fields fname =
     | (n, ft) :: rest ->
         let a = ty_align structs ft in
         let off = align_to off a in
-        if n = fname then off
-        else go (off + ty_size structs ft) rest
+        if n = fname then off else go (off + ty_size structs ft) rest
   in
   go 0 fields
 
