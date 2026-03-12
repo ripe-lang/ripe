@@ -1,32 +1,12 @@
-extern printf(s: ^i8): i32
-
 struct point {
   x: i32,
   y: i32
-}
-
-struct point_3d {
-  x: i32,
-  y: i32,
-  z: i32,
-}
-
-add(a: i32, b: i32): i32 {
-  return a + b
 }
 
 add_point(p: point): i32 {
   return p.x + p.y
 }
 
-scale(p: ^point, factor: i32) {
-  return
-}
-
-main() {
-  let x = add(1, 2)
-  let y = add(x, add(3, 4))
-  let s = "hello, world"
-  let n = x as i64
-  let size = sizeof(point)
+add_point_ptr(p: ^point): i32 {
+  return p^.x + p^.y
 }

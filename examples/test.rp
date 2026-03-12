@@ -1,7 +1,0 @@
-extern printf(s: ^i8): i32
-
-main(): i32
-{
-  while 0 < 5 { }
-  return 0
-}

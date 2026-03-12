@@ -44,8 +44,8 @@ open Ast
 %left  PLUS MINUS
 %left  STAR SLASH PERCENT
 %left  AS
-%right BANG UMINUS UBITNOT PREFIX UCARET UAT
-%left  INCR DECR
+%right BANG UMINUS UBITNOT PREFIX UAT
+%left  INCR DECR CARET
 %left  DOT
 
 %start <Ast.decl list> program
@@ -177,10 +177,10 @@ expr:
   | TILDE; e = expr %prec UBITNOT    { UnOp (BitNot,    e) }
   | INCR;  e = expr %prec PREFIX     { UnOp (PreInc,    e) }
   | DECR;  e = expr %prec PREFIX     { UnOp (PreDec,    e) }
-  | CARET; e = expr %prec UCARET     { UnOp (Deref,     e) }
   | AT;    e = expr %prec UAT        { UnOp (AddressOf, e) }
   | e = expr; INCR                   { UnOp (PostInc, e) }
   | e = expr; DECR                   { UnOp (PostDec, e) }
+  | e = expr; CARET                  { UnOp (Deref,   e) }
   | LPAREN; e = expr; RPAREN         { e }
   | e = expr; DOT; fname = IDENT     { FieldAccess (e, fname) }
   | e = expr; AS; t = typ            { Cast (e, t) }

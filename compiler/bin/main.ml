@@ -42,11 +42,7 @@ let parse_file filename =
           let il = Ripe.Codegen.emit_qbe tdecls in
           if !emit_qbe then print_string il
           else
-            let dir = Filename.dirname !file in
-            let base =
-              Filename.concat dir
-                (Filename.remove_extension (Filename.basename !file))
-            in
+            let base = Filename.remove_extension (Filename.basename !file) in
             let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
             let tmp_asm = Filename.temp_file "ripe" ".s" in
             let oc = open_out tmp_qbe in

@@ -13,7 +13,7 @@ let qbe_ty (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
-  | TStruct name -> ":" ^ name
+  | TStruct _ -> "l"
   | TVoid -> assert false
 
 (* Returns "u" for unsigned integer types, "s" for signed/other *)
@@ -93,7 +93,8 @@ let qbe_load (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
-  | TStruct _ | TVoid -> assert false
+  | TStruct _ -> "loadl"
+  | TVoid -> assert false
 
 let qbe_store (t : ty) : string =
   match t with
@@ -103,7 +104,8 @@ let qbe_store (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
-  | TStruct _ | TVoid -> assert false
+  | TStruct _ -> "storel"
+  | TVoid -> assert false
 
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
@@ -127,6 +129,17 @@ let fresh_id ctx =
   n
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
+
+let field_offset structs fields fname =
+  let rec go off = function
+    | [] -> failwith ("unknown field: " ^ fname)
+    | (n, ft) :: rest ->
+        let a = ty_align structs ft in
+        let off = align_to off a in
+        if n = fname then off
+        else go (off + ty_size structs ft) rest
+  in
+  go 0 fields
 
 (* TODO: handle @(^ptr) (deref) and @s.field (struct field access) *)
 let lvalue_name (e : T.texpr) : string =
@@ -179,6 +192,27 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TUnOp (op, e, t) -> emit_unop ctx op e t
   | T.TRange _ -> failwith "TODO: range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
+  (* TODO: explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
+  | T.TFieldAccess (e, field, ft) ->
+      let base = emit_expr ctx e in
+      let rec peel = function
+        | TStruct n -> n
+        | TPointer t -> peel t
+        | _ -> assert false
+      in
+      let struct_name = peel (T.ty_of_texpr e) in
+      let fields = Hashtbl.find ctx.structs struct_name in
+      let offset = field_offset ctx.structs fields field in
+      let ptr =
+        if offset = 0 then base
+        else
+          let p = fresh ctx in
+          emit ctx "    %s =l add %s, %d\n" p base offset;
+          p
+      in
+      let tmp = fresh ctx in
+      emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
+      tmp
   (* TODO: I'll have better messages in the future. lol *)
   | _ -> failwith "codegen: unhandled expression"
 
