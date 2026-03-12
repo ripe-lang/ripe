@@ -293,11 +293,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
       (* TODO: restrict to integer *)
   | PreInc | PreDec | PostInc | PostDec ->
-      (* TODO: ++/-- should only be valid as statements, not expressions *)
-      (* TODO: requires an lvalue too *)
-      let te = synth env e in
-      Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-      (* TODO: check lvalue + numeric *)
+      raise (TypeError "++/-- only allowed as statements")
   | Deref -> (
       let te = synth env e in
       match Typed_ast.ty_of_texpr te with
@@ -321,6 +317,10 @@ and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
       | None -> raise (TypeError ("struct " ^ sname ^ " has no field " ^ fname))
       )
   | t -> raise (TypeError ("field access on non-struct type: " ^ show_ty t))
+
+let synth_inc_dec (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
+  let te = synth env e in
+  Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
 
 (* TODO: Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
@@ -356,6 +356,9 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   | Return (Some e) ->
       let te = check env e env.ret_ty in
       (env, Typed_ast.TReturn (Some te))
+  | Expr (UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e)) ->
+      let te = synth_inc_dec env op e in
+      (env, Typed_ast.TExpr te)
   | Expr e ->
       let te = synth env e in
       (env, Typed_ast.TExpr te)
@@ -385,7 +388,12 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   | CFor (init, cond, post, body) ->
       let env', tinit = check_stmt env init in
       let tcond = check env' cond TBool in
-      let tpost = synth env' post in
+      let tpost =
+        match post with
+        | UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e) ->
+            synth_inc_dec env' op e
+        | _ -> synth env' post
+      in
       let _, tbody = check_stmts { env' with in_loop = true } body in
       (* Throwing away the previous env to be similar to C-style scoping *)
       (env, Typed_ast.TCFor (tinit, tcond, tpost, tbody))

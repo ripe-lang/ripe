@@ -128,6 +128,10 @@ let fresh_id ctx =
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
+(* TODO: handle @(^ptr) (deref) and @s.field (struct field access) *)
+let lvalue_name (e : T.texpr) : string =
+  match e with T.TIdent (name, _) -> name | _ -> failwith "expected lvalue"
+
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   match e with
   | T.TInt (n, _) -> string_of_int n
@@ -175,16 +179,53 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TUnOp (op, e, t) -> emit_unop ctx op e t
   | T.TRange _ -> failwith "TODO: range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
-  | _ -> ""
+  (* TODO: I'll have better messages in the future. lol *)
+  | _ -> failwith "codegen: unhandled expression"
 
 and emit_unop ctx op e t =
-  let ev = emit_expr ctx e in
-  let qt = qbe_ty t in
-  let tmp = fresh ctx in
-  (match op with
-  | Ast.Neg -> emit ctx "    %s =%s neg %s\n" tmp qt ev
-  | _ -> failwith "Not impl");
-  tmp
+  match op with
+  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref ->
+      let ev = emit_expr ctx e in
+      let qt = qbe_ty t in
+      let tmp = fresh ctx in
+      (match op with
+      | Ast.Neg -> emit ctx "    %s =%s neg %s\n" tmp qt ev
+      | Ast.Not ->
+          (* operand is always bool (w) after typechecking *)
+          emit ctx "    %s =w ceqw %s, 0\n" tmp ev
+      | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
+      | Ast.Deref -> emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
+      | _ -> assert false);
+      tmp
+  | Ast.AddressOf ->
+      let name = lvalue_name e in
+      let tmp = fresh ctx in
+      emit ctx "    %s =l copy %%%s\n" tmp name;
+      tmp
+  | Ast.PreInc -> emit_inc_dec ctx e "add" true
+  | Ast.PreDec -> emit_inc_dec ctx e "sub" true
+  | Ast.PostInc -> emit_inc_dec ctx e "add" false
+  | Ast.PostDec -> emit_inc_dec ctx e "sub" false
+
+and emit_inc_dec ctx e arith_op pre =
+  let name = lvalue_name e in
+  let et = T.ty_of_texpr e in
+  let qt = qbe_ty et in
+  let old_val = fresh ctx in
+  (* FIXME: reassigns SSA name, breaks with globals *)
+  if Hashtbl.mem ctx.locals name then
+    emit ctx "    %s =%s %s %%%s\n" old_val qt (qbe_load et) name
+  else emit ctx "    %s =%s copy %%%s\n" old_val qt name;
+  let one =
+    match et with TFloat F32 -> "s_1.0" | TFloat F64 -> "d_1.0" | _ -> "1"
+  in
+  (* FIXME: reassigns SSA name, breaks with globals *)
+  let new_val = fresh ctx in
+  emit ctx "    %s =%s %s %s, %s\n" new_val qt arith_op old_val one;
+  if Hashtbl.mem ctx.locals name then
+    emit ctx "    %s %s, %%%s\n" (qbe_store et) new_val name
+  else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
+  if pre then new_val else old_val
 
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
 and emit_assign ctx l r _t =
@@ -192,6 +233,7 @@ and emit_assign ctx l r _t =
   (match l with
   | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
       emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name
+  (* FIXME: reassigns SSA name, breaks with globals *)
   | T.TIdent (name, _) ->
       emit ctx "    %%%s =%s copy %s\n" name (qbe_ty (T.ty_of_texpr r)) rv
   | _ -> ());
