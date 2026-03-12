@@ -246,8 +246,12 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
-      let cond_lbls = List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i) in
-      let then_lbls = List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i) in
+      let cond_lbls =
+        List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i)
+      in
+      let then_lbls =
+        List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i)
+      in
       let else_lbl = Printf.sprintf "@if.else%d" id in
       let end_lbl = Printf.sprintf "@if.end%d" id in
       match branches with
