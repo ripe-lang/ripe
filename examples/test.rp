@@ -2,23 +2,6 @@ extern printf(s: ^i8): i32
 
 main(): i32
 {
-  let x = 10
-
-  if x > 20 {
-    printf("x > 20\n")
-  } elseif x > 5 {
-    if x > 15 {
-      printf("x > 15\n")
-    } elseif x > 8 {
-      printf("x > 8\n")
-    } else {
-      printf("x > 5\n")
-    }
-  } else {
-    printf("x <= 5\n")
-  }
-
-  # for let i = 0; i < 5; i = i + 1 { }
-
+  while 0 < 5 { }
   return 0
 }

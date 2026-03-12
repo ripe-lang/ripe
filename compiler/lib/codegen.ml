@@ -288,6 +288,19 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       ();
       emit ctx "    jmp %s\n" test_lbl;
       emit ctx "%s\n" end_lbl
+  (* same as for loop for while *)
+  | T.TWhile (cond, body) ->
+      let id = fresh_id ctx in
+      let test_lbl = Printf.sprintf "@while.cond%d" id in
+      let body_lbl = Printf.sprintf "@while.body%d" id in
+      let end_lbl = Printf.sprintf "@while.end%d" id in
+      emit ctx "%s\n" test_lbl;
+      let cv = emit_expr ctx cond in
+      emit ctx "    jnz %s, %s, %s\n" cv body_lbl end_lbl;
+      emit ctx "%s\n" body_lbl;
+      emit_stmts ctx body;
+      emit ctx "    jmp %s\n" test_lbl;
+      emit ctx "%s\n" end_lbl
   | _ -> ()
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
@@ -339,6 +352,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   if not already_returns then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n";
+  (* TODO: error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
