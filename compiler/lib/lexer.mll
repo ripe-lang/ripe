@@ -10,9 +10,15 @@ let next_line lexbuf =
 
 let buf = Buffer.create 64 (* auto buffer resize *)
 
-(* FIXME: fixes multiline expressions in () but 
+(* FIXME: fixes multiline expressions in () but
   new error w/ newlines forever on unclosed parens *)
 let paren_depth = ref 0
+
+(* string interpolation state *)
+let in_string = ref false
+let in_interp = ref false
+let interp_brace_depth = ref 0
+let token_queue : Parser.token Queue.t = Queue.create ()
 }
 
 let digit   = ['0'-'9']
@@ -22,6 +28,14 @@ let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
 rule read = parse
+  | "" { if not (Queue.is_empty token_queue) then
+           Queue.pop token_queue
+         else if !in_string && not !in_interp then
+           read_string lexbuf
+         else
+           read_main lexbuf }
+
+and read_main = parse
   | white              { read lexbuf }
   | '#' [^ '\n' '\r']* { read lexbuf }
   | newline            { next_line lexbuf;
@@ -49,6 +63,9 @@ rule read = parse
       | "null"     -> NULL
       | "extern"   -> EXTERN
       | "struct"   -> STRUCT
+      (* FIXME: I don't know if I like "inline" something feels weird *)
+      | "inline"   -> INLINE
+      | "pub"      -> PUBLIC
       | _          -> IDENT s
     }
   | "==" { EQ }
@@ -82,13 +99,23 @@ rule read = parse
   | '='  { ASSIGN }
   | '('  { incr paren_depth; LPAREN }
   | ')'  { decr paren_depth; RPAREN }
-  | '{'  { LBRACE }
-  | '}'  { RBRACE }
+  | '{'  { if !in_interp then incr interp_brace_depth;
+           LBRACE }
+  | '}'  { if !in_interp && !interp_brace_depth = 0 then begin
+             in_interp := false;
+             INTERP_END
+           end else begin
+             if !in_interp then decr interp_brace_depth;
+             RBRACE
+           end }
   | ':'  { COLON }
   | ','  { COMMA }
   | '^'  { CARET }
   | '@'  { AT }
-  | '"'  { Buffer.clear buf; read_string lexbuf }
+  | '"'  { Buffer.clear buf;
+           in_string := true;
+           Queue.push STRING_START token_queue;
+           read_string lexbuf }
   | eof  { EOF }
   | _        { raise (SyntaxError ("line "
                ^ string_of_int lexbuf.Lexing.lex_curr_p.Lexing.pos_lnum
@@ -97,10 +124,26 @@ rule read = parse
 
 (* TODO: pass buffer as param instead of global and handle illegal escape *)
 and read_string = parse
-  | '"'           { STRING (Buffer.contents buf) }
+  | '"'  { if Buffer.length buf > 0 then begin
+             Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
+             Buffer.clear buf
+           end;
+           in_string := false;
+           Queue.push STRING_END token_queue;
+           Queue.pop token_queue }
+  | "{{" { Buffer.add_char buf '{'; read_string lexbuf }
+  | "}}" { Buffer.add_char buf '}'; read_string lexbuf }
+  | '{'  { if Buffer.length buf > 0 then begin
+              Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
+              Buffer.clear buf
+            end;
+            Queue.push INTERP_START token_queue;
+            in_interp := true;
+            interp_brace_depth := 0;
+            Queue.pop token_queue }
   | '\\' 'n'      { Buffer.add_char buf '\n'; read_string lexbuf }
   | '\\' 't'      { Buffer.add_char buf '\t'; read_string lexbuf }
   | '\\' '\\'     { Buffer.add_char buf '\\'; read_string lexbuf }
   | '\\' '"'      { Buffer.add_char buf '"';  read_string lexbuf }
-  | [^ '"' '\\']+  { Buffer.add_string buf (Lexing.lexeme lexbuf); read_string lexbuf }
+  | [^ '"' '\\' '{' '}']+  { Buffer.add_string buf (Lexing.lexeme lexbuf); read_string lexbuf }
   | eof           { raise (SyntaxError "unterminated string") }

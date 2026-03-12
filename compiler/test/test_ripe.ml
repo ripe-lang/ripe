@@ -9,7 +9,7 @@ let run decls =
       print_endline ("TypeError: " ^ msg)
 
 let func ?(params = []) ?(ret = None) name body =
-  Func { name; params; ret; body }
+  Func { name; params; ret; body; modifiers = [] }
 
 let%expect_test "break outside loop" =
   run [ func "f" [ Break ] ];

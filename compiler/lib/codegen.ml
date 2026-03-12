@@ -212,6 +212,8 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let tmp = fresh ctx in
       emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
       tmp
+  (* TODO: codegen for string interpolation *)
+  | T.TInterpString _ -> failwith "TODO: interp string codegen"
   (* TODO: I'll have better messages in the future. lol *)
   | _ -> failwith "codegen: unhandled expression"
 
@@ -437,7 +439,8 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
-  (* TODO: Add export for pub(?) *)
+  (* TODO: export pub functions *)
+  (* TODO: emit inline functions at call site *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
   emit ctx "@start\n";
@@ -501,7 +504,8 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   let structs = Hashtbl.create 8 in
   List.iter
     (function
-      | T.TStruct (name, fields) -> Hashtbl.replace structs name fields
+      | T.TStruct (name, fields, _) ->
+          Hashtbl.replace structs name fields
       | _ -> ())
     tdecls;
 
@@ -517,9 +521,12 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   in
 
   (* Struct type def *)
+  (* TODO: enforce pub visibility on struct fields *)
   List.iter
     (function
-      | T.TStruct (name, fields) -> emit_struct_type ctx name fields | _ -> ())
+      | T.TStruct (name, fields, _) ->
+          emit_struct_type ctx name fields
+      | _ -> ())
     tdecls;
   (* new line after struct(s) for clean emit output *)
   let has_structs =

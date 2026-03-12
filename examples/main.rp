@@ -1,12 +1,14 @@
-struct point {
-  x: i32,
-  y: i32
+pub main() {
+  print("{hello}{{hey}}")
 }
 
-add_point(p: point): i32 {
-  return p.x + p.y
+inline main() {
 }
 
-add_point_ptr(p: ^point): i32 {
-  return p^.x + p^.y
+pub inline main() {
+}
+
+pub struct color {
+  pub r: i32,
+  pub r: i32
 }
