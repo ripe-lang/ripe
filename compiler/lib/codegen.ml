@@ -11,9 +11,8 @@ let qbe_ty (t : ty) : string =
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
   (* FIXME: Null terminated strings? Idk yet. *)
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
-  (* TODO: Add float *)
-  (* | TFloat -> "s"  32-bit float *)
-  (* | TDouble -> "d" 64-bit float *)
+  | TFloat F32 -> "s"
+  | TFloat F64 -> "d"
   | TStruct name -> ":" ^ name
   | TVoid -> assert false
 
@@ -28,13 +27,17 @@ let int_kind_size = function
   | I32 | U32 -> 4
   | I64 | U64 -> 8
 
+let float_kind_size = function F32 -> 4 | F64 -> 8
+
 (* C ABI alignment and padding rules *)
 (* TODO: Reordering struct fields by alignment to minimize padding  *)
 (* TODO: Add a packed attr to strip padding for exact memory layout *)
+
 let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
   match t with
   | TInt k -> int_kind_size k
+  | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TString -> 8
   | TVoid -> assert false
@@ -53,6 +56,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
   match t with
   | TInt k -> int_kind_size k
+  | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TString -> 8
   | TVoid -> assert false
@@ -74,7 +78,8 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
 (* TODO: maybe look into escape analysis *)
 let alloc_instr (t : ty) : string =
   match t with
-  | TInt (I64 | U64) | TPointer _ | TNull | TString | TStruct _ -> "alloc8"
+  | TInt (I64 | U64) | TFloat F64 | TPointer _ | TNull | TString | TStruct _ ->
+      "alloc8"
   | _ -> "alloc4"
 
 let qbe_load (t : ty) : string =
@@ -86,6 +91,8 @@ let qbe_load (t : ty) : string =
   | TInt I32 -> "loadsw"
   | TInt U32 -> "loaduw"
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
+  | TFloat F32 -> "loads"
+  | TFloat F64 -> "loadd"
   | TStruct _ | TVoid -> assert false
 
 let qbe_store (t : ty) : string =
@@ -94,6 +101,8 @@ let qbe_store (t : ty) : string =
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
   | TInt (I64 | U64) | TPointer _ | TNull | TString -> "storel"
+  | TFloat F32 -> "stores"
+  | TFloat F64 -> "stored"
   | TStruct _ | TVoid -> assert false
 
 type ctx = {
@@ -122,6 +131,11 @@ let emit ctx fmt = Printf.bprintf ctx.buf fmt
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   match e with
   | T.TInt (n, _) -> string_of_int n
+  | T.TFloat (f, t) ->
+      let prefix, digits =
+        match t with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+      in
+      prefix ^ Printf.sprintf "%.*g" digits f
   | T.TBool b -> if b then "1" else "0"
   | T.TNull _ -> "0"
   | T.TChar c -> string_of_int (Char.code c)
@@ -183,14 +197,17 @@ and emit_assign ctx l r _t =
   | _ -> ());
   rv
 
+and is_float_ty = function TFloat _ -> true | _ -> false
+
 and emit_binop ctx op l r t =
   (* recursively evaluate *)
   let lv = emit_expr ctx l in
   let rv = emit_expr ctx r in
   (* type translation *)
   let qt = qbe_ty t in
-  let op_qt = qbe_ty (T.ty_of_texpr l) in
-  let sign = signedness (T.ty_of_texpr l) in
+  let lty = T.ty_of_texpr l in
+  let op_qt = qbe_ty lty in
+  let sign = signedness lty in
 
   let tmp = fresh ctx in
   (match op with
@@ -198,17 +215,33 @@ and emit_binop ctx op l r t =
   | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div ->
-      let instr = if sign = "u" then "udiv" else "div" in
+      let instr =
+        if is_float_ty lty then "div" else if sign = "u" then "udiv" else "div"
+      in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Mod ->
       let instr = if sign = "u" then "urem" else "rem" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+  (* floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
-  | Ast.Lt -> emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Gt -> emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Lte -> emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Gte -> emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
+  (* floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
+  | Ast.Lt ->
+      if is_float_ty lty then
+        emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
+      else emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Gt ->
+      if is_float_ty lty then
+        emit ctx "    %s =w cgt%s %s, %s\n" tmp op_qt lv rv
+      else emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Lte ->
+      if is_float_ty lty then
+        emit ctx "    %s =w cle%s %s, %s\n" tmp op_qt lv rv
+      else emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
+  | Ast.Gte ->
+      if is_float_ty lty then
+        emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
+      else emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.And -> emit ctx "    %s =w and %s, %s\n" tmp lv rv
   | Ast.Or -> emit ctx "    %s =w or %s, %s\n" tmp lv rv
   | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
@@ -366,6 +399,8 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
         | TBool -> "b"
         (* null is a pointer no type but all pointers are  64-bit *)
         | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
+        | TFloat F32 -> "s"
+        | TFloat F64 -> "d"
         | TStruct sn -> ":" ^ sn
         (* its nothing. like actually nothing. *)
         | TVoid -> assert false)

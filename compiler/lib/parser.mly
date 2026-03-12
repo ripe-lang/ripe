@@ -7,6 +7,7 @@ open Ast
 (* TODO: It's going to be a long time before I boot strap this. So I'll probably rewrite this to be a recursive descent parser *)
 
 %token <int>    INT
+%token <float>  FLOAT
 %token <string> IDENT
 %token <string> STRING
 %token PLUS MINUS STAR SLASH PERCENT
@@ -139,6 +140,7 @@ block_stmt:
 
 expr:
   | n = INT    { Int n }
+  | f = FLOAT  { Float f }
   | s = STRING { String s }
   | TRUE       { Bool true }
   | FALSE      { Bool false }
