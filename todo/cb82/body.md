@@ -1,0 +1,1 @@
+  | TInterpString _ -> TPointer (TInt I8)

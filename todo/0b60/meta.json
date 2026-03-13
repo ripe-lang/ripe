@@ -1,0 +1,1 @@
+{"id": "0b60", "title": "check lvalue on left because 5 = 10 is allowed", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.528173", "updated_at": "2026-03-13 13:35:35.528173", "source": "compiler/lib/typechecker.ml:291", "depends": [], "blocks": []}

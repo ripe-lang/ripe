@@ -60,7 +60,7 @@ and expr =
   | InterpString of interp_part list
 [@@deriving show]
 
-(* TODO: Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
+(* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt =
   | Let of string * typ option * expr
   | Var of string * typ option * expr
@@ -83,7 +83,7 @@ type param = { name : string; typ : typ } [@@deriving show]
 type field = { name : string; typ : typ; modifiers : modifier list }
 [@@deriving show]
 
-(* TODO: add array types *)
+(* TODO(ea0e): add array types *)
 type func_def = {
   name : string;
   params : param list;

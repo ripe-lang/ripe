@@ -1,0 +1,1 @@
+{"id": "5038", "title": "Support for variadic functions", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527952", "updated_at": "2026-03-13 13:35:35.527952", "source": "compiler/lib/typechecker.ml:226", "depends": [], "blocks": []}

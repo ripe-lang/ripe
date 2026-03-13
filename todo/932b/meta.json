@@ -1,0 +1,1 @@
+{"id": "932b", "title": "New bindings shadow older ones.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527548", "updated_at": "2026-03-13 13:35:35.527548", "source": "compiler/lib/typechecker.ml:41", "depends": [], "blocks": []}

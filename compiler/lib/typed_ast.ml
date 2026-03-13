@@ -54,7 +54,7 @@ let ty_of_texpr (e : texpr) : ty =
   | TFloat (_, t) -> t
   | TBool _ -> TBool
   | TNull t -> t
-  (* TODO: Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig. *)
+  (* TODO(a99d): Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig. *)
   | TString _ -> TPointer (TInt I8)
   | TChar _ -> TInt I32
   | TIdent (_, t) -> t
@@ -64,5 +64,5 @@ let ty_of_texpr (e : texpr) : ty =
   | TFieldAccess (_, _, t) -> t
   | TCast (_, t) -> t
   | TSizeOf _ -> TInt I64
-  | TRange _ -> raise (Invalid_argument "TODO: range type not yet defined")
+  | TRange _ -> raise (Invalid_argument "TODO(cb82): range type not yet defined")
   | TInterpString _ -> TPointer (TInt I8)

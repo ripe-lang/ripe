@@ -7,12 +7,12 @@ open Types
 
 exception TypeError of string
 
-(* TODO: Figure out "-typecheck" with better Printf formatting *)
-(* TODO: I need to update Parser to allow `let` and `var` in toplevel
+(* TODO(5c2a): Figure out "-typecheck" with better Printf formatting *)
+(* TODO(38df): I need to update Parser to allow `let` and `var` in toplevel
 then update collect_decl in the first pass so that they're collected and
 available for other functions *)
 
-(* TODO: I should be allowed to shadow function name with a variable but not
+(* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
@@ -38,7 +38,7 @@ let make_env () : env =
     in_loop = false;
   }
 
-(* TODO: New bindings shadow older ones. *)
+(* TODO(932b): New bindings shadow older ones. *)
 let extend_var (env : env) (name : string) (t : ty) : env =
   { env with vars = (name, t) :: env.vars }
 
@@ -76,8 +76,8 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Pointer t -> TPointer (ty_of_ast env t)
 
 (* Exact equality but NULL is compatible with any pointer *)
-(* TODO: Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
-(* TODO: Add rawptr/void* *)
+(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
+(* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
   (* Printf.printf "Comparing %s with %s\n" (show_ty want) (show_ty got); *)
   match (want, got) with
@@ -116,13 +116,13 @@ let collect_func (env : env) (fd : func_def) : unit =
 
   Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
 
-(* TODO: Support forward reference between structs *)
+(* TODO(d1ec): Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
 (* FIXME: Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
   if Hashtbl.mem env.structs sd.name then
     raise (TypeError ("struct already defined: " ^ sd.name));
-  (* TODO: Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+  (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
   let field_tys =
     List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
   in
@@ -141,7 +141,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
       Typed_ast.TInt (n, TInt I32)
-      (* TODO: Widen based on value magnitude (fall back I32) *)
+      (* TODO(fa2c): Widen based on value magnitude (fall back I32) *)
   | Float f -> Typed_ast.TFloat (f, TFloat F64)
   | Bool b ->
       (* Printf.printf "bool %b\n" b; *)
@@ -193,7 +193,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
 and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
   match e with
   | Int n -> (
-      (* TODO: Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
+      (* TODO(0ab1): Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
       match want with
       | TInt _ -> Typed_ast.TInt (n, want)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
@@ -223,7 +223,7 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
 
 and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     Typed_ast.texpr list =
-  (* TODO: Support for variadic functions *)
+  (* TODO(5038): Support for variadic functions *)
   let n_params = List.length sig_.param_tys in
   let n_args = List.length args in
   if n_params <> n_args then
@@ -256,7 +256,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
       let t = Typed_ast.ty_of_texpr tl in
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-      (* TODO: restrict to numeric types *)
+      (* TODO(447b): restrict to numeric types *)
   | Eq | Neq ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
@@ -269,7 +269,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
         raise (TypeError (Printf.sprintf "type %s is not ordered" (show_ty t))); *)
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, TBool)
-      (* TODO: restrict to ordered types e.g. void > void should not work. bool > bool maybe*)
+      (* TODO(f9fb): restrict to ordered types e.g. void > void should not work. bool > bool maybe*)
   | And | Or ->
       let tl = check env l TBool in
       let tr = check env r TBool in
@@ -279,7 +279,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
       let t = Typed_ast.ty_of_texpr tl in
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-      (* TODO: restrict to integer types *)
+      (* TODO(f793): restrict to integer types *)
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign ->
       let tl = synth env l in
       (* if not (is_lvalue tl) then
@@ -288,7 +288,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
       let t = Typed_ast.ty_of_texpr tl in
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-(* TODO: check lvalue on left because 5 = 10 is allowed *)
+(* TODO(0b60): check lvalue on left because 5 = 10 is allowed *)
 (* | _ -> failwith ("Operator not yet implemented: " ^ show_binop op) *)
 
 and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
@@ -296,14 +296,14 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
   | Neg ->
       let te = synth env e in
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-      (* TODO: restrict to numeric *)
+      (* TODO(2cae): restrict to numeric *)
   | Not ->
       let te = check env e TBool in
       Typed_ast.TUnOp (op, te, TBool)
   | BitNot ->
       let te = synth env e in
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-      (* TODO: restrict to integer *)
+      (* TODO(668a): restrict to integer *)
   | PreInc | PreDec | PostInc | PostDec ->
       raise (TypeError "++/-- only allowed as statements")
   | Deref -> (
@@ -331,12 +331,12 @@ and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
   | Some ft -> Typed_ast.TFieldAccess (te, fname, ft)
   | None -> raise (TypeError ("struct " ^ sname ^ " has no field " ^ fname))
 
-(* TODO: Validate that the operand is a numeric type *)
+(* TODO(ccf6): Validate that the operand is a numeric type *)
 let synth_inc_dec (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
   let te = synth env e in
   Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
 
-(* TODO: Better error messages *)
+(* TODO(b5ae): Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   match s with
   | Let (name, ann, e) ->
@@ -392,7 +392,7 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       let _, tbody = check_stmts { env with in_loop = true } body in
       (env, Typed_ast.TWhile (tc, tbody))
   | For (name, iter, body) ->
-      (* TODO: iter must be a range bind name to its element type *)
+      (* TODO(4994): iter must be a range bind name to its element type *)
       let titer = synth env iter in
       let elem_ty = TInt I32 in
       let _, tbody =
@@ -427,7 +427,7 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
 (* Performance critical since this pass walks every statement *)
 and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
   let final_env, tstmts_reversed =
-    (* TODO: I keep checking after a return statement (raise a warning) *)
+    (* TODO(7bdc): I keep checking after a return statement (raise a warning) *)
     List.fold_left
       (fun (current_env, acc) s ->
         let next_env, ts = check_stmt current_env s in
@@ -457,7 +457,7 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
   in
   let body_env = { param_env with ret_ty } in
 
-  (* TODO: I need to note "missing return statement" *)
+  (* TODO(60f2): I need to note "missing return statement" *)
   let _, tbody = check_stmts body_env fd.body in
 
   {
@@ -480,7 +480,7 @@ let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
       let info = lookup_struct env sd.name in
       Typed_ast.TStruct (sd.name, info.field_tys, sd.modifiers)
 (* | _ -> failwith "Declaration not supported yet" *)
-(* TODO: I need to think about global variables *)
+(* TODO(880b): I need to think about global variables *)
 
 let typecheck (decls : decl list) : Typed_ast.tdecl list =
   let env = make_env () in
