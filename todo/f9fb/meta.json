@@ -1,0 +1,1 @@
+{"id": "f9fb", "title": "restrict to ordered types e.g. void > void should not work. bool > bool maybe", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.528067", "updated_at": "2026-03-13 13:35:35.528067", "source": "compiler/lib/typechecker.ml:272", "depends": [], "blocks": []}

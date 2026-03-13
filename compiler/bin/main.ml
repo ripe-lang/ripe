@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* TODO:  need a total rewrite of this once *)
+(* TODO(b021):  need a total rewrite of this once *)
 
 let dump_ast = ref false
 let do_typecheck = ref false
@@ -62,7 +62,7 @@ let parse_file filename =
         exit 1
 
 let () =
-  (* TODO: Update usage text for options *)
+  (* TODO(7d9f): Update usage text for options *)
   Arg.parse spec (fun f -> file := f) "Usage: ripec file.rp>";
   if !file = "" then Arg.usage spec "Usage: ripec <file.rp>"
   else parse_file !file

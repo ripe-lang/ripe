@@ -1,0 +1,1 @@
+{"id": "a99d", "title": "Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.529343", "updated_at": "2026-03-13 13:35:35.529343", "source": "compiler/lib/typed_ast.ml:57", "depends": [], "blocks": []}

@@ -1,0 +1,1 @@
+{"id": "d1ec", "title": "Support forward reference between structs", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527724", "updated_at": "2026-03-13 13:35:35.527724", "source": "compiler/lib/typechecker.ml:119", "depends": [], "blocks": []}

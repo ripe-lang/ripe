@@ -4,7 +4,7 @@
 open Types
 module T = Typed_ast
 
-(* TODO: I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
+(* TODO(7e23): I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
 
 let qbe_ty (t : ty) : string =
   match t with
@@ -30,8 +30,8 @@ let int_kind_size = function
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
 (* C ABI alignment and padding rules *)
-(* TODO: Reordering struct fields by alignment to minimize padding  *)
-(* TODO: Add a packed attr to strip padding for exact memory layout *)
+(* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
+(* TODO(8969): Add a packed attr to strip padding for exact memory layout *)
 
 let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
@@ -75,7 +75,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
           align_to offset struct_align
       | None -> 0)
 
-(* TODO: maybe look into escape analysis *)
+(* TODO(1aff): maybe look into escape analysis *)
 let alloc_instr (t : ty) : string =
   match t with
   | TInt (I64 | U64) | TFloat F64 | TPointer _ | TNull | TString | TStruct _ ->
@@ -140,7 +140,7 @@ let field_offset structs fields fname =
   in
   go 0 fields
 
-(* TODO: handle @(^ptr) (deref) and @s.field (struct field access) *)
+(* TODO(07aa): handle @(^ptr) (deref) and @s.field (struct field access) *)
 let lvalue_name (e : T.texpr) : string =
   match e with T.TIdent (name, _) -> name | _ -> failwith "expected lvalue"
 
@@ -161,7 +161,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) name;
         tmp)
       else "%" ^ name
-  (* TODO: TString should become TCStr (null terminated) *)
+  (* TODO(9de3): TString should become TCStr (null terminated) *)
   (* TSlice (fat pointer {ptr, len}) it would need a second data section *)
   | T.TString s ->
       let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
@@ -189,9 +189,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBinOp (Ast.Assign, l, r, t) -> emit_assign ctx l r t
   | T.TBinOp (op, l, r, t) -> emit_binop ctx op l r t
   | T.TUnOp (op, e, t) -> emit_unop ctx op e t
-  | T.TRange _ -> failwith "TODO: range codegen"
+  | T.TRange _ -> failwith "TODO(41e0): range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
-  (* TODO: explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
+  (* TODO(e68f): explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
   | T.TFieldAccess (e, field, ft) ->
       let base = emit_expr ctx e in
       let rec peel = function
@@ -212,9 +212,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let tmp = fresh ctx in
       emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
       tmp
-  (* TODO: codegen for string interpolation *)
-  | T.TInterpString _ -> failwith "TODO: interp string codegen"
-  (* TODO: I'll have better messages in the future. lol *)
+  (* TODO(c75e): codegen for string interpolation *)
+  | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
+  (* TODO(f191): I'll have better messages in the future. lol *)
   | _ -> failwith "codegen: unhandled expression"
 
 and emit_unop ctx op e t =
@@ -344,12 +344,12 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
       emit ctx "    ret %s\n" v
-  (* TODO: emit_expr in statement position emits dead loads for idents *)
+  (* TODO(d6df): emit_expr in statement position emits dead loads for idents *)
   | T.TExpr e ->
       let _ = emit_expr ctx e in
       ()
   | T.TFor (name, elem_ty, _iter, body) ->
-      (* TODO: proper range iteration *)
+      (* TODO(6cc6): proper range iteration *)
       let _ = name in
       let _ = elem_ty in
       emit_stmts ctx body
@@ -383,7 +383,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit_stmts ctx else_body;
           emit ctx "%s\n" end_lbl)
   | T.TBlock stmts ->
-      (* TODO: blocks as expressions e.g. let x = { 5 } *)
+      (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
       (* locals is a flat hashtable, save and restore for block scope *)
       let saved = Hashtbl.copy ctx.locals in
       emit_stmts ctx stmts;
@@ -393,7 +393,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           ctx.locals []
       in
       List.iter (Hashtbl.remove ctx.locals) to_remove
-  | T.TBreak | T.TContinue -> () (* TODO: target labels *)
+  | T.TBreak | T.TContinue -> () (* TODO(d426): target labels *)
   | T.TCFor (init, cond, post, body) ->
       let id = fresh_id ctx in
       let test_lbl = Printf.sprintf "@for.cond%d" id in
@@ -445,12 +445,12 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
       param_tmps
   in
 
-  (* TODO: Create a custom _start. *)
+  (* TODO(6e33): Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
-  (* TODO: export pub functions *)
-  (* TODO: emit inline functions at call site *)
+  (* TODO(572b): export pub functions *)
+  (* TODO(c561): emit inline functions at call site *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
   emit ctx "@start\n";
@@ -469,11 +469,11 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     match List.rev tfd.body with T.TReturn _ :: _ -> true | _ -> false
   in
   (* The ret ends the last block *)
-  (* TODO: Emit implicit return for non-void functions where the last expression is the return value. *)
+  (* TODO(978e): Emit implicit return for non-void functions where the last expression is the return value. *)
   if not already_returns then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n";
-  (* TODO: error in typechecker for non-void functions missing a return on all paths *)
+  (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
@@ -530,7 +530,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   in
 
   (* Struct type def *)
-  (* TODO: enforce pub visibility on struct fields *)
+  (* TODO(ead2): enforce pub visibility on struct fields *)
   List.iter
     (function
       | T.TStruct (name, fields, _) -> emit_struct_type ctx name fields

@@ -4,7 +4,7 @@
 open Ast
 %}
 
-(* TODO: It's going to be a long time before I boot strap this. So I'll probably rewrite this to be a recursive descent parser *)
+(* TODO(a1c1): It's going to be a long time before I boot strap this. So I'll probably rewrite this to be a recursive descent parser *)
 
 %token <int>    INT
 %token <float>  FLOAT
@@ -30,7 +30,7 @@ open Ast
 %token COMMA COLON NEWLINE DOTDOT DOT SEMI
 %token EOF
 
-(* TODO: add remaining compound assignments *)
+(* TODO(2b10): add remaining compound assignments *)
 (* precedence, lowest to highest *)
 %right ASSIGN PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN
 %left  DOTDOT
