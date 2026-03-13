@@ -64,5 +64,6 @@ let ty_of_texpr (e : texpr) : ty =
   | TFieldAccess (_, _, t) -> t
   | TCast (_, t) -> t
   | TSizeOf _ -> TInt I64
-  | TRange _ -> raise (Invalid_argument "TODO(cb82): range type not yet defined")
+  | TRange _ ->
+      raise (Invalid_argument "TODO(cb82): range type not yet defined")
   | TInterpString _ -> TPointer (TInt I8)
