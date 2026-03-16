@@ -16,8 +16,8 @@
 
 ## Operator Precedence
 
-- [C Operator Precedence — GeeksforGeeks](https://www.geeksforgeeks.org/c/operator-precedence-and-associativity-in-c/)
-- [Rust Operator Expressions](https://doc.rust-lang.org/beta/reference/expressions/operator-expr.html)
+- [C Operator Precedence](https://en.cppreference.com/w/c/language/operator_precedence.html)
+- [Rust Operator Expressions](https://doc.rust-lang.org/beta/reference/expressions/operatoAlsor-expr.html)
 - [Rust Expression Precedence](https://doc.rust-lang.org/reference/expressions.html)
 
 ## Type Checking
