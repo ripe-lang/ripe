@@ -48,6 +48,11 @@
 - [What Every Computer Scientist Should Know About Floating-Point Arithmetic David Goldberg (1991)](https://www.itu.dk/~sestoft/bachelor/IEEE754_article.pdf)
 - [C Numeric Limits (FLT_DECIMAL_DIG, DBL_DECIMAL_DIG) cppreference](https://en.cppreference.com/w/c/types/limits.html)
 
+## Source Map
+
+- [source_map.rs](https://github.com/rust-lang/rust/blob/master/compiler/rustc_span/src/source_map.rs)
+- [Source Manager swiftc](include/swift/Basic/SourceManager.h)
+
 ## Docs
 
 - [The four kinds of documentation, and why you need to understand what they are](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/)
