@@ -5,6 +5,7 @@
 let dump_ast = ref false
 let do_typecheck = ref false
 let emit_qbe = ref false
+let use_rd_parser = ref false
 let file = ref ""
 
 let spec =
@@ -12,24 +13,38 @@ let spec =
     ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST");
     ("-typecheck", Arg.Set do_typecheck, "Run the typechecker");
     ("-emit-qbe", Arg.Set emit_qbe, "Emit QBE IL to stdout (not compile)");
+    ("-rd", Arg.Set use_rd_parser, "Use the RD parser");
   ]
 
 let parse_file filename =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
   Lexing.set_filename lexbuf filename;
-  Ripe.Lexer.paren_depth := 0;
+  Ripe.Lexer.reset ();
   let decls =
-    match Ripe.Parser.program Ripe.Lexer.read lexbuf with
-    | decls ->
-        close_in ic;
-        decls
-    | exception Ripe.Parser.Error ->
-        close_in ic;
-        let pos = lexbuf.lex_curr_p in
-        Printf.eprintf "%s:%d:%d: syntax error\n" pos.pos_fname pos.pos_lnum
-          (pos.pos_cnum - pos.pos_bol);
-        exit 1
+    if !use_rd_parser then (
+      match Ripe.Parse.parse Ripe.Lexer.read lexbuf with
+      | decls ->
+          close_in ic;
+          decls
+      | exception Ripe.Parse.ParseError msg ->
+          close_in ic;
+          let pos = lexbuf.lex_curr_p in
+          Printf.eprintf "%s:%d:%d: %s\n" pos.pos_fname pos.pos_lnum
+            (pos.pos_cnum - pos.pos_bol)
+            msg;
+          exit 1)
+    else
+      match Ripe.Parser.program Ripe.Lexer.read lexbuf with
+      | decls ->
+          close_in ic;
+          decls
+      | exception Ripe.Parser.Error ->
+          close_in ic;
+          let pos = lexbuf.lex_curr_p in
+          Printf.eprintf "%s:%d:%d: syntax error\n" pos.pos_fname pos.pos_lnum
+            (pos.pos_cnum - pos.pos_bol);
+          exit 1
   in
 
   if !dump_ast then
