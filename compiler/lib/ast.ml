@@ -1,5 +1,11 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
+(* TODO(825c): Add file id for multi file comp later *)
+(* I was going to wait before doing byte offset but the dump-ast was way too long. *)
+type span = { lo : int; hi : int } [@@deriving show]
+
+let dummy_span = { lo = 0; hi = 0 }
+
 type typ = Named of string | Pointer of typ [@@deriving show]
 
 type binop =
@@ -42,7 +48,7 @@ type unop =
 
 type interp_part = Lit of string | Interp of expr [@@deriving show]
 
-and expr =
+and expr_desc =
   | Int of int
   | Float of float
   | Bool of bool
@@ -60,8 +66,12 @@ and expr =
   | InterpString of interp_part list
 [@@deriving show]
 
+and expr = { desc : expr_desc; span : span } [@@deriving show]
+
+let mk_expr desc = { desc; span = dummy_span }
+
 (* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
-type stmt =
+type stmt_desc =
   | Let of string * typ option * expr
   | Var of string * typ option * expr
   | Return of expr option
@@ -74,6 +84,10 @@ type stmt =
   | Expr of expr
   | Block of stmt list
 [@@deriving show]
+
+and stmt = { sdesc : stmt_desc; span : span } [@@deriving show]
+
+let mk_stmt sdesc = { sdesc; span = dummy_span }
 
 type modifier = Pub | Inline [@@deriving show]
 

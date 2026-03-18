@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 {
-open Parser
+open Tokens
 
 exception SyntaxError of string
 
@@ -18,7 +18,26 @@ let paren_depth = ref 0
 let in_string = ref false
 let in_interp = ref false
 let interp_brace_depth = ref 0
-let token_queue : Parser.token Queue.t = Queue.create ()
+let token_queue : Tokens.token Queue.t = Queue.create ()
+
+(* trying to emulate go semicolons *)
+let last_token : Tokens.token option ref = ref None
+
+let can_end_stmt = function
+  | IDENT _ | INT _ | FLOAT _ | STRING_END
+  | TRUE | FALSE | NULL
+  | BREAK | CONTINUE | RETURN
+  | INCR | DECR
+  | RPAREN | RBRACE | CARET -> true
+  | _ -> false
+
+let reset () =
+  paren_depth := 0;
+  in_string := false;
+  in_interp := false;
+  interp_brace_depth := 0;
+  Queue.clear token_queue;
+  last_token := None
 }
 
 let digit   = ['0'-'9']
@@ -28,19 +47,25 @@ let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
 rule read = parse
-  | "" { if not (Queue.is_empty token_queue) then
-           Queue.pop token_queue
-         else if !in_string && not !in_interp then
-           read_string lexbuf
-         else
-           read_main lexbuf }
+  | "" { let tok =
+           if not (Queue.is_empty token_queue) then
+             Queue.pop token_queue
+           else if !in_string && not !in_interp then
+             read_string lexbuf
+           else
+             read_main lexbuf
+         in
+         last_token := Some tok;
+         tok }
 
 and read_main = parse
   | white              { read lexbuf }
   | '#' [^ '\n' '\r']* { read lexbuf }
   | newline            { next_line lexbuf;
                          if !paren_depth > 0 then read lexbuf
-                         else NEWLINE }
+                         else match !last_token with
+                              | Some t when can_end_stmt t -> SEMI
+                              | _ -> read lexbuf }
   | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {

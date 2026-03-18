@@ -16,8 +16,8 @@
 
 ## Operator Precedence
 
-- [C Operator Precedence — GeeksforGeeks](https://www.geeksforgeeks.org/c/operator-precedence-and-associativity-in-c/)
-- [Rust Operator Expressions](https://doc.rust-lang.org/beta/reference/expressions/operator-expr.html)
+- [C Operator Precedence](https://en.cppreference.com/w/c/language/operator_precedence.html)
+- [Rust Operator Expressions](https://doc.rust-lang.org/beta/reference/expressions/operatoAlsor-expr.html)
 - [Rust Expression Precedence](https://doc.rust-lang.org/reference/expressions.html)
 
 ## Type Checking
@@ -47,6 +47,11 @@
 - [IEEE 754 Wikipedia](https://en.wikipedia.org/wiki/IEEE_754)
 - [What Every Computer Scientist Should Know About Floating-Point Arithmetic David Goldberg (1991)](https://www.itu.dk/~sestoft/bachelor/IEEE754_article.pdf)
 - [C Numeric Limits (FLT_DECIMAL_DIG, DBL_DECIMAL_DIG) cppreference](https://en.cppreference.com/w/c/types/limits.html)
+
+## Source Map
+
+- [source_map.rs](https://github.com/rust-lang/rust/blob/master/compiler/rustc_span/src/source_map.rs)
+- [Source Manager swiftc](include/swift/Basic/SourceManager.h)
 
 ## Docs
 

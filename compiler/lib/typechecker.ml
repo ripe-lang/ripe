@@ -38,7 +38,6 @@ let make_env () : env =
     in_loop = false;
   }
 
-(* TODO(932b): New bindings shadow older ones. *)
 let extend_var (env : env) (name : string) (t : ty) : env =
   { env with vars = (name, t) :: env.vars }
 
@@ -137,7 +136,7 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 (* Figure out the type*)
 let rec synth (env : env) (e : expr) : Typed_ast.texpr =
-  match e with
+  match e.desc with
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
       Typed_ast.TInt (n, TInt I32)
@@ -191,7 +190,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
-  match e with
+  match e.desc with
   | Int n -> (
       (* TODO(0ab1): Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
       match want with
@@ -338,7 +337,7 @@ let synth_inc_dec (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
 
 (* TODO(b5ae): Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
-  match s with
+  match s.sdesc with
   | Let (name, ann, e) ->
       let t, te =
         match ann with
@@ -370,7 +369,8 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   | Return (Some e) ->
       let te = check env e env.ret_ty in
       (env, Typed_ast.TReturn (Some te))
-  | Expr (UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e)) ->
+  | Expr { desc = UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e); _ }
+    ->
       let te = synth_inc_dec env op e in
       (env, Typed_ast.TExpr te)
   | Expr e ->
@@ -403,7 +403,7 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       let env', tinit = check_stmt env init in
       let tcond = check env' cond TBool in
       let tpost =
-        match post with
+        match post.desc with
         | UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e) ->
             synth_inc_dec env' op e
         | _ -> synth env' post

@@ -1,6 +1,16 @@
 (library
  (name ripe)
- (modules ast lexer parser types typechecker typed_ast codegen)
+ (modules
+  ast
+  source_map
+  tokens
+  lexer
+  parse
+  parser
+  types
+  typechecker
+  typed_ast
+  codegen)
  (libraries menhirLib)
  (preprocess
   (pps ppx_deriving.show)))
@@ -9,4 +19,5 @@
  (modules lexer))
 
 (menhir
- (modules parser))
+ (modules parser)
+ (flags --external-tokens Tokens))
