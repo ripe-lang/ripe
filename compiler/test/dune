@@ -3,4 +3,5 @@
  (libraries ripe)
  (inline_tests)
  (preprocess
-  (pps ppx_expect ppx_inline_test)))
+  (pps ppx_expect ppx_inline_test))
+ (modules test_ripe test_source_map))
