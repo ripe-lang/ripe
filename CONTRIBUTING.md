@@ -16,7 +16,6 @@ opam install . --deps-only --yes
 ```
 cd compiler
 dune build
-dune build @fmt
 ```
 
 ## Running
@@ -25,10 +24,14 @@ dune build @fmt
 dune exec bin/main.exe -- -dump-ast <file.rp>
 ```
 
-## Formatting
-
-Make sure the code is formatted:
+## Testing
 
 ```
-dune build @fmt --auto-promote
+dune runtest
+```
+
+## Formatting
+
+```
+dune fmt
 ```
