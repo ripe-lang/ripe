@@ -1,6 +1,4 @@
-main() {
-    let x = 5
-    let y = 10
-    let z = x + y
-    return z
+struct point {
+  x: i32,
+  y: i32
 }

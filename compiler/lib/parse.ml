@@ -43,7 +43,7 @@ let rec parse_typ st =
 let parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
-    (* TODO: parse modifiers *)
+    (* TODO(9ee0): parse modifiers *)
     let name = expect_ident st in
     expect st COLON;
     let t = parse_typ st in
