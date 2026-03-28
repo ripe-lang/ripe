@@ -18,9 +18,56 @@ let skip_semi st =
     advance st
   done
 
-let parse_decl st =
+let expect_ident st =
+  match st.tok with
+  | IDENT s ->
+      advance st;
+      s
+  | _ -> raise (ParseError "Expected identifier")
+
+let expect st t =
+  if st.tok <> t then
+    raise
+      (ParseError
+         (Printf.sprintf "expected %s"
+            (match t with LPAREN -> "(" | RPAREN -> ")" | _ -> "token")));
+  advance st
+
+let rec parse_typ st =
+  match st.tok with
+  | IDENT name ->
+      advance st;
+      Named name
+  | _ -> raise (ParseError "expected type")
+
+let parse_fields st =
+  let fields = ref [] in
+  while st.tok <> RBRACE do
+    (* TODO: parse modifiers *)
+    let name = expect_ident st in
+    expect st COLON;
+    let t = parse_typ st in
+    fields := ({ name; typ = t; modifiers = [] } : field) :: !fields;
+    if st.tok = COMMA then advance st;
+    skip_semi st
+  done;
+  List.rev !fields
+
+let parse_struct st mods =
+  advance st;
+  (* STRUCT *)
+  let name = expect_ident st in
   skip_semi st;
-  match st.tok with _ -> raise (ParseError "Expected declaration")
+  expect st LBRACE;
+  let fields = parse_fields st in
+  expect st RBRACE;
+  skip_semi st;
+  Struct { name; fields; modifiers = mods }
+
+let parse_decl st =
+  match st.tok with
+  | STRUCT -> parse_struct st []
+  | _ -> raise (ParseError "Expected declaration")
 
 let parse_program st =
   let decls = ref [] in
