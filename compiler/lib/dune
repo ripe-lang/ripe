@@ -6,18 +6,12 @@
   tokens
   lexer
   parse
-  parser
   types
   typechecker
   typed_ast
   codegen)
- (libraries menhirLib)
  (preprocess
   (pps ppx_deriving.show)))
 
 (ocamllex
  (modules lexer))
-
-(menhir
- (modules parser)
- (flags --external-tokens Tokens))
