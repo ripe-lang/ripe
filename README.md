@@ -14,8 +14,9 @@ A systems programming language.
 
 ### Debian
 
-```
-sudo apt install opam
+```sh
+sudo apt install opam qbe
+opam install . --deps-only
 ```
 
 ## Usage
