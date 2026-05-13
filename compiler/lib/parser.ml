@@ -125,7 +125,7 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-and parse_stmt _st = raise (ParseError "TODO: parse_stmt not yet implemented")
+and parse_stmt st = raise (ParseError "TODO: parse_stmt not yet implemented")
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
@@ -136,9 +136,22 @@ let parse_func st mods =
   let body = parse_block st in
   Func { name; params; ret; body; modifiers = mods }
 
+(* extern add(a: i32, b: i32): i32 *)
+(* No modifiers needed *)
+let parse_extern st =
+  advance st;
+  (* EXTERN *)
+  let name = expect_ident st in
+  let params = parse_params st in
+  let ret = parse_ret_type st in
+  skip_semi st;
+  Extern { name; params; ret; body = []; modifiers = [] }
+
 let parse_decl st =
-  match st.tok with STRUCT -> parse_struct st [] | _ -> parse_func st []
-(* | _ -> raise (ParseError "Expected declaration") *)
+  match st.tok with
+  | EXTERN -> parse_extern st
+  | STRUCT -> parse_struct st []
+  | _ -> parse_func st []
 
 let parse_program st =
   let decls = ref [] in
