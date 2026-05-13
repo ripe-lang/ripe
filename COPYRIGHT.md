@@ -12,4 +12,4 @@ see the version control history.
 
 Ripe vendors the following third-party software:
 
-* QBE (vendor/qbe/), Copyright (c) 2015-2019 Quentin Carbonneaux, MIT license.
+* QBE (vendor/qbe/), Copyright (c) 2015-2019 Quentin Carbonneaux, MIT license <LICENSE-MIT>.
