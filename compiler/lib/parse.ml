@@ -96,7 +96,7 @@ let parse_ret_type st =
   end
   else None
 
-and parse_block st =
+let rec parse_block st =
   expect st LBRACE;
   let body = parse_stmts st in
   expect st RBRACE;
@@ -113,20 +113,16 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-and parse_stmt st =
-  match st.tok with
-  | _ ->
-    let s = parse_simple_stmt st in
-    (* simple statements must be followed by a semicolon *)
-    if st.tok = SEMI then skip_semis st;
-    s
+and parse_stmt _st =
+  raise (ParseError "TODO: parse_stmt not yet implemented")
 
 let parse_func st mods =
   let name = expect_ident st in
   let params = parse_params st in
-  let ret_type = parse_ret_type st in
+  let ret = parse_ret_type st in
   skip_semi st;
   let body = parse_block st in
+  Func { name; params; ret; body; modifiers = mods }
 
 let parse_decl st =
   match st.tok with
