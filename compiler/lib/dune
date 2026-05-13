@@ -5,7 +5,7 @@
   source_map
   tokens
   lexer
-  parse
+  parser
   types
   typechecker
   typed_ast
