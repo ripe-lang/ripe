@@ -48,6 +48,9 @@ let expect st t =
 (* i32 *)
 let rec parse_typ st =
   match st.tok with
+  | CARET ->
+      advance st;
+      Pointer (parse_typ st)
   | IDENT name ->
       advance st;
       Named name
