@@ -187,8 +187,17 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.TBinOp (Ast.Assign, l, r, t) -> emit_assign ctx l r t
+  | T.TBinOp
+      ( ((Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign) as op),
+        l,
+        r,
+        _t ) ->
+      emit_compound_assign ctx op l r
   | T.TBinOp (op, l, r, t) -> emit_binop ctx op l r t
   | T.TUnOp (op, e, t) -> emit_unop ctx op e t
+  | T.TCast (e, target_ty) ->
+      let v = emit_expr ctx e in
+      emit_cast ctx v (T.ty_of_texpr e) target_ty
   | T.TRange _ -> failwith "TODO(41e0): range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   (* TODO(e68f): explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
@@ -214,8 +223,6 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       tmp
   (* TODO(c75e): codegen for string interpolation *)
   | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
-  (* TODO(f191): I'll have better messages in the future. lol *)
-  | _ -> failwith "codegen: unhandled expression"
 
 and emit_unop ctx op e t =
   match op with
@@ -274,6 +281,36 @@ and emit_assign ctx l r _t =
   | _ -> ());
   rv
 
+(* x += rhs -> x = x + rhs *)
+(* x -= rhs -> x = x - rhs *)
+(* x *= rhs -> x = x * rhs *)
+(* x /= rhs -> x = x / rhs *)
+and emit_compound_assign ctx op l r =
+  let name = lvalue_name l in
+  let lt = T.ty_of_texpr l in
+  let qt = qbe_ty lt in
+  let sign = signedness lt in
+  let cur = fresh ctx in
+  if Hashtbl.mem ctx.locals name then
+    emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) name
+  else emit ctx "    %s =%s copy %%%s\n" cur qt name;
+  let rv = emit_expr ctx r in
+  let arith =
+    match op with
+    | Ast.AddAssign -> "add"
+    | Ast.SubAssign -> "sub"
+    | Ast.MulAssign -> "mul"
+    | Ast.DivAssign ->
+        if is_float_ty lt then "div" else if sign = "u" then "udiv" else "div"
+    | _ -> assert false
+  in
+  let new_val = fresh ctx in
+  emit ctx "    %s =%s %s %s, %s\n" new_val qt arith cur rv;
+  if Hashtbl.mem ctx.locals name then
+    emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val name
+  else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
+  new_val
+
 and is_float_ty = function TFloat _ -> true | _ -> false
 
 and emit_binop ctx op l r t =
@@ -328,7 +365,56 @@ and emit_binop ctx op l r t =
   | Ast.Rshift ->
       let instr = if sign = "s" then "sar" else "shr" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
-  | _ -> failwith "Not impl");
+  | _ -> assert false);
+  tmp
+
+(* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
+and emit_cast ctx v src_ty target_ty =
+  let tmp = fresh ctx in
+  let src_q = qbe_ty src_ty in
+  let tgt_q = qbe_ty target_ty in
+  (match (src_q, tgt_q) with
+  (* same QBE base type *)
+  | s, t when s = t -> emit ctx "    %s =%s copy %s\n" tmp t v
+  (* word -> long: sign/zero extend *)
+  | "w", "l" ->
+      let instr = if signedness src_ty = "u" then "extuw" else "extsw" in
+      emit ctx "    %s =l %s %s\n" tmp instr v
+  (* long -> word: truncate *)
+  | "l", "w" -> emit ctx "    %s =w copy %s\n" tmp v
+  (* single -> double *)
+  | "s", "d" -> emit ctx "    %s =d exts %s\n" tmp v
+  (* double -> single *)
+  | "d", "s" -> emit ctx "    %s =s truncd %s\n" tmp v
+  (* word -> float *)
+  | "w", "s" ->
+      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
+      emit ctx "    %s =s %s %s\n" tmp instr v
+  | "w", "d" ->
+      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
+      emit ctx "    %s =d %s %s\n" tmp instr v
+  (* long -> float *)
+  | "l", "s" ->
+      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
+      emit ctx "    %s =s %s %s\n" tmp instr v
+  | "l", "d" ->
+      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
+      emit ctx "    %s =d %s %s\n" tmp instr v
+  (* float -> word *)
+  | "s", "w" ->
+      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
+      emit ctx "    %s =w %s %s\n" tmp instr v
+  | "d", "w" ->
+      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
+      emit ctx "    %s =w %s %s\n" tmp instr v
+  (* float -> long *)
+  | "s", "l" ->
+      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
+      emit ctx "    %s =l %s %s\n" tmp instr v
+  | "d", "l" ->
+      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
+      emit ctx "    %s =l %s %s\n" tmp instr v
+  | _ -> emit ctx "    %s =%s copy %s\n" tmp tgt_q v);
   tmp
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
