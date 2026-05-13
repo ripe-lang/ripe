@@ -26,11 +26,6 @@ let expect_ident st =
       s
   | _ -> raise (ParseError "Expected identifier")
 
-let skip_semis st =
-  while st.tok = SEMI do
-    advance st
-  done
-
 let expect st t =
   if st.tok <> t then
     raise
