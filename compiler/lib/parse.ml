@@ -12,6 +12,7 @@ type state = {
 }
 
 let advance st = st.tok <- st.read st.lexbuf
+let at st t = st.tok = t
 
 let skip_semi st =
   while st.tok = SEMI do
@@ -24,6 +25,11 @@ let expect_ident st =
       advance st;
       s
   | _ -> raise (ParseError "Expected identifier")
+
+let skip_semis st =
+  while st.tok = SEMI do
+    advance st
+  done
 
 let expect st t =
   if st.tok <> t then
@@ -64,10 +70,69 @@ let parse_struct st mods =
   skip_semi st;
   Struct { name; fields; modifiers = mods }
 
+let parse_params st =
+  expect st LPAREN;
+  let params = ref [] in
+  if st.tok <> RPAREN then begin
+    let name = expect_ident st in
+    expect st COLON;
+    let t = parse_typ st in
+    params := [ ({ name; typ = t } : param) ];
+    while st.tok = COMMA do
+      advance st;
+      let name = expect_ident st in
+      expect st COLON;
+      let t = parse_typ st in
+      params := ({ name; typ = t } : param) :: !params
+    done
+  end;
+  expect st RPAREN;
+  List.rev !params
+
+let parse_ret_type st =
+  if at st COLON then begin
+    advance st;
+    if st.tok = LPAREN || st.tok = SEMI then None else Some (parse_typ st)
+  end
+  else None
+
+and parse_block st =
+  expect st LBRACE;
+  let body = parse_stmts st in
+  expect st RBRACE;
+  skip_semi st;
+  body
+
+and parse_stmts st =
+  let stmts = ref [] in
+  skip_semi st;
+  while st.tok <> RBRACE && st.tok <> EOF do
+    let s = parse_stmt st in
+    stmts := s :: !stmts;
+    skip_semi st
+  done;
+  List.rev !stmts
+
+and parse_stmt st =
+  match st.tok with
+  | _ ->
+    let s = parse_simple_stmt st in
+    (* simple statements must be followed by a semicolon *)
+    if st.tok = SEMI then skip_semis st;
+    s
+
+let parse_func st mods =
+  let name = expect_ident st in
+  let params = parse_params st in
+  let ret_type = parse_ret_type st in
+  skip_semi st;
+  let body = parse_block st in
+
 let parse_decl st =
   match st.tok with
   | STRUCT -> parse_struct st []
-  | _ -> raise (ParseError "Expected declaration")
+  | _ -> parse_func st []
+  (* | _ -> raise (ParseError "Expected declaration") *)
 
 let parse_program st =
   let decls = ref [] in
