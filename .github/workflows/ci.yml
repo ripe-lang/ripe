@@ -3,6 +3,16 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "**.txt"
+      - ".gitignore"
+      - "LICENSE-MIT"
+      - "LICENSE-GPL"
+      - ".editorconfig"
+      - "docs/**"
+      - "examples/**"
+      - "todo/**"
 
 jobs:
   build:
