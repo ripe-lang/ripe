@@ -113,8 +113,7 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-and parse_stmt _st =
-  raise (ParseError "TODO: parse_stmt not yet implemented")
+and parse_stmt _st = raise (ParseError "TODO: parse_stmt not yet implemented")
 
 let parse_func st mods =
   let name = expect_ident st in
@@ -125,10 +124,8 @@ let parse_func st mods =
   Func { name; params; ret; body; modifiers = mods }
 
 let parse_decl st =
-  match st.tok with
-  | STRUCT -> parse_struct st []
-  | _ -> parse_func st []
-  (* | _ -> raise (ParseError "Expected declaration") *)
+  match st.tok with STRUCT -> parse_struct st [] | _ -> parse_func st []
+(* | _ -> raise (ParseError "Expected declaration") *)
 
 let parse_program st =
   let decls = ref [] in
