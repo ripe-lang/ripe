@@ -31,8 +31,18 @@ let expect st t =
     raise
       (ParseError
          (Printf.sprintf "expected %s"
-            (match t with LPAREN -> "(" | RPAREN -> ")" | _ -> "token")));
-  advance st
+            (match t with
+            | LBRACE -> "'{'"
+            | RBRACE -> "'}'"
+            | LPAREN -> "'('"
+            | RPAREN -> "')'"
+            | COLON -> "':'"
+            | COMMA -> "','"
+            | SEMI -> "';'"
+            | ASSIGN -> "'='"
+            | IN -> "'in'"
+            | _ -> "token")))
+  else advance st
 
 let rec parse_typ st =
   match st.tok with
