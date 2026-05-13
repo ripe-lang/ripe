@@ -20,11 +20,11 @@ let parse_file filename =
   Lexing.set_filename lexbuf filename;
   Ripe.Lexer.reset ();
   let decls =
-    match Ripe.Parse.parse Ripe.Lexer.read lexbuf with
+    match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
     | decls ->
         close_in ic;
         decls
-    | exception Ripe.Parse.ParseError msg ->
+    | exception Ripe.Parser.ParseError msg ->
         close_in ic;
         let pos = lexbuf.lex_curr_p in
         Printf.eprintf "%s:%d:%d: %s\n" pos.pos_fname pos.pos_lnum

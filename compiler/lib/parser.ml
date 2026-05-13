@@ -14,6 +14,7 @@ type state = {
 let advance st = st.tok <- st.read st.lexbuf
 let at st t = st.tok = t
 
+(* newlines lex as SEMI *)
 let skip_semi st =
   while st.tok = SEMI do
     advance st
@@ -44,6 +45,7 @@ let expect st t =
             | _ -> "token")))
   else advance st
 
+(* i32 *)
 let rec parse_typ st =
   match st.tok with
   | IDENT name ->
@@ -51,6 +53,7 @@ let rec parse_typ st =
       Named name
   | _ -> raise (ParseError "expected type")
 
+(* x: i32 *)
 let parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
@@ -64,6 +67,7 @@ let parse_fields st =
   done;
   List.rev !fields
 
+(* struct point { x: i32, y: i32 } *)
 let parse_struct st mods =
   advance st;
   (* STRUCT *)
@@ -75,6 +79,7 @@ let parse_struct st mods =
   skip_semi st;
   Struct { name; fields; modifiers = mods }
 
+(* (a: i32, b: i32) *)
 let parse_params st =
   expect st LPAREN;
   let params = ref [] in
@@ -94,6 +99,7 @@ let parse_params st =
   expect st RPAREN;
   List.rev !params
 
+(* : i32 *)
 let parse_ret_type st =
   if at st COLON then begin
     advance st;
@@ -101,6 +107,7 @@ let parse_ret_type st =
   end
   else None
 
+(* { return a + b } *)
 let rec parse_block st =
   expect st LBRACE;
   let body = parse_stmts st in
@@ -120,6 +127,7 @@ and parse_stmts st =
 
 and parse_stmt _st = raise (ParseError "TODO: parse_stmt not yet implemented")
 
+(* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
   let name = expect_ident st in
   let params = parse_params st in
@@ -136,8 +144,7 @@ let parse_program st =
   let decls = ref [] in
   skip_semi st;
   while st.tok <> EOF do
-    decls := parse_decl st :: !decls;
-    skip_semi st
+    decls := parse_decl st :: !decls (* skip_semi st *)
   done;
   List.rev !decls
 
