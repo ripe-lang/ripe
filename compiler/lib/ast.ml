@@ -39,10 +39,6 @@ type unop =
   | Neg
   | Not
   | BitNot
-  | PreInc
-  | PreDec
-  | PostInc
-  | PostDec
   | Deref
   | AddressOf
 [@@deriving show]

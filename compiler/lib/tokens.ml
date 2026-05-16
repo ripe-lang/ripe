@@ -33,8 +33,6 @@ type token =
   | MINUS_ASSIGN
   | STAR_ASSIGN
   | SLASH_ASSIGN
-  | INCR
-  | DECR
   | LET
   | VAR
   | RETURN

@@ -250,13 +250,6 @@ and parse_prefix st =
   | TILDE ->
       advance st;
       mk lo st (UnOp (BitNot, parse_prefix st))
-  | INCR ->
-      advance st;
-      mk lo st (UnOp (PreInc, parse_prefix st))
-  | DECR ->
-      advance st;
-      mk lo st (UnOp (PreDec, parse_prefix st))
-  (* TODO: I need to add IDENT before testing *)
   | AT ->
       advance st;
       mk lo st (UnOp (AddressOf, parse_prefix st))

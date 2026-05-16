@@ -27,7 +27,6 @@ let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING_END
   | TRUE | FALSE | NULL
   | BREAK | CONTINUE | RETURN
-  | INCR | DECR
   | RPAREN | RBRACE | CARET -> true
   | _ -> false
 
@@ -103,8 +102,6 @@ and read_main = parse
   | '>'  { GT }
   | "&&" { AND }
   | "||" { OR }
-  | "++" { INCR }
-  | "--" { DECR }
   | "+=" { PLUS_ASSIGN }
   | "-=" { MINUS_ASSIGN }
   | "*=" { STAR_ASSIGN }

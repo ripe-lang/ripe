@@ -309,8 +309,6 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
       let te = synth env e in
       Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
       (* TODO(668a): restrict to integer *)
-  | PreInc | PreDec | PostInc | PostDec ->
-      raise (TypeError "++/-- only allowed as statements")
   | Deref -> (
       let te = synth env e in
       match Typed_ast.ty_of_texpr te with
@@ -337,10 +335,6 @@ and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
   | None -> raise (TypeError ("struct " ^ sname ^ " has no field " ^ fname))
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
-let synth_inc_dec (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
-  let te = synth env e in
-  Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-
 (* TODO(b5ae): Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   match s.sdesc with
@@ -378,10 +372,6 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   | Return (Some e) ->
       let te = check env e env.ret_ty in
       (env, Typed_ast.TReturn (Some te))
-  | Expr { desc = UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e); _ }
-    ->
-      let te = synth_inc_dec env op e in
-      (env, Typed_ast.TExpr te)
   | Expr e ->
       let te = synth env e in
       (env, Typed_ast.TExpr te)
