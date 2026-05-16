@@ -352,14 +352,17 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       (extend_var env name t, Typed_ast.TLet (name, t, te))
   | Var (name, ann, e) ->
       let t, te =
-        match ann with
-        | Some a ->
+        match (ann, e) with
+        | Some a, Some e ->
             let want = ty_of_ast env a in
             let te = check env e want in
             (want, te)
-        | None ->
+        | None, Some e ->
             let te = synth env e in
             (Typed_ast.ty_of_texpr te, te)
+        | Some _, None -> failwith "zero-init var not yet implemented"
+        | None, None ->
+            raise (TypeError (Printf.sprintf "cannot infer type for '%s'" name))
       in
       (extend_var env name t, Typed_ast.TVar (name, t, te))
   | Return None ->

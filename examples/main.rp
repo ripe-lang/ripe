@@ -9,6 +9,9 @@ main() {
   #}
 
   let x: i32 = 42
+  var y: i32 = 42
+  #var z: i32
+  var w
 
   #if a > 0 {
   #  if a > 1 {

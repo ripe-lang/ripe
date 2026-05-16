@@ -156,7 +156,23 @@ let parse_ret_type st =
 let rec parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
+  (* let x: i32 = 42 *)
   | LET ->
+      advance st;
+      let name = expect_ident st in
+      (* optional type annotation since the typechecker can infer it *)
+      let ann =
+        if at st COLON then (
+          advance st;
+          Some (parse_typ st))
+        else None
+      in
+      (* unlike var let always requires a value *)
+      expect st ASSIGN;
+      let e = parse_expr st 1 in
+      mks lo st (Let (name, ann, e))
+  (* var x: i32 / var x = 42 / var x *)
+  | VAR ->
       advance st;
       let name = expect_ident st in
       let ann =
@@ -165,9 +181,13 @@ let rec parse_simple_stmt st =
           Some (parse_typ st))
         else None
       in
-      expect st ASSIGN;
-      let e = parse_expr st 1 in
-      mks lo st (Let (name, ann, e))
+      let e =
+        if at st ASSIGN then (
+          advance st;
+          Some (parse_expr st 1))
+        else None
+      in
+      mks lo st (Var (name, ann, e))
   | _ ->
       let e = parse_expr st 1 in
       mks lo st (Expr e)
@@ -257,9 +277,10 @@ and parse_for st =
 and parse_expr st _min_prec =
   let lo = cur_pos st in
   match st.tok with
-  | INT n -> advance st; mk lo st (Int n)
+  | INT n ->
+      advance st;
+      mk lo st (Int n)
   | _ -> failwith "parse_expr: not implemented"
-
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
