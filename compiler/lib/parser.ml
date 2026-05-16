@@ -45,7 +45,7 @@ let expect st t =
             | _ -> "token")))
   else advance st
 
-(* i32 *)
+(* i32 / ^^i32 *)
 let rec parse_typ st =
   match st.tok with
   | CARET ->
@@ -56,14 +56,32 @@ let rec parse_typ st =
       Named name
   | _ -> raise (ParseError "expected type")
 
+let parse_modifiers st =
+  let mods = ref [] in
+  let cont = ref true in
+  while !cont do
+    match st.tok with
+    | INLINE ->
+        advance st;
+        mods := INLINE :: !mods
+    (* TODO(74d8): not entirely sure yet. static? public? *)
+    (* | PUBLIC ->
+        advance st;
+        mods := PUBLIC :: !mods *)
+    | _ -> cont := false
+  done;
+  List.rev !mods
+
 (* x: i32 *)
 let parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
     (* TODO(9ee0): parse modifiers *)
+    (* let mods = parse_modifiers st in *)
     let name = expect_ident st in
     expect st COLON;
     let t = parse_typ st in
+    (* Replace modifiers with modifiers = mods *)
     fields := ({ name; typ = t; modifiers = [] } : field) :: !fields;
     if st.tok = COMMA then advance st;
     skip_semi st
@@ -106,12 +124,15 @@ let parse_params st =
 let parse_ret_type st =
   if at st COLON then begin
     advance st;
-    if st.tok = LPAREN || st.tok = SEMI then None else Some (parse_typ st)
+    if st.tok = LBRACE || st.tok = SEMI then None else Some (parse_typ st)
   end
   else None
 
+let rec parse_simple_stmt _st =
+  raise (ParseError "TODO(c979): parse_simple_stmt not yet implemented")
+
 (* { return a + b } *)
-let rec parse_block st =
+and parse_block st =
   expect st LBRACE;
   let body = parse_stmts st in
   expect st RBRACE;
@@ -128,7 +149,12 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-and parse_stmt st = raise (ParseError "TODO: parse_stmt not yet implemented")
+and parse_stmt st =
+  match st.tok with
+  | _ ->
+      let s = parse_simple_stmt st in
+      if st.tok = SEMI then advance st;
+      s
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
