@@ -308,6 +308,26 @@ and parse_primary st =
         mk lo st (Call (name, args))
       end
       else mk lo st (Ident name)
+  (* "hello {name}!" *)
+  | STRING_START ->
+      advance st;
+      let parts = ref [] in
+      while st.tok <> STRING_END do
+        match st.tok with
+        | STRING_PART s ->
+            (* plain text chunk *)
+            advance st;
+            parts := Lit s :: !parts
+        | INTERP_START ->
+            (* {expr} *)
+            advance st;
+            let e = parse_expr st 1 in
+            expect st INTERP_END;
+            parts := Interp e :: !parts
+        | _ -> assert false (* should be unreachable *)
+      done;
+      expect st STRING_END;
+      mk lo st (InterpString (List.rev !parts))
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_comma_list st stop =
