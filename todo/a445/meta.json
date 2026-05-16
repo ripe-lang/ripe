@@ -1,0 +1,1 @@
+{"id": "a445", "title": "reject chained comparisons like a < b < c, parsed as (a < b) < c which is a bug", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-16 14:51:36.734734", "updated_at": "2026-05-16 14:51:36.734734", "source": "compiler/lib/typechecker.ml:18", "depends": [], "blocks": [], "assignee": null}
