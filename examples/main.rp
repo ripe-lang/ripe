@@ -2,7 +2,9 @@ struct point { x: i32, y: i32 }
 
 extern add(a: i32, b: i32): i32
 
-pub add(a: i32, b: i32): i32 {
+public add(a: i32, b: i32): i32 {
+  while a > 0 {
+  }
 }
 
 main() {
