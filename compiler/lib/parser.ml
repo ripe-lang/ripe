@@ -212,8 +212,7 @@ and parse_if st =
       skip_semi st;
       parse_block st
     end
-    (* no else branch, uniform with body type *)
-    else []
+    else [] (* no else branch, uniform with body type *)
   in
   mks lo st (If ((cond, body) :: List.rev !elseifs, else_body))
 
