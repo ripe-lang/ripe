@@ -76,7 +76,7 @@ let mk_expr desc = { desc; span = dummy_span }
 (* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt_desc =
   | Let of string * typ option * expr
-  | Var of string * typ option * expr
+  | Var of string * typ option * expr option
   | Return of expr option
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list

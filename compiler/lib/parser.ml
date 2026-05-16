@@ -154,7 +154,57 @@ let parse_ret_type st =
   else None
 
 let rec parse_simple_stmt st =
-  raise (ParseError (cur_lex_pos st, "statement parsing not yet implemented"))
+  let lo = cur_pos st in
+  match st.tok with
+  (* let x: i32 = 42 *)
+  | LET ->
+      advance st;
+      let name = expect_ident st in
+      (* optional type annotation since the typechecker can infer it *)
+      let ann =
+        if at st COLON then (
+          advance st;
+          Some (parse_typ st))
+        else None
+      in
+      (* unlike var let always requires a value *)
+      expect st ASSIGN;
+      let e = parse_expr st 1 in
+      mks lo st (Let (name, ann, e))
+  (* var x: i32 / var x = 42 / var x *)
+  | VAR ->
+      advance st;
+      let name = expect_ident st in
+      let ann =
+        if at st COLON then (
+          advance st;
+          Some (parse_typ st))
+        else None
+      in
+      let e =
+        if at st ASSIGN then (
+          advance st;
+          Some (parse_expr st 1))
+        else None
+      in
+      mks lo st (Var (name, ann, e))
+  | BREAK ->
+      advance st;
+      mks lo st Break
+  | CONTINUE ->
+      advance st;
+      mks lo st Continue
+  | RETURN ->
+      (* return with no value ends at a newline or closing brace *)
+      advance st;
+      if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
+        mks lo st (Return None)
+      else
+        let e = parse_expr st 1 in
+        mks lo st (Return (Some e))
+  | _ ->
+      let e = parse_expr st 1 in
+      mks lo st (Expr e)
 
 (* { return a + b } *)
 and parse_block st =
@@ -191,26 +241,60 @@ and parse_stmt st =
 
 (* if x < 0 { return lo } elseif x > 0 { 1 } else { 0 } *)
 and parse_if st =
-  raise (ParseError (cur_lex_pos st, "if statement not yet implemented"))
+  let lo = cur_pos st in
+  advance st;
+  (* IF *)
+  let cond = parse_expr st 1 in
+  skip_semi st;
+  let body = parse_block st in
+  let elseifs = ref [] in
+  while st.tok = ELSEIF do
+    advance st;
+    let c = parse_expr st 1 in
+    skip_semi st;
+    let b = parse_block st in
+    (* collecting elseifs in order *)
+    elseifs := (c, b) :: !elseifs
+  done;
+  let else_body =
+    if st.tok = ELSE then begin
+      advance st;
+      skip_semi st;
+      parse_block st
+    end
+    else [] (* no else branch, uniform with body type *)
+  in
+  mks lo st (If ((cond, body) :: List.rev !elseifs, else_body))
 
 (* while i < len { } *)
 and parse_while st =
   let lo = cur_pos st in
   advance st;
   (* WHILE *)
-  let cond = parse_expr st in
+  let cond = parse_expr st 1 in
   skip_semi st;
   let body = parse_block st in
   mks lo st (While (cond, body))
 
 (* for i in 0..len { } *)
 and parse_for st =
-  raise (ParseError (cur_lex_pos st, "for statement not yet implemented"))
-
-and parse_expr st =
   let lo = cur_pos st in
-  ignore lo;
-  raise (ParseError (cur_lex_pos st, "expression parsing not yet implemented"))
+  advance st;
+  (* FOR *)
+  let name = expect_ident st in
+  expect st IN;
+  let iter = parse_expr st 1 in
+  skip_semi st;
+  let body = parse_block st in
+  mks lo st (For (name, iter, body))
+
+and parse_expr st _min_prec =
+  let lo = cur_pos st in
+  match st.tok with
+  | INT n ->
+      advance st;
+      mk lo st (Int n)
+  | _ -> failwith "parse_expr: not implemented"
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
