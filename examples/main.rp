@@ -1,6 +1,30 @@
+struct Point { x: i32, y: i32 }
+
+foo() {}
+
+bar(x: i32): i32 {
+  return x
+}
+
+early(): i32 {
+  return
+}
+
 main() {
-  foo()
+  let a: bool = 42
+  let b: bool = 3.14
+  let c: i32 = null
   foo(1)
-  foo(1, 2, 3)
-  foo(1 + 2, -3)
+  bar(true)
+  z
+  undefined_fn()
+  let d: Fake = 0
+  break
+  continue
+  let e: i32 = 5
+  e^
+  let p: Point = null
+  p.z
+  let n: i32 = 0
+  n.x
 }

@@ -1,4 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
+(* errors: "expected X but found Y" *)
 
 open Tokens
 open Ast
@@ -38,18 +39,8 @@ let expect st t =
     raise
       (ParseError
          ( cur_lex_pos st,
-           Printf.sprintf "expected %s"
-             (match t with
-             | LBRACE -> "'{'"
-             | RBRACE -> "'}'"
-             | LPAREN -> "'('"
-             | RPAREN -> "')'"
-             | COLON -> "':'"
-             | COMMA -> "','"
-             | SEMI -> "';'"
-             | ASSIGN -> "'='"
-             | IN -> "'in'"
-             | _ -> "token") ))
+           Printf.sprintf "expected '%s' but found '%s'" (show_token t)
+             (show_token st.tok) ))
   else advance st
 
 let mk lo st desc =
@@ -484,7 +475,7 @@ let parse_func st mods =
   let name = expect_ident st in
   (match st.tok with
   | IDENT _ ->
-      raise (ParseError (pos, Printf.sprintf "unknown modifier '%s'" name))
+      raise (ParseError (pos, Printf.sprintf "invalid modifier '%s'" name))
   | _ -> ());
   let params = parse_params st in
   let ret = parse_ret_type st in

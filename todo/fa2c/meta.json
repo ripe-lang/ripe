@@ -1,1 +1,1 @@
-{"id": "fa2c", "title": "Widen based on value magnitude (fall back I32)", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527831", "updated_at": "2026-03-13 13:35:35.527831", "source": "compiler/lib/typechecker.ml:144", "depends": [], "blocks": []}
+{"id": "fa2c", "title": "Widen based on value magnitude (fall back I32)", "status": "orphaned", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527831", "updated_at": "2026-05-16 18:44:48.268712", "source": "compiler/lib/typechecker.ml:144", "depends": [], "blocks": []}

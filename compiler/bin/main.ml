@@ -14,19 +14,25 @@ let spec =
     ("-emit-qbe", Arg.Set emit_qbe, "Emit QBE IL to stdout (not compile)");
   ]
 
-let parse_file filename =
+let read_file filename =
   let ic = open_in filename in
-  let lexbuf = Lexing.from_channel ic in
-  (* TODO: emit paths relative to project root *)
-  Lexing.set_filename lexbuf (Unix.realpath filename);
+  let n = in_channel_length ic in
+  let src = Bytes.create n in
+  really_input ic src 0 n;
+  close_in ic;
+  Bytes.to_string src
+
+let parse_file filename =
+  let abs_filename = Unix.realpath filename in
+  (* TODO(5d10): emit paths relative to project root *)
+  let src = read_file filename in
+  let lexbuf = Lexing.from_string src in
+  Lexing.set_filename lexbuf abs_filename;
   Ripe.Lexer.reset ();
   let decls =
     match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
-    | decls ->
-        close_in ic;
-        decls
+    | decls -> decls
     | exception Ripe.Parser.ParseError (pos, msg) ->
-        close_in ic;
         Printf.eprintf "%s:%d:%d: %s\n" pos.pos_fname pos.pos_lnum
           (pos.pos_cnum - pos.pos_bol)
           msg;
@@ -36,7 +42,7 @@ let parse_file filename =
   if !dump_ast then
     List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls;
   if !do_typecheck || !emit_qbe || not !dump_ast then
-    match Ripe.Typechecker.typecheck decls with
+    match Ripe.Typechecker.typecheck abs_filename src decls with
     | tdecls ->
         if !do_typecheck then print_endline "typecheck: ok"
         else
@@ -58,8 +64,8 @@ let parse_file filename =
             run (Printf.sprintf "cc -o %s %s" base tmp_asm);
             Sys.remove tmp_qbe;
             Sys.remove tmp_asm
-    | exception Ripe.Typechecker.TypeError msg ->
-        Printf.eprintf "typecheck error: %s\n" msg;
+    | exception Ripe.Typechecker.TypeErrors msgs ->
+        List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
         exit 1
 
 let () =
