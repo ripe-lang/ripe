@@ -267,6 +267,13 @@ and parse_primary st =
       let e = parse_expr st 1 in
       expect st RPAREN;
       e
+  (* sizeof(x) *)
+  | SIZEOF ->
+      advance st;
+      expect st LPAREN;
+      let t = parse_typ st in
+      expect st RPAREN;
+      mk lo st (SizeOf t)
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_simple_stmt st =
