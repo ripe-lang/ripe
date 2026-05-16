@@ -11,6 +11,8 @@ type state = {
   read : Lexing.lexbuf -> token;
 }
 
+type assoc = Left | Right | NonAssoc
+
 let advance st = st.tok <- st.read st.lexbuf
 let at st t = st.tok = t
 
@@ -153,8 +155,29 @@ let parse_ret_type st =
   end
   else None
 
-let rec parse_expr st _min_prec =
-  ignore st
+(* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
+
+let rec parse_expr st min_prec =
+  ignore min_prec;
+  let lhs = ref (parse_prefix st) in
+  lhs := parse_postfix st !lhs;
+  !lhs
+
+(* -x *)
+and parse_prefix st =
+  match st.tok with
+  | _ -> parse_primary st
+
+(* x^, x.field *)
+and parse_postfix st lhs =
+  match st.tok with
+  | _ -> lhs
+
+(* 1, x, "str", foo(a, b) *)
+and parse_primary st =
+  let lo = cur_pos st in
+  match st.tok with
+  | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
@@ -290,7 +313,6 @@ and parse_for st =
   skip_semi st;
   let body = parse_block st in
   mks lo st (For (name, iter, body))
-
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
