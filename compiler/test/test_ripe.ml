@@ -4,6 +4,7 @@ open Ripe.Ast
 
 let e desc = mk_expr desc
 let s sdesc = mk_stmt sdesc
+let t tdesc = mk_typ tdesc
 
 let run decls =
   match Ripe.Typechecker.typecheck decls with
@@ -12,7 +13,7 @@ let run decls =
       print_endline ("TypeError: " ^ msg)
 
 let func ?(params = []) ?(ret = None) name body =
-  Func { name; params; ret; body; modifiers = [] }
+  Func { name; params; ret; body; modifiers = []; span = dummy_span }
 
 let%expect_test "break outside loop" =
   run [ func "f" [ s Break ] ];
@@ -27,7 +28,7 @@ let%expect_test "unbound variable" =
   [%expect {| TypeError: unbound variable: x |}]
 
 let%expect_test "type mismatch in let" =
-  run [ func "f" [ s (Let ("x", Some (Named "bool"), e (Int 42))) ] ];
+  run [ func "f" [ s (Let ("x", Some (t (Named "bool")), e (Int 42))) ] ];
   [%expect {| TypeError: type mismatch: expected TBool, got (TInt I32) |}]
 
 let%expect_test "wrong number of arguments" =
@@ -39,21 +40,23 @@ let%expect_test "deref non-pointer" =
   [%expect {| TypeError: cannot dereference non-pointer type: (TInt I32) |}]
 
 let%expect_test "null assigned to non-pointer" =
-  run [ func "f" [ s (Let ("x", Some (Named "i32"), e Null)) ] ];
+  run [ func "f" [ s (Let ("x", Some (t (Named "i32")), e Null)) ] ];
   [%expect {| TypeError: type mismatch: expected (TInt I32), got TNull |}]
 
 let%expect_test "identity function" =
   run
     [
       func
-        ~params:[ { name = "a"; typ = Named "i32" } ]
-        ~ret:(Some (Named "i32")) "id"
+        ~params:[ { name = "a"; typ = t (Named "i32"); span = dummy_span } ]
+        ~ret:(Some (t (Named "i32")))
+        "id"
         [ s (Return (Some (e (Ident "a")))) ];
     ];
   [%expect {| ok |}]
 
 let%expect_test "null assigned to pointer" =
-  run [ func "f" [ s (Let ("p", Some (Pointer (Named "i32")), e Null)) ] ];
+  run
+    [ func "f" [ s (Let ("p", Some (t (Pointer (t (Named "i32")))), e Null)) ] ];
   [%expect {| ok |}]
 
 let%expect_test "break inside while" =

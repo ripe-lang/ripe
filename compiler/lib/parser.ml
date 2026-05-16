@@ -45,15 +45,31 @@ let expect st t =
             | _ -> "token")))
   else advance st
 
-(* i32 / ^^i32 *)
+(* start of the current lookahead token *)
+let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
+
+let mk lo st desc =
+  let hi = cur_pos st in
+  { desc; span = { lo; hi } }
+
+let mks lo st sdesc =
+  let hi = cur_pos st in
+  { sdesc; span = { lo; hi } }
+
+let mkt lo st tdesc =
+  let hi = cur_pos st in
+  { tdesc; span = { lo; hi } }
+
+(* i32 *)
 let rec parse_typ st =
+  let lo = cur_pos st in
   match st.tok with
   | CARET ->
       advance st;
-      Pointer (parse_typ st)
+      mkt lo st (Pointer (parse_typ st))
   | IDENT name ->
       advance st;
-      Named name
+      mkt lo st (Named name)
   | _ -> raise (ParseError "expected type")
 
 let parse_modifiers st =
@@ -78,11 +94,14 @@ let parse_fields st =
   while st.tok <> RBRACE do
     (* TODO(9ee0): parse modifiers *)
     (* let mods = parse_modifiers st in *)
+    let lo = cur_pos st in
     let name = expect_ident st in
     expect st COLON;
     let t = parse_typ st in
+    let hi = cur_pos st in
     (* Replace modifiers with modifiers = mods *)
-    fields := ({ name; typ = t; modifiers = [] } : field) :: !fields;
+    fields :=
+      ({ name; typ = t; modifiers = []; span = { lo; hi } } : field) :: !fields;
     if st.tok = COMMA then advance st;
     skip_semi st
   done;
@@ -90,6 +109,7 @@ let parse_fields st =
 
 (* struct point { x: i32, y: i32 } *)
 let parse_struct st mods =
+  let lo = cur_pos st in
   advance st;
   (* STRUCT *)
   let name = expect_ident st in
@@ -97,24 +117,27 @@ let parse_struct st mods =
   expect st LBRACE;
   let fields = parse_fields st in
   expect st RBRACE;
+  let hi = cur_pos st in
   skip_semi st;
-  Struct { name; fields; modifiers = mods }
+  Struct { name; fields; modifiers = mods; span = { lo; hi } }
 
 (* (a: i32, b: i32) *)
 let parse_params st =
   expect st LPAREN;
   let params = ref [] in
-  if st.tok <> RPAREN then begin
+  let parse_one () =
+    let lo = cur_pos st in
     let name = expect_ident st in
     expect st COLON;
     let t = parse_typ st in
-    params := [ ({ name; typ = t } : param) ];
+    let hi = cur_pos st in
+    ({ name; typ = t; span = { lo; hi } } : param)
+  in
+  if st.tok <> RPAREN then begin
+    params := [ parse_one () ];
     while st.tok = COMMA do
       advance st;
-      let name = expect_ident st in
-      expect st COLON;
-      let t = parse_typ st in
-      params := ({ name; typ = t } : param) :: !params
+      params := parse_one () :: !params
     done
   end;
   expect st RPAREN;
@@ -158,23 +181,27 @@ and parse_stmt st =
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
+  let lo = cur_pos st in
   let name = expect_ident st in
   let params = parse_params st in
   let ret = parse_ret_type st in
   skip_semi st;
   let body = parse_block st in
-  Func { name; params; ret; body; modifiers = mods }
+  let hi = cur_pos st in
+  Func { name; params; ret; body; modifiers = mods; span = { lo; hi } }
 
 (* extern add(a: i32, b: i32): i32 *)
 (* No modifiers needed *)
 let parse_extern st =
+  let lo = cur_pos st in
   advance st;
   (* EXTERN *)
   let name = expect_ident st in
   let params = parse_params st in
   let ret = parse_ret_type st in
+  let hi = cur_pos st in
   skip_semi st;
-  Extern { name; params; ret; body = []; modifiers = [] }
+  Extern { name; params; ret; body = []; modifiers = []; span = { lo; hi } }
 
 let parse_decl st =
   match st.tok with
