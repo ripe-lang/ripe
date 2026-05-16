@@ -3,7 +3,7 @@
 open Tokens
 open Ast
 
-exception ParseError of string
+exception ParseError of Lexing.position * string
 
 type state = {
   mutable tok : token;
@@ -13,6 +13,10 @@ type state = {
 
 let advance st = st.tok <- st.read st.lexbuf
 let at st t = st.tok = t
+
+(* start of the current lookahead token *)
+let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
+let cur_lex_pos st = st.lexbuf.Lexing.lex_start_p
 
 (* newlines lex as SEMI *)
 let skip_semi st =
@@ -25,28 +29,26 @@ let expect_ident st =
   | IDENT s ->
       advance st;
       s
-  | _ -> raise (ParseError "Expected identifier")
+  | _ -> raise (ParseError (cur_lex_pos st, "expected identifier"))
 
 let expect st t =
   if st.tok <> t then
     raise
       (ParseError
-         (Printf.sprintf "expected %s"
-            (match t with
-            | LBRACE -> "'{'"
-            | RBRACE -> "'}'"
-            | LPAREN -> "'('"
-            | RPAREN -> "')'"
-            | COLON -> "':'"
-            | COMMA -> "','"
-            | SEMI -> "';'"
-            | ASSIGN -> "'='"
-            | IN -> "'in'"
-            | _ -> "token")))
+         ( cur_lex_pos st,
+           Printf.sprintf "expected %s"
+             (match t with
+             | LBRACE -> "'{'"
+             | RBRACE -> "'}'"
+             | LPAREN -> "'('"
+             | RPAREN -> "')'"
+             | COLON -> "':'"
+             | COMMA -> "','"
+             | SEMI -> "';'"
+             | ASSIGN -> "'='"
+             | IN -> "'in'"
+             | _ -> "token") ))
   else advance st
-
-(* start of the current lookahead token *)
-let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
 
 let mk lo st desc =
   let hi = cur_pos st in
@@ -70,7 +72,7 @@ let rec parse_typ st =
   | IDENT name ->
       advance st;
       mkt lo st (Named name)
-  | _ -> raise (ParseError "expected type")
+  | _ -> raise (ParseError (cur_lex_pos st, "expected type"))
 
 let parse_modifiers st =
   let mods = ref [] in
@@ -151,8 +153,8 @@ let parse_ret_type st =
   end
   else None
 
-let rec parse_simple_stmt _st =
-  raise (ParseError "TODO(c979): parse_simple_stmt not yet implemented")
+let rec parse_simple_stmt st =
+  raise (ParseError (cur_lex_pos st, "statement parsing not yet implemented"))
 
 (* { return a + b } *)
 and parse_block st =
@@ -182,7 +184,12 @@ and parse_stmt st =
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
   let lo = cur_pos st in
+  let pos = cur_lex_pos st in
   let name = expect_ident st in
+  (match st.tok with
+  | IDENT _ ->
+      raise (ParseError (pos, Printf.sprintf "unknown modifier '%s'" name))
+  | _ -> ());
   let params = parse_params st in
   let ret = parse_ret_type st in
   skip_semi st;
