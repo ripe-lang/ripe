@@ -153,7 +153,10 @@ let parse_ret_type st =
   end
   else None
 
-let rec parse_simple_stmt st =
+let rec parse_expr st _min_prec =
+  ignore st
+
+and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
   (* let x: i32 = 42 *)
@@ -288,13 +291,6 @@ and parse_for st =
   let body = parse_block st in
   mks lo st (For (name, iter, body))
 
-and parse_expr st _min_prec =
-  let lo = cur_pos st in
-  match st.tok with
-  | INT n ->
-      advance st;
-      mk lo st (Int n)
-  | _ -> failwith "parse_expr: not implemented"
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
