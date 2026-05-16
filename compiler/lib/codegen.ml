@@ -198,7 +198,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TCast (e, target_ty) ->
       let v = emit_expr ctx e in
       emit_cast ctx v (T.ty_of_texpr e) target_ty
-  | T.TRange _ -> failwith "TODO(41e0): range codegen"
+  | T.TRange _ | T.TRangeInclusive _ -> failwith "TODO(41e0): range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   (* TODO(e68f): explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
   | T.TFieldAccess (e, field, ft) ->
@@ -244,30 +244,6 @@ and emit_unop ctx op e t =
       let tmp = fresh ctx in
       emit ctx "    %s =l copy %%%s\n" tmp name;
       tmp
-  | Ast.PreInc -> emit_inc_dec ctx e "add" true
-  | Ast.PreDec -> emit_inc_dec ctx e "sub" true
-  | Ast.PostInc -> emit_inc_dec ctx e "add" false
-  | Ast.PostDec -> emit_inc_dec ctx e "sub" false
-
-and emit_inc_dec ctx e arith_op pre =
-  let name = lvalue_name e in
-  let et = T.ty_of_texpr e in
-  let qt = qbe_ty et in
-  let old_val = fresh ctx in
-  (* FIXME: reassigns SSA name, breaks with globals *)
-  if Hashtbl.mem ctx.locals name then
-    emit ctx "    %s =%s %s %%%s\n" old_val qt (qbe_load et) name
-  else emit ctx "    %s =%s copy %%%s\n" old_val qt name;
-  let one =
-    match et with TFloat F32 -> "s_1.0" | TFloat F64 -> "d_1.0" | _ -> "1"
-  in
-  (* FIXME: reassigns SSA name, breaks with globals *)
-  let new_val = fresh ctx in
-  emit ctx "    %s =%s %s %s, %s\n" new_val qt arith_op old_val one;
-  if Hashtbl.mem ctx.locals name then
-    emit ctx "    %s %s, %%%s\n" (qbe_store et) new_val name
-  else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
-  if pre then new_val else old_val
 
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
 and emit_assign ctx l r _t =

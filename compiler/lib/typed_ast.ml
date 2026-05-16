@@ -19,6 +19,7 @@ and texpr =
   | TCast of texpr * ty
   | TSizeOf of Types.ty
   | TRange of texpr * texpr
+  | TRangeInclusive of texpr * texpr
   | TInterpString of tinterp_part list
 
 type tstmt =
@@ -63,6 +64,6 @@ let ty_of_texpr (e : texpr) : ty =
   | TFieldAccess (_, _, t) -> t
   | TCast (_, t) -> t
   | TSizeOf _ -> TInt I64
-  | TRange _ ->
+  | TRange _ | TRangeInclusive _ ->
       raise (Invalid_argument "TODO(cb82): range type not yet defined")
   | TInterpString _ -> TPointer (TInt I8)

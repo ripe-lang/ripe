@@ -11,6 +11,8 @@ type state = {
   read : Lexing.lexbuf -> token;
 }
 
+type assoc = Left | Right | NonAssoc
+
 let advance st = st.tok <- st.read st.lexbuf
 let at st t = st.tok = t
 
@@ -153,7 +155,194 @@ let parse_ret_type st =
   end
   else None
 
-let rec parse_simple_stmt st =
+(* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
+
+let prec_of = function
+  | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN ->
+      Some (1, Right)
+  | DOTDOT | DOTDOTEQ -> Some (2, NonAssoc)
+  | OR -> Some (3, Left)
+  | AND -> Some (4, Left)
+  | EQ | NEQ | LT | GT | LTE | GTE -> Some (5, NonAssoc)
+  | PIPE -> Some (6, Left)
+  | AMP -> Some (7, Left)
+  | LSHIFT | RSHIFT -> Some (8, Left)
+  | PLUS | MINUS -> Some (9, Left)
+  | STAR | SLASH | PERCENT -> Some (10, Left)
+  | AS -> Some (11, Left)
+  (* TODO(4893): add XOR once symbol is decided *)
+  | _ -> None
+
+let binop_of = function
+  | PLUS -> Add
+  | MINUS -> Sub
+  | STAR -> Mul
+  | SLASH -> Div
+  | PERCENT -> Mod
+  | EQ -> Eq
+  | NEQ -> Neq
+  | LT -> Lt
+  | GT -> Gt
+  | LTE -> Lte
+  | GTE -> Gte
+  | AND -> And
+  | OR -> Or
+  | AMP -> BitAnd
+  | PIPE -> BitOr
+  | TILDE -> BitXor (* TODO add XOR once symbol is decided *)
+  | LSHIFT -> Lshift
+  | RSHIFT -> Rshift
+  | ASSIGN -> Assign
+  | PLUS_ASSIGN -> AddAssign
+  | MINUS_ASSIGN -> SubAssign
+  | STAR_ASSIGN -> MulAssign
+  | SLASH_ASSIGN -> DivAssign
+  | _ -> failwith "not a binary operator"
+
+let rec parse_expr st min_prec =
+  let lo = cur_pos st in
+  let lhs = ref (parse_prefix st) in
+  lhs := parse_postfix st !lhs;
+
+  (* precedence climbing for infix ops *)
+  let loop = ref true in
+  while !loop do
+    match prec_of st.tok with
+    | None -> loop := false
+    | Some (prec, _) when prec < min_prec -> loop := false
+    | Some (prec, assoc) ->
+        let op_tok = st.tok in
+        advance st;
+        let next_min_prec =
+          match assoc with Left | NonAssoc -> prec + 1 | Right -> prec
+        in
+        if op_tok = AS then begin
+          let ty = parse_typ st in
+          lhs := mk lo st (Cast (!lhs, ty))
+        end
+        else if op_tok = DOTDOT then begin
+          let rhs = parse_expr st next_min_prec in
+          lhs := mk lo st (Range (!lhs, rhs))
+        end
+        else if op_tok = DOTDOTEQ then begin
+          let rhs = parse_expr st next_min_prec in
+          lhs := mk lo st (RangeInclusive (!lhs, rhs))
+        end
+        else begin
+          let rhs = parse_expr st next_min_prec in
+          let op = binop_of op_tok in
+          lhs := mk lo st (BinOp (op, !lhs, rhs))
+        end;
+        lhs := parse_postfix st !lhs
+  done;
+  !lhs
+
+(* -x *)
+and parse_prefix st =
+  let lo = cur_pos st in
+  match st.tok with
+  | BANG ->
+      advance st;
+      mk lo st (UnOp (Not, parse_prefix st))
+  | MINUS ->
+      advance st;
+      mk lo st (UnOp (Neg, parse_prefix st))
+  | TILDE ->
+      advance st;
+      mk lo st (UnOp (BitNot, parse_prefix st))
+  | AT ->
+      advance st;
+      mk lo st (UnOp (AddressOf, parse_prefix st))
+  | _ -> parse_primary st
+
+(* x^, x.field *)
+and parse_postfix st lhs =
+  let lo = lhs.span.lo in
+  match st.tok with
+  | CARET ->
+      advance st;
+      parse_postfix st (mk lo st (UnOp (Deref, lhs)))
+  | DOT ->
+      advance st;
+      let name = expect_ident st in
+      parse_postfix st (mk lo st (FieldAccess (lhs, name)))
+  | _ -> lhs
+
+(* 1, x, "str", foo(a, b) *)
+and parse_primary st =
+  let lo = cur_pos st in
+  match st.tok with
+  | INT n ->
+      advance st;
+      mk lo st (Int n)
+  | FLOAT f ->
+      advance st;
+      mk lo st (Float f)
+  | TRUE ->
+      advance st;
+      mk lo st (Bool true)
+  | FALSE ->
+      advance st;
+      mk lo st (Bool false)
+  | NULL ->
+      advance st;
+      mk lo st Null
+  | LPAREN ->
+      advance st;
+      let e = parse_expr st 1 in
+      expect st RPAREN;
+      e
+  (* sizeof(x) *)
+  | SIZEOF ->
+      advance st;
+      expect st LPAREN;
+      let t = parse_typ st in
+      expect st RPAREN;
+      mk lo st (SizeOf t)
+  | IDENT name ->
+      advance st;
+      if at st LPAREN then begin
+        advance st;
+        let args = parse_comma_list st RPAREN in
+        expect st RPAREN;
+        mk lo st (Call (name, args))
+      end
+      else mk lo st (Ident name)
+  (* "hello {name}!" *)
+  | STRING_START ->
+      advance st;
+      let parts = ref [] in
+      while st.tok <> STRING_END do
+        match st.tok with
+        | STRING_PART s ->
+            (* plain text chunk *)
+            advance st;
+            parts := Lit s :: !parts
+        | INTERP_START ->
+            (* {expr} *)
+            advance st;
+            let e = parse_expr st 1 in
+            expect st INTERP_END;
+            parts := Interp e :: !parts
+        | _ -> assert false (* should be unreachable *)
+      done;
+      expect st STRING_END;
+      mk lo st (InterpString (List.rev !parts))
+  | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
+
+and parse_comma_list st stop =
+  if st.tok = stop then []
+  else begin
+    let first = parse_expr st 1 in
+    let rest = ref [ first ] in
+    while st.tok = COMMA do
+      advance st;
+      rest := parse_expr st 1 :: !rest
+    done;
+    List.rev !rest
+  end
+
+and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
   (* let x: i32 = 42 *)
@@ -287,14 +476,6 @@ and parse_for st =
   skip_semi st;
   let body = parse_block st in
   mks lo st (For (name, iter, body))
-
-and parse_expr st _min_prec =
-  let lo = cur_pos st in
-  match st.tok with
-  | INT n ->
-      advance st;
-      mk lo st (Int n)
-  | _ -> failwith "parse_expr: not implemented"
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =

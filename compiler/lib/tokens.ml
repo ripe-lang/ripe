@@ -33,8 +33,6 @@ type token =
   | MINUS_ASSIGN
   | STAR_ASSIGN
   | SLASH_ASSIGN
-  | INCR
-  | DECR
   | LET
   | VAR
   | RETURN
@@ -64,6 +62,7 @@ type token =
   | COMMA
   | COLON
   | DOTDOT
+  | DOTDOTEQ
   | DOT
   | SEMI
   | EOF

@@ -9,8 +9,6 @@ let dummy_span = { lo = 0; hi = 0 }
 type typ_desc = Named of string | Pointer of typ
 and typ = { tdesc : typ_desc; span : span } [@@deriving show]
 
-let mk_typ tdesc = { tdesc; span = dummy_span }
-
 type binop =
   | Add
   | Sub
@@ -37,17 +35,7 @@ type binop =
   | DivAssign
 [@@deriving show]
 
-type unop =
-  | Neg
-  | Not
-  | BitNot
-  | PreInc
-  | PreDec
-  | PostInc
-  | PostDec
-  | Deref
-  | AddressOf
-[@@deriving show]
+type unop = Neg | Not | BitNot | Deref | AddressOf [@@deriving show]
 
 type interp_part = Lit of string | Interp of expr [@@deriving show]
 
@@ -59,10 +47,12 @@ and expr_desc =
   | Char of char
   | String of string
   | Ident of string
+  (* TODO(e8ba): change to Call of expr * expr list for function pointers and method calls *)
   | Call of string * expr list
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
+  | RangeInclusive of expr * expr
   | FieldAccess of expr * string
   | Cast of expr * typ
   | SizeOf of typ
@@ -70,8 +60,6 @@ and expr_desc =
 [@@deriving show]
 
 and expr = { desc : expr_desc; span : span } [@@deriving show]
-
-let mk_expr desc = { desc; span = dummy_span }
 
 (* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt_desc =
@@ -88,8 +76,6 @@ type stmt_desc =
 [@@deriving show]
 
 and stmt = { sdesc : stmt_desc; span : span } [@@deriving show]
-
-let mk_stmt sdesc = { sdesc; span = dummy_span }
 
 type modifier = Pub | Inline [@@deriving show]
 

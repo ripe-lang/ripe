@@ -1,1 +1,1 @@
-{"id": "c979", "title": "parse_simple_stmt not yet implemented", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-15 20:02:50.584305", "updated_at": "2026-05-15 20:02:50.584305", "source": "compiler/lib/parser.ml:132", "depends": [], "blocks": [], "assignee": null}
+{"id": "c979", "title": "parse_simple_stmt not yet implemented", "status": "orphaned", "priority": "low", "tags": [], "created_at": "2026-05-15 20:02:50.584305", "updated_at": "2026-05-16 14:51:36.739888", "source": "compiler/lib/parser.ml:132", "depends": [], "blocks": [], "assignee": null}
