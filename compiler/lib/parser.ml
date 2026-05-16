@@ -157,21 +157,45 @@ let parse_ret_type st =
 
 (* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
 
+let prec_of = function
+  | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN ->
+      Some (1, Right)
+  | DOTDOT -> Some (2, NonAssoc)
+  | OR -> Some (3, Left)
+  | AND -> Some (4, Left)
+  | EQ | NEQ | LT | GT | LTE | GTE -> Some (5, NonAssoc)
+  | PIPE -> Some (6, Left)
+  | AMP -> Some (7, Left)
+  | LSHIFT | RSHIFT -> Some (8, Left)
+  | PLUS | MINUS -> Some (9, Left)
+  | STAR | SLASH | PERCENT -> Some (10, Left)
+  | AS -> Some (11, Left)
+  (* TODO(4893): add XOR once symbol is decided *)
+  | _ -> None
+
 let rec parse_expr st min_prec =
   ignore min_prec;
   let lhs = ref (parse_prefix st) in
   lhs := parse_postfix st !lhs;
+
+  (* precedence climbing for infix ops *)
+  let loop = ref true in
+  while !loop do
+    match prec_of st.tok with
+    | None -> loop := false
+    | Some prec -> loop := false (* TODO(af08): handle infix ops *)
+  done;
   !lhs
 
 (* -x *)
-and parse_prefix st =
-  match st.tok with
-  | _ -> parse_primary st
+and parse_prefix st = 
+  match st.tok with 
+  _ -> parse_primary st
 
 (* x^, x.field *)
-and parse_postfix st lhs =
-  match st.tok with
-  | _ -> lhs
+and parse_postfix st lhs = 
+  match st.tok with 
+  _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary st =
