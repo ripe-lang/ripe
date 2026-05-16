@@ -28,7 +28,6 @@ type tstmt =
   | TIf of (texpr * tstmt list) list * tstmt list
   | TWhile of texpr * tstmt list
   | TFor of string * ty * texpr * tstmt list
-  | TCFor of tstmt * texpr * texpr * tstmt list
   | TBreak
   | TContinue
   | TExpr of texpr

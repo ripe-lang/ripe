@@ -399,18 +399,6 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
         check_stmts (extend_var { env with in_loop = true } name elem_ty) body
       in
       (env, Typed_ast.TFor (name, elem_ty, titer, tbody))
-  | CFor (init, cond, post, body) ->
-      let env', tinit = check_stmt env init in
-      let tcond = check env' cond TBool in
-      let tpost =
-        match post.desc with
-        | UnOp (((PreInc | PreDec | PostInc | PostDec) as op), e) ->
-            synth_inc_dec env' op e
-        | _ -> synth env' post
-      in
-      let _, tbody = check_stmts { env' with in_loop = true } body in
-      (* Throwing away the previous env to be similar to C-style scoping *)
-      (env, Typed_ast.TCFor (tinit, tcond, tpost, tbody))
   | Break ->
       if not env.in_loop then
         raise (TypeError "break statement must be inside a loop");
