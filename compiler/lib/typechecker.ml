@@ -15,6 +15,8 @@ available for other functions *)
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
+(* TODO: reject chained comparisons like a < b < c, parsed as (a < b) < c which is a bug *)
+
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 

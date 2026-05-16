@@ -59,6 +59,7 @@ and expr_desc =
   | Char of char
   | String of string
   | Ident of string
+  (* TODO: change to Call of expr * expr list for function pointers and method calls *)
   | Call of string * expr list
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
