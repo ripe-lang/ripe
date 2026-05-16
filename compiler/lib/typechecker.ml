@@ -57,7 +57,7 @@ let lookup_struct (env : env) (name : string) : struct_info =
   | None -> raise (TypeError ("unknown struct: " ^ name))
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
-  match t with
+  match t.tdesc with
   | Named "i8" -> TInt I8
   | Named "i16" -> TInt I16
   | Named "i32" -> TInt I32

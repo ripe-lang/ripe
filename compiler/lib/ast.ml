@@ -6,7 +6,10 @@ type span = { lo : int; hi : int } [@@deriving show]
 
 let dummy_span = { lo = 0; hi = 0 }
 
-type typ = Named of string | Pointer of typ [@@deriving show]
+type typ_desc = Named of string | Pointer of typ
+and typ = { tdesc : typ_desc; span : span } [@@deriving show]
+
+let mk_typ tdesc = { tdesc; span = dummy_span }
 
 type binop =
   | Add
@@ -92,9 +95,14 @@ let mk_stmt sdesc = { sdesc; span = dummy_span }
 type modifier = Pub | Inline [@@deriving show]
 
 (* kept separate for distinction *)
-type param = { name : string; typ : typ } [@@deriving show]
+type param = { name : string; typ : typ; span : span } [@@deriving show]
 
-type field = { name : string; typ : typ; modifiers : modifier list }
+type field = {
+  name : string;
+  typ : typ;
+  modifiers : modifier list;
+  span : span;
+}
 [@@deriving show]
 
 (* TODO(ea0e): add array types *)
@@ -104,6 +112,7 @@ type func_def = {
   ret : typ option;
   body : stmt list;
   modifiers : modifier list;
+  span : span;
 }
 [@@deriving show]
 
@@ -111,6 +120,7 @@ type struct_def = {
   name : string;
   fields : field list;
   modifiers : modifier list;
+  span : span;
 }
 [@@deriving show]
 
