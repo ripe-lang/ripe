@@ -24,9 +24,8 @@ let parse_file filename =
     | decls ->
         close_in ic;
         decls
-    | exception Ripe.Parser.ParseError msg ->
+    | exception Ripe.Parser.ParseError (pos, msg) ->
         close_in ic;
-        let pos = lexbuf.lex_curr_p in
         Printf.eprintf "%s:%d:%d: %s\n" pos.pos_fname pos.pos_lnum
           (pos.pos_cnum - pos.pos_bol)
           msg;
