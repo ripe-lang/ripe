@@ -198,16 +198,24 @@ and parse_while st =
   let lo = cur_pos st in
   advance st;
   (* WHILE *)
-  let cond = parse_expr st in
+  let cond = parse_expr st 1 in
   skip_semi st;
   let body = parse_block st in
   mks lo st (While (cond, body))
 
 (* for i in 0..len { } *)
 and parse_for st =
-  raise (ParseError (cur_lex_pos st, "for statement not yet implemented"))
+  let lo = cur_pos st in
+  advance st;
+  (* FOR *)
+  let name = expect_ident st in
+  expect st IN;
+  let iter = parse_expr st 1 in
+  skip_semi st;
+  let body = parse_block st in
+  mks lo st (For (name, iter, body))
 
-and parse_expr st =
+and parse_expr st _min_prec =
   let lo = cur_pos st in
   ignore lo;
   raise (ParseError (cur_lex_pos st, "expression parsing not yet implemented"))
