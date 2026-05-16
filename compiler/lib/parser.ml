@@ -175,11 +175,25 @@ and parse_stmts st =
   List.rev !stmts
 
 and parse_stmt st =
+  let lo = cur_pos st in
   match st.tok with
+  | IF -> parse_if st
+  | WHILE -> parse_while st
+  | FOR -> parse_for st
+  | LBRACE ->
+      let body = parse_block st in
+      mks lo st (Block body)
   | _ ->
       let s = parse_simple_stmt st in
+      (* ends with a semicolon, clean up *)
       if st.tok = SEMI then advance st;
       s
+
+and parse_if st = raise (ParseError (cur_lex_pos st, "if statement not yet implemented"))
+
+and parse_while st = raise (ParseError (cur_lex_pos st, "while statement not yet implemented"))
+
+and parse_for st = raise (ParseError (cur_lex_pos st, "for statement not yet implemented"))
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =
