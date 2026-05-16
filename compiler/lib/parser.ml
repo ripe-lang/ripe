@@ -245,8 +245,28 @@ and parse_postfix st lhs = match st.tok with _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary st =
-  let _lo = cur_pos st in
+  let lo = cur_pos st in
   match st.tok with
+  | INT n ->
+      advance st;
+      mk lo st (Int n)
+  | FLOAT f ->
+      advance st;
+      mk lo st (Float f)
+  | TRUE ->
+      advance st;
+      mk lo st (Bool true)
+  | FALSE ->
+      advance st;
+      mk lo st (Bool false)
+  | NULL ->
+      advance st;
+      mk lo st Null
+  | LPAREN ->
+      advance st;
+      let e = parse_expr st 1 in
+      expect st RPAREN;
+      e
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_simple_stmt st =

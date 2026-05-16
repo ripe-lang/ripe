@@ -1,26 +1,6 @@
-#struct point { x: i32, y: i32 }
-
-#extern add(a: i32, b: i32): i32
-
 main() {
-  #while a > 0 {
-  #}
-  #for i in 0..len {
-  #}
-
   let x: i32 = 42
-  var y: i32 = 42
-  #var z: i32
+  let y: i32 = 1 + 2 * 3
+  let z: i32 = (1 + 2) * 3
   var w
-
-  #if a > 0 {
-  #  if a > 1 {
-  #  } else {
-  #  }
-  #} elseif a < 0 {
-  #} else {
-  #}
 }
-
-#main() {
-#}
