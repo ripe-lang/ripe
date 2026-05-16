@@ -90,7 +90,7 @@ and read_main = parse
       | "struct"   -> STRUCT
       (* FIXME: I don't know if I like "inline" something feels weird *)
       | "inline"   -> INLINE
-      | "pub"      -> PUBLIC
+      | "public"   -> PUBLIC
       | _          -> IDENT s
     }
   | "==" { EQ }
