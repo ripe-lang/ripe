@@ -154,7 +154,23 @@ let parse_ret_type st =
   else None
 
 let rec parse_simple_stmt st =
-  raise (ParseError (cur_lex_pos st, "statement parsing not yet implemented"))
+  let lo = cur_pos st in
+  match st.tok with
+  | LET ->
+      advance st;
+      let name = expect_ident st in
+      let ann =
+        if at st COLON then (
+          advance st;
+          Some (parse_typ st))
+        else None
+      in
+      expect st ASSIGN;
+      let e = parse_expr st 1 in
+      mks lo st (Let (name, ann, e))
+  | _ ->
+      let e = parse_expr st 1 in
+      mks lo st (Expr e)
 
 (* { return a + b } *)
 and parse_block st =
@@ -240,10 +256,10 @@ and parse_for st =
 
 and parse_expr st _min_prec =
   let lo = cur_pos st in
-  while st.tok <> LBRACE && st.tok <> SEMI && st.tok <> EOF do
-    advance st
-  done;
-  mk lo st (Int 0)
+  match st.tok with
+  | INT n -> advance st; mk lo st (Int n)
+  | _ -> failwith "parse_expr: not implemented"
+
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =

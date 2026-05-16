@@ -1,21 +1,23 @@
-struct point { x: i32, y: i32 }
+#struct point { x: i32, y: i32 }
 
-extern add(a: i32, b: i32): i32
+#extern add(a: i32, b: i32): i32
 
-public add(a: i32, b: i32): i32 {
+main() {
   #while a > 0 {
   #}
   #for i in 0..len {
   #}
 
-  if a > 0 {
-    if a > 1 {
-    } else {
-    }
-  } elseif a < 0 {
-  } else {
-  }
+  let x: i32 = 42
+
+  #if a > 0 {
+  #  if a > 1 {
+  #  } else {
+  #  }
+  #} elseif a < 0 {
+  #} else {
+  #}
 }
 
-main() {
-}
+#main() {
+#}
