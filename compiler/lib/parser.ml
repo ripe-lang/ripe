@@ -160,7 +160,7 @@ let parse_ret_type st =
 let prec_of = function
   | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN ->
       Some (1, Right)
-  | DOTDOT -> Some (2, NonAssoc)
+  | DOTDOT | DOTDOTEQ -> Some (2, NonAssoc)
   | OR -> Some (3, Left)
   | AND -> Some (4, Left)
   | EQ | NEQ | LT | GT | LTE | GTE -> Some (5, NonAssoc)
@@ -173,8 +173,34 @@ let prec_of = function
   (* TODO(4893): add XOR once symbol is decided *)
   | _ -> None
 
+let binop_of = function
+  | PLUS -> Add
+  | MINUS -> Sub
+  | STAR -> Mul
+  | SLASH -> Div
+  | PERCENT -> Mod
+  | EQ -> Eq
+  | NEQ -> Neq
+  | LT -> Lt
+  | GT -> Gt
+  | LTE -> Lte
+  | GTE -> Gte
+  | AND -> And
+  | OR -> Or
+  | AMP -> BitAnd
+  | PIPE -> BitOr
+  | TILDE -> BitXor (* TODO add XOR once symbol is decided *)
+  | LSHIFT -> Lshift
+  | RSHIFT -> Rshift
+  | ASSIGN -> Assign
+  | PLUS_ASSIGN -> AddAssign
+  | MINUS_ASSIGN -> SubAssign
+  | STAR_ASSIGN -> MulAssign
+  | SLASH_ASSIGN -> DivAssign
+  | _ -> failwith "not a binary operator"
+
 let rec parse_expr st min_prec =
-  ignore min_prec;
+  let lo = cur_pos st in
   let lhs = ref (parse_prefix st) in
   lhs := parse_postfix st !lhs;
 
@@ -183,23 +209,43 @@ let rec parse_expr st min_prec =
   while !loop do
     match prec_of st.tok with
     | None -> loop := false
-    | Some prec -> loop := false (* TODO(af08): handle infix ops *)
+    | Some (prec, _) when prec < min_prec -> loop := false
+    | Some (prec, assoc) ->
+        let op_tok = st.tok in
+        advance st;
+        let next_min_prec =
+          match assoc with Left | NonAssoc -> prec + 1 | Right -> prec
+        in
+        if op_tok = AS then begin
+          let ty = parse_typ st in
+          lhs := mk lo st (Cast (!lhs, ty))
+        end
+        else if op_tok = DOTDOT then begin
+          let rhs = parse_expr st next_min_prec in
+          lhs := mk lo st (Range (!lhs, rhs))
+        end
+        else if op_tok = DOTDOTEQ then begin
+          let rhs = parse_expr st next_min_prec in
+          lhs := mk lo st (RangeInclusive (!lhs, rhs))
+        end
+        else begin
+          let rhs = parse_expr st next_min_prec in
+          let op = binop_of op_tok in
+          lhs := mk lo st (BinOp (op, !lhs, rhs))
+        end;
+        lhs := parse_postfix st !lhs
   done;
   !lhs
 
 (* -x *)
-and parse_prefix st = 
-  match st.tok with 
-  _ -> parse_primary st
+and parse_prefix st = match st.tok with _ -> parse_primary st
 
 (* x^, x.field *)
-and parse_postfix st lhs = 
-  match st.tok with 
-  _ -> lhs
+and parse_postfix st lhs = match st.tok with _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary st =
-  let lo = cur_pos st in
+  let _lo = cur_pos st in
   match st.tok with
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
