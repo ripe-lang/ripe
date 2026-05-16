@@ -15,3 +15,21 @@ type ty =
   | TPointer of ty
   | TStruct of string
 [@@deriving show { with_path = false }]
+
+let rec show_ty = function
+  | TInt I8 -> "i8"
+  | TInt I16 -> "i16"
+  | TInt I32 -> "i32"
+  | TInt I64 -> "i64"
+  | TInt U8 -> "u8"
+  | TInt U16 -> "u16"
+  | TInt U32 -> "u32"
+  | TInt U64 -> "u64"
+  | TFloat F32 -> "f32"
+  | TFloat F64 -> "f64"
+  | TBool -> "bool"
+  | TString -> "str"
+  | TVoid -> "void"
+  | TNull -> "null"
+  | TPointer t -> "^" ^ show_ty t
+  | TStruct name -> name
