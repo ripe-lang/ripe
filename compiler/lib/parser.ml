@@ -238,7 +238,29 @@ let rec parse_expr st min_prec =
   !lhs
 
 (* -x *)
-and parse_prefix st = match st.tok with _ -> parse_primary st
+and parse_prefix st =
+  let lo = cur_pos st in
+  match st.tok with
+  | BANG ->
+      advance st;
+      mk lo st (UnOp (Not, parse_prefix st))
+  | MINUS ->
+      advance st;
+      mk lo st (UnOp (Neg, parse_prefix st))
+  | TILDE ->
+      advance st;
+      mk lo st (UnOp (BitNot, parse_prefix st))
+  | INCR ->
+      advance st;
+      mk lo st (UnOp (PreInc, parse_prefix st))
+  | DECR ->
+      advance st;
+      mk lo st (UnOp (PreDec, parse_prefix st))
+  (* TODO: I need to add IDENT before testing *)
+  | AT ->
+      advance st;
+      mk lo st (UnOp (AddressOf, parse_prefix st))
+  | _ -> parse_primary st
 
 (* x^, x.field *)
 and parse_postfix st lhs = match st.tok with _ -> lhs
