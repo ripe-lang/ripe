@@ -35,13 +35,7 @@ type binop =
   | DivAssign
 [@@deriving show]
 
-type unop =
-  | Neg
-  | Not
-  | BitNot
-  | Deref
-  | AddressOf
-[@@deriving show]
+type unop = Neg | Not | BitNot | Deref | AddressOf [@@deriving show]
 
 type interp_part = Lit of string | Interp of expr [@@deriving show]
 

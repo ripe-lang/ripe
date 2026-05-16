@@ -256,7 +256,17 @@ and parse_prefix st =
   | _ -> parse_primary st
 
 (* x^, x.field *)
-and parse_postfix st lhs = match st.tok with _ -> lhs
+and parse_postfix st lhs =
+  let lo = lhs.span.lo in
+  match st.tok with
+  | CARET ->
+      advance st;
+      parse_postfix st (mk lo st (UnOp (Deref, lhs)))
+  | DOT ->
+      advance st;
+      let name = expect_ident st in
+      parse_postfix st (mk lo st (FieldAccess (lhs, name)))
+  | _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary st =

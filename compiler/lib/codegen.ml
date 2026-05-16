@@ -244,6 +244,7 @@ and emit_unop ctx op e t =
       let tmp = fresh ctx in
       emit ctx "    %s =l copy %%%s\n" tmp name;
       tmp
+
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
 and emit_assign ctx l r _t =
   let rv = emit_expr ctx r in
