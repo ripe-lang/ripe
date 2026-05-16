@@ -1,7 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* This is for converting byte offsets (Ast.span) to line/col
-    https://blog.ocaml.xyz/algorithm/2022/01/10/binary-search.html *)
+(* Converts byte offsets to line/col positions *)
 
 type t = {
   src : string;
