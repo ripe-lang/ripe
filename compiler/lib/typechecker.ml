@@ -176,6 +176,10 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let ta = synth env a in
       let tb = synth env b in
       Typed_ast.TRange (ta, tb)
+  | RangeInclusive (a, b) ->
+      let ta = synth env a in
+      let tb = synth env b in
+      Typed_ast.TRangeInclusive (ta, tb)
   | InterpString parts ->
       let tparts =
         List.map

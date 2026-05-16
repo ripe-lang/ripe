@@ -198,7 +198,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TCast (e, target_ty) ->
       let v = emit_expr ctx e in
       emit_cast ctx v (T.ty_of_texpr e) target_ty
-  | T.TRange _ -> failwith "TODO(41e0): range codegen"
+  | T.TRange _ | T.TRangeInclusive _ -> failwith "TODO(41e0): range codegen"
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   (* TODO(e68f): explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
   | T.TFieldAccess (e, field, ft) ->

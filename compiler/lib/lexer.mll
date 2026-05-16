@@ -118,6 +118,7 @@ and read_main = parse
   | '&'  { AMP }
   | '|'  { PIPE }
   | '~'  { TILDE }
+  | "..=" { DOTDOTEQ }
   | ".." { DOTDOT }
   | '.'  { DOT }
   | ';'  { SEMI }

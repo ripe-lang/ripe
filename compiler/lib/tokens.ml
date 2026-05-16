@@ -64,6 +64,7 @@ type token =
   | COMMA
   | COLON
   | DOTDOT
+  | DOTDOTEQ
   | DOT
   | SEMI
   | EOF
