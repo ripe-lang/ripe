@@ -17,7 +17,8 @@ let spec =
 let parse_file filename =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
-  Lexing.set_filename lexbuf filename;
+  (* TODO: emit paths relative to project root *)
+  Lexing.set_filename lexbuf (Unix.realpath filename);
   Ripe.Lexer.reset ();
   let decls =
     match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
