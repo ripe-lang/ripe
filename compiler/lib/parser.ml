@@ -79,11 +79,11 @@ let parse_modifiers st =
     match st.tok with
     | INLINE ->
         advance st;
-        mods := INLINE :: !mods
+        mods := Ast.Inline :: !mods
     (* TODO(74d8): not entirely sure yet. static? public? *)
-    (* | PUBLIC ->
+    | PUBLIC ->
         advance st;
-        mods := PUBLIC :: !mods *)
+        mods := Ast.Pub :: !mods
     | _ -> cont := false
   done;
   List.rev !mods
@@ -207,6 +207,11 @@ let parse_decl st =
   match st.tok with
   | EXTERN -> parse_extern st
   | STRUCT -> parse_struct st []
+  | PUBLIC | INLINE -> (
+      let mods = parse_modifiers st in
+      match st.tok with
+      | STRUCT -> parse_struct st mods
+      | _ -> parse_func st mods)
   | _ -> parse_func st []
 
 let parse_program st =
