@@ -189,11 +189,11 @@ let rec parse_simple_stmt st =
       in
       mks lo st (Var (name, ann, e))
   | BREAK ->
-    advance st;
-    mks lo st Break
+      advance st;
+      mks lo st Break
   | CONTINUE ->
-    advance st;
-    mks lo st Continue
+      advance st;
+      mks lo st Continue
   | _ ->
       let e = parse_expr st 1 in
       mks lo st (Expr e)
