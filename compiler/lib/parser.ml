@@ -296,7 +296,28 @@ and parse_primary st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
+  | IDENT name ->
+      advance st;
+      if at st LPAREN then begin
+        advance st;
+        let args = parse_comma_list st RPAREN in
+        expect st RPAREN;
+        mk lo st (Call (name, args))
+      end
+      else mk lo st (Ident name)
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
+
+and parse_comma_list st stop =
+  if st.tok = stop then []
+  else begin
+    let first = parse_expr st 1 in
+    let rest = ref [ first ] in
+    while st.tok = COMMA do
+      advance st;
+      rest := parse_expr st 1 :: !rest
+    done;
+    List.rev !rest
+  end
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
