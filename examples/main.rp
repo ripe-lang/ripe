@@ -1,6 +1,6 @@
 main() {
-  let x: i32 = 42
-  let y: i32 = 1 + 2 * 3
-  let z: i32 = (1 + 2) * 3
-  var w
+  foo()
+  foo(1)
+  foo(1, 2, 3)
+  foo(1 + 2, -3)
 }
