@@ -194,6 +194,14 @@ let rec parse_simple_stmt st =
   | CONTINUE ->
       advance st;
       mks lo st Continue
+  | RETURN ->
+      (* return with no value ends at a newline or closing brace *)
+      advance st;
+      if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
+        mks lo st (Return None)
+      else
+        let e = parse_expr st 1 in
+        mks lo st (Return (Some e))
   | _ ->
       let e = parse_expr st 1 in
       mks lo st (Expr e)
