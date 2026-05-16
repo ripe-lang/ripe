@@ -189,14 +189,28 @@ and parse_stmt st =
       if st.tok = SEMI then advance st;
       s
 
+(* if x < 0 { return lo } elseif x > 0 { 1 } else { 0 } *)
 and parse_if st =
   raise (ParseError (cur_lex_pos st, "if statement not yet implemented"))
 
+(* while i < len { } *)
 and parse_while st =
-  raise (ParseError (cur_lex_pos st, "while statement not yet implemented"))
+  let lo = cur_pos st in
+  advance st;
+  (* WHILE *)
+  let cond = parse_expr st in
+  skip_semi st;
+  let body = parse_block st in
+  mks lo st (While (cond, body))
 
+(* for i in 0..len { } *)
 and parse_for st =
   raise (ParseError (cur_lex_pos st, "for statement not yet implemented"))
+
+and parse_expr st =
+  let lo = cur_pos st in
+  ignore lo;
+  raise (ParseError (cur_lex_pos st, "expression parsing not yet implemented"))
 
 (* add(a: i32, b: i32): i32 { return a + b } *)
 let parse_func st mods =

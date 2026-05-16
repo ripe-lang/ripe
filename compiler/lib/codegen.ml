@@ -480,21 +480,6 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       in
       List.iter (Hashtbl.remove ctx.locals) to_remove
   | T.TBreak | T.TContinue -> () (* TODO(d426): target labels *)
-  | T.TCFor (init, cond, post, body) ->
-      let id = fresh_id ctx in
-      let test_lbl = Printf.sprintf "@for.cond%d" id in
-      let body_lbl = Printf.sprintf "@for.body%d" id in
-      let end_lbl = Printf.sprintf "@for.end%d" id in
-      emit_stmt ctx init;
-      emit ctx "%s\n" test_lbl;
-      let cv = emit_expr ctx cond in
-      emit ctx "    jnz %s, %s, %s\n" cv body_lbl end_lbl;
-      emit ctx "%s\n" body_lbl;
-      emit_stmts ctx body;
-      let _ = emit_expr ctx post in
-      ();
-      emit ctx "    jmp %s\n" test_lbl;
-      emit ctx "%s\n" end_lbl
   (* same as for loop for while *)
   | T.TWhile (cond, body) ->
       let id = fresh_id ctx in
