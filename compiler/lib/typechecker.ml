@@ -14,7 +14,6 @@ available for other functions *)
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
-
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
@@ -66,13 +65,14 @@ let pop_scope (env : env) : unit =
   match env.vars with
   | [] -> ()
   | scope :: _ ->
-      List.iter (fun (name, info) ->
-        (* variables prefixed with '_' suppress unused warnings *)
-        if (not !(info.used)) && name.[0] <> '_' then
-          let line, col = Source_map.lookup env.sm info.span.lo in
-          add_warning env
-            (Printf.sprintf "%s:%d:%d: warning: '%s' declared but never used"
-               env.filename line col name))
+      List.iter
+        (fun (name, info) ->
+          (* variables prefixed with '_' suppress unused warnings *)
+          if (not !(info.used)) && name.[0] <> '_' then
+            let line, col = Source_map.lookup env.sm info.span.lo in
+            add_warning env
+              (Printf.sprintf "%s:%d:%d: warning: '%s' declared but never used"
+                 env.filename line col name))
         scope
 
 let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
@@ -81,15 +81,18 @@ let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
   | [] -> assert false (* no active scope *)
   | scope :: rest ->
       if List.mem_assoc name scope then
-        add_error env (Printf.sprintf "'%s' is already declared in this scope" name);
+        add_error env
+          (Printf.sprintf "'%s' is already declared in this scope" name);
       { env with vars = ((name, info) :: scope) :: rest }
 
 let lookup_var (env : env) (name : string) : ty =
   let rec search = function
     | [] -> None
-    | scope :: rest ->
-        (match List.assoc_opt name scope with
-        | Some info -> info.used := true; Some info.ty
+    | scope :: rest -> (
+        match List.assoc_opt name scope with
+        | Some info ->
+            info.used := true;
+            Some info.ty
         | None -> search rest)
   in
   match search env.vars with
@@ -483,7 +486,8 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       let final_inner, tstmts = check_stmts inner stmts in
       pop_scope final_inner;
       (env, Typed_ast.TBlock tstmts)
-  (* TODO(0c77): push/pop scope for match arms when match is implemented *)
+
+(* TODO(0c77): push/pop scope for match arms when match is implemented *)
 (* | _ -> failwith ("Statement not yet implemented: " ^ show_stmt s) *)
 
 (* Performance critical since this pass walks every statement *)
