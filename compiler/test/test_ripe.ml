@@ -44,7 +44,7 @@ let%expect_test "identity function" =
   [%expect {| ok |}]
 
 let%expect_test "null assigned to pointer" =
-  run_src "f() { let p: ^i32 = null }";
+  run_src "f() { let p: *i32 = null }";
   [%expect {| ok |}]
 
 let%expect_test "break inside while" =

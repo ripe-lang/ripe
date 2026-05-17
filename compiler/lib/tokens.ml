@@ -49,7 +49,6 @@ type token =
   | INLINE
   | PUBLIC
   | CARET
-  | AT
   | TRUE
   | FALSE
   | NULL
@@ -116,7 +115,6 @@ let show_token = function
   | INLINE -> "inline"
   | PUBLIC -> "public"
   | CARET -> "^"
-  | AT -> "@"
   | TRUE -> "true"
   | FALSE -> "false"
   | NULL -> "null"

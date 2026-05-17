@@ -22,7 +22,7 @@ main() {
   break
   continue
   let e: i32 = 5
-  e^
+  *e
   let p: Point = null
   p.z
   let n: i32 = 0
