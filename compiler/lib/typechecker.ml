@@ -78,7 +78,7 @@ let pop_scope (env : env) : unit =
 let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
   let info = { ty = t; used = ref used; span = !(env.current_span) } in
   match env.vars with
-  | [] -> failwith "extend_var: no active scope"
+  | [] -> assert false (* no active scope *)
   | scope :: rest ->
       if List.mem_assoc name scope then
         add_error env (Printf.sprintf "'%s' is already declared in this scope" name);
