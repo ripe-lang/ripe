@@ -27,7 +27,7 @@ let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING_END
   | TRUE | FALSE | NULL
   | BREAK | CONTINUE | RETURN
-  | RPAREN | RBRACE | CARET -> true
+  | RPAREN | RBRACE -> true
   | _ -> false
 
 let reset () =
@@ -134,7 +134,6 @@ and read_main = parse
   | ':'  { COLON }
   | ','  { COMMA }
   | '^'  { CARET }
-  | '@'  { AT }
   | '"'  { Buffer.clear buf;
            in_string := true;
            Queue.push STRING_START token_queue;

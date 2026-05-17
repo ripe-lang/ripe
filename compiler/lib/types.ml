@@ -31,5 +31,5 @@ let rec show_ty = function
   | TString -> "str"
   | TVoid -> "void"
   | TNull -> "null"
-  | TPointer t -> "^" ^ show_ty t
+  | TPointer t -> "*" ^ show_ty t
   | TStruct name -> name

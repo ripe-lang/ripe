@@ -59,7 +59,7 @@ let mkt lo st tdesc =
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
-  | CARET ->
+  | STAR ->
       advance st;
       mkt lo st (Pointer (parse_typ st))
   | IDENT name ->
@@ -156,12 +156,12 @@ let prec_of = function
   | AND -> Some (4, Left)
   | EQ | NEQ | LT | GT | LTE | GTE -> Some (5, NonAssoc)
   | PIPE -> Some (6, Left)
-  | AMP -> Some (7, Left)
-  | LSHIFT | RSHIFT -> Some (8, Left)
-  | PLUS | MINUS -> Some (9, Left)
-  | STAR | SLASH | PERCENT -> Some (10, Left)
-  | AS -> Some (11, Left)
-  (* TODO(4893): add XOR once symbol is decided *)
+  | CARET -> Some (7, Left)
+  | AMP -> Some (8, Left)
+  | LSHIFT | RSHIFT -> Some (9, Left)
+  | PLUS | MINUS -> Some (10, Left)
+  | STAR | SLASH | PERCENT -> Some (11, Left)
+  | AS -> Some (12, Left)
   | _ -> None
 
 let binop_of = function
@@ -180,7 +180,7 @@ let binop_of = function
   | OR -> Or
   | AMP -> BitAnd
   | PIPE -> BitOr
-  | TILDE -> BitXor (* TODO add XOR once symbol is decided *)
+  | CARET -> BitXor
   | LSHIFT -> Lshift
   | RSHIFT -> Rshift
   | ASSIGN -> Assign
@@ -241,18 +241,18 @@ and parse_prefix st =
   | TILDE ->
       advance st;
       mk lo st (UnOp (BitNot, parse_prefix st))
-  | AT ->
+  | AMP ->
       advance st;
       mk lo st (UnOp (AddressOf, parse_prefix st))
+  | STAR ->
+      advance st;
+      mk lo st (UnOp (Deref, parse_prefix st))
   | _ -> parse_primary st
 
-(* x^, x.field *)
+(* x.field *)
 and parse_postfix st lhs =
   let lo = lhs.span.lo in
   match st.tok with
-  | CARET ->
-      advance st;
-      parse_postfix st (mk lo st (UnOp (Deref, lhs)))
   | DOT ->
       advance st;
       let name = expect_ident st in
