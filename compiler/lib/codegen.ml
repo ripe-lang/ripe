@@ -10,7 +10,7 @@ let qbe_ty (t : ty) : string =
   match t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
   (* FIXME: Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
+  | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct _ -> "l"
@@ -39,7 +39,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TNull | TString -> 8
+  | TPointer _ | TNull | TString | TFunc _ -> 8
   | TVoid -> assert false
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
@@ -58,7 +58,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TNull | TString -> 8
+  | TPointer _ | TNull | TString | TFunc _ -> 8
   | TVoid -> assert false
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
@@ -78,7 +78,9 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
 (* TODO(1aff): maybe look into escape analysis *)
 let alloc_instr (t : ty) : string =
   match t with
-  | TInt (I64 | U64) | TFloat F64 | TPointer _ | TNull | TString | TStruct _ ->
+  | TInt (I64 | U64)
+  | TFloat F64
+  | TPointer _ | TNull | TString | TStruct _ | TFunc _ ->
       "alloc8"
   | _ -> "alloc4"
 
@@ -90,7 +92,7 @@ let qbe_load (t : ty) : string =
   | TInt U16 -> "loaduh"
   | TInt I32 -> "loadsw"
   | TInt U32 -> "loaduw"
-  | TInt (I64 | U64) | TPointer _ | TNull | TString -> "loadl"
+  | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ -> "loadl"
@@ -101,7 +103,7 @@ let qbe_store (t : ty) : string =
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
-  | TInt (I64 | U64) | TPointer _ | TNull | TString -> "storel"
+  | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ -> "storel"
@@ -155,12 +157,12 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBool b -> if b then "1" else "0"
   | T.TNull _ -> "0"
   | T.TChar c -> string_of_int (Char.code c)
-  | T.TIdent (name, t) ->
+  | T.TIdent (name, t) -> (
       if Hashtbl.mem ctx.locals name then (
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) name;
         tmp)
-      else "%" ^ name
+      else match t with TFunc _ -> "$" ^ name | _ -> "%" ^ name)
   (* TODO(9de3): TString should become TCStr (null terminated) *)
   (* TSlice (fat pointer {ptr, len}) it would need a second data section *)
   | T.TString s ->
@@ -176,14 +178,22 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
             Printf.sprintf "%s %s" (qbe_ty (T.ty_of_texpr a)) (emit_expr ctx a))
           args
       in
+      (* local var holding a fn ptr: load then call indirectly *)
+      let callee =
+        if Hashtbl.mem ctx.locals name then (
+          let tmp = fresh ctx in
+          emit ctx "    %s =l loadl %%%s\n" tmp name;
+          tmp)
+        else "$" ^ name
+      in
       if ret_ty = TVoid then (
         (* void: no result to capture, just emit the call *)
-        emit ctx "    call $%s(%s)\n" name (String.concat ", " arg_strs);
+        emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
         "")
       else
         (* non-void: capture result in a fresh temporary *)
         let tmp = fresh ctx in
-        emit ctx "    %s =%s call $%s(%s)\n" tmp (qbe_ty ret_ty) name
+        emit ctx "    %s =%s call %s(%s)\n" tmp (qbe_ty ret_ty) callee
           (String.concat ", " arg_strs);
         tmp
   | T.TBinOp (Ast.Assign, l, r, t) -> emit_assign ctx l r t
@@ -533,7 +543,7 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
         | TInt (I32 | U32) -> "w"
         | TBool -> "b"
         (* null is a pointer no type but all pointers are  64-bit *)
-        | TInt (I64 | U64) | TPointer _ | TNull | TString -> "l"
+        | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "l"
         | TFloat F32 -> "s"
         | TFloat F64 -> "d"
         | TStruct sn -> ":" ^ sn
