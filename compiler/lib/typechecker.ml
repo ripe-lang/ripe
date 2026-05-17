@@ -7,7 +7,6 @@ open Types
 
 exception TypeErrors of string list
 
-(* TODO(5c2a): Figure out "-typecheck" with better Printf formatting *)
 (* TODO(38df): I need to update Parser to allow `let` and `var` in toplevel
 then update collect_decl in the first pass so that they're collected and
 available for other functions *)
@@ -15,21 +14,22 @@ available for other functions *)
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
-(* TODO(a445): reject chained comparisons like a < b < c, parsed as (a < b) < c which is a bug *)
 
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
 type func_sig = { param_tys : ty list; ret_ty : ty }
 type struct_info = { field_tys : (string * ty) list }
+type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
 type env = {
-  vars : (string * ty) list;
+  vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   structs : (string, struct_info) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   errors : string list ref;
+  warnings : string list ref;
   filename : string;
   sm : Source_map.t;
   current_span : Ast.span ref;
@@ -43,6 +43,7 @@ let make_env (filename : string) (sm : Source_map.t) : env =
     ret_ty = TVoid;
     in_loop = false;
     errors = ref [];
+    warnings = ref [];
     filename;
     sm;
     current_span = ref Ast.dummy_span;
@@ -56,11 +57,42 @@ let add_error (env : env) (msg : string) : unit =
 
 let dummy_texpr = Typed_ast.TInt (0, TInt I32)
 
-let extend_var (env : env) (name : string) (t : ty) : env =
-  { env with vars = (name, t) :: env.vars }
+let add_warning (env : env) (msg : string) : unit =
+  env.warnings := msg :: !(env.warnings)
+
+let push_scope (env : env) : env = { env with vars = [] :: env.vars }
+
+let pop_scope (env : env) : unit =
+  match env.vars with
+  | [] -> ()
+  | scope :: _ ->
+      List.iter (fun (name, info) ->
+        (* variables prefixed with '_' suppress unused warnings *)
+        if (not !(info.used)) && name.[0] <> '_' then
+          let line, col = Source_map.lookup env.sm info.span.lo in
+          add_warning env
+            (Printf.sprintf "%s:%d:%d: warning: '%s' declared but never used"
+               env.filename line col name))
+        scope
+
+let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
+  let info = { ty = t; used = ref used; span = !(env.current_span) } in
+  match env.vars with
+  | [] -> failwith "extend_var: no active scope"
+  | scope :: rest ->
+      if List.mem_assoc name scope then
+        add_error env (Printf.sprintf "'%s' is already declared in this scope" name);
+      { env with vars = ((name, info) :: scope) :: rest }
 
 let lookup_var (env : env) (name : string) : ty =
-  match List.assoc_opt name env.vars with
+  let rec search = function
+    | [] -> None
+    | scope :: rest ->
+        (match List.assoc_opt name scope with
+        | Some info -> info.used := true; Some info.ty
+        | None -> search rest)
+  in
+  match search env.vars with
   | Some t -> t
   | None ->
       add_error env ("undefined variable '" ^ name ^ "'");
@@ -289,11 +321,13 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
   | Eq | Neq ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
+      if t = TBool then add_error env "cannot chain comparison operators";
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, TBool)
   | Lt | Gt | Lte | Gte ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
+      if t = TBool then add_error env "cannot chain comparison operators";
       (* if not (is_ordered t) then
         raise (TypeError (Printf.sprintf "type %s is not ordered" (show_ty t))); *)
       let tr = check env r t in
@@ -413,23 +447,30 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
         List.map
           (fun (cond, body) ->
             let tc = check env cond TBool in
-            let _, tbody = check_stmts env body in
+            let inner = push_scope env in
+            let final_inner, tbody = check_stmts inner body in
+            pop_scope final_inner;
             (tc, tbody))
           branches
       in
-      let _, telse = check_stmts env else_body in
+      let inner = push_scope env in
+      let final_inner, telse = check_stmts inner else_body in
+      pop_scope final_inner;
       (env, Typed_ast.TIf (tbranches, telse))
   | While (cond, body) ->
       let tc = check env cond TBool in
-      let _, tbody = check_stmts { env with in_loop = true } body in
+      let inner = push_scope { env with in_loop = true } in
+      let final_inner, tbody = check_stmts inner body in
+      pop_scope final_inner;
       (env, Typed_ast.TWhile (tc, tbody))
   | For (name, iter, body) ->
       (* TODO(4994): iter must be a range bind name to its element type *)
       let titer = synth env iter in
       let elem_ty = TInt I32 in
-      let _, tbody =
-        check_stmts (extend_var { env with in_loop = true } name elem_ty) body
-      in
+      let inner = push_scope { env with in_loop = true } in
+      let inner = extend_var inner name elem_ty in
+      let final_inner, tbody = check_stmts inner body in
+      pop_scope final_inner;
       (env, Typed_ast.TFor (name, elem_ty, titer, tbody))
   | Break ->
       if not env.in_loop then add_error env "break outside loop";
@@ -438,8 +479,11 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       if not env.in_loop then add_error env "continue outside loop";
       (env, Typed_ast.TContinue)
   | Block stmts ->
-      let _, tstmts = check_stmts env stmts in
+      let inner = push_scope env in
+      let final_inner, tstmts = check_stmts inner stmts in
+      pop_scope final_inner;
       (env, Typed_ast.TBlock tstmts)
+  (* TODO(0c77): push/pop scope for match arms when match is implemented *)
 (* | _ -> failwith ("Statement not yet implemented: " ^ show_stmt s) *)
 
 (* Performance critical since this pass walks every statement *)
@@ -457,15 +501,8 @@ and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
   (final_env, List.rev tstmts_reversed)
 
 let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
-  (* FIXME: recalculating params and ret_ty. *)
-  (* Redo param types here so we can set up local scope before checking the body. *)
   let params =
     List.map (fun (p : param) -> (p.name, ty_of_ast env p.typ)) fd.params
-  in
-
-  (* Add each param to the env so the body can use them as locals. *)
-  let param_env =
-    List.fold_left (fun e (name, t) -> extend_var e name t) env params
   in
 
   let ret_ty =
@@ -473,10 +510,18 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
     | Some t -> ty_of_ast env t
     | None -> if fd.name = "main" then TInt I32 else TVoid
   in
-  let body_env = { param_env with ret_ty } in
 
-  (* TODO(60f2): I need to note "missing return statement" *)
-  let _, tbody = check_stmts body_env fd.body in
+  let func_env = push_scope { env with ret_ty } in
+  (* params pre-marked used so they don't warn *)
+  let param_env =
+    List.fold_left
+      (fun e (name, t) -> extend_var ~used:true e name t)
+      func_env params
+  in
+
+  (* TODO(932a): check all paths return for non-void functions *)
+  let final_env, tbody = check_stmts param_env fd.body in
+  pop_scope final_env;
 
   {
     Typed_ast.name = fd.name;
@@ -507,6 +552,7 @@ let typecheck (filename : string) (src : string) (decls : decl list) :
   let env = make_env filename sm in
   List.iter (collect_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
+  List.iter (fun w -> Printf.eprintf "%s\n%!" w) (List.rev !(env.warnings));
   match List.rev !(env.errors) with
   | [] -> tdecls
   | errors -> raise (TypeErrors errors)
