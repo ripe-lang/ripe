@@ -88,7 +88,7 @@ let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
           (Printf.sprintf "'%s' is already declared in this scope" name);
       { env with vars = ((name, info) :: scope) :: rest }
 
-let lookup_var (env : env) (name : string) : ty =
+let lookup_var_opt (env : env) (name : string) : ty option =
   let rec search = function
     | [] -> None
     | scope :: rest -> (
@@ -98,11 +98,18 @@ let lookup_var (env : env) (name : string) : ty =
             Some info.ty
         | None -> search rest)
   in
-  match search env.vars with
+  search env.vars
+
+let lookup_var (env : env) (name : string) : ty =
+  match lookup_var_opt env name with
   | Some t -> t
-  | None ->
-      add_error env ("undefined variable '" ^ name ^ "'");
-      TInt I32
+  | None -> (
+      (* fall back to function table so function names can be used as values *)
+      match Hashtbl.find_opt env.funcs name with
+      | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+      | None ->
+          add_error env ("undefined variable '" ^ name ^ "'");
+          TInt I32)
 
 let lookup_func (env : env) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs name with
@@ -138,6 +145,10 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
         add_error env ("undefined type '" ^ name ^ "'");
         TInt I32)
   | Pointer t -> TPointer (ty_of_ast env t)
+  | FuncPtr (ps, ret) ->
+      let pts = List.map (ty_of_ast env) ps in
+      let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
+      TFunc (pts, rt)
 
 (* Exact equality but NULL is compatible with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
@@ -147,6 +158,10 @@ let rec compatible (want : ty) (got : ty) : bool =
   match (want, got) with
   | TPointer _, TNull -> true
   | TPointer a, TPointer b -> compatible a b
+  | TFunc (p1, r1), TFunc (p2, r2) ->
+      List.length p1 = List.length p2
+      && List.for_all2 compatible p1 p2
+      && compatible r1 r2
   | _ -> want = got
 
 (* First pass collecting signatures so that the compiler
@@ -236,10 +251,19 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let t = lookup_var env name in
       (* Printf.printf "ident: `%s` (found type: %s)\n" name (show_ty t); *)
       Typed_ast.TIdent (name, t)
-  | Call (name, args) ->
-      let sig_ = lookup_func env name in
-      let targs = check_args env sig_ args in
-      Typed_ast.TCall (name, targs, sig_.ret_ty)
+  | Call (name, args) -> (
+      match lookup_var_opt env name with
+      | Some (TFunc (param_tys, ret_ty)) ->
+          let sig_ = { param_tys; ret_ty } in
+          let targs = check_args env sig_ args in
+          Typed_ast.TCall (name, targs, ret_ty)
+      | Some _ ->
+          add_error env ("'" ^ name ^ "' is not callable");
+          dummy_texpr
+      | None ->
+          let sig_ = lookup_func env name in
+          let targs = check_args env sig_ args in
+          Typed_ast.TCall (name, targs, sig_.ret_ty))
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env inner_e fname

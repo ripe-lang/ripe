@@ -14,6 +14,7 @@ type ty =
   | TNull
   | TPointer of ty
   | TStruct of string
+  | TFunc of ty list * ty
 [@@deriving show { with_path = false }]
 
 let rec show_ty = function
@@ -33,3 +34,7 @@ let rec show_ty = function
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TStruct name -> name
+  | TFunc (ps, r) ->
+      let p_str = String.concat ", " (List.map show_ty ps) in
+      let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
+      Printf.sprintf "(%s)%s" p_str r_str

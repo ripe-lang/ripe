@@ -56,7 +56,7 @@ let mkt lo st tdesc =
   let hi = cur_pos st in
   { tdesc; span = { lo; hi } }
 
-(* i32 *)
+(* i32, *i32, (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
@@ -66,6 +66,26 @@ let rec parse_typ st =
   | IDENT name ->
       advance st;
       mkt lo st (Named name)
+  | LPAREN ->
+      advance st;
+      let params =
+        if st.tok = RPAREN then []
+        else begin
+          let acc = ref [ parse_typ st ] in
+          while st.tok = COMMA do
+            advance st;
+            acc := parse_typ st :: !acc
+          done;
+          List.rev !acc
+        end
+      in
+      expect st RPAREN;
+      let ret =
+        match st.tok with
+        | IDENT _ | STAR | LPAREN -> Some (parse_typ st)
+        | _ -> None
+      in
+      mkt lo st (FuncPtr (params, ret))
   | _ -> raise (ParseError (cur_lex_pos st, "expected type"))
 
 let parse_modifiers st =

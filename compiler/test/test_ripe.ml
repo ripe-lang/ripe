@@ -74,3 +74,57 @@ let%expect_test "call no args" =
 let%expect_test "call with args" =
   run_src "func add(x: i32, y: i32) {} func f() { add(1, 2) }";
   [%expect {| ok |}]
+
+let%expect_test "fn ptr assign and call" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func f() { var op: (i32, \
+     i32) i32 = add; op(1, 2) }";
+  [%expect {| ok |}]
+
+let%expect_test "fn ptr inferred from function name" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func f() { var op = add; \
+     op(1, 2) }";
+  [%expect {| ok |}]
+
+let%expect_test "fn ptr signature mismatch" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func f() { var op: (i32) \
+     i32 = add }";
+  [%expect
+    {|
+    <test>:1:78: warning: 'op' declared but never used
+    TypeError: <test>:1:78: expected (i32) i32 but found (i32, i32) i32
+    |}]
+
+let%expect_test "non-callable variable" =
+  run_src "func f() { var x: i32 = 5; x(1) }";
+  [%expect {| TypeError: <test>:1:28: 'x' is not callable |}]
+
+let%expect_test "fn ptr as parameter" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func apply(f: (i32, i32) \
+     i32, a: i32, b: i32) i32 { return f(a, b) } func g() { apply(add, 1, 2) }";
+  [%expect {| ok |}]
+
+let%expect_test "fn ptr wrong arity at call" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func f() { var op: (i32, \
+     i32) i32 = add; op(1) }";
+  [%expect {| TypeError: <test>:1:88: expected 2 arguments but got 1 |}]
+
+let%expect_test "fn ptr forward reference" =
+  run_src
+    "func f() { var op: (i32, i32) i32 = add; op(1, 2) } func add(a: i32, b: \
+     i32) i32 { return a + b }";
+  [%expect {| ok |}]
+
+let%expect_test "fn ptr returning fn ptr" =
+  run_src
+    "func add(a: i32, b: i32) i32 { return a + b } func get_op() (i32, i32) \
+     i32 { return add } func f() { var op = get_op(); op(1, 2) }";
+  [%expect {| ok |}]
+
+let%expect_test "void fn ptr zero args" =
+  run_src "func noop() {} func f() { var p: () = noop; p() }";
+  [%expect {| ok |}]
