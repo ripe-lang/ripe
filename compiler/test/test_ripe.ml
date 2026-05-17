@@ -29,7 +29,11 @@ let%expect_test "unbound variable" =
 
 let%expect_test "type mismatch in let" =
   run_src "f() { let x: bool = 42 }";
-  [%expect {| TypeError: <test>:1:21: expected bool but found i32 |}]
+  [%expect
+    {|
+    <test>:1:21: warning: 'x' declared but never used
+    TypeError: <test>:1:21: expected bool but found i32
+    |}]
 
 let%expect_test "wrong number of arguments" =
   run_src "g() {} f() { g(1) }";
@@ -37,7 +41,11 @@ let%expect_test "wrong number of arguments" =
 
 let%expect_test "null assigned to non-pointer" =
   run_src "f() { let x: i32 = null }";
-  [%expect {| TypeError: <test>:1:20: expected i32 but found null |}]
+  [%expect
+    {|
+    <test>:1:20: warning: 'x' declared but never used
+    TypeError: <test>:1:20: expected i32 but found null
+    |}]
 
 let%expect_test "identity function" =
   run_src "id(a: i32): i32 { return a }";
@@ -45,7 +53,11 @@ let%expect_test "identity function" =
 
 let%expect_test "null assigned to pointer" =
   run_src "f() { let p: *i32 = null }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    <test>:1:21: warning: 'p' declared but never used
+    ok
+    |}]
 
 let%expect_test "break inside while" =
   run_src "f() { while true { break } }";
