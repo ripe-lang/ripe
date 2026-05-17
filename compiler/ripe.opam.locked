@@ -1,0 +1,94 @@
+opam-version: "2.0"
+name: "ripe"
+version: "dev"
+synopsis: "Ripe compiler and language tooling"
+description:
+  "Ripe is a systems programming language with an OCaml compiler and QBE backend."
+maintainer: "Ripe contributors"
+authors: "Ripe contributors"
+license: "GPL-2.0-only"
+tags: ["compiler" "language" "systems" "qbe"]
+homepage: "https://github.com/ripe-lang/ripe"
+doc: "https://github.com/ripe-lang/ripe#readme"
+bug-reports: "https://github.com/ripe-lang/ripe/issues"
+depends: [
+  "astring" {= "0.8.5"}
+  "base" {= "v0.17.3"}
+  "base-bigarray" {= "base"}
+  "base-domains" {= "base"}
+  "base-effects" {= "base"}
+  "base-nnp" {= "base"}
+  "base-threads" {= "base"}
+  "base-unix" {= "base"}
+  "camlp-streams" {= "5.0.1"}
+  "cmdliner" {= "2.1.0"}
+  "cppo" {= "1.8.0"}
+  "csexp" {= "1.5.2"}
+  "dune" {= "3.21.1"}
+  "dune-build-info" {= "3.21.1"}
+  "dune-configurator" {= "3.21.1"}
+  "either" {= "1.0.0"}
+  "fix" {= "20250919"}
+  "fpath" {= "0.7.3"}
+  "jane-street-headers" {= "v0.17.0"}
+  "jst-config" {= "v0.17.0"}
+  "menhir" {= "20260209"}
+  "menhirCST" {= "20260209"}
+  "menhirGLR" {= "20260209"}
+  "menhirLib" {= "20260209"}
+  "menhirSdk" {= "20260209"}
+  "ocaml" {= "5.3.0"}
+  "ocaml-base-compiler" {= "5.3.0"}
+  "ocaml-compiler" {= "5.3.0"}
+  "ocaml-compiler-libs" {= "v0.17.0"}
+  "ocaml-config" {= "3"}
+  "ocaml-options-vanilla" {= "1"}
+  "ocaml-version" {= "4.0.3"}
+  "ocaml_intrinsics_kernel" {= "v0.17.1"}
+  "ocamlbuild" {= "0.16.1"}
+  "ocamlfind" {= "1.9.8"}
+  "ocamlformat" {= "0.29.0"}
+  "ocamlformat-lib" {= "0.29.0"}
+  "ocp-indent" {= "1.9.0"}
+  "ppx_assert" {= "v0.17.0"}
+  "ppx_base" {= "v0.17.0"}
+  "ppx_cold" {= "v0.17.0"}
+  "ppx_compare" {= "v0.17.0"}
+  "ppx_derivers" {= "1.2.1"}
+  "ppx_deriving" {= "6.1.1"}
+  "ppx_enumerate" {= "v0.17.0"}
+  "ppx_expect" {= "v0.17.3"}
+  "ppx_globalize" {= "v0.17.2"}
+  "ppx_hash" {= "v0.17.0"}
+  "ppx_here" {= "v0.17.0"}
+  "ppx_inline_test" {= "v0.17.1"}
+  "ppx_optcomp" {= "v0.17.1"}
+  "ppx_sexp_conv" {= "v0.17.1"}
+  "ppxlib" {= "0.37.0"}
+  "ppxlib_jane" {= "v0.17.4"}
+  "re" {= "1.14.0"}
+  "sexplib0" {= "v0.17.0"}
+  "stdio" {= "v0.17.0"}
+  "stdlib-shims" {= "0.3.0"}
+  "time_now" {= "v0.17.0"}
+  "topkg" {= "1.1.1"}
+  "uucp" {= "17.0.0"}
+  "uuseg" {= "17.0.0"}
+  "uutf" {= "1.0.4"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
+]
+dev-repo: "git+https://github.com/ripe-lang/ripe.git"
+x-maintenance-intent: ["(latest)"]

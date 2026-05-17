@@ -13,7 +13,6 @@ bug-reports: "https://github.com/ripe-lang/ripe/issues"
 depends: [
   "dune" {>= "3.21"}
   "ocaml"
-  "menhir"
   "ppx_deriving"
   "ocamlformat"
   "ppx_expect"
