@@ -500,12 +500,14 @@ let parse_decl st =
       match st.tok with
       | STRUCT -> parse_struct st mods
       | FUNC -> parse_func st mods
-      | _ -> raise
-        (ParseError
-           ( cur_lex_pos st,
-             Printf.sprintf "expected declaration but found '%s'"
-               (show_token st.tok) )))
-  | _ -> raise
+      | _ ->
+          raise
+            (ParseError
+               ( cur_lex_pos st,
+                 Printf.sprintf "expected declaration but found '%s'"
+                   (show_token st.tok) )))
+  | _ ->
+      raise
         (ParseError
            ( cur_lex_pos st,
              Printf.sprintf "expected declaration but found '%s'"
