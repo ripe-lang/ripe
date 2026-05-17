@@ -48,7 +48,7 @@ let%expect_test "null assigned to non-pointer" =
     |}]
 
 let%expect_test "identity function" =
-  run_src "id(a: i32): i32 { return a }";
+  run_src "id(a: i32) i32 { return a }";
   [%expect {| ok |}]
 
 let%expect_test "null assigned to pointer" =
