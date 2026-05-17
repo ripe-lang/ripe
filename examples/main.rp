@@ -1,7 +1,8 @@
-add(a: i32, b: i32) i32 {
+func add(a: i32, b: i32) i32 {
   return a + b
 }
 
 func main() {
-  return 0
+  var op: (i32, i32) i32 = add
+  return op(2, 3)
 }
