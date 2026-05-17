@@ -33,7 +33,7 @@ type token =
   | MINUS_ASSIGN
   | STAR_ASSIGN
   | SLASH_ASSIGN
-  | LET
+  | CONST
   | VAR
   | RETURN
   | IF
@@ -100,7 +100,7 @@ let show_token = function
   | MINUS_ASSIGN -> "-="
   | STAR_ASSIGN -> "*="
   | SLASH_ASSIGN -> "/="
-  | LET -> "let"
+  | CONST -> "const"
   | VAR -> "var"
   | RETURN -> "return"
   | IF -> "if"

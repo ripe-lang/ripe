@@ -23,7 +23,7 @@ and texpr =
   | TInterpString of tinterp_part list
 
 type tstmt =
-  | TLet of string * ty * texpr
+  | TConst of string * ty * texpr
   | TVar of string * ty * texpr
   | TReturn of texpr option
   | TIf of (texpr * tstmt list) list * tstmt list

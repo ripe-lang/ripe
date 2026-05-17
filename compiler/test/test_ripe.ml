@@ -28,11 +28,11 @@ let%expect_test "unbound variable" =
   [%expect {| TypeError: <test>:1:12: undefined variable 'x' |}]
 
 let%expect_test "type mismatch in let" =
-  run_src "func f() { let x: bool = 42 }";
+  run_src "func f() { const x: bool = 42 }";
   [%expect
     {|
-    <test>:1:26: warning: 'x' declared but never used
-    TypeError: <test>:1:26: expected bool but found i32
+    <test>:1:28: warning: 'x' declared but never used
+    TypeError: <test>:1:28: expected bool but found i32
     |}]
 
 let%expect_test "wrong number of arguments" =
@@ -40,11 +40,11 @@ let%expect_test "wrong number of arguments" =
   [%expect {| TypeError: <test>:1:24: expected 0 arguments but got 1 |}]
 
 let%expect_test "null assigned to non-pointer" =
-  run_src "func f() { let x: i32 = null }";
+  run_src "func f() { const x: i32 = null }";
   [%expect
     {|
-    <test>:1:25: warning: 'x' declared but never used
-    TypeError: <test>:1:25: expected i32 but found null
+    <test>:1:27: warning: 'x' declared but never used
+    TypeError: <test>:1:27: expected i32 but found null
     |}]
 
 let%expect_test "identity function" =
@@ -52,10 +52,10 @@ let%expect_test "identity function" =
   [%expect {| ok |}]
 
 let%expect_test "null assigned to pointer" =
-  run_src "func f() { let p: *i32 = null }";
+  run_src "func f() { const p: *i32 = null }";
   [%expect
     {|
-    <test>:1:26: warning: 'p' declared but never used
+    <test>:1:28: warning: 'p' declared but never used
     ok
     |}]
 

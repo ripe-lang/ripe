@@ -441,7 +441,7 @@ and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
 let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
   env.current_span := s.span;
   match s.sdesc with
-  | Let (name, ann, e) ->
+  | Const (name, ann, e) ->
       let t, te =
         match ann with
         | Some a ->
@@ -452,7 +452,7 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
             let te = synth env e in
             (Typed_ast.ty_of_texpr te, te)
       in
-      (extend_var env name t, Typed_ast.TLet (name, t, te))
+      (extend_var env name t, Typed_ast.TConst (name, t, te))
   | Var (name, ann, e) ->
       let t, te =
         match (ann, e) with
