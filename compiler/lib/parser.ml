@@ -507,6 +507,7 @@ let parse_decl st =
       match st.tok with
       | STRUCT -> parse_struct st mods
       | _ -> parse_func st mods)
+  (* TODO(0966): stray identifiers at top level give confusing parse errors *)
   | _ -> parse_func st []
 
 let parse_program st =

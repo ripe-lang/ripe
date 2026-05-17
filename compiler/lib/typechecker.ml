@@ -57,7 +57,12 @@ let add_error (env : env) (msg : string) : unit =
 let dummy_texpr = Typed_ast.TInt (0, TInt I32)
 
 let add_warning (env : env) (msg : string) : unit =
-  env.warnings := msg :: !(env.warnings)
+  let span = !(env.current_span) in
+  let line, col = Source_map.lookup env.sm span.lo in
+  let formatted =
+    Printf.sprintf "%s:%d:%d: warning: %s" env.filename line col msg
+  in
+  env.warnings := formatted :: !(env.warnings)
 
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
@@ -68,11 +73,9 @@ let pop_scope (env : env) : unit =
       List.iter
         (fun (name, info) ->
           (* variables prefixed with '_' suppress unused warnings *)
-          if (not !(info.used)) && name.[0] <> '_' then
-            let line, col = Source_map.lookup env.sm info.span.lo in
-            add_warning env
-              (Printf.sprintf "%s:%d:%d: warning: '%s' declared but never used"
-                 env.filename line col name))
+          if (not !(info.used)) && name.[0] <> '_' then (
+            env.current_span := info.span;
+            add_warning env (Printf.sprintf "'%s' declared but never used" name)))
         scope
 
 let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
@@ -198,6 +201,17 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 (* Second pass doing the bidirectional type checking *)
 
+let is_lvalue (te : Typed_ast.texpr) : bool =
+  match te with
+  | TIdent _ -> true
+  | TUnOp (Deref, _, _) -> true
+  | TFieldAccess _ -> true
+  | _ -> false
+
+let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
+let is_ordered = function TInt _ | TFloat _ -> true | _ -> false
+let is_integer = function TInt _ -> true | _ -> false
+
 (* Figure out the type*)
 let rec synth (env : env) (e : expr) : Typed_ast.texpr =
   env.current_span := e.span;
@@ -297,45 +311,33 @@ and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     [])
   else List.map2 (fun e want -> check env e want) args sig_.param_tys
 
-(* let is_numeric = function
-    | TInt _ | TFloat -> true
-    | _ -> false *)
-
-(* let is_ordered = function
-  | TInt _ | TFloat | TChar | TPointer _ -> true
-  | _ -> false *)
-
-(* let is_lvalue (te : Typed_ast.texpr) : bool =
-  match te with
-  | TIdent _ -> true
-  | TUnOp (Deref, _, _) -> true
-  | TFieldAccess _ -> true
-  | _ -> false *)
-
 and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
     =
   match op with
   | Add | Sub | Mul | Div | Mod ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
+      if not (is_numeric t) then
+        add_error env
+          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-      (* TODO(447b): restrict to numeric types *)
   | Eq | Neq ->
+      (* TODO(b5ca): dedicated "cannot chain comparison operators" message by checking if l is a comparison node *)
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
-      if t = TBool then add_error env "cannot chain comparison operators";
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, TBool)
   | Lt | Gt | Lte | Gte ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
-      if t = TBool then add_error env "cannot chain comparison operators";
-      (* if not (is_ordered t) then
-        raise (TypeError (Printf.sprintf "type %s is not ordered" (show_ty t))); *)
+      if not (is_ordered t) then
+        add_error env
+          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, TBool)
-      (* TODO(f9fb): restrict to ordered types e.g. void > void should not work. bool > bool maybe*)
   | And | Or ->
       let tl = check env l TBool in
       let tr = check env r TBool in
@@ -343,32 +345,40 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
   | BitAnd | BitOr | BitXor | Lshift | Rshift ->
       let tl = synth env l in
       let t = Typed_ast.ty_of_texpr tl in
+      if not (is_integer t) then
+        add_error env
+          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-      (* TODO(f793): restrict to integer types *)
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign ->
       let tl = synth env l in
-      (* if not (is_lvalue tl) then
-        raise (TypeError "left-hand side of assignment must be an lvalue"); *)
+      if not (is_lvalue tl) then
+        add_error env "cannot assign to this expression";
       let t = Typed_ast.ty_of_texpr tl in
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
-(* TODO(0b60): check lvalue on left because 5 = 10 is allowed *)
 (* | _ -> failwith ("Operator not yet implemented: " ^ show_binop op) *)
 
 and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
   match op with
   | Neg ->
       let te = synth env e in
-      Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-      (* TODO(2cae): restrict to numeric *)
+      let t = Typed_ast.ty_of_texpr te in
+      if not (is_numeric t) then
+        add_error env
+          (Printf.sprintf "cannot apply '-' to type '%s'" (show_ty t));
+      Typed_ast.TUnOp (op, te, t)
   | Not ->
       let te = check env e TBool in
       Typed_ast.TUnOp (op, te, TBool)
   | BitNot ->
       let te = synth env e in
-      Typed_ast.TUnOp (op, te, Typed_ast.ty_of_texpr te)
-      (* TODO(668a): restrict to integer *)
+      let t = Typed_ast.ty_of_texpr te in
+      if not (is_integer t) then
+        add_error env
+          (Printf.sprintf "cannot apply '~' to type '%s'" (show_ty t));
+      Typed_ast.TUnOp (op, te, t)
   | Deref -> (
       let te = synth env e in
       match Typed_ast.ty_of_texpr te with
@@ -492,15 +502,17 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
 
 (* Performance critical since this pass walks every statement *)
 and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
-  let final_env, tstmts_reversed =
-    (* TODO(7bdc): I keep checking after a return statement (raise a warning) *)
+  let final_env, tstmts_reversed, _, _ =
     List.fold_left
-      (fun (current_env, acc) s ->
+      (fun (current_env, acc, returned, warned) (s : stmt) ->
+        if returned && not warned then (
+          current_env.current_span := s.span;
+          add_warning current_env "unreachable code");
         let next_env, ts = check_stmt current_env s in
-        (* Printf.printf "Added %d to environment.\n" (List.length next_env.vars); *)
-        (next_env, ts :: acc))
         (* Slow: e', acc @ [ ts ] this is O(n^2) I think with append*)
-      (env, []) stmts
+        let is_return = match s.sdesc with Return _ -> true | _ -> false in
+        (next_env, ts :: acc, returned || is_return, warned || returned))
+      (env, [], false, false) stmts
   in
   (final_env, List.rev tstmts_reversed)
 

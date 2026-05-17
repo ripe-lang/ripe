@@ -35,6 +35,31 @@ type binop =
   | DivAssign
 [@@deriving show]
 
+let show_binop_sym = function
+  | Add -> "+"
+  | Sub -> "-"
+  | Mul -> "*"
+  | Div -> "/"
+  | Mod -> "%"
+  | Eq -> "=="
+  | Neq -> "!="
+  | Lt -> "<"
+  | Gt -> ">"
+  | Lte -> "<="
+  | Gte -> ">="
+  | And -> "&&"
+  | Or -> "||"
+  | BitAnd -> "&"
+  | BitOr -> "|"
+  | BitXor -> "^"
+  | Lshift -> "<<"
+  | Rshift -> ">>"
+  | Assign -> "="
+  | AddAssign -> "+="
+  | SubAssign -> "-="
+  | MulAssign -> "*="
+  | DivAssign -> "/="
+
 type unop = Neg | Not | BitNot | Deref | AddressOf [@@deriving show]
 
 type interp_part = Lit of string | Interp of expr [@@deriving show]
