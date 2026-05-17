@@ -139,13 +139,9 @@ let parse_params st =
   expect st RPAREN;
   List.rev !params
 
-(* : i32 *)
+(* i32 *)
 let parse_ret_type st =
-  if at st COLON then begin
-    advance st;
-    if st.tok = LBRACE || st.tok = SEMI then None else Some (parse_typ st)
-  end
-  else None
+  match st.tok with LBRACE | SEMI | EOF -> None | _ -> Some (parse_typ st)
 
 (* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
 
