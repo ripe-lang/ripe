@@ -353,8 +353,8 @@ and parse_comma_list st stop =
 and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
-  (* let x: i32 = 42 *)
-  | LET ->
+  (* const x: i32 = 42 *)
+  | CONST ->
       advance st;
       let name = expect_ident st in
       (* optional type annotation since the typechecker can infer it *)
@@ -364,10 +364,10 @@ and parse_simple_stmt st =
           Some (parse_typ st))
         else None
       in
-      (* unlike var let always requires a value *)
+      (* const always requires a value *)
       expect st ASSIGN;
       let e = parse_expr st 1 in
-      mks lo st (Let (name, ann, e))
+      mks lo st (Const (name, ann, e))
   (* var x: i32 / var x = 42 / var x *)
   | VAR ->
       advance st;

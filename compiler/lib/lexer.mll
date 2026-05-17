@@ -69,7 +69,7 @@ and read_main = parse
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {
       match s with
-      | "let"    -> LET
+      | "const"  -> CONST
       | "var"    -> VAR
       | "return" -> RETURN
       | "if"     -> IF

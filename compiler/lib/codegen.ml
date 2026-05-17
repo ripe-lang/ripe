@@ -405,7 +405,7 @@ and emit_cast ctx v src_ty target_ty =
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s with
-  | T.TLet (name, t, e) | T.TVar (name, t, e) ->
+  | T.TConst (name, t, e) | T.TVar (name, t, e) ->
       (* stack slot sized by type (struct sizes resolved from context) *)
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
         (ty_size ctx.structs t);
