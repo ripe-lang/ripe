@@ -48,6 +48,7 @@ type token =
   | EXTERN
   | INLINE
   | PUBLIC
+  | FUNC
   | CARET
   | TRUE
   | FALSE
@@ -114,6 +115,7 @@ let show_token = function
   | EXTERN -> "extern"
   | INLINE -> "inline"
   | PUBLIC -> "public"
+  | FUNC -> "func"
   | CARET -> "^"
   | TRUE -> "true"
   | FALSE -> "false"
