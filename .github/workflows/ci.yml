@@ -18,8 +18,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ocaml/opam:ubuntu-24.04-ocaml-5.3
+      image: ghcr.io/${{ github.repository }}/ci:latest
       options: --user root
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
       env:
         OPAMROOT: /home/opam/.opam
         OPAMROOTISOK: "1"
@@ -28,12 +31,6 @@ jobs:
         working-directory: compiler
     steps:
       - uses: actions/checkout@v4
-      - run: apt-get update -y && apt-get install -y nodejs
-      - uses: actions/cache@v4
-        with:
-          path: /home/opam/.opam
-          key: opam-${{ hashFiles('compiler/ripe.opam.locked') }}
-          restore-keys: opam-
       - run: opam install . --deps-only --locked --yes
       - run: opam exec -- dune build
       - run: opam exec -- dune build @fmt
