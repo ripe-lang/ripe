@@ -17,14 +17,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: ocaml/opam:ubuntu-24.04-ocaml-5.3
+      options: --user root
+      env:
+        OPAMROOT: /home/opam/.opam
+        OPAMROOTISOK: "1"
     defaults:
       run:
         working-directory: compiler
     steps:
       - uses: actions/checkout@v4
-      - uses: ocaml/setup-ocaml@v3
+      - uses: actions/cache@v4
         with:
-          ocaml-compiler: "5.3"
+          path: /home/opam/.opam
+          key: opam-${{ hashFiles('compiler/ripe.opam.locked') }}
+          restore-keys: opam-
       - run: opam install . --deps-only --locked --yes
       - run: opam exec -- dune build
       - run: opam exec -- dune build @fmt
