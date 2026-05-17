@@ -6,7 +6,11 @@ type span = { lo : int; hi : int } [@@deriving show]
 
 let dummy_span = { lo = 0; hi = 0 }
 
-type typ_desc = Named of string | Pointer of typ
+type typ_desc =
+  | Named of string
+  | Pointer of typ
+  | FuncPtr of typ list * typ option
+
 and typ = { tdesc : typ_desc; span : span } [@@deriving show]
 
 type binop =
