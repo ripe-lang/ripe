@@ -1,15 +1,7 @@
-f() i32 {
-  return 1
-  let x: i32 = 2
-  let y: i32 = 3
+add(a: i32, b: i32) i32 {
+  return a + b
 }
 
-g() i32 {
-  return 2
-  return 3
-}
-
-main() {
+func main() {
   return 0
-  let x: i32 = 1
 }

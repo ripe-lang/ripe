@@ -465,15 +465,11 @@ and parse_for st =
   let body = parse_block st in
   mks lo st (For (name, iter, body))
 
-(* add(a: i32, b: i32): i32 { return a + b } *)
+(* func add(a: i32, b: i32) i32 { return a + b } *)
 let parse_func st mods =
   let lo = cur_pos st in
-  let pos = cur_lex_pos st in
+  expect st FUNC;
   let name = expect_ident st in
-  (match st.tok with
-  | IDENT _ ->
-      raise (ParseError (pos, Printf.sprintf "invalid modifier '%s'" name))
-  | _ -> ());
   let params = parse_params st in
   let ret = parse_ret_type st in
   skip_semi st;
@@ -481,12 +477,12 @@ let parse_func st mods =
   let hi = cur_pos st in
   Func { name; params; ret; body; modifiers = mods; span = { lo; hi } }
 
-(* extern add(a: i32, b: i32): i32 *)
-(* No modifiers needed *)
+(* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
+  expect st FUNC;
   let name = expect_ident st in
   let params = parse_params st in
   let ret = parse_ret_type st in
@@ -498,13 +494,22 @@ let parse_decl st =
   match st.tok with
   | EXTERN -> parse_extern st
   | STRUCT -> parse_struct st []
+  | FUNC -> parse_func st []
   | PUBLIC | INLINE -> (
       let mods = parse_modifiers st in
       match st.tok with
       | STRUCT -> parse_struct st mods
-      | _ -> parse_func st mods)
-  (* TODO(0966): stray identifiers at top level give confusing parse errors *)
-  | _ -> parse_func st []
+      | FUNC -> parse_func st mods
+      | _ -> raise
+        (ParseError
+           ( cur_lex_pos st,
+             Printf.sprintf "expected declaration but found '%s'"
+               (show_token st.tok) )))
+  | _ -> raise
+        (ParseError
+           ( cur_lex_pos st,
+             Printf.sprintf "expected declaration but found '%s'"
+               (show_token st.tok) ))
 
 let parse_program st =
   let decls = ref [] in
