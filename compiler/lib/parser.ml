@@ -497,6 +497,24 @@ let parse_func st mods =
   let hi = cur_pos st in
   Func { name; params; ret; body; modifiers = mods; span = { lo; hi } }
 
+(* const PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
+let parse_global st =
+  let lo = cur_pos st in
+  let is_const = st.tok = CONST in
+  advance st;
+  let name = expect_ident st in
+  expect st COLON;
+  let typ = parse_typ st in
+  let init =
+    if at st ASSIGN then (
+      advance st;
+      Some (parse_expr st 1))
+    else None
+  in
+  let hi = cur_pos st in
+  skip_semi st;
+  Global { name; typ; init; is_const; span = { lo; hi } }
+
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
@@ -515,6 +533,7 @@ let parse_decl st =
   | EXTERN -> parse_extern st
   | STRUCT -> parse_struct st []
   | FUNC -> parse_func st []
+  | CONST | VAR -> parse_global st
   | PUBLIC | INLINE -> (
       let mods = parse_modifiers st in
       match st.tok with

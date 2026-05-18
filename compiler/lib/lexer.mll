@@ -135,6 +135,7 @@ and read_main = parse
   | ':'  { COLON }
   | ','  { COMMA }
   | '^'  { CARET }
+  (* TODO: char literal *)
   | '"'  { Buffer.clear buf;
            in_string := true;
            Queue.push STRING_START token_queue;
