@@ -1,8 +1,6 @@
-func add(a: i32, b: i32) i32 {
-  return a + b
-}
+const X: i32 = 32
+var n: i32 = 10
 
 func main() {
-  var op: (i32, i32) i32 = add
-  return op(2, 3)
+  return X + n
 }
