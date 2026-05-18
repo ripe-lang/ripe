@@ -1,1 +1,1 @@
-{"id": "94c1", "title": "Add rawptr/void*", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527663", "updated_at": "2026-03-13 13:35:35.527663", "source": "compiler/lib/typechecker.ml:80", "depends": [], "blocks": []}
+{"id": "94c1", "title": "Add rawptr/void*", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527663", "updated_at": "2026-05-17 21:26:04.407047", "source": "compiler/lib/typechecker.ml:162", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

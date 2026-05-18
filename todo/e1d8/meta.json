@@ -1,1 +1,1 @@
-{"id": "e1d8", "title": "blocks as expressions e.g. let x = { 5 }", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526652", "updated_at": "2026-03-13 13:35:35.526652", "source": "compiler/lib/codegen.ml:386", "depends": [], "blocks": []}
+{"id": "e1d8", "title": "blocks as expressions e.g. let x = { 5 }", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526652", "updated_at": "2026-05-17 21:50:30.335388", "source": "compiler/lib/codegen.ml:463", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

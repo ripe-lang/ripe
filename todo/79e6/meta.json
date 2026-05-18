@@ -1,0 +1,1 @@
+{"id": "79e6", "title": "Check for duplicate function/extern definitions. Need to fix", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-17 21:50:30.326879", "updated_at": "2026-05-17 21:50:30.326879", "source": "compiler/lib/typechecker.ml:198", "depends": [], "blocks": [], "assignee": null}

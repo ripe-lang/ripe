@@ -1,0 +1,1 @@
+how extern foo() and a local foo() with the same name

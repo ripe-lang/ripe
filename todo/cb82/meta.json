@@ -1,1 +1,1 @@
-{"id": "cb82", "title": "range type not yet defined", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.529404", "updated_at": "2026-03-13 13:35:35.529404", "source": "compiler/lib/typed_ast.ml:67", "depends": [], "blocks": []}
+{"id": "cb82", "title": "range type not yet defined", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.529404", "updated_at": "2026-05-17 21:26:04.408453", "source": "compiler/lib/typed_ast.ml:76", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
