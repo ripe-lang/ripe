@@ -1,37 +1,38 @@
 # Contributing
 
+> [!IMPORTANT]
 > The compiler is in early stages. I'm not looking for new features.
 
 ## Setup
 
-Install opam, then create a switch and install dependencies:
+1. Install [opam](https://opam.ocaml.org/doc/Install.html)
+2. Run:
 
-```
-opam switch create 5.3.0 ocaml.5.3.0
-opam install . --deps-only --yes
-```
+   ```sh
+   opam switch create 5.3.0 ocaml.5.3.0
+   cd compiler
+   opam install . --deps-only --yes
+   dune build
+   ```
 
-## Building
+---
 
-```
-cd compiler
-dune build
-```
+> The following commands should be run from the `compiler` directory.
 
-## Running
+## Running the Compiler
 
-```
-dune exec bin/main.exe -- -dump-ast <file.rp>
-```
-
-## Testing
-
-```
-dune runtest
+```sh
+dune exec ripec -- <file.rp>
 ```
 
-## Formatting
+## Running Tests
 
+```sh
+dune test
 ```
+
+## Formatting Code
+
+```sh
 dune fmt
 ```
