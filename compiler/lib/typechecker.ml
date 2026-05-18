@@ -7,10 +7,6 @@ open Types
 
 exception TypeErrors of string list
 
-(* TODO(38df): I need to update Parser to allow `let` and `var` in toplevel
-then update collect_decl in the first pass so that they're collected and
-available for other functions *)
-
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
@@ -25,6 +21,7 @@ type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   structs : (string, struct_info) Hashtbl.t;
+  globals : (string, ty * bool) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   errors : string list ref;
@@ -39,6 +36,7 @@ let make_env (filename : string) (sm : Source_map.t) : env =
     vars = [];
     funcs = Hashtbl.create 16;
     structs = Hashtbl.create 16;
+    globals = Hashtbl.create 16;
     ret_ty = TVoid;
     in_loop = false;
     errors = ref [];
@@ -104,12 +102,16 @@ let lookup_var (env : env) (name : string) : ty =
   match lookup_var_opt env name with
   | Some t -> t
   | None -> (
-      (* fall back to function table so function names can be used as values *)
-      match Hashtbl.find_opt env.funcs name with
-      | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
-      | None ->
-          add_error env ("undefined variable '" ^ name ^ "'");
-          TInt I32)
+      (* locals shadow globals shadow functions *)
+      match Hashtbl.find_opt env.globals name with
+      | Some (t, _) -> t
+      | None -> (
+          (* fall back to function table so function names can be used as values *)
+          match Hashtbl.find_opt env.funcs name with
+          | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+          | None ->
+              add_error env ("undefined variable '" ^ name ^ "'");
+              TInt I32))
 
 let lookup_func (env : env) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs name with
@@ -117,6 +119,11 @@ let lookup_func (env : env) (name : string) : func_sig =
   | None ->
       add_error env ("undefined function '" ^ name ^ "'");
       { param_tys = []; ret_ty = TVoid }
+
+let is_const_global (env : env) (name : string) : bool =
+  match Hashtbl.find_opt env.globals name with
+  | Some (_, true) -> true
+  | _ -> false
 
 let lookup_struct (env : env) (name : string) : struct_info =
   match Hashtbl.find_opt env.structs name with
@@ -188,7 +195,7 @@ let collect_func (env : env) (fd : func_def) : unit =
   in
   (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
 
-  (* FIXME: Check for duplicate function/extern definitions. Need to fix
+  (* FIXME(79e6): Check for duplicate function/extern definitions. Need to fix
      how extern foo() and a local foo() with the same name *)
   (* if Hashtbl.mem env.funcs fd.name then
     raise (TypeError ("function already defined: " ^ fd.name)) *)
@@ -197,7 +204,7 @@ let collect_func (env : env) (fd : func_def) : unit =
 
 (* TODO(d1ec): Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
-(* FIXME: Add DFS cycle detection to prevent infinite recursion*)
+(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
   if Hashtbl.mem env.structs sd.name then (
     env.current_span := sd.span;
@@ -209,10 +216,20 @@ let collect_struct (env : env) (sd : struct_def) : unit =
     in
     Hashtbl.replace env.structs sd.name { field_tys }
 
+let collect_global (env : env) (gd : global_def) : unit =
+  env.current_span := gd.span;
+  if gd.is_const && gd.init = None then
+    add_error env ("'" ^ gd.name ^ "' is const and must have an initializer");
+  if Hashtbl.mem env.globals gd.name || Hashtbl.mem env.funcs gd.name then
+    add_error env ("'" ^ gd.name ^ "' is already declared at module scope");
+  let t = ty_of_ast env gd.typ in
+  Hashtbl.replace env.globals gd.name (t, gd.is_const)
+
 let collect_decl (env : env) (decl : decl) : unit =
   match decl with
   | Struct sd -> collect_struct env sd
   | Func fd | Extern fd -> collect_func env fd
+  | Global gd -> collect_global env gd
 
 (* Second pass doing the bidirectional type checking *)
 
@@ -379,6 +396,11 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : Typed_ast.texpr
       let tl = synth env l in
       if not (is_lvalue tl) then
         add_error env "cannot assign to this expression";
+      (* reject assignment to a const global *)
+      (match tl with
+      | TIdent (name, _) when is_const_global env name ->
+          add_error env ("cannot assign to const '" ^ name ^ "'")
+      | _ -> ());
       let t = Typed_ast.ty_of_texpr tl in
       let tr = check env r t in
       Typed_ast.TBinOp (op, tl, tr, t)
@@ -571,6 +593,33 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
     modifiers = fd.modifiers;
   }
 
+let rec is_const_texpr (env : env) (te : Typed_ast.texpr) : bool =
+  match te with
+  | TInt _ | TFloat _ | TBool _ | TNull _ | TChar _ | TString _ | TSizeOf _ ->
+      true
+  | TIdent (name, _) -> is_const_global env name
+  | TUnOp (_, e, _) -> is_const_texpr env e
+  | TBinOp (_, l, r, _) -> is_const_texpr env l && is_const_texpr env r
+  | TCast (e, _) -> is_const_texpr env e
+  (* never compile-time by design *)
+  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _ ->
+      false
+
+let check_global (env : env) (gd : global_def) : Typed_ast.tglobal_def =
+  env.current_span := gd.span;
+  let t = ty_of_ast env gd.typ in
+  let tinit =
+    match gd.init with
+    | None -> None
+    | Some e ->
+        let te = check env e t in
+        if not (is_const_texpr env te) then
+          add_error env
+            ("initializer for '" ^ gd.name ^ "' must be a constant expression");
+        Some te
+  in
+  { Typed_ast.name = gd.name; ty = t; init = tinit; is_const = gd.is_const }
+
 let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
   match decl with
   | Func fd ->
@@ -583,8 +632,8 @@ let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
       env.current_span := sd.span;
       let info = lookup_struct env sd.name in
       Typed_ast.TStruct (sd.name, info.field_tys, sd.modifiers)
+  | Global gd -> Typed_ast.TGlobal (check_global env gd)
 (* | _ -> failwith "Declaration not supported yet" *)
-(* TODO(880b): I need to think about global variables *)
 
 let typecheck (filename : string) (src : string) (decls : decl list) :
     Typed_ast.tdecl list =
