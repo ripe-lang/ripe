@@ -42,11 +42,19 @@ type tfunc_def = {
   modifiers : Ast.modifier list;
 }
 
+type tglobal_def = {
+  name : string;
+  ty : ty;
+  init : texpr option;
+  is_const : bool;
+}
+
 type tdecl =
   | TFunc of tfunc_def
   | TStruct of string * (string * ty) list * Ast.modifier list
     (* name, typed fields, modifiers *)
   | TExtern of tfunc_def
+  | TGlobal of tglobal_def
 
 let ty_of_texpr (e : texpr) : ty =
   match e with

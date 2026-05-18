@@ -1,1 +1,1 @@
-{"id": "1aff", "title": "maybe look into escape analysis", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526046", "updated_at": "2026-03-13 13:35:35.526046", "source": "compiler/lib/codegen.ml:78", "depends": [], "blocks": []}
+{"id": "1aff", "title": "maybe look into escape analysis", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526046", "updated_at": "2026-05-17 21:20:37.074569", "source": "compiler/lib/codegen.ml:78", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

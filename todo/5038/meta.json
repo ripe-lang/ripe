@@ -1,1 +1,1 @@
-{"id": "5038", "title": "Support for variadic functions", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527952", "updated_at": "2026-03-13 13:35:35.527952", "source": "compiler/lib/typechecker.ml:226", "depends": [], "blocks": []}
+{"id": "5038", "title": "Support for variadic functions", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527952", "updated_at": "2026-05-17 21:26:04.407401", "source": "compiler/lib/typechecker.ml:346", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

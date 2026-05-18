@@ -138,7 +138,20 @@ type struct_def = {
 }
 [@@deriving show]
 
-type decl = Func of func_def | Struct of struct_def | Extern of func_def
+type global_def = {
+  name : string;
+  typ : typ;
+  init : expr option;
+  is_const : bool;
+  span : span;
+}
+[@@deriving show]
+
+type decl =
+  | Func of func_def
+  | Struct of struct_def
+  | Extern of func_def
+  | Global of global_def
 [@@deriving show]
 
 let decl_to_string = show_decl
