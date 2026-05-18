@@ -9,7 +9,7 @@ module T = Typed_ast
 let qbe_ty (t : ty) : string =
   match t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
-  (* FIXME: Null terminated strings? Idk yet. *)
+  (* FIXME(d969): Null terminated strings? Idk yet. *)
   | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
@@ -112,6 +112,7 @@ let qbe_store (t : ty) : string =
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
   locals : (string, unit) Hashtbl.t;
+  globals : (string, unit) Hashtbl.t;
   buf : Buffer.t;
   strings : (string * string) list ref;
   tmp : int ref;
@@ -161,6 +162,10 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       if Hashtbl.mem ctx.locals name then (
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) name;
+        tmp)
+      else if Hashtbl.mem ctx.globals name then (
+        let tmp = fresh ctx in
+        emit ctx "    %s =%s %s $%s\n" tmp (qbe_ty t) (qbe_load t) name;
         tmp)
       else match t with TFunc _ -> "$" ^ name | _ -> "%" ^ name)
   (* TODO(9de3): TString should become TCStr (null terminated) *)
@@ -261,7 +266,8 @@ and emit_assign ctx l r _t =
   (match l with
   | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
       emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name
-  (* FIXME: reassigns SSA name, breaks with globals *)
+  | T.TIdent (name, lt) when Hashtbl.mem ctx.globals name ->
+      emit ctx "    %s %s, $%s\n" (qbe_store lt) rv name
   | T.TIdent (name, _) ->
       emit ctx "    %%%s =%s copy %s\n" name (qbe_ty (T.ty_of_texpr r)) rv
   | _ -> ());
@@ -533,25 +539,50 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"
 
+let qbe_ext_ty (t : ty) : string =
+  match t with
+  | TInt (I8 | U8) | TBool -> "b"
+  | TInt (I16 | U16) -> "h"
+  | TInt (I32 | U32) -> "w"
+  (* null is a pointer no type but all pointers are 64-bit *)
+  | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "l"
+  | TFloat F32 -> "s"
+  | TFloat F64 -> "d"
+  | TStruct sn -> ":" ^ sn
+  (* its nothing. like actually nothing. *)
+  | TVoid -> assert false
+
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
-  let field_strs =
-    List.map
-      (fun (_, t) ->
-        match t with
-        | TInt (I8 | U8) -> "b"
-        | TInt (I16 | U16) -> "h"
-        | TInt (I32 | U32) -> "w"
-        | TBool -> "b"
-        (* null is a pointer no type but all pointers are  64-bit *)
-        | TInt (I64 | U64) | TPointer _ | TNull | TString | TFunc _ -> "l"
-        | TFloat F32 -> "s"
-        | TFloat F64 -> "d"
-        | TStruct sn -> ":" ^ sn
-        (* its nothing. like actually nothing. *)
-        | TVoid -> assert false)
-      fields
-  in
+  let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
+
+(* TODO(ab17): fold arithmetic *)
+let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
+  match te with
+  | T.TInt (n, _) -> string_of_int n
+  | T.TBool b -> if b then "1" else "0"
+  | T.TNull _ -> "0"
+  | T.TChar c -> string_of_int (Char.code c)
+  | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
+  | T.TFloat (f, t) ->
+      let prefix, digits =
+        match t with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+      in
+      prefix ^ Printf.sprintf "%.*g" digits f
+  | T.TCast (e, _) -> fold_const_value ctx e
+  | T.TIdent (name, _) -> "$" ^ name
+  | _ -> failwith "non-trivial constant initializer"
+
+let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
+  let align = ty_align ctx.structs gd.ty in
+  match gd.init with
+  | None ->
+      let size = ty_size ctx.structs gd.ty in
+      emit ctx "data $%s = align %d { z %d }\n" gd.name align size
+  | Some te ->
+      let letter = qbe_ext_ty gd.ty in
+      let value = fold_const_value ctx te in
+      emit ctx "data $%s = align %d { %s %s }\n" gd.name align letter value
 
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
@@ -579,12 +610,18 @@ let emit_qbe (tdecls : T.tdecl list) : string =
     {
       structs;
       locals = Hashtbl.create 16;
+      globals = Hashtbl.create 16;
       buf = Buffer.create 1024;
       strings = ref [];
       tmp = ref 0;
       str_ctr = ref 0;
     }
   in
+
+  List.iter
+    (function
+      | T.TGlobal gd -> Hashtbl.replace ctx.globals gd.name () | _ -> ())
+    tdecls;
 
   (* Struct type def *)
   (* TODO(ead2): enforce pub visibility on struct fields *)
@@ -599,6 +636,15 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   in
   (* No benefit only format *)
   if has_structs then emit ctx "\n";
+
+  (* globals *)
+  List.iter
+    (function T.TGlobal gd -> emit_global_data ctx gd | _ -> ())
+    tdecls;
+  let has_globals =
+    List.exists (function T.TGlobal _ -> true | _ -> false) tdecls
+  in
+  if has_globals then emit ctx "\n";
 
   (* Function defs (externs no body)  *)
   List.iter
