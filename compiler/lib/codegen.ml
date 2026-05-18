@@ -257,7 +257,9 @@ and emit_unop ctx op e t =
   | Ast.AddressOf ->
       let name = lvalue_name e in
       let tmp = fresh ctx in
-      emit ctx "    %s =l copy %%%s\n" tmp name;
+      if Hashtbl.mem ctx.globals name then
+        emit ctx "    %s =l copy $%s\n" tmp name
+      else emit ctx "    %s =l copy %%%s\n" tmp name;
       tmp
 
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
@@ -285,6 +287,8 @@ and emit_compound_assign ctx op l r =
   let cur = fresh ctx in
   if Hashtbl.mem ctx.locals name then
     emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) name
+  else if Hashtbl.mem ctx.globals name then
+    emit ctx "    %s =%s %s $%s\n" cur qt (qbe_load lt) name
   else emit ctx "    %s =%s copy %%%s\n" cur qt name;
   let rv = emit_expr ctx r in
   let arith =
@@ -300,6 +304,8 @@ and emit_compound_assign ctx op l r =
   emit ctx "    %s =%s %s %s, %s\n" new_val qt arith cur rv;
   if Hashtbl.mem ctx.locals name then
     emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val name
+  else if Hashtbl.mem ctx.globals name then
+    emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
   else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
   new_val
 

@@ -15,6 +15,16 @@ let run_src src =
   | exception Ripe.Parser.ParseError (_, msg) ->
       print_endline ("ParseError: " ^ msg)
 
+let run_codegen src =
+  match parse src with
+  | decls -> (
+      match Ripe.Typechecker.typecheck "<test>" src decls with
+      | tdecls -> print_string (Ripe.Codegen.emit_qbe tdecls)
+      | exception Ripe.Typechecker.TypeErrors msgs ->
+          List.iter (fun msg -> print_endline ("TypeError: " ^ msg)) msgs)
+  | exception Ripe.Parser.ParseError (_, msg) ->
+      print_endline ("ParseError: " ^ msg)
+
 let%expect_test "break outside loop" =
   run_src "func f() { break }";
   [%expect {| TypeError: <test>:1:12: break outside loop |}]
@@ -158,3 +168,88 @@ let%expect_test "const requires initializer" =
   run_src "const X: i32";
   [%expect
     {| TypeError: <test>:1:1: 'X' is const and must have an initializer |}]
+
+let%expect_test "codegen: compound assign on global" =
+  run_codegen "var n: i32 = 0 func f() { n += 1 }";
+  [%expect
+    {|
+    data $n = align 4 { w 0 }
+
+    function $f() {
+    @start
+        %t0 =w loadsw $n
+        %t1 =w add %t0, 1
+        storew %t1, $n
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: compound assign on local" =
+  run_codegen "func f() { var n: i32 = 0; n += 1 }";
+  [%expect
+    {|
+    function $f() {
+    @start
+        %n =l alloc4 4
+        storew 0, %n
+        %t0 =w loadsw %n
+        %t1 =w add %t0, 1
+        storew %t1, %n
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: plain assign on global" =
+  run_codegen "var n: i32 = 0 func f() { n = n + 1 }";
+  [%expect
+    {|
+    data $n = align 4 { w 0 }
+
+    function $f() {
+    @start
+        %t0 =w loadsw $n
+        %t1 =w add %t0, 1
+        storew %t1, $n
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: address-of local" =
+  run_codegen "func f() { var n: i32 = 0; var p: *i32 = &n }";
+  [%expect {|
+    <test>:1:43: warning: 'p' declared but never used
+    function $f() {
+    @start
+        %n =l alloc4 4
+        storew 0, %n
+        %p =l alloc8 8
+        %t0 =l copy %n
+        storel %t0, %p
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: address-of global" =
+  run_codegen "var n: i32 = 0 func f() { var p: *i32 = &n }";
+  [%expect {|
+    <test>:1:42: warning: 'p' declared but never used
+    data $n = align 4 { w 0 }
+
+    function $f() {
+    @start
+        %p =l alloc8 8
+        %t0 =l copy $n
+        storel %t0, %p
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: call through global fn ptr" =
+  run_codegen
+    "func add(a: i32, b: i32) i32 { return a + b } var op: (i32, i32) i32 = \
+     add func f() { op(1, 2) }";
+  [%expect {|
+    TypeError: <test>:1:72: initializer for 'op' must be a constant expression
+    TypeError: <test>:1:87: undefined function 'op'
+    TypeError: <test>:1:87: expected 0 arguments but got 2
+    |}]
