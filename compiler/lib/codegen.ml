@@ -603,7 +603,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   (* Function defs (externs no body)  *)
   List.iter
     (function
-      | T.TFunc tfd -> emit_func ctx tfd | TExtern _ | T.TStruct _ -> ())
+      | T.TFunc tfd -> emit_func ctx tfd | TExtern _ | T.TStruct _ | T.TGlobal _ -> ())
     tdecls;
 
   (* String literals (data sections) *)
