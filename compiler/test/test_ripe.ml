@@ -128,3 +128,33 @@ let%expect_test "fn ptr returning fn ptr" =
 let%expect_test "void fn ptr zero args" =
   run_src "func noop() {} func f() { var p: () = noop; p() }";
   [%expect {| ok |}]
+
+let%expect_test "global const read from function" =
+  run_src "const X: i32 = 42 func f() i32 { return X }";
+  [%expect {| ok |}]
+
+let%expect_test "global var read and write" =
+  run_src "var n: i32 = 0 func f() i32 { n = n + 1; return n }";
+  [%expect {| ok |}]
+
+let%expect_test "global var zero init" =
+  run_src "var flag: bool func f() bool { return flag }";
+  [%expect {| ok |}]
+
+let%expect_test "global forward reference" =
+  run_src "func f() i32 { return X } const X: i32 = 7";
+  [%expect {| ok |}]
+
+let%expect_test "assign to const global" =
+  run_src "const X: i32 = 1 func f() { X = 2 }";
+  [%expect {| TypeError: <test>:1:29: cannot assign to const 'X' |}]
+
+let%expect_test "non-const global initializer" =
+  run_src "func g() i32 { return 1 } const X: i32 = g()";
+  [%expect
+    {| TypeError: <test>:1:42: initializer for 'X' must be a constant expression |}]
+
+let%expect_test "const requires initializer" =
+  run_src "const X: i32";
+  [%expect
+    {| TypeError: <test>:1:1: 'X' is const and must have an initializer |}]
