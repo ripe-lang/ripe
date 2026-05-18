@@ -216,7 +216,8 @@ let%expect_test "codegen: plain assign on global" =
 
 let%expect_test "codegen: address-of local" =
   run_codegen "func f() { var n: i32 = 0; var p: *i32 = &n }";
-  [%expect {|
+  [%expect
+    {|
     <test>:1:43: warning: 'p' declared but never used
     function $f() {
     @start
@@ -231,7 +232,8 @@ let%expect_test "codegen: address-of local" =
 
 let%expect_test "codegen: address-of global" =
   run_codegen "var n: i32 = 0 func f() { var p: *i32 = &n }";
-  [%expect {|
+  [%expect
+    {|
     <test>:1:42: warning: 'p' declared but never used
     data $n = align 4 { w 0 }
 
@@ -248,7 +250,8 @@ let%expect_test "codegen: call through global fn ptr" =
   run_codegen
     "func add(a: i32, b: i32) i32 { return a + b } var op: (i32, i32) i32 = \
      add func f() { op(1, 2) }";
-  [%expect {|
+  [%expect
+    {|
     TypeError: <test>:1:72: initializer for 'op' must be a constant expression
     TypeError: <test>:1:87: undefined function 'op'
     TypeError: <test>:1:87: expected 0 arguments but got 2
