@@ -30,12 +30,16 @@ let parse_file filename =
   Lexing.set_filename lexbuf abs_filename;
   Ripe.Lexer.reset ();
   let decls =
+    (* TODO: merge with TypeErrors into one diagnostics flush *)
     match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
     | decls -> decls
-    | exception Ripe.Parser.ParseError (pos, msg) ->
-        Printf.eprintf "%s:%d:%d: %s\n" pos.pos_fname pos.pos_lnum
-          (pos.pos_cnum - pos.pos_bol)
-          msg;
+    | exception Ripe.Parser.ParseErrors diags ->
+        List.iter
+          (fun (pos, msg) ->
+            Printf.eprintf "%s:%d:%d: %s\n" pos.Lexing.pos_fname pos.pos_lnum
+              (pos.pos_cnum - pos.pos_bol)
+              msg)
+          diags;
         exit 1
   in
 
