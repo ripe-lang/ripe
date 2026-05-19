@@ -5,17 +5,27 @@
 open Tokens
 open Ast
 
+(* internal, used to unwind from grammar rules. parse converts to ParseErrors *)
 exception ParseError of Lexing.position * string
+exception ParseErrors of (Lexing.position * string) list
 
 type state = {
   mutable tok : token;
   lexbuf : Lexing.lexbuf;
   read : Lexing.lexbuf -> token;
+  mutable diags : (Lexing.position * string) list;
 }
 
 type assoc = Left | Right | NonAssoc
 
-let advance st = st.tok <- st.read st.lexbuf
+let rec advance st =
+  st.tok <- st.read st.lexbuf;
+  match st.tok with
+  | ERROR msg ->
+      st.diags <- (st.lexbuf.lex_start_p, msg) :: st.diags;
+      advance st
+  | _ -> ()
+
 let at st t = st.tok = t
 
 (* start of the current lookahead token *)
@@ -241,6 +251,16 @@ let rec parse_expr st min_prec =
           let op = binop_of op_tok in
           lhs := mk lo st (BinOp (op, !lhs, rhs))
         end;
+        (* reject a < b < c, 0..5..10, etc *)
+        (* TODO: better message, point at both operators *)
+        (match (assoc, prec_of st.tok) with
+        | NonAssoc, Some (p, _) when p = prec ->
+            raise
+              (ParseError
+                 ( cur_lex_pos st,
+                   "cannot chain non-associative operator '" ^ show_token st.tok
+                   ^ "'" ))
+        | _ -> ());
         lhs := parse_postfix st !lhs
   done;
   !lhs
@@ -552,15 +572,30 @@ let parse_decl st =
              Printf.sprintf "expected declaration but found '%s'"
                (show_token st.tok) ))
 
+(* TODO: finer recovery inside blocks, sync to next stmt boundary *)
+let rec sync_to_decl st =
+  match st.tok with
+  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC -> ()
+  | _ ->
+      advance st;
+      sync_to_decl st
+
 let parse_program st =
   let decls = ref [] in
   skip_semi st;
   while st.tok <> EOF do
-    decls := parse_decl st :: !decls (* skip_semi st *)
+    try
+      decls := parse_decl st :: !decls;
+      skip_semi st
+    with ParseError (p, m) ->
+      st.diags <- (p, m) :: st.diags;
+      sync_to_decl st
   done;
   List.rev !decls
 
 let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
     Ast.decl list =
-  let st = { tok = read lexbuf; lexbuf; read } in
-  parse_program st
+  let st = { tok = EOF; lexbuf; read; diags = [] } in
+  advance st;
+  let decls = parse_program st in
+  match List.rev st.diags with [] -> decls | ds -> raise (ParseErrors ds)
