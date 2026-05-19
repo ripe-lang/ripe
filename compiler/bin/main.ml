@@ -30,7 +30,7 @@ let parse_file filename =
   Lexing.set_filename lexbuf abs_filename;
   Ripe.Lexer.reset ();
   let decls =
-    (* TODO: merge with TypeErrors into one diagnostics flush *)
+    (* TODO(7b48): merge with TypeErrors into one diagnostics flush *)
     match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
     | decls -> decls
     | exception Ripe.Parser.ParseErrors diags ->

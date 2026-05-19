@@ -1,1 +1,1 @@
-{"id": "9ee0", "title": "parse modifiers", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-28 13:03:33.248558", "updated_at": "2026-05-17 21:26:04.408374", "source": "compiler/lib/parser.ml:111", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{"id": "9ee0", "title": "parse modifiers", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-28 13:03:33.248558", "updated_at": "2026-05-19 03:08:44.289381", "source": "compiler/lib/parser.ml:121", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

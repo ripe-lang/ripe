@@ -1,0 +1,1 @@
+{"id": "a300", "title": "better message, point at both operators", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-19 03:08:44.282002", "updated_at": "2026-05-19 03:08:44.282002", "source": "compiler/lib/parser.ml:255", "depends": [], "blocks": [], "assignee": null}
