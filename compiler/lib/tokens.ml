@@ -66,6 +66,7 @@ type token =
   | DOT
   | SEMI
   | EOF
+  | ERROR of string
 
 let show_token = function
   | INT n -> string_of_int n
@@ -133,3 +134,4 @@ let show_token = function
   | DOT -> "."
   | SEMI -> ";"
   | EOF -> "<eof>"
+  | ERROR s -> "<error: " ^ s ^ ">"
