@@ -1,5 +1,8 @@
 FROM ocaml/opam:ubuntu-24.04-ocaml-5.3
 
+LABEL org.opencontainers.image.title="ripe CI"
+LABEL org.opencontainers.image.description="Pre-built OCaml/opam environment for CI"
+
 USER root
 
 ENV OPAMROOT=/home/opam/.opam
