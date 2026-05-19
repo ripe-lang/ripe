@@ -3,8 +3,6 @@
 {
 open Tokens
 
-exception SyntaxError of string
-
 let next_line lexbuf =
   Lexing.new_line lexbuf
 
@@ -141,10 +139,8 @@ and read_main = parse
            Queue.push STRING_START token_queue;
            read_string lexbuf }
   | eof  { EOF }
-  | _        { raise (SyntaxError ("line "
-               ^ string_of_int lexbuf.Lexing.lex_curr_p.Lexing.pos_lnum
-               ^ ": unexpected character: "
-               ^ Lexing.lexeme lexbuf)) }
+  | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
+
 
 (* TODO: pass buffer as param instead of global and handle illegal escape *)
 and read_string = parse
@@ -170,4 +166,14 @@ and read_string = parse
   | '\\' '\\'     { Buffer.add_char buf '\\'; read_string lexbuf }
   | '\\' '"'      { Buffer.add_char buf '"';  read_string lexbuf }
   | [^ '"' '\\' '{' '}']+  { Buffer.add_string buf (Lexing.lexeme lexbuf); read_string lexbuf }
-  | eof           { raise (SyntaxError "unterminated string") }
+  (* recover so the parser sees a closed string plus an error *)
+  | eof  { if Buffer.length buf > 0 then begin
+             Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
+             Buffer.clear buf
+           end;
+           in_string := false;
+           in_interp := false;
+           interp_brace_depth := 0;
+           Queue.push STRING_END token_queue;
+           Queue.push (ERROR "unterminated string") token_queue;
+           Queue.pop token_queue }
