@@ -252,7 +252,7 @@ let rec parse_expr st min_prec =
           lhs := mk lo st (BinOp (op, !lhs, rhs))
         end;
         (* reject a < b < c, 0..5..10, etc *)
-        (* TODO: better message, point at both operators *)
+        (* TODO(a300): better message, point at both operators *)
         (match (assoc, prec_of st.tok) with
         | NonAssoc, Some (p, _) when p = prec ->
             raise
@@ -572,7 +572,7 @@ let parse_decl st =
              Printf.sprintf "expected declaration but found '%s'"
                (show_token st.tok) ))
 
-(* TODO: finer recovery inside blocks, sync to next stmt boundary *)
+(* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =
   match st.tok with
   | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC -> ()
