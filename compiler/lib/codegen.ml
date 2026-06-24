@@ -656,7 +656,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   List.iter
     (function
       | T.TFunc tfd -> emit_func ctx tfd
-      | TExtern _ | T.TStruct _ | T.TGlobal _ -> ())
+      | TExtern _ | T.TStruct _ | T.TGlobal _ | T.TTypeAlias _ -> ())
     tdecls;
 
   (* String literals (data sections) *)

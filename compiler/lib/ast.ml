@@ -147,11 +147,19 @@ type global_def = {
 }
 [@@deriving show]
 
+type type_alias_def = {
+  name : string;
+  typ : typ;
+  span : span;
+}
+[@@deriving show]
+
 type decl =
   | Func of func_def
   | Struct of struct_def
   | Extern of func_def
   | Global of global_def
+  | TypeAlias of type_alias_def
 [@@deriving show]
 
 let decl_to_string = show_decl

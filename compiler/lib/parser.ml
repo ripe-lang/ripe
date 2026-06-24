@@ -535,6 +535,18 @@ let parse_global st =
   skip_semi st;
   Global { name; typ; init; is_const; span = { lo; hi } }
 
+(* type binop = (i32, i32) i32 *)
+let parse_type_alias st =
+  let lo = cur_pos st in
+  advance st;
+  (* TYPE *)
+  let name = expect_ident st in
+  expect st ASSIGN;
+  let typ = parse_typ st in
+  let hi = cur_pos st in
+  skip_semi st;
+  Ast.TypeAlias { name; typ; span = { lo; hi } }
+
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
@@ -554,6 +566,7 @@ let parse_decl st =
   | STRUCT -> parse_struct st []
   | FUNC -> parse_func st []
   | CONST | VAR -> parse_global st
+  | TYPE -> parse_type_alias st
   | PUBLIC | INLINE -> (
       let mods = parse_modifiers st in
       match st.tok with
@@ -575,7 +588,7 @@ let parse_decl st =
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =
   match st.tok with
-  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC -> ()
+  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC | TYPE -> ()
   | _ ->
       advance st;
       sync_to_decl st
