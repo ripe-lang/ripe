@@ -22,6 +22,7 @@ type env = {
   funcs : (string, func_sig) Hashtbl.t;
   structs : (string, struct_info) Hashtbl.t;
   globals : (string, ty * bool) Hashtbl.t;
+  aliases : (string, ty) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   errors : string list ref;
@@ -37,6 +38,7 @@ let make_env (filename : string) (sm : Source_map.t) : env =
     funcs = Hashtbl.create 16;
     structs = Hashtbl.create 16;
     globals = Hashtbl.create 16;
+    aliases = Hashtbl.create 8;
     ret_ty = TVoid;
     in_loop = false;
     errors = ref [];
@@ -145,12 +147,15 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named "f32" -> TFloat F32
   | Named "f64" -> TFloat F64
   | Named "bool" -> TBool
-  | Named name ->
+  | Named name -> (
       if Hashtbl.mem env.structs name then TStruct name
-      else (
-        env.current_span := t.span;
-        add_error env ("undefined type '" ^ name ^ "'");
-        TInt I32)
+      else
+        match Hashtbl.find_opt env.aliases name with
+        | Some aliased -> aliased
+        | None ->
+            env.current_span := t.span;
+            add_error env ("undefined type '" ^ name ^ "'");
+            TInt I32)
   | Pointer t -> TPointer (ty_of_ast env t)
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
@@ -216,6 +221,14 @@ let collect_struct (env : env) (sd : struct_def) : unit =
     in
     Hashtbl.replace env.structs sd.name { field_tys }
 
+let collect_alias (env : env) (td : type_alias_def) : unit =
+  env.current_span := td.span;
+  if Hashtbl.mem env.aliases td.name then
+    add_error env ("'" ^ td.name ^ "' is already defined")
+  else
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.aliases td.name t
+
 let collect_global (env : env) (gd : global_def) : unit =
   env.current_span := gd.span;
   if gd.is_const && gd.init = None then
@@ -230,6 +243,7 @@ let collect_decl (env : env) (decl : decl) : unit =
   | Struct sd -> collect_struct env sd
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
+  | TypeAlias td -> collect_alias env td
 
 (* Second pass doing the bidirectional type checking *)
 
@@ -633,6 +647,9 @@ let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
       let info = lookup_struct env sd.name in
       Typed_ast.TStruct (sd.name, info.field_tys, sd.modifiers)
   | Global gd -> Typed_ast.TGlobal (check_global env gd)
+  | TypeAlias td ->
+      let t = Hashtbl.find env.aliases td.name in
+      Typed_ast.TTypeAlias (td.name, t)
 (* | _ -> failwith "Declaration not supported yet" *)
 
 let typecheck (filename : string) (src : string) (decls : decl list) :

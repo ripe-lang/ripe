@@ -1,0 +1,13 @@
+type binop = (i32, i32) i32
+
+func add(a: i32, b: i32) i32 { return a + b }
+func mul(a: i32, b: i32) i32 { return a * b }
+
+func apply(f: binop, a: i32, b: i32) i32 {
+  return f(a, b)
+}
+
+func main() {
+  const op: binop = mul
+  return apply(op, 6, 7)
+}

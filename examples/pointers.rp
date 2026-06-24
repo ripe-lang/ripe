@@ -1,0 +1,13 @@
+func deref_sum(a: *i32, b: *i32) i32 {
+  return *a + *b
+}
+
+func deref_negate(p: *i32) i32 {
+  return -*p
+}
+
+func main() {
+  var x: i32 = 10
+  var y: i32 = 32
+  return deref_sum(&x, &y)
+}

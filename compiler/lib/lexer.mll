@@ -89,6 +89,7 @@ and read_main = parse
       | "inline"   -> INLINE
       | "public"   -> PUBLIC
       | "func"     -> FUNC
+      | "type"     -> TYPE
       | _          -> IDENT s
     }
   | "==" { EQ }

@@ -1,0 +1,29 @@
+const PRESENT: i32 = 1
+const WRITABLE: i32 = 2
+const USER: i32 = 4
+
+func has_flag(flags: i32, flag: i32) bool {
+  return flags & flag != 0
+}
+
+func set_flag(flags: i32, flag: i32) i32 {
+  return flags | flag
+}
+
+func clear_flag(flags: i32, flag: i32) i32 {
+  return flags & ~flag
+}
+
+# rounds val up to the next multiple of align (align must be a power of 2)
+func align_up(val: i32, align: i32) i32 {
+  return val + align - 1 & ~(align - 1)
+}
+
+func main() {
+  var flags: i32 = 0
+  flags = set_flag(flags, PRESENT)
+  flags = set_flag(flags, WRITABLE)
+  flags = clear_flag(flags, WRITABLE)
+  if has_flag(flags, PRESENT) { return 1 }
+  return 0
+}

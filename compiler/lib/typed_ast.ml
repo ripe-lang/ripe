@@ -55,6 +55,7 @@ type tdecl =
     (* name, typed fields, modifiers *)
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
+  | TTypeAlias of string * ty
 
 let ty_of_texpr (e : texpr) : ty =
   match e with
