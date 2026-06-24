@@ -147,11 +147,7 @@ type global_def = {
 }
 [@@deriving show]
 
-type type_alias_def = {
-  name : string;
-  typ : typ;
-  span : span;
-}
+type type_alias_def = { name : string; typ : typ; span : span }
 [@@deriving show]
 
 type decl =

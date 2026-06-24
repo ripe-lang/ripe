@@ -147,10 +147,10 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named "f32" -> TFloat F32
   | Named "f64" -> TFloat F64
   | Named "bool" -> TBool
-  | Named name ->
+  | Named name -> (
       if Hashtbl.mem env.structs name then TStruct name
       else
-        (match Hashtbl.find_opt env.aliases name with
+        match Hashtbl.find_opt env.aliases name with
         | Some aliased -> aliased
         | None ->
             env.current_span := t.span;
