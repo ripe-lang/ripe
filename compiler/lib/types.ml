@@ -9,7 +9,7 @@ type ty =
   | TInt of int_kind
   | TFloat of float_kind
   | TBool
-  | TString
+  | TCStr
   | TVoid
   | TNull
   | TPointer of ty
@@ -29,7 +29,7 @@ let rec show_ty = function
   | TFloat F32 -> "f32"
   | TFloat F64 -> "f64"
   | TBool -> "bool"
-  | TString -> "str"
+  | TCStr -> "cstr"
   | TVoid -> "void"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
