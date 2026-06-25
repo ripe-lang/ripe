@@ -1,0 +1,6 @@
+extern func puts(s: cstr) i32
+
+func main() {
+  puts("hello, world")
+  return 0
+}

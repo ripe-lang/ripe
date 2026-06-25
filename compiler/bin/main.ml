@@ -5,6 +5,7 @@
 let dump_ast = ref false
 let do_typecheck = ref false
 let emit_qbe = ref false
+let do_run = ref false
 let file = ref ""
 
 let spec =
@@ -12,6 +13,8 @@ let spec =
     ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST");
     ("-typecheck", Arg.Set do_typecheck, "Run the typechecker");
     ("-emit-qbe", Arg.Set emit_qbe, "Emit QBE IL to stdout (not compile)");
+    (* temporary *)
+    ("-run", Arg.Set do_run, "Compile and run immediately");
   ]
 
 let read_file filename =
@@ -64,10 +67,17 @@ let parse_file filename =
                 Printf.eprintf "ripec: command failed: %s\n" cmd;
                 exit 1)
             in
+            let out =
+              if !do_run then Filename.temp_file "ripe" "" else base
+            in
             run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
-            run (Printf.sprintf "cc -o %s %s" base tmp_asm);
+            run (Printf.sprintf "cc -o %s %s" out tmp_asm);
             Sys.remove tmp_qbe;
-            Sys.remove tmp_asm
+            Sys.remove tmp_asm;
+            if !do_run then (
+              let code = Sys.command out in
+              Sys.remove out;
+              exit code)
     | exception Ripe.Typechecker.TypeErrors msgs ->
         List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
         exit 1
