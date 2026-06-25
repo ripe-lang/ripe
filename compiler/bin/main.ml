@@ -67,9 +67,7 @@ let parse_file filename =
                 Printf.eprintf "ripec: command failed: %s\n" cmd;
                 exit 1)
             in
-            let out =
-              if !do_run then Filename.temp_file "ripe" "" else base
-            in
+            let out = if !do_run then Filename.temp_file "ripe" "" else base in
             run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
             run (Printf.sprintf "cc -o %s %s" out tmp_asm);
             Sys.remove tmp_qbe;
