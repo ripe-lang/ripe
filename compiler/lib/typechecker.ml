@@ -147,6 +147,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named "f32" -> TFloat F32
   | Named "f64" -> TFloat F64
   | Named "bool" -> TBool
+  | Named "cstr" -> TCStr
   | Named name -> (
       if Hashtbl.mem env.structs name then TStruct name
       else
@@ -169,6 +170,7 @@ let rec compatible (want : ty) (got : ty) : bool =
   (* Printf.printf "Comparing %s with %s\n" (show_ty want) (show_ty got); *)
   match (want, got) with
   | TPointer _, TNull -> true
+  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible a b
   | TFunc (p1, r1), TFunc (p2, r2) ->
       List.length p1 = List.length p2
@@ -274,7 +276,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       Typed_ast.TNull TNull
   | String s ->
       (* Printf.printf "string \"%s\"\n" s; *)
-      Typed_ast.TString s
+      Typed_ast.TCStr s
   | Char c ->
       (* Printf.printf "char: '%c'\n" c; *)
       Typed_ast.TChar c
@@ -311,6 +313,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let ta = synth env a in
       let tb = synth env b in
       Typed_ast.TRangeInclusive (ta, tb)
+  | InterpString [ Lit s ] -> Typed_ast.TCStr s
   | InterpString parts ->
       let tparts =
         List.map
@@ -609,7 +612,7 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
 
 let rec is_const_texpr (env : env) (te : Typed_ast.texpr) : bool =
   match te with
-  | TInt _ | TFloat _ | TBool _ | TNull _ | TChar _ | TString _ | TSizeOf _ ->
+  | TInt _ | TFloat _ | TBool _ | TNull _ | TChar _ | TCStr _ | TSizeOf _ ->
       true
   | TIdent (name, _) -> is_const_global env name
   | TUnOp (_, e, _) -> is_const_texpr env e

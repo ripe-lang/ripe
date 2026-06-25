@@ -9,7 +9,7 @@ and texpr =
   | TFloat of float * ty
   | TBool of bool
   | TNull of ty
-  | TString of string
+  | TCStr of string
   | TChar of char
   | TIdent of string * ty
   | TCall of string * texpr list * ty
@@ -63,8 +63,7 @@ let ty_of_texpr (e : texpr) : ty =
   | TFloat (_, t) -> t
   | TBool _ -> TBool
   | TNull t -> t
-  (* TODO(a99d): Replace TString with TSlice (TInt U8), fat pointer {ptr, len} like Rust/Zig. *)
-  | TString _ -> TPointer (TInt I8)
+  | TCStr _ -> TPointer (TInt I8)
   | TChar _ -> TInt I32
   | TIdent (_, t) -> t
   | TCall (_, _, t) -> t
