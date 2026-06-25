@@ -115,6 +115,7 @@ and read_main = parse
   | '&'  { AMP }
   | '|'  { PIPE }
   | '~'  { TILDE }
+  | "..." { ELLIPSIS }
   | "..=" { DOTDOTEQ }
   | ".." { DOTDOT }
   | '.'  { DOT }
