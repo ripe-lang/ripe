@@ -147,10 +147,11 @@ let parse_struct st mods =
   skip_semi st;
   Struct { name; fields; modifiers = mods; span = { lo; hi } }
 
-(* (a: i32, b: i32) *)
+(* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
 let parse_params st =
   expect st LPAREN;
   let params = ref [] in
+  let variadic = ref false in
   let parse_one () =
     let lo = cur_pos st in
     let name = expect_ident st in
@@ -161,13 +162,18 @@ let parse_params st =
   in
   if st.tok <> RPAREN then begin
     params := [ parse_one () ];
-    while st.tok = COMMA do
+    while st.tok = COMMA && not !variadic do
       advance st;
-      params := parse_one () :: !params
+      if st.tok = ELLIPSIS then (
+        advance st;
+        variadic := true)
+      else params := parse_one () :: !params
     done
   end;
+  if !variadic && st.tok = COMMA then
+    raise (ParseError (cur_lex_pos st, "'...' must be the last parameter"));
   expect st RPAREN;
-  List.rev !params
+  (List.rev !params, !variadic)
 
 (* i32 *)
 let parse_ret_type st =
@@ -510,12 +516,13 @@ let parse_func st mods =
   let lo = cur_pos st in
   expect st FUNC;
   let name = expect_ident st in
-  let params = parse_params st in
+  let params, variadic = parse_params st in
   let ret = parse_ret_type st in
   skip_semi st;
   let body = parse_block st in
   let hi = cur_pos st in
-  Func { name; params; ret; body; modifiers = mods; span = { lo; hi } }
+  Func
+    { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
 
 (* const PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
@@ -554,11 +561,20 @@ let parse_extern st =
   (* EXTERN *)
   expect st FUNC;
   let name = expect_ident st in
-  let params = parse_params st in
+  let params, variadic = parse_params st in
   let ret = parse_ret_type st in
   let hi = cur_pos st in
   skip_semi st;
-  Extern { name; params; ret; body = []; modifiers = []; span = { lo; hi } }
+  Extern
+    {
+      name;
+      params;
+      ret;
+      body = [];
+      modifiers = [];
+      variadic;
+      span = { lo; hi };
+    }
 
 let parse_decl st =
   match st.tok with

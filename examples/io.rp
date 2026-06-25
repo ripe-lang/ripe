@@ -1,6 +1,6 @@
-extern func puts(s: cstr) i32
+extern func printf(fmt: cstr, ...) i32
 
 func main() {
-  puts("hello, world")
+  printf("hello %s, you are %d years old\n", "ramon", 22)
   return 0
 }

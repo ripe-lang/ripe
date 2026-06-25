@@ -40,6 +40,7 @@ type tfunc_def = {
   ret_ty : ty;
   body : tstmt list;
   modifiers : Ast.modifier list;
+  variadic : bool;
 }
 
 type tglobal_def = {

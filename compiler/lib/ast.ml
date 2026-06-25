@@ -126,6 +126,7 @@ type func_def = {
   ret : typ option;
   body : stmt list;
   modifiers : modifier list;
+  variadic : bool;
   span : span;
 }
 [@@deriving show]

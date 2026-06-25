@@ -13,7 +13,7 @@ with another function in the same scope. (same with structs) *)
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
-type func_sig = { param_tys : ty list; ret_ty : ty }
+type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
 type struct_info = { field_tys : (string * ty) list }
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
@@ -120,7 +120,7 @@ let lookup_func (env : env) (name : string) : func_sig =
   | Some s -> s
   | None ->
       add_error env ("undefined function '" ^ name ^ "'");
-      { param_tys = []; ret_ty = TVoid }
+      { param_tys = []; ret_ty = TVoid; variadic = false }
 
 let is_const_global (env : env) (name : string) : bool =
   match Hashtbl.find_opt env.globals name with
@@ -207,7 +207,8 @@ let collect_func (env : env) (fd : func_def) : unit =
   (* if Hashtbl.mem env.funcs fd.name then
     raise (TypeError ("function already defined: " ^ fd.name)) *)
 
-  Hashtbl.replace env.funcs fd.name { param_tys; ret_ty }
+  Hashtbl.replace env.funcs fd.name
+    { param_tys; ret_ty; variadic = fd.variadic }
 
 (* TODO(d1ec): Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
@@ -287,7 +288,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
   | Call (name, args) -> (
       match lookup_var_opt env name with
       | Some (TFunc (param_tys, ret_ty)) ->
-          let sig_ = { param_tys; ret_ty } in
+          let sig_ = { param_tys; ret_ty; variadic = false } in
           let targs = check_args env sig_ args in
           Typed_ast.TCall (name, targs, ret_ty)
       | Some _ ->
@@ -360,10 +361,20 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
 
 and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     Typed_ast.texpr list =
-  (* TODO(5038): Support for variadic functions *)
   let n_params = List.length sig_.param_tys in
   let n_args = List.length args in
-  if n_params <> n_args then (
+  if sig_.variadic then
+    if n_args < n_params then (
+      add_error env
+        (Printf.sprintf "expected at least %d arguments but got %d" n_params
+           n_args);
+      [])
+    else
+      let fixed = List.filteri (fun i _ -> i < n_params) args in
+      let rest = List.filteri (fun i _ -> i >= n_params) args in
+      List.map2 (fun e want -> check env e want) fixed sig_.param_tys
+      @ List.map (synth env) rest
+  else if n_params <> n_args then (
     add_error env
       (Printf.sprintf "expected %d arguments but got %d" n_params n_args);
     [])
@@ -608,6 +619,7 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
     ret_ty;
     body = tbody;
     modifiers = fd.modifiers;
+    variadic = fd.variadic;
   }
 
 let rec is_const_texpr (env : env) (te : Typed_ast.texpr) : bool =
