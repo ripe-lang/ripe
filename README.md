@@ -16,6 +16,8 @@ A systems programming language.
 
 ```sh
 sudo apt install opam qbe
+opam init
+cd compiler
 opam install . --deps-only
 ```
 
