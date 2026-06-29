@@ -3,21 +3,9 @@ name: CI
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "*.md"
-      - "**/*.txt"
-      - "*.txt"
-      - ".gitignore"
-      - "LICENSE-MIT"
-      - "LICENSE-GPL"
-      - ".editorconfig"
-      - "docs/**"
-      - "examples/**"
-      - "todo/**"
 
 jobs:
-  build:
+  compile:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}/ci:latest
@@ -33,14 +21,25 @@ jobs:
         working-directory: compiler
     steps:
       - uses: actions/checkout@v4
-      - run: opam install . --deps-only --locked --yes
-      - run: opam exec -- dune build
-      - run: opam exec -- dune build @fmt
-      - run: opam exec -- dune runtest
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'compiler/**'
+              - 'vendor/**'
+      - if: steps.filter.outputs.code == 'true'
+        run: opam install . --deps-only --locked --yes
+      - if: steps.filter.outputs.code == 'true'
+        run: opam exec -- dune build
+      - if: steps.filter.outputs.code == 'true'
+        run: opam exec -- dune build @fmt
+      - if: steps.filter.outputs.code == 'true'
+        run: opam exec -- dune runtest
 
-  ci:
+  build:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [compile]
     if: always()
     steps:
       - run: exit ${{ contains(needs.*.result, 'failure') && 1 || 0 }}
