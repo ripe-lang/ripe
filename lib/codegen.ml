@@ -124,6 +124,10 @@ type ctx = {
   strings : (string * string) list ref;
   tmp : int ref;
   str_ctr : int ref;
+  (* enclosing loops as (continue target, break target) labels, innermost first *)
+  loops : (string * string) list ref;
+  (* true once the current block ended in a jmp/ret, QBE rejects anything after *)
+  terminated : bool ref;
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -139,6 +143,21 @@ let fresh_id ctx =
   n
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
+
+(* start a new basic block and clear the terminated flag *)
+let emit_label ctx lbl =
+  emit ctx "%s\n" lbl;
+  ctx.terminated := false
+
+(* jmp/jnz end a block, so anything emitted after until the next label is dropped *)
+let emit_jmp ctx lbl =
+  if not !(ctx.terminated) then emit ctx "    jmp %s\n" lbl;
+  ctx.terminated := true
+
+let emit_jnz ctx v then_lbl else_lbl =
+  if not !(ctx.terminated) then
+    emit ctx "    jnz %s, %s, %s\n" v then_lbl else_lbl;
+  ctx.terminated := true
 
 let field_offset structs fields fname =
   let rec go off = function
@@ -663,10 +682,13 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | _ ->
           let v = emit_expr ctx e in
           emit ctx "    %s %s, %%%s\n" (qbe_store t) v name)
-  | T.TReturn None -> emit ctx "    ret\n"
+  | T.TReturn None ->
+      if not !(ctx.terminated) then emit ctx "    ret\n";
+      ctx.terminated := true
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
-      emit ctx "    ret %s\n" v
+      if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
+      ctx.terminated := true
   (* TODO(d6df): emit_expr in statement position emits dead loads for idents *)
   | T.TExpr e ->
       let _ = emit_expr ctx e in
@@ -691,16 +713,16 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
               let next_lbl =
                 if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
               in
-              emit ctx "%s\n" (List.nth cond_lbls i);
+              emit_label ctx (List.nth cond_lbls i);
               let cv = emit_expr ctx cond in
-              emit ctx "    jnz %s, %s, %s\n" cv (List.nth then_lbls i) next_lbl;
-              emit ctx "%s\n" (List.nth then_lbls i);
+              emit_jnz ctx cv (List.nth then_lbls i) next_lbl;
+              emit_label ctx (List.nth then_lbls i);
               emit_stmts ctx body;
-              emit ctx "    jmp %s\n" end_lbl)
+              emit_jmp ctx end_lbl)
             branches;
-          emit ctx "%s\n" else_lbl;
+          emit_label ctx else_lbl;
           emit_stmts ctx else_body;
-          emit ctx "%s\n" end_lbl)
+          emit_label ctx end_lbl)
   | T.TBlock stmts ->
       (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
       (* locals is a flat hashtable, save and restore for block scope *)
@@ -712,23 +734,29 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           ctx.locals []
       in
       List.iter (Hashtbl.remove ctx.locals) to_remove
-  | T.TBreak | T.TContinue -> () (* TODO(d426): target labels *)
+  | T.TBreak -> (
+      match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
+  | T.TContinue -> (
+      match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
   (* same as for loop for while *)
   | T.TWhile (cond, body) ->
       let id = fresh_id ctx in
       let test_lbl = Printf.sprintf "@while.cond%d" id in
       let body_lbl = Printf.sprintf "@while.body%d" id in
       let end_lbl = Printf.sprintf "@while.end%d" id in
-      emit ctx "%s\n" test_lbl;
+      emit_label ctx test_lbl;
       let cv = emit_expr ctx cond in
-      emit ctx "    jnz %s, %s, %s\n" cv body_lbl end_lbl;
-      emit ctx "%s\n" body_lbl;
+      emit_jnz ctx cv body_lbl end_lbl;
+      emit_label ctx body_lbl;
+      (* continue re-tests the condition, break exits *)
+      ctx.loops := (test_lbl, end_lbl) :: !(ctx.loops);
       emit_stmts ctx body;
-      emit ctx "    jmp %s\n" test_lbl;
-      emit ctx "%s\n" end_lbl
+      ctx.loops := List.tl !(ctx.loops);
+      emit_jmp ctx test_lbl;
+      emit_label ctx end_lbl
 (* | _ -> () *)
 
-(* for i in lo..hi *)
+(* for i in lo..hi and for x in arr *)
 and emit_for ctx name elem_ty iter body =
   let id = fresh_id ctx in
   let cond_lbl = Printf.sprintf "@for.cond%d" id in
@@ -737,6 +765,11 @@ and emit_for ctx name elem_ty iter body =
   let end_lbl = Printf.sprintf "@for.end%d" id in
   let qt = qbe_ty elem_ty in
   let sign = signedness elem_ty in
+  let run_body () =
+    ctx.loops := (cont_lbl, end_lbl) :: !(ctx.loops);
+    emit_stmts ctx body;
+    ctx.loops := List.tl !(ctx.loops)
+  in
   match iter with
   | T.TRange (lo, hi) | T.TRangeInclusive (lo, hi) ->
       let inclusive =
@@ -750,23 +783,23 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov name;
       (* upper bound is evaluated once before the loop *)
       let hiv = emit_expr ctx hi in
-      emit ctx "%s\n" cond_lbl;
+      emit_label ctx cond_lbl;
       let cur = fresh ctx in
       emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load elem_ty) name;
       let cmp = fresh ctx in
       let cmpop = if inclusive then "le" else "lt" in
       emit ctx "    %s =w c%s%s%s %s, %s\n" cmp sign cmpop qt cur hiv;
-      emit ctx "    jnz %s, %s, %s\n" cmp body_lbl end_lbl;
-      emit ctx "%s\n" body_lbl;
-      emit_stmts ctx body;
-      emit ctx "%s\n" cont_lbl;
+      emit_jnz ctx cmp body_lbl end_lbl;
+      emit_label ctx body_lbl;
+      run_body ();
+      emit_label ctx cont_lbl;
       let cur2 = fresh ctx in
       emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) name;
       let nxt = fresh ctx in
       emit ctx "    %s =%s add %s, 1\n" nxt qt cur2;
       emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt name;
-      emit ctx "    jmp %s\n" cond_lbl;
-      emit ctx "%s\n" end_lbl
+      emit_jmp ctx cond_lbl;
+      emit_label ctx end_lbl
   | _ ->
       (* array/slice iteration: walk index 0..len with a hidden counter.
          storage is the element pointer, len is a constant (array) or loaded (slice) *)
@@ -791,13 +824,13 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr elem_ty)
         (ty_size ctx.structs elem_ty);
       Hashtbl.replace ctx.locals name ();
-      emit ctx "%s\n" cond_lbl;
+      emit_label ctx cond_lbl;
       let i = fresh ctx in
       emit ctx "    %s =l loadl %s\n" i idx;
       let cmp = fresh ctx in
       emit ctx "    %s =w csltl %s, %s\n" cmp i len;
-      emit ctx "    jnz %s, %s, %s\n" cmp body_lbl end_lbl;
-      emit ctx "%s\n" body_lbl;
+      emit_jnz ctx cmp body_lbl end_lbl;
+      emit_label ctx body_lbl;
       let off = fresh ctx in
       emit ctx "    %s =l mul %s, %d\n" off i (stride ctx.structs elem_ty);
       let addr = fresh ctx in
@@ -809,15 +842,16 @@ and emit_for ctx name elem_ty iter body =
          let v = fresh ctx in
          emit ctx "    %s =%s %s %s\n" v qt (qbe_load elem_ty) addr;
          emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) v name);
-      emit_stmts ctx body;
-      emit ctx "%s\n" cont_lbl;
+      run_body ();
+      emit_label ctx cont_lbl;
       let i2 = fresh ctx in
       emit ctx "    %s =l loadl %s\n" i2 idx;
       let nxt = fresh ctx in
       emit ctx "    %s =l add %s, 1\n" nxt i2;
       emit ctx "    storel %s, %s\n" nxt idx;
-      emit ctx "    jmp %s\n" cond_lbl;
-      emit ctx "%s\n" end_lbl
+      emit_jmp ctx cond_lbl;
+      emit_label ctx end_lbl
+(* | _ -> () *)
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 
@@ -848,7 +882,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* TODO(c561): emit inline functions at call site *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
-  emit ctx "@start\n";
+  emit_label ctx "@start";
 
   (* Spill params to stack slots so they can be reassigned *)
   List.iter
@@ -863,12 +897,9 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     param_tmps;
 
   emit_stmts ctx tfd.body;
-  let already_returns =
-    match List.rev tfd.body with T.TReturn _ :: _ -> true | _ -> false
-  in
-  (* The ret ends the last block *)
+  (* close the final block if control can still fall off the end *)
   (* TODO(978e): Emit implicit return for non-void functions where the last expression is the return value. *)
-  if not already_returns then
+  if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n";
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
@@ -969,6 +1000,8 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       strings = ref [];
       tmp = ref 0;
       str_ctr = ref 0;
+      loops = ref [];
+      terminated = ref false;
     }
   in
 

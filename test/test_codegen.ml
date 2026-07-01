@@ -206,7 +206,6 @@ func f(a: i32, b: bool) i32 {
         %t5 =w loadsw %a
         %t6 =w neg %t5
         ret %t6
-        jmp @if.end2
     @if.else2
     @if.end2
         %t7 =w loadsw %a
@@ -228,7 +227,6 @@ let%expect_test "codegen: if/else" =
         jnz %t3, @if.then1_0, @if.else1
     @if.then1_0
         ret 0
-        jmp @if.end1
     @if.else1
         %t4 =w loadsw %a
         ret %t4
@@ -288,7 +286,6 @@ let%expect_test "codegen: nested if" =
         jnz %t7, @if.then5_0, @if.else5
     @if.then5_0
         ret 1
-        jmp @if.end5
     @if.else5
     @if.end5
         jmp @if.end2
@@ -654,6 +651,101 @@ func f() i32 {
         ret %t13
     }
     |}]
+
+let%expect_test "codegen: break and continue in for" =
+  run_codegen
+    {|
+func f() i32 {
+  var sum: i32 = 0
+  for i in 0..10 {
+    if i == 2 { continue }
+    if i == 5 { break }
+    sum += i
+  }
+  return sum
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        %sum =l alloc4 4
+        storew 0, %sum
+        %i =l alloc4 4
+        storew 0, %i
+    @for.cond0
+        %t1 =w loadsw %i
+        %t2 =w csltw %t1, 10
+        jnz %t2, @for.body0, @for.end0
+    @for.body0
+    @if.cond3_0
+        %t4 =w loadsw %i
+        %t5 =w ceqw %t4, 2
+        jnz %t5, @if.then3_0, @if.else3
+    @if.then3_0
+        jmp @for.cont0
+    @if.else3
+    @if.end3
+    @if.cond6_0
+        %t7 =w loadsw %i
+        %t8 =w ceqw %t7, 5
+        jnz %t8, @if.then6_0, @if.else6
+    @if.then6_0
+        jmp @for.end0
+    @if.else6
+    @if.end6
+        %t9 =w loadsw %sum
+        %t10 =w loadsw %i
+        %t11 =w add %t9, %t10
+        storew %t11, %sum
+    @for.cont0
+        %t12 =w loadsw %i
+        %t13 =w add %t12, 1
+        storew %t13, %i
+        jmp @for.cond0
+    @for.end0
+        %t14 =w loadsw %sum
+        ret %t14
+    }
+    |}]
+
+let%expect_test "codegen: break in while" =
+  run_codegen
+    {|
+func f() i32 {
+  var i: i32 = 0
+  while true {
+    if i == 3 { break }
+    i += 1
+  }
+  return i
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        %i =l alloc4 4
+        storew 0, %i
+    @while.cond0
+        jnz 1, @while.body0, @while.end0
+    @while.body0
+    @if.cond1_0
+        %t2 =w loadsw %i
+        %t3 =w ceqw %t2, 3
+        jnz %t3, @if.then1_0, @if.else1
+    @if.then1_0
+        jmp @while.end0
+    @if.else1
+    @if.end1
+        %t4 =w loadsw %i
+        %t5 =w add %t4, 1
+        storew %t5, %i
+        jmp @while.cond0
+    @while.end0
+        %t6 =w loadsw %i
+        ret %t6
+    }
+    |}]
+
 let%expect_test "codegen: array coerces to slice at call" =
   run_codegen
     {|
