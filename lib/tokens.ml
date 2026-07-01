@@ -59,6 +59,8 @@ type token =
   | RPAREN
   | LBRACE
   | RBRACE
+  | LBRACKET
+  | RBRACKET
   | COMMA
   | COLON
   | DOTDOT
@@ -129,6 +131,8 @@ let show_token = function
   | RPAREN -> ")"
   | LBRACE -> "{"
   | RBRACE -> "}"
+  | LBRACKET -> "["
+  | RBRACKET -> "]"
   | COMMA -> ","
   | COLON -> ":"
   | DOTDOT -> ".."
