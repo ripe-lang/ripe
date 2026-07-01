@@ -438,11 +438,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TExpr e ->
       let _ = emit_expr ctx e in
       ()
-  | T.TFor (name, elem_ty, _iter, body) ->
-      (* TODO(6cc6): proper range iteration *)
-      let _ = name in
-      let _ = elem_ty in
-      emit_stmts ctx body
+  | T.TFor (name, elem_ty, iter, body) -> emit_for ctx name elem_ty iter body
   | T.TIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
@@ -498,6 +494,47 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       emit ctx "    jmp %s\n" test_lbl;
       emit ctx "%s\n" end_lbl
 (* | _ -> () *)
+
+(* for i in lo..hi *)
+and emit_for ctx name elem_ty iter body =
+  let id = fresh_id ctx in
+  let cond_lbl = Printf.sprintf "@for.cond%d" id in
+  let body_lbl = Printf.sprintf "@for.body%d" id in
+  let cont_lbl = Printf.sprintf "@for.cont%d" id in
+  let end_lbl = Printf.sprintf "@for.end%d" id in
+  let qt = qbe_ty elem_ty in
+  let sign = signedness elem_ty in
+  match iter with
+  | T.TRange (lo, hi) | T.TRangeInclusive (lo, hi) ->
+      let inclusive =
+        match iter with T.TRangeInclusive _ -> true | _ -> false
+      in
+      (* loop var lives in a stack slot so the body can read and increment it *)
+      emit ctx "    %%%s =l %s %d\n" name (alloc_instr elem_ty)
+        (ty_size ctx.structs elem_ty);
+      Hashtbl.replace ctx.locals name ();
+      let lov = emit_expr ctx lo in
+      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov name;
+      (* upper bound is evaluated once before the loop *)
+      let hiv = emit_expr ctx hi in
+      emit ctx "%s\n" cond_lbl;
+      let cur = fresh ctx in
+      emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load elem_ty) name;
+      let cmp = fresh ctx in
+      let cmpop = if inclusive then "le" else "lt" in
+      emit ctx "    %s =w c%s%s%s %s, %s\n" cmp sign cmpop qt cur hiv;
+      emit ctx "    jnz %s, %s, %s\n" cmp body_lbl end_lbl;
+      emit ctx "%s\n" body_lbl;
+      emit_stmts ctx body;
+      emit ctx "%s\n" cont_lbl;
+      let cur2 = fresh ctx in
+      emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) name;
+      let nxt = fresh ctx in
+      emit ctx "    %s =%s add %s, 1\n" nxt qt cur2;
+      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt name;
+      emit ctx "    jmp %s\n" cond_lbl;
+      emit ctx "%s\n" end_lbl
+  | _ -> failwith "TODO: array/slice iteration codegen"
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 

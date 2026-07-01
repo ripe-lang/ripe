@@ -442,3 +442,75 @@ func f() i32 {
         ret %t2
     }
     |}]
+
+let%expect_test "codegen: for over range" =
+  run_codegen
+    {|
+func f() i32 {
+  var sum: i32 = 0
+  for i in 0..3 { sum += i }
+  return sum
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        %sum =l alloc4 4
+        storew 0, %sum
+        %i =l alloc4 4
+        storew 0, %i
+    @for.cond0
+        %t1 =w loadsw %i
+        %t2 =w csltw %t1, 3
+        jnz %t2, @for.body0, @for.end0
+    @for.body0
+        %t3 =w loadsw %sum
+        %t4 =w loadsw %i
+        %t5 =w add %t3, %t4
+        storew %t5, %sum
+    @for.cont0
+        %t6 =w loadsw %i
+        %t7 =w add %t6, 1
+        storew %t7, %i
+        jmp @for.cond0
+    @for.end0
+        %t8 =w loadsw %sum
+        ret %t8
+    }
+    |}]
+
+let%expect_test "codegen: for over inclusive range" =
+  run_codegen
+    {|
+func f() i32 {
+  var sum: i32 = 0
+  for i in 0..=3 { sum += i }
+  return sum
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        %sum =l alloc4 4
+        storew 0, %sum
+        %i =l alloc4 4
+        storew 0, %i
+    @for.cond0
+        %t1 =w loadsw %i
+        %t2 =w cslew %t1, 3
+        jnz %t2, @for.body0, @for.end0
+    @for.body0
+        %t3 =w loadsw %sum
+        %t4 =w loadsw %i
+        %t5 =w add %t3, %t4
+        storew %t5, %sum
+    @for.cont0
+        %t6 =w loadsw %i
+        %t7 =w add %t6, 1
+        storew %t7, %i
+        jmp @for.cond0
+    @for.end0
+        %t8 =w loadsw %sum
+        ret %t8
+    }
+    |}]
