@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - compiler/ripe.opam.locked
+      - ripe.opam.locked
       - Dockerfile
       - .github/workflows/build-image.yml
   workflow_dispatch:

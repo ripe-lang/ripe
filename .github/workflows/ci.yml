@@ -16,17 +16,20 @@ jobs:
       env:
         OPAMROOT: /home/opam/.opam
         OPAMROOTISOK: "1"
-    defaults:
-      run:
-        working-directory: compiler
     steps:
       - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
             code:
-              - 'compiler/**'
+              - 'bin/**'
+              - 'lib/**'
+              - 'test/**'
+              - 'dune-project'
+              - 'ripe.opam'
+              - 'ripe.opam.locked'
               - 'vendor/**'
       - if: steps.filter.outputs.code == 'true'
         run: opam install . --deps-only --locked --yes

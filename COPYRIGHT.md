@@ -1,6 +1,6 @@
 Ripe is Copyright (c) Ripe Contributors.
 
-The Ripe compiler (compiler/) is licensed under the GNU General Public License,
+The Ripe compiler (bin/, lib/) is licensed under the GNU General Public License,
 version 2 <LICENSE-GPL>.
 
 Programs compiled with Ripe are not affected by this license. The GPL applies
