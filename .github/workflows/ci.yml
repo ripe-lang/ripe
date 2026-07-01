@@ -18,6 +18,7 @@ jobs:
         OPAMROOTISOK: "1"
     steps:
       - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
