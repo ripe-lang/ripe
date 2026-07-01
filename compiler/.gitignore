@@ -1,5 +1,0 @@
-/_build/
-*.install
-/_opam/
-/main
-/lib/debug.ml

@@ -10,14 +10,9 @@
 
    ```sh
    opam switch create 5.3.0 ocaml.5.3.0
-   cd compiler
    opam install . --deps-only --yes
    dune build
    ```
-
----
-
-> The following commands should be run from the `compiler` directory.
 
 ## Running the Compiler
 
