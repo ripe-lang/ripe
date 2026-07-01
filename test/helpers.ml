@@ -36,6 +36,8 @@ let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
   | Named n -> n
   | Pointer p -> "*" ^ dump_typ p
+  | Array (n, t) -> Printf.sprintf "[%d]%s" n (dump_typ t)
+  | Slice t -> "[]" ^ dump_typ t
   | FuncPtr (params, ret) ->
       let ps = String.concat ", " (List.map dump_typ params) in
       let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
@@ -71,6 +73,11 @@ let rec dump_expr (e : Ripe.Ast.expr) =
   | Cast (e, t) -> "(as " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | InterpString _ -> "<interp>"
+  | ArrayLit elems ->
+      "(array"
+      ^ String.concat "" (List.map (fun e -> " " ^ dump_expr e) elems)
+      ^ ")"
+  | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
 
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =

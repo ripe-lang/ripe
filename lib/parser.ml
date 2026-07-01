@@ -76,6 +76,22 @@ let rec parse_typ st =
   | IDENT name ->
       advance st;
       mkt lo st (Named name)
+  (* [N]T fixed-size array, []T slice *)
+  | LBRACKET ->
+      advance st;
+      if st.tok = RBRACKET then (
+        advance st;
+        mkt lo st (Slice (parse_typ st)))
+      else
+        let n =
+          match st.tok with
+          | INT n ->
+              advance st;
+              n
+          | _ -> raise (ParseError (cur_lex_pos st, "expected array size"))
+        in
+        expect st RBRACKET;
+        mkt lo st (Array (n, parse_typ st))
   | LPAREN ->
       advance st;
       let params =
@@ -292,7 +308,7 @@ and parse_prefix st =
       mk lo st (UnOp (Deref, parse_prefix st))
   | _ -> parse_primary st
 
-(* x.field *)
+(* x.field, arr[i] *)
 and parse_postfix st lhs =
   let lo = lhs.span.lo in
   match st.tok with
@@ -300,6 +316,11 @@ and parse_postfix st lhs =
       advance st;
       let name = expect_ident st in
       parse_postfix st (mk lo st (FieldAccess (lhs, name)))
+  | LBRACKET ->
+      advance st;
+      let idx = parse_expr st 1 in
+      expect st RBRACKET;
+      parse_postfix st (mk lo st (Index (lhs, idx)))
   | _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
@@ -326,6 +347,12 @@ and parse_primary st =
       let e = parse_expr st 1 in
       expect st RPAREN;
       e
+  (* [1, 2, 3] array literal *)
+  | LBRACKET ->
+      advance st;
+      let elems = parse_comma_list st RBRACKET in
+      expect st RBRACKET;
+      mk lo st (ArrayLit elems)
   (* sizeof(x) *)
   | SIZEOF ->
       advance st;
@@ -371,7 +398,8 @@ and parse_comma_list st stop =
     let rest = ref [ first ] in
     while st.tok = COMMA do
       advance st;
-      rest := parse_expr st 1 :: !rest
+      (* allow a trailing comma before the closing token *)
+      if st.tok <> stop then rest := parse_expr st 1 :: !rest
     done;
     List.rev !rest
   end

@@ -158,6 +158,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
             add_error env ("undefined type '" ^ name ^ "'");
             TInt I32)
   | Pointer t -> TPointer (ty_of_ast env t)
+  | Array _ | Slice _ -> failwith "TODO: array/slice type checking"
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
       let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
@@ -327,6 +328,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
           parts
       in
       Typed_ast.TInterpString tparts
+  | ArrayLit _ | Index _ -> failwith "TODO: array/slice type checking"
 (* | _ -> failwith ("Expression not yet implemented: " ^ show_expr e) *)
 
 (* MUST be this type *)

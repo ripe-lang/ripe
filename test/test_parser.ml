@@ -100,3 +100,55 @@ let%expect_test "parse: range inclusive" =
 let%expect_test "parse: range non-associative" =
   parse_expr "0..5..10";
   [%expect {| ParseError: cannot chain non-associative operator '..' |}]
+
+let%expect_test "parse: array literal" =
+  parse_expr "[1, 2, 3]";
+  [%expect {| (array 1 2 3) |}]
+
+let%expect_test "parse: empty array literal" =
+  parse_expr "[]";
+  [%expect {| (array) |}]
+
+let%expect_test "parse: index" =
+  parse_expr "a[0]";
+  [%expect {| (index a 0) |}]
+
+let%expect_test "parse: index with expression" =
+  parse_expr "a[i + 1]";
+  [%expect {| (index a (+ i 1)) |}]
+
+let%expect_test "parse: chained index" =
+  parse_expr "a[i][j]";
+  [%expect {| (index (index a i) j) |}]
+
+let%expect_test "parse: index binds tighter than binop" =
+  parse_expr "a[0] + b[1]";
+  [%expect {| (+ (index a 0) (index b 1)) |}]
+
+let%expect_test "parse: len field access" =
+  parse_expr "a.len";
+  [%expect {| (. a len) |}]
+
+let%expect_test "parse: array missing size" =
+  run_src "func f(a: [xyz]i32) {}";
+  [%expect {| ParseError: expected array size |}]
+
+let%expect_test "parse: array literal trailing comma" =
+  parse_expr "[1, 2, 3,]";
+  [%expect {| (array 1 2 3) |}]
+
+let%expect_test "parse: call trailing comma" =
+  parse_expr "add(1, 2,)";
+  [%expect {| (call add 1 2) |}]
+
+let%expect_test "parse: nested array literal" =
+  parse_expr "[[1, 2], [3, 4]]";
+  [%expect {| (array (array 1 2) (array 3 4)) |}]
+
+let%expect_test "parse: slice index is range" =
+  parse_expr "a[1..3]";
+  [%expect {| (index a (.. 1 3)) |}]
+
+let%expect_test "parse: ptr field access" =
+  parse_expr "s.ptr";
+  [%expect {| (. s ptr) |}]
