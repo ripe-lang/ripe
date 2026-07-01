@@ -1,1 +1,0 @@
-{"id": "9de3", "title": "TString should become TCStr (null terminated)", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526176", "updated_at": "2026-05-17 21:26:04.405272", "source": "compiler/lib/codegen.ml:171", "depends": [], "blocks": [], "assignee": "ramonasuncion"}

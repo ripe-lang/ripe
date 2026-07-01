@@ -453,3 +453,353 @@ func f() {
 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "typecheck: array literal inferred" =
+  run_src "func f() { const a = [1, 2, 3] a[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array annotated ok" =
+  run_src "func f() { var a: [3]i32 = [1, 2, 3] a[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array element type mismatch" =
+  run_src "func f() { var a: [2]i32 = [1, true] }";
+  [%expect
+    {|
+    <test>:1:32: warning: 'a' declared but never used
+    TypeError: <test>:1:32: expected i32 but found bool
+    |}]
+
+let%expect_test "typecheck: array wrong element count" =
+  run_src "func f() { var a: [3]i32 = [1, 2] }";
+  [%expect
+    {|
+    <test>:1:32: warning: 'a' declared but never used
+    TypeError: <test>:1:28: expected 3 elements but found 2
+    |}]
+
+let%expect_test "typecheck: heterogeneous inferred literal" =
+  run_src "func f() { const a = [1, true] a[0] }";
+  [%expect {| TypeError: <test>:1:26: expected i32 but found bool |}]
+
+let%expect_test "typecheck: empty array literal needs annotation" =
+  run_src "func f() { const a = [] }";
+  [%expect
+    {|
+    <test>:1:22: warning: 'a' declared but never used
+    TypeError: <test>:1:22: cannot infer type of empty array literal
+    |}]
+
+let%expect_test "typecheck: index non-array" =
+  run_src "func f() { var x: i32 = 0 x[0] }";
+  [%expect {| TypeError: <test>:1:27: cannot index type 'i32' |}]
+
+let%expect_test "typecheck: index non-integer" =
+  run_src "func f() { var a: [2]i32 = [1, 2] a[true] }";
+  [%expect {| TypeError: <test>:1:37: array index must be an integer |}]
+
+let%expect_test "typecheck: index result type" =
+  run_src "func f() i32 { var a: [2]i32 = [1, 2] return a[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: len is i64" =
+  run_src "func f() i64 { var a: [2]i32 = [1, 2] return a.len }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: len mismatched with i32" =
+  run_src "func f() i32 { var a: [2]i32 = [1, 2] return a.len }";
+  [%expect {| TypeError: <test>:1:46: expected i32 but found i64 |}]
+
+let%expect_test "typecheck: array no such field" =
+  run_src "func f() { var a: [2]i32 = [1, 2] a.foo }";
+  [%expect {| TypeError: <test>:1:35: type '[2]i32' has no field 'foo' |}]
+
+let%expect_test "typecheck: assign to index" =
+  run_src "func f() { var a: [2]i32 = [1, 2] a[0] = 9 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: index element assign type mismatch" =
+  run_src "func f() { var a: [2]i32 = [1, 2] a[0] = true }";
+  [%expect {| TypeError: <test>:1:42: expected i32 but found bool |}]
+
+let%expect_test "typecheck: for over range ok" =
+  run_src "func f() { for i in 0..5 { const x = i } }";
+  [%expect
+    {|
+    <test>:1:38: warning: 'x' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: for over inclusive range ok" =
+  run_src "func f() { for i in 0..=5 { const x = i } }";
+  [%expect
+    {|
+    <test>:1:39: warning: 'x' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: for over array binds element type" =
+  run_src
+    {|
+func f() {
+  var a: [3]i32 = [1, 2, 3]
+  for x in a { const y: i32 = x }
+}
+|};
+  [%expect
+    {|
+    <test>:4:31: warning: 'y' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: for over array wrong element use" =
+  run_src
+    {|
+func f() {
+  var a: [3]i32 = [1, 2, 3]
+  for x in a { const y: bool = x }
+}
+|};
+  [%expect
+    {|
+    <test>:4:32: warning: 'y' declared but never used
+    TypeError: <test>:4:32: expected bool but found i32
+    |}]
+
+let%expect_test "typecheck: for over non-iterable" =
+  run_src "func f() { for x in 5 { const y = x } }";
+  [%expect
+    {|
+    <test>:1:35: warning: 'y' declared but never used
+    TypeError: <test>:1:21: cannot iterate over type 'i32'
+    |}]
+
+let%expect_test "typecheck: range bounds must be integers" =
+  run_src "func f() { for i in true..5 { const x = i } }";
+  [%expect
+    {|
+    <test>:1:41: warning: 'x' declared but never used
+    TypeError: <test>:1:21: range bounds must be integers
+    TypeError: <test>:1:27: expected bool but found i32
+    |}]
+
+let%expect_test "typecheck: range bound type mismatch" =
+  run_src {|
+func f() {
+  const n: i64 = 5
+  for i in 0..n { const x = i }
+}
+|};
+  [%expect
+    {|
+    <test>:4:29: warning: 'x' declared but never used
+    TypeError: <test>:4:15: expected i32 but found i64
+    |}]
+
+let%expect_test "typecheck: break inside for" =
+  run_src "func f() { for i in 0..5 { break } }";
+  [%expect
+    {|
+    <test>:1:24: warning: 'i' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: continue inside for" =
+  run_src "func f() { for i in 0..5 { continue } }";
+  [%expect
+    {|
+    <test>:1:24: warning: 'i' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: unused loop variable warns" =
+  run_src "func f() { for i in 0..5 { const _x = 1 } }";
+  [%expect
+    {|
+    <test>:1:24: warning: 'i' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: array coerces to slice param" =
+  run_src
+    {|
+func sum(xs: []i32) i32 { return 0 }
+func f() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  return sum(a)
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: slice element wrong type rejected" =
+  run_src
+    {|
+func sum(xs: []i32) {}
+func f() {
+  var a: [2]f32 = [1.0, 2.0]
+  sum(a)
+}
+|};
+  [%expect {| TypeError: <test>:5:7: expected []i32 but found [2]f32 |}]
+
+let%expect_test "typecheck: sub-slice ok" =
+  run_src
+    "func f() i32 { var a: [4]i32 = [1,2,3,4] const s: []i32 = a[1..3] return \
+     s[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: slice of a slice ok" =
+  run_src
+    {|
+func f() i32 {
+  var a: [5]i32 = [1, 2, 3, 4, 5]
+  const s: []i32 = a[1..5]
+  const t: []i32 = s[1..3]
+  return t[0]
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: inclusive range slice ok" =
+  run_src
+    "func f() i32 { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..=2] return \
+     s[2] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: slice bounds must be integers" =
+  run_src "func f() { var a: [3]i32 = [1,2,3] const s: []i32 = a[true..2] }";
+  [%expect
+    {|
+    <test>:1:61: warning: 's' declared but never used
+    TypeError: <test>:1:55: slice bounds must be integers
+    TypeError: <test>:1:61: expected bool but found i32
+    |}]
+
+let%expect_test "typecheck: slice .len is i64" =
+  run_src
+    "func f() i64 { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..3] return \
+     s.len }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: slice .ptr is pointer" =
+  run_src
+    {|
+func first(p: *i32) i32 { return 0 }
+func f() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  const s: []i32 = a[0..3]
+  return first(s.ptr)
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: slice does not coerce back to array" =
+  run_src "func f() { var a: [3]i32 = [1,2,3] var b: [3]i32 = a[0..3] }";
+  [%expect
+    {|
+    <test>:1:57: warning: 'b' declared but never used
+    TypeError: <test>:1:57: expected [3]i32 but found []i32
+    |}]
+
+let%expect_test "typecheck: for over slice binds element" =
+  run_src
+    {|
+func f() {
+  var a: [3]i32 = [1, 2, 3]
+  const s: []i32 = a[0..3]
+  for x in s { const y: i32 = x }
+}
+|};
+  [%expect
+    {|
+    <test>:5:31: warning: 'y' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: slice index element assignable" =
+  run_src "func f() { var a: [3]i32 = [1,2,3] var s: []i32 = a[0..3] s[0] = 9 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: compound assign to array element" =
+  run_src "func f() i32 { var a: [3]i32 = [1,2,3] a[0] += 5 return a[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: multidimensional array" =
+  run_src "func f() i32 { var m: [2][2]i32 = [[1,2],[3,4]] return m[1][0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: multidim wrong inner count" =
+  run_src "func f() { var m: [2][2]i32 = [[1,2],[3]] }";
+  [%expect
+    {|
+    <test>:1:39: warning: 'm' declared but never used
+    TypeError: <test>:1:38: expected 2 elements but found 1
+    |}]
+
+let%expect_test "typecheck: global array" =
+  run_src {|
+var g: [3]i32 = [7, 8, 9]
+func f() i32 { return g[1] }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: global array non-constant element rejected" =
+  run_src {|
+func k() i32 { return 1 }
+var g: [2]i32 = [k(), 2]
+|};
+  [%expect
+    {| TypeError: <test>:3:23: initializer for 'g' must be a constant expression |}]
+
+let%expect_test "typecheck: iterate array of arrays" =
+  run_src
+    {|
+func f() i32 {
+  var m: [2][2]i32 = [[1, 2], [3, 4]]
+  var s: i32 = 0
+  for row in m { s += row[0] }
+  return s
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: range as value is an error" =
+  run_src "func f() i32 { return 0..5 }";
+  [%expect
+    {| TypeError: <test>:1:23: a range can only be used in a for-loop or a slice |}]
+
+let%expect_test "typecheck: range in condition is an error" =
+  run_src "func f() { if 0..5 { } }";
+  [%expect
+    {|
+    TypeError: <test>:1:15: a range can only be used in a for-loop or a slice
+    TypeError: <test>:1:15: expected bool but found i32
+    |}]
+
+let%expect_test "typecheck: for over array literal" =
+  run_src "func f() i32 { var s: i32 = 0 for x in [1,2,3] { s += x } return s }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array literal as slice argument" =
+  run_src
+    {|
+func sum(xs: []i32) i32 { return 0 }
+func f() i32 { return sum([1, 2, 3]) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: scalar zero init" =
+  run_src "func f() i32 { var x: i32 return x }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array zero init" =
+  run_src "func f() i32 { var a: [3]i32 return a[0] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: var without type or value cannot infer" =
+  run_src "func f() { var x }";
+  [%expect
+    {|
+    <test>:1:12: warning: 'x' declared but never used
+    TypeError: <test>:1:12: cannot infer type of 'x'
+    |}]

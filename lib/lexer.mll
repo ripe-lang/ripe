@@ -25,7 +25,7 @@ let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING_END
   | TRUE | FALSE | NULL
   | BREAK | CONTINUE | RETURN
-  | RPAREN | RBRACE -> true
+  | RPAREN | RBRACE | RBRACKET -> true
   | _ -> false
 
 let reset () =
@@ -123,6 +123,9 @@ and read_main = parse
   | '='  { ASSIGN }
   | '('  { incr paren_depth; LPAREN }
   | ')'  { decr paren_depth; RPAREN }
+  (* brackets bump paren_depth so array literals can span lines *)
+  | '['  { incr paren_depth; LBRACKET }
+  | ']'  { decr paren_depth; RBRACKET }
   | '{'  { if !in_interp then incr interp_brace_depth;
            LBRACE }
   | '}'  { if !in_interp && !interp_brace_depth = 0 then begin

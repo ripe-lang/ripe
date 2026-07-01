@@ -10,6 +10,9 @@ type typ_desc =
   | Named of string
   | Pointer of typ
   | FuncPtr of typ list * typ option
+  (* TODO(f0b2): allow const-expr sizes, not just an int literal *)
+  | Array of int * typ
+  | Slice of typ
 
 and typ = { tdesc : typ_desc; span : span } [@@deriving show]
 
@@ -86,6 +89,8 @@ and expr_desc =
   | Cast of expr * typ
   | SizeOf of typ
   | InterpString of interp_part list
+  | ArrayLit of expr list
+  | Index of expr * expr
 [@@deriving show]
 
 and expr = { desc : expr_desc; span : span } [@@deriving show]
@@ -119,7 +124,6 @@ type field = {
 }
 [@@deriving show]
 
-(* TODO(ea0e): add array types *)
 type func_def = {
   name : string;
   params : param list;

@@ -158,6 +158,8 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
             add_error env ("undefined type '" ^ name ^ "'");
             TInt I32)
   | Pointer t -> TPointer (ty_of_ast env t)
+  | Array (n, t) -> TArray (ty_of_ast env t, n)
+  | Slice t -> TSlice (ty_of_ast env t)
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
       let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
@@ -172,6 +174,9 @@ let rec compatible (want : ty) (got : ty) : bool =
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible a b
+  (* a fixed array coerces to a slice of the same element type *)
+  | TSlice a, TArray (b, _) -> compatible a b
+  | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1), TFunc (p2, r2) ->
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
@@ -255,6 +260,7 @@ let is_lvalue (te : Typed_ast.texpr) : bool =
   | TIdent _ -> true
   | TUnOp (Deref, _, _) -> true
   | TFieldAccess _ -> true
+  | TIndex _ -> true
   | _ -> false
 
 let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
@@ -306,14 +312,48 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let ty = ty_of_ast env t in
       Typed_ast.TCast (te, ty)
   | SizeOf t -> Typed_ast.TSizeOf (ty_of_ast env t)
-  | Range (a, b) ->
-      let ta = synth env a in
-      let tb = synth env b in
-      Typed_ast.TRange (ta, tb)
-  | RangeInclusive (a, b) ->
-      let ta = synth env a in
-      let tb = synth env b in
-      Typed_ast.TRangeInclusive (ta, tb)
+  (* ranges are not first-class values, only for-loop iterators and slice bounds *)
+  | Range _ | RangeInclusive _ ->
+      add_error env "a range can only be used in a for-loop or a slice";
+      dummy_texpr
+  | ArrayLit [] ->
+      add_error env "cannot infer type of empty array literal";
+      dummy_texpr
+  | ArrayLit (e0 :: rest) ->
+      let te0 = synth env e0 in
+      let elem = Typed_ast.ty_of_texpr te0 in
+      let tes = te0 :: List.map (fun e -> check env e elem) rest in
+      Typed_ast.TArrayLit (tes, TArray (elem, List.length tes))
+  | Index (base, idx) -> (
+      let tbase = synth env base in
+      match Typed_ast.ty_of_texpr tbase with
+      | TArray (elem, _) | TSlice elem -> (
+          match idx.desc with
+          (* arr[lo..hi] produces a slice that borrows into the same storage;
+             arr[lo..=hi] desugars to arr[lo..hi+1] *)
+          | Range (lo, hi) | RangeInclusive (lo, hi) ->
+              let inclusive =
+                match idx.desc with RangeInclusive _ -> true | _ -> false
+              in
+              let tlo = synth env lo in
+              let lt = Typed_ast.ty_of_texpr tlo in
+              if not (is_integer lt) then
+                add_error env "slice bounds must be integers";
+              let thi = check env hi lt in
+              let thi =
+                if inclusive then
+                  Typed_ast.TBinOp (Ast.Add, thi, Typed_ast.TInt (1, lt), lt)
+                else thi
+              in
+              Typed_ast.TSliceExpr (tbase, tlo, thi, TSlice elem)
+          | _ ->
+              let tidx = synth env idx in
+              if not (is_integer (Typed_ast.ty_of_texpr tidx)) then
+                add_error env "array index must be an integer";
+              Typed_ast.TIndex (tbase, tidx, elem))
+      | t ->
+          add_error env ("cannot index type '" ^ show_ty t ^ "'");
+          dummy_texpr)
   | InterpString [ Lit s ] -> Typed_ast.TCStr s
   | InterpString parts ->
       let tparts =
@@ -349,15 +389,30 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
           add_error env
             (Printf.sprintf "expected %s but found f64" (show_ty want));
           Typed_ast.TFloat (f, TFloat F64))
+  | ArrayLit elems when match want with TArray _ -> true | _ -> false ->
+      let elem, n =
+        match want with TArray (e, n) -> (e, n) | _ -> assert false
+      in
+      if List.length elems <> n then
+        add_error env
+          (Printf.sprintf "expected %d elements but found %d" n
+             (List.length elems));
+      let tes = List.map (fun e -> check env e elem) elems in
+      Typed_ast.TArrayLit (tes, TArray (elem, n))
   (* not a flexible literal, just check it matches want *)
-  | _ ->
+  | _ -> (
       let te = synth env e in
       let got = Typed_ast.ty_of_texpr te in
-      if not (compatible want got) then
+      if not (compatible want got) then (
         add_error env
           (Printf.sprintf "expected %s but found %s" (show_ty want)
              (show_ty got));
-      te
+        te)
+      else
+        match (want, got) with
+        (* materialize the fat pointer when a fixed array coerces to a slice *)
+        | TSlice _, TArray _ -> Typed_ast.TToSlice (te, want)
+        | _ -> te)
 
 and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     Typed_ast.texpr list =
@@ -468,12 +523,25 @@ and synth_unop (env : env) (op : unop) (e : expr) : Typed_ast.texpr =
 (* Synthesize the type of a field access expression. *)
 and synth_field (env : env) (e : expr) (fname : string) : Typed_ast.texpr =
   let te = synth env e in
+  let ty = Typed_ast.ty_of_texpr te in
+  match ty with
+  | TArray (elem, _) | TSlice elem -> (
+      match fname with
+      | "len" -> Typed_ast.TLen te
+      | "ptr" -> Typed_ast.TDataPtr (te, TPointer elem)
+      | _ ->
+          add_error env
+            ("type '" ^ show_ty ty ^ "' has no field '" ^ fname ^ "'");
+          dummy_texpr)
+  | _ -> synth_struct_field env te ty fname
+
+and synth_struct_field (env : env) (te : Typed_ast.texpr) (ty : ty)
+    (fname : string) : Typed_ast.texpr =
   let rec peel = function
     | TStruct sname -> Some sname
     | TPointer t -> peel t
     | _ -> None
   in
-  let ty = Typed_ast.ty_of_texpr te in
   match peel ty with
   | None ->
       add_error env ("type '" ^ show_ty ty ^ "' has no fields");
@@ -513,7 +581,9 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
         | None, Some e ->
             let te = synth env e in
             (Typed_ast.ty_of_texpr te, te)
-        | Some _, None -> failwith "zero-init var not yet implemented"
+        | Some a, None ->
+            let want = ty_of_ast env a in
+            (want, Typed_ast.TZero want)
         | None, None ->
             add_error env (Printf.sprintf "cannot infer type of '%s'" name);
             (TInt I32, dummy_texpr)
@@ -551,9 +621,30 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       pop_scope final_inner;
       (env, Typed_ast.TWhile (tc, tbody))
   | For (name, iter, body) ->
-      (* TODO(4994): iter must be a range bind name to its element type *)
-      let titer = synth env iter in
-      let elem_ty = TInt I32 in
+      (* a range binds the loop var to the bound type and an array binds it to the
+         element type. ranges are handled here since they are not first-class values *)
+      let titer, elem_ty =
+        match iter.desc with
+        | Range (lo, hi) | RangeInclusive (lo, hi) ->
+            let tlo = synth env lo in
+            let t = Typed_ast.ty_of_texpr tlo in
+            if not (is_integer t) then
+              add_error env "range bounds must be integers";
+            let thi = check env hi t in
+            let node =
+              match iter.desc with
+              | RangeInclusive _ -> Typed_ast.TRangeInclusive (tlo, thi)
+              | _ -> Typed_ast.TRange (tlo, thi)
+            in
+            (node, t)
+        | _ -> (
+            let ti = synth env iter in
+            match Typed_ast.ty_of_texpr ti with
+            | TArray (elem, _) | TSlice elem -> (ti, elem)
+            | t ->
+                add_error env ("cannot iterate over type '" ^ show_ty t ^ "'");
+                (ti, TInt I32))
+      in
       let inner = push_scope { env with in_loop = true } in
       let inner = extend_var inner name elem_ty in
       let final_inner, tbody = check_stmts inner body in
@@ -630,8 +721,12 @@ let rec is_const_texpr (env : env) (te : Typed_ast.texpr) : bool =
   | TUnOp (_, e, _) -> is_const_texpr env e
   | TBinOp (_, l, r, _) -> is_const_texpr env l && is_const_texpr env r
   | TCast (e, _) -> is_const_texpr env e
+  | TZero _ -> true
+  (* an array literal is constant when all its elements are *)
+  | TArrayLit (elems, _) -> List.for_all (is_const_texpr env) elems
   (* never compile-time by design *)
-  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _ ->
+  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _
+  | TIndex _ | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ ->
       false
 
 let check_global (env : env) (gd : global_def) : Typed_ast.tglobal_def =
