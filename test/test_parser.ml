@@ -167,7 +167,8 @@ let%expect_test "parse: ptr field access" =
 
 let%expect_test "parse: multiline array literal" =
   run_src "func f() {\n  var a: [2]i32 = [\n    1,\n    2\n  ]\n}";
-  [%expect {|
+  [%expect
+    {|
     <test>:4:5: warning: 'a' declared but never used
     ok
     |}]

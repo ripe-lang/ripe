@@ -448,7 +448,8 @@ func f() i32 {
   return a[1]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 12
@@ -472,7 +473,8 @@ func f() {
   a[0] = 9
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function $f() {
     @start
         %a =l alloc4 8
@@ -495,7 +497,8 @@ func f() i64 {
   return a.len
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function l $f() {
     @start
         %a =l alloc4 16
@@ -517,7 +520,8 @@ func f() i64 {
   return a[1]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function l $f() {
     @start
         %a =l alloc8 16
@@ -541,7 +545,8 @@ func f() i32 {
   return sum
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %sum =l alloc4 4
@@ -577,7 +582,8 @@ func f() i32 {
   return sum
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %sum =l alloc4 4
@@ -614,7 +620,8 @@ func f() i32 {
   return sum
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 12
@@ -665,7 +672,8 @@ func f() i32 {
   return sum
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %sum =l alloc4 4
@@ -720,7 +728,8 @@ func f() i32 {
   return i
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %i =l alloc4 4
@@ -755,7 +764,8 @@ func f() i32 {
   return sum(a)
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $sum(l %t0) {
     @start
         %xs =l alloc8 16
@@ -794,7 +804,8 @@ func f() i32 {
   return s[0]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 16
@@ -839,7 +850,8 @@ func f() i32 {
   return s[0]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 16
@@ -885,7 +897,8 @@ func f() i64 {
   return s.len
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function l $f() {
     @start
         %a =l alloc4 12
@@ -925,7 +938,8 @@ func sum(xs: []i32) i32 {
   return t
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $sum(l %t0) {
     @start
         %xs =l alloc8 16
@@ -976,7 +990,8 @@ func f() {
   s[1] = 9
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function $f() {
     @start
         %a =l alloc4 12
@@ -1019,7 +1034,8 @@ func f() i32 {
   return a[1]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 12
@@ -1050,7 +1066,8 @@ func f() i32 {
   return m[1][0]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %m =l alloc4 16
@@ -1077,7 +1094,8 @@ let%expect_test "codegen: global array data" =
 var g: [3]i32 = [7, 8, 9]
 func f() i32 { return g[1] }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $g = align 4 { w 7, w 8, w 9 }
 
     function w $f() {
@@ -1100,7 +1118,8 @@ func f() i32 {
   return s
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %m =l alloc4 16
@@ -1150,7 +1169,8 @@ func f() i32 {
   return a[0]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %a =l alloc4 12
@@ -1174,7 +1194,8 @@ func f() i32 {
   return s
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %s =l alloc4 4
@@ -1211,4 +1232,3 @@ func f() i32 {
         ret %t14
     }
     |}]
-
