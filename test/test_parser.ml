@@ -129,6 +129,18 @@ let%expect_test "parse: len field access" =
   parse_expr "a.len";
   [%expect {| (. a len) |}]
 
+let%expect_test "parse: fixed array type" =
+  run_src "func f(a: [4]i32) {}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: slice type" =
+  run_src "func f(a: []i32) {}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: slice of pointer type" =
+  run_src "func f(a: []*i32) {}";
+  [%expect {| ok |}]
+
 let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
   [%expect {| ParseError: expected array size |}]
@@ -152,3 +164,10 @@ let%expect_test "parse: slice index is range" =
 let%expect_test "parse: ptr field access" =
   parse_expr "s.ptr";
   [%expect {| (. s ptr) |}]
+
+let%expect_test "parse: multiline array literal" =
+  run_src "func f() {\n  var a: [2]i32 = [\n    1,\n    2\n  ]\n}";
+  [%expect {|
+    <test>:4:5: warning: 'a' declared but never used
+    ok
+    |}]

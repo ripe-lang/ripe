@@ -15,6 +15,8 @@ type ty =
   | TPointer of ty
   | TStruct of string
   | TFunc of ty list * ty
+  | TArray of ty * int
+  | TSlice of ty
 [@@deriving show { with_path = false }]
 
 let rec show_ty = function
@@ -34,6 +36,8 @@ let rec show_ty = function
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TStruct name -> name
+  | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
+  | TSlice t -> "[]" ^ show_ty t
   | TFunc (ps, r) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in

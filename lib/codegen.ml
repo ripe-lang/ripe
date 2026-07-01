@@ -14,6 +14,7 @@ let qbe_ty (t : ty) : string =
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct _ -> "l"
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
   | TVoid -> assert false
 
 (* Returns "u" for unsigned integer types, "s" for signed/other *)
@@ -48,6 +49,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
             (fun acc (_, ft) -> max acc (ty_align structs ft))
             1 fields
       | None -> assert false)
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
 
 (* n and a must be non-negative *)
 let align_to n a = (n + a - 1) / a * a
@@ -74,6 +76,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
           in
           align_to offset struct_align
       | None -> 0)
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
 
 (* TODO(1aff): maybe look into escape analysis *)
 let alloc_instr (t : ty) : string =
@@ -96,6 +99,7 @@ let qbe_load (t : ty) : string =
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ -> "loadl"
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
   | TVoid -> assert false
 
 let qbe_store (t : ty) : string =
@@ -107,6 +111,7 @@ let qbe_store (t : ty) : string =
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ -> "storel"
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
   | TVoid -> assert false
 
 type ctx = {
@@ -236,6 +241,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       tmp
   (* TODO(c75e): codegen for string interpolation *)
   | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
+  | T.TArrayLit _ | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _
+  | T.TDataPtr _ | T.TZero _ ->
+      failwith "TODO: array/slice codegen"
 
 and emit_unop ctx op e t =
   match op with
@@ -553,6 +561,7 @@ let qbe_ext_ty (t : ty) : string =
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct sn -> ":" ^ sn
+  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
   (* its nothing. like actually nothing. *)
   | TVoid -> assert false
 

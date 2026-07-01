@@ -21,6 +21,13 @@ and texpr =
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr
   | TInterpString of tinterp_part list
+  | TArrayLit of texpr list * ty
+  | TIndex of texpr * texpr * ty
+  | TLen of texpr
+  | TToSlice of texpr * ty
+  | TSliceExpr of texpr * texpr * texpr * ty
+  | TDataPtr of texpr * ty
+  | TZero of ty
 
 type tstmt =
   | TConst of string * ty * texpr
@@ -76,3 +83,10 @@ let ty_of_texpr (e : texpr) : ty =
   | TRange _ | TRangeInclusive _ ->
       raise (Invalid_argument "TODO(cb82): range type not yet defined")
   | TInterpString _ -> TPointer (TInt I8)
+  | TArrayLit (_, t) -> t
+  | TIndex (_, _, t) -> t
+  | TLen _ -> TInt I64
+  | TToSlice (_, t) -> t
+  | TSliceExpr (_, _, _, t) -> t
+  | TDataPtr (_, t) -> t
+  | TZero t -> t
