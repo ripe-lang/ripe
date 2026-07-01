@@ -13,8 +13,7 @@ let qbe_ty (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
-  | TStruct _ -> "l"
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  | TStruct _ | TArray _ | TSlice _ -> "l"
   | TVoid -> assert false
 
 (* Returns "u" for unsigned integer types, "s" for signed/other *)
@@ -49,7 +48,8 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
             (fun acc (_, ft) -> max acc (ty_align structs ft))
             1 fields
       | None -> assert false)
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  | TArray (e, _) -> ty_align structs e
+  | TSlice _ -> 8
 
 (* n and a must be non-negative *)
 let align_to n a = (n + a - 1) / a * a
@@ -76,15 +76,19 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
           in
           align_to offset struct_align
       | None -> 0)
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
+  (* fat pointer: { ptr, len } *)
+  | TSlice _ -> 16
 
 (* TODO(1aff): maybe look into escape analysis *)
-let alloc_instr (t : ty) : string =
+let rec alloc_instr (t : ty) : string =
   match t with
   | TInt (I64 | U64)
   | TFloat F64
   | TPointer _ | TNull | TCStr | TStruct _ | TFunc _ ->
       "alloc8"
+  | TArray (e, _) -> alloc_instr e
+  | TSlice _ -> "alloc8"
   | _ -> "alloc4"
 
 let qbe_load (t : ty) : string =
@@ -98,8 +102,7 @@ let qbe_load (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
-  | TStruct _ -> "loadl"
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  | TStruct _ | TArray _ | TSlice _ -> "loadl"
   | TVoid -> assert false
 
 let qbe_store (t : ty) : string =
@@ -110,8 +113,7 @@ let qbe_store (t : ty) : string =
   | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
-  | TStruct _ -> "storel"
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  | TStruct _ | TArray _ | TSlice _ -> "storel"
   | TVoid -> assert false
 
 type ctx = {
@@ -152,6 +154,13 @@ let field_offset structs fields fname =
 let lvalue_name (e : T.texpr) : string =
   match e with T.TIdent (name, _) -> name | _ -> failwith "expected lvalue"
 
+(* aggregates are addressed by pointer: an ident of this type is its base address *)
+let is_array_like = function TArray _ | TSlice _ -> true | _ -> false
+
+(* bytes between consecutive elements (element size rounded up to its alignment) *)
+let stride structs elem =
+  align_to (ty_size structs elem) (ty_align structs elem)
+
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   match e with
   | T.TInt (n, _) -> string_of_int n
@@ -163,6 +172,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBool b -> if b then "1" else "0"
   | T.TNull _ -> "0"
   | T.TChar c -> string_of_int (Char.code c)
+  (* aggregate: the slot itself is the value, so yield its address *)
+  | T.TIdent (name, t) when is_array_like t ->
+      if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
   | T.TIdent (name, t) -> (
       if Hashtbl.mem ctx.locals name then (
         let tmp = fresh ctx in
@@ -241,9 +253,84 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       tmp
   (* TODO(c75e): codegen for string interpolation *)
   | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
-  | T.TArrayLit _ | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _
-  | T.TDataPtr _ | T.TZero _ ->
-      failwith "TODO: array/slice codegen"
+  | T.TIndex (base, idx, elem) ->
+      let addr = emit_index_addr ctx base idx elem in
+      (* nested array: the element is itself an aggregate, yield its address *)
+      if is_array_like elem then addr
+      else
+        let tmp = fresh ctx in
+        emit ctx "    %s =%s %s %s\n" tmp (qbe_ty elem) (qbe_load elem) addr;
+        tmp
+  | T.TLen e -> (
+      match T.ty_of_texpr e with
+      | TArray (_, n) -> string_of_int n
+      | TSlice _ ->
+          (* len lives at offset 8 in the fat pointer *)
+          let addr = emit_expr ctx e in
+          let lenp = fresh ctx in
+          emit ctx "    %s =l add %s, 8\n" lenp addr;
+          let l = fresh ctx in
+          emit ctx "    %s =l loadl %s\n" l lenp;
+          l
+      | t -> failwith ("TLen on non-array type: " ^ show_ty t))
+  | T.TDataPtr (e, _) -> (
+      match T.ty_of_texpr e with
+      | TSlice _ ->
+          (* ptr lives at offset 0 in the fat pointer *)
+          let addr = emit_expr ctx e in
+          let p = fresh ctx in
+          emit ctx "    %s =l loadl %s\n" p addr;
+          p
+      (* an array's base address is already the pointer to its first element *)
+      | TArray _ -> emit_expr ctx e
+      | t -> failwith ("TDataPtr on non-array type: " ^ show_ty t))
+  | T.TToSlice (arr, _) ->
+      let arr_addr = emit_expr ctx arr in
+      let n =
+        match T.ty_of_texpr arr with
+        | TArray (_, n) -> n
+        | t -> failwith ("cannot coerce to slice: " ^ show_ty t)
+      in
+      (* build a { ptr = &arr[0], len = n } fat pointer on the stack *)
+      let slot = fresh ctx in
+      emit ctx "    %s =l alloc8 16\n" slot;
+      emit ctx "    storel %s, %s\n" arr_addr slot;
+      let lenp = fresh ctx in
+      emit ctx "    %s =l add %s, 8\n" lenp slot;
+      emit ctx "    storel %d, %s\n" n lenp;
+      slot
+  | T.TSliceExpr (base, lo, hi, sty) ->
+      let elem = match sty with TSlice e -> e | _ -> assert false in
+      let storage = data_ptr ctx base in
+      let lo_l = widen_to_l ctx (emit_expr ctx lo) (T.ty_of_texpr lo) in
+      let hi_l = widen_to_l ctx (emit_expr ctx hi) (T.ty_of_texpr hi) in
+      let off = fresh ctx in
+      emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
+      let ptr = fresh ctx in
+      emit ctx "    %s =l add %s, %s\n" ptr storage off;
+      let len = fresh ctx in
+      emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
+      let slot = fresh ctx in
+      emit ctx "    %s =l alloc8 16\n" slot;
+      emit ctx "    storel %s, %s\n" ptr slot;
+      let lenp = fresh ctx in
+      emit ctx "    %s =l add %s, 8\n" lenp slot;
+      emit ctx "    storel %s, %s\n" len lenp;
+      slot
+  | T.TArrayLit (elems, aty) ->
+      (* as a value: materialize into a fresh stack slot and yield its address *)
+      let elem = match aty with TArray (e, _) -> e | _ -> assert false in
+      let slot = fresh ctx in
+      emit ctx "    %s =l %s %d\n" slot (alloc_instr aty)
+        (ty_size ctx.structs aty);
+      emit_array_lit_into ctx slot elems elem;
+      slot
+  | T.TZero t when is_array_like t ->
+      let slot = fresh ctx in
+      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_zero_into ctx slot t;
+      slot
+  | T.TZero _ -> "0"
 
 and emit_unop ctx op e t =
   match op with
@@ -268,52 +355,189 @@ and emit_unop ctx op e t =
       else emit ctx "    %s =l copy %%%s\n" tmp name;
       tmp
 
+(* pointer math is 64-bit, widen a word-sized value to a long *)
+and widen_to_l ctx v ty =
+  if qbe_ty ty = "l" then v
+  else
+    let t = fresh ctx in
+    let ins = if signedness ty = "u" then "extuw" else "extsw" in
+    emit ctx "    %s =l %s %s\n" t ins v;
+    t
+
+(* pointer to the first element: an array's own address, or a slice's ptr field *)
+and data_ptr ctx base =
+  let addr = emit_expr ctx base in
+  match T.ty_of_texpr base with
+  | TSlice _ ->
+      let p = fresh ctx in
+      emit ctx "    %s =l loadl %s\n" p addr;
+      p
+  | _ -> addr
+
+(* address of arr[idx]: storage + idx * stride(elem) *)
+and emit_index_addr ctx base idx elem =
+  let storage = data_ptr ctx base in
+  let iv = emit_expr ctx idx in
+  let iw = widen_to_l ctx iv (T.ty_of_texpr idx) in
+  let off = fresh ctx in
+  emit ctx "    %s =l mul %s, %d\n" off iw (stride ctx.structs elem);
+  let addr = fresh ctx in
+  emit ctx "    %s =l add %s, %s\n" addr storage off;
+  addr
+
+(* write a zero value of type t into the slot at dest *)
+and emit_zero_into ctx dest t =
+  match t with
+  | TArray _ | TSlice _ ->
+      let size = ty_size ctx.structs t in
+      let off = ref 0 in
+      let step w store =
+        while !off + w <= size do
+          let dp =
+            if !off = 0 then dest
+            else
+              let a = fresh ctx in
+              emit ctx "    %s =l add %s, %d\n" a dest !off;
+              a
+          in
+          emit ctx "    %s 0, %s\n" store dp;
+          off := !off + w
+        done
+      in
+      step 8 "storel";
+      step 4 "storew";
+      step 2 "storeh";
+      step 1 "storeb"
+  | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
+
+(* copy size bytes from src to dest, used for by-value aggregate (slice) moves *)
+and emit_aggregate_copy ctx dest src size =
+  let off = ref 0 in
+  let step w letter load store =
+    while !off + w <= size do
+      let at base =
+        if !off = 0 then base
+        else
+          let a = fresh ctx in
+          emit ctx "    %s =l add %s, %d\n" a base !off;
+          a
+      in
+      let v = fresh ctx in
+      emit ctx "    %s =%s %s %s\n" v letter load (at src);
+      emit ctx "    %s %s, %s\n" store v (at dest);
+      off := !off + w
+    done
+  in
+  step 8 "l" "loadl" "storel";
+  step 4 "w" "loaduw" "storew";
+  step 2 "w" "loaduh" "storeh";
+  step 1 "w" "loadub" "storeb"
+
+(* store each element of a literal into an already-allocated array at base *)
+and emit_array_lit_into ctx base elems elem =
+  let strd = stride ctx.structs elem in
+  List.iteri
+    (fun i el ->
+      let addr =
+        if i = 0 then base
+        else
+          let a = fresh ctx in
+          emit ctx "    %s =l add %s, %d\n" a base (i * strd);
+          a
+      in
+      match el with
+      (* nested literal (multi-dimensional array): recurse into the sub-array *)
+      | T.TArrayLit (sub, TArray (subelem, _)) ->
+          emit_array_lit_into ctx addr sub subelem
+      | _ when is_array_like elem ->
+          (* element is an aggregate value: copy its bytes into place *)
+          let src = emit_expr ctx el in
+          emit_aggregate_copy ctx addr src (ty_size ctx.structs elem)
+      | _ ->
+          let v = emit_expr ctx el in
+          emit ctx "    %s %s, %s\n" (qbe_store elem) v addr)
+    elems
+
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
 and emit_assign ctx l r _t =
-  let rv = emit_expr ctx r in
-  (match l with
-  | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
-      emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name
-  | T.TIdent (name, lt) when Hashtbl.mem ctx.globals name ->
-      emit ctx "    %s %s, $%s\n" (qbe_store lt) rv name
-  | T.TIdent (name, _) ->
-      emit ctx "    %%%s =%s copy %s\n" name (qbe_ty (T.ty_of_texpr r)) rv
-  | _ -> ());
-  rv
+  match l with
+  | T.TIndex (base, idx, elem) ->
+      let addr = emit_index_addr ctx base idx elem in
+      let rv = emit_expr ctx r in
+      emit ctx "    %s %s, %s\n" (qbe_store elem) rv addr;
+      rv
+  | T.TIdent (name, t) when is_array_like t ->
+      let base =
+        if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
+      in
+      (match (r, t) with
+      | T.TArrayLit (elems, _), TArray (elem, _) ->
+          emit_array_lit_into ctx base elems elem
+      | _ ->
+          (* aggregate: copy the value's bytes into the target slot *)
+          let src = emit_expr ctx r in
+          emit_aggregate_copy ctx base src (ty_size ctx.structs t));
+      base
+  | _ ->
+      let rv = emit_expr ctx r in
+      (match l with
+      | T.TIdent (name, lt) when Hashtbl.mem ctx.locals name ->
+          emit ctx "    %s %s, %%%s\n" (qbe_store lt) rv name
+      | T.TIdent (name, lt) when Hashtbl.mem ctx.globals name ->
+          emit ctx "    %s %s, $%s\n" (qbe_store lt) rv name
+      | T.TIdent (name, _) ->
+          emit ctx "    %%%s =%s copy %s\n" name (qbe_ty (T.ty_of_texpr r)) rv
+      | _ -> ());
+      rv
 
 (* x += rhs -> x = x + rhs *)
 (* x -= rhs -> x = x - rhs *)
 (* x *= rhs -> x = x * rhs *)
 (* x /= rhs -> x = x / rhs *)
+and compound_arith op lt =
+  match op with
+  | Ast.AddAssign -> "add"
+  | Ast.SubAssign -> "sub"
+  | Ast.MulAssign -> "mul"
+  | Ast.DivAssign ->
+      if is_float_ty lt then "div"
+      else if signedness lt = "u" then "udiv"
+      else "div"
+  | _ -> assert false
+
 and emit_compound_assign ctx op l r =
-  let name = lvalue_name l in
-  let lt = T.ty_of_texpr l in
-  let qt = qbe_ty lt in
-  let sign = signedness lt in
-  let cur = fresh ctx in
-  if Hashtbl.mem ctx.locals name then
-    emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) name
-  else if Hashtbl.mem ctx.globals name then
-    emit ctx "    %s =%s %s $%s\n" cur qt (qbe_load lt) name
-  else emit ctx "    %s =%s copy %%%s\n" cur qt name;
-  let rv = emit_expr ctx r in
-  let arith =
-    match op with
-    | Ast.AddAssign -> "add"
-    | Ast.SubAssign -> "sub"
-    | Ast.MulAssign -> "mul"
-    | Ast.DivAssign ->
-        if is_float_ty lt then "div" else if sign = "u" then "udiv" else "div"
-    | _ -> assert false
-  in
-  let new_val = fresh ctx in
-  emit ctx "    %s =%s %s %s, %s\n" new_val qt arith cur rv;
-  if Hashtbl.mem ctx.locals name then
-    emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val name
-  else if Hashtbl.mem ctx.globals name then
-    emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
-  else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
-  new_val
+  match l with
+  (* arr[i] += rhs: load through the element address, apply, store back *)
+  | T.TIndex (base, idx, elem) ->
+      let addr = emit_index_addr ctx base idx elem in
+      let qt = qbe_ty elem in
+      let cur = fresh ctx in
+      emit ctx "    %s =%s %s %s\n" cur qt (qbe_load elem) addr;
+      let rv = emit_expr ctx r in
+      let new_val = fresh ctx in
+      emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur
+        rv;
+      emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
+      new_val
+  | _ ->
+      let name = lvalue_name l in
+      let lt = T.ty_of_texpr l in
+      let qt = qbe_ty lt in
+      let cur = fresh ctx in
+      if Hashtbl.mem ctx.locals name then
+        emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) name
+      else if Hashtbl.mem ctx.globals name then
+        emit ctx "    %s =%s %s $%s\n" cur qt (qbe_load lt) name
+      else emit ctx "    %s =%s copy %%%s\n" cur qt name;
+      let rv = emit_expr ctx r in
+      let new_val = fresh ctx in
+      emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op lt) cur rv;
+      if Hashtbl.mem ctx.locals name then
+        emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val name
+      else if Hashtbl.mem ctx.globals name then
+        emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
+      else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
+      new_val
 
 and is_float_ty = function TFloat _ -> true | _ -> false
 
@@ -423,13 +647,22 @@ and emit_cast ctx v src_ty target_ty =
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s with
-  | T.TConst (name, t, e) | T.TVar (name, t, e) ->
+  | T.TConst (name, t, e) | T.TVar (name, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
         (ty_size ctx.structs t);
       Hashtbl.replace ctx.locals name ();
-      let v = emit_expr ctx e in
-      emit ctx "    %s %s, %%%s\n" (qbe_store t) v name
+      match e with
+      | T.TZero t -> emit_zero_into ctx ("%" ^ name) t
+      | T.TArrayLit (elems, TArray (elem, _)) ->
+          emit_array_lit_into ctx ("%" ^ name) elems elem
+      | _ when is_array_like t ->
+          (* aggregate: copy the value's bytes into the variable's slot *)
+          let src = emit_expr ctx e in
+          emit_aggregate_copy ctx ("%" ^ name) src (ty_size ctx.structs t)
+      | _ ->
+          let v = emit_expr ctx e in
+          emit ctx "    %s %s, %%%s\n" (qbe_store t) v name)
   | T.TReturn None -> emit ctx "    ret\n"
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
@@ -534,7 +767,57 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt name;
       emit ctx "    jmp %s\n" cond_lbl;
       emit ctx "%s\n" end_lbl
-  | _ -> failwith "TODO: array/slice iteration codegen"
+  | _ ->
+      (* array/slice iteration: walk index 0..len with a hidden counter.
+         storage is the element pointer, len is a constant (array) or loaded (slice) *)
+      let storage, len =
+        let base = emit_expr ctx iter in
+        match T.ty_of_texpr iter with
+        | TArray (_, n) -> (base, string_of_int n)
+        | TSlice _ ->
+            let p = fresh ctx in
+            emit ctx "    %s =l loadl %s\n" p base;
+            let lenp = fresh ctx in
+            emit ctx "    %s =l add %s, 8\n" lenp base;
+            let l = fresh ctx in
+            emit ctx "    %s =l loadl %s\n" l lenp;
+            (p, l)
+        | t -> failwith ("cannot iterate over type: " ^ show_ty t)
+      in
+      let idx = Printf.sprintf "%%for.i%d" id in
+      emit ctx "    %s =l alloc8 8\n" idx;
+      emit ctx "    storel 0, %s\n" idx;
+      (* element binding slot, refreshed each iteration *)
+      emit ctx "    %%%s =l %s %d\n" name (alloc_instr elem_ty)
+        (ty_size ctx.structs elem_ty);
+      Hashtbl.replace ctx.locals name ();
+      emit ctx "%s\n" cond_lbl;
+      let i = fresh ctx in
+      emit ctx "    %s =l loadl %s\n" i idx;
+      let cmp = fresh ctx in
+      emit ctx "    %s =w csltl %s, %s\n" cmp i len;
+      emit ctx "    jnz %s, %s, %s\n" cmp body_lbl end_lbl;
+      emit ctx "%s\n" body_lbl;
+      let off = fresh ctx in
+      emit ctx "    %s =l mul %s, %d\n" off i (stride ctx.structs elem_ty);
+      let addr = fresh ctx in
+      emit ctx "    %s =l add %s, %s\n" addr storage off;
+      (if is_array_like elem_ty then
+         (* aggregate element: copy its bytes into the loop variable *)
+         emit_aggregate_copy ctx ("%" ^ name) addr (ty_size ctx.structs elem_ty)
+       else
+         let v = fresh ctx in
+         emit ctx "    %s =%s %s %s\n" v qt (qbe_load elem_ty) addr;
+         emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) v name);
+      emit_stmts ctx body;
+      emit ctx "%s\n" cont_lbl;
+      let i2 = fresh ctx in
+      emit ctx "    %s =l loadl %s\n" i2 idx;
+      let nxt = fresh ctx in
+      emit ctx "    %s =l add %s, 1\n" nxt i2;
+      emit ctx "    storel %s, %s\n" nxt idx;
+      emit ctx "    jmp %s\n" cond_lbl;
+      emit ctx "%s\n" end_lbl
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 
@@ -572,7 +855,10 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     (fun (name, t, tmp) ->
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
         (ty_size ctx.structs t);
-      emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
+      (* aggregates arrive as a pointer, copy the value into the local slot *)
+      if is_array_like t then
+        emit_aggregate_copy ctx ("%" ^ name) tmp (ty_size ctx.structs t)
+      else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
       Hashtbl.replace ctx.locals name ())
     param_tmps;
 
@@ -588,7 +874,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"
 
-let qbe_ext_ty (t : ty) : string =
+let rec qbe_ext_ty (t : ty) : string =
   match t with
   | TInt (I8 | U8) | TBool -> "b"
   | TInt (I16 | U16) -> "h"
@@ -598,7 +884,10 @@ let qbe_ext_ty (t : ty) : string =
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct sn -> ":" ^ sn
-  | TArray _ | TSlice _ -> failwith "TODO: array/slice codegen"
+  (* QBE repeats a field type n times: { w 3 } is three words *)
+  | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
+  (* fat pointer stored inline as two longs *)
+  | TSlice _ -> "l 2"
   (* its nothing. like actually nothing. *)
   | TVoid -> assert false
 
@@ -623,16 +912,31 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | T.TIdent (name, _) -> "$" ^ name
   | _ -> failwith "non-trivial constant initializer"
 
+(* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
+let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
+  match te with
+  | T.TArrayLit (elems, _) ->
+      String.concat ", " (List.map (const_array_fields ctx) elems)
+  | _ ->
+      Printf.sprintf "%s %s"
+        (qbe_ext_ty (T.ty_of_texpr te))
+        (fold_const_value ctx te)
+
 let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
   let align = ty_align ctx.structs gd.ty in
   match gd.init with
   | None ->
       let size = ty_size ctx.structs gd.ty in
       emit ctx "data $%s = align %d { z %d }\n" gd.name align size
-  | Some te ->
-      let letter = qbe_ext_ty gd.ty in
-      let value = fold_const_value ctx te in
-      emit ctx "data $%s = align %d { %s %s }\n" gd.name align letter value
+  | Some te -> (
+      match gd.ty with
+      | TArray _ ->
+          emit ctx "data $%s = align %d { %s }\n" gd.name align
+            (const_array_fields ctx te)
+      | _ ->
+          let letter = qbe_ext_ty gd.ty in
+          let value = fold_const_value ctx te in
+          emit ctx "data $%s = align %d { %s %s }\n" gd.name align letter value)
 
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
