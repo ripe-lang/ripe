@@ -1240,7 +1240,8 @@ func f() {
   var b: [4]u8
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     <test>:4:3: warning: 'b' declared but never used
     <test>:3:18: warning: 'a' declared but never used
     function $f() {
