@@ -312,6 +312,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
       let ty = ty_of_ast env t in
       Typed_ast.TCast (te, ty)
   | SizeOf t -> Typed_ast.TSizeOf (ty_of_ast env t)
+  (* TODO(46c6): treat ranges as first-class values (I think in Rust they are) *)
   (* ranges are not first-class values, only for-loop iterators and slice bounds *)
   | Range _ | RangeInclusive _ ->
       add_error env "a range can only be used in a for-loop or a slice";

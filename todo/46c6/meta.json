@@ -1,0 +1,1 @@
+{"id": "46c6", "title": "treat ranges as first-class values (I think in Rust they are)", "status": "open", "priority": "low", "tags": [], "created_at": "2026-07-01 23:44:37.858220", "updated_at": "2026-07-01 23:44:37.858220", "source": "lib/typechecker.ml:315", "depends": [], "blocks": [], "assignee": null}
