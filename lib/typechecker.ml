@@ -699,16 +699,14 @@ and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
   (final_env, List.rev tstmts_reversed)
 
 (* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool =
-  List.exists stmt_returns stmts
+let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
 
 and stmt_returns (s : stmt) : bool =
   match s.sdesc with
   | Return _ -> true
   | Block body -> stmts_return body
   | If (branches, else_body) ->
-      else_body <> []
-      && stmts_return else_body
+      else_body <> [] && stmts_return else_body
       && List.for_all (fun (_, body) -> stmts_return body) branches
   | _ -> false
 

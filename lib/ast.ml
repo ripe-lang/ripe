@@ -7,7 +7,6 @@ type span = { lo : int; hi : int }
 (* spans elided from dumps so derived show stays readable *)
 let pp_span fmt (_ : span) = Format.pp_print_string fmt "_"
 let show_span (_ : span) = "_"
-
 let dummy_span = { lo = 0; hi = 0 }
 
 type typ_desc =

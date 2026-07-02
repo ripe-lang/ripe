@@ -1264,7 +1264,8 @@ func sign(n: i32) i32 {
   else { return 0 }
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $sign(w %t0) {
     @start
         %n =l alloc4 4

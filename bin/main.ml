@@ -118,8 +118,7 @@ let compile filename =
       let decls = parse lexbuf in
       match !stage with
       | Tokens -> assert false
-      | Ast ->
-          List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
+      | Ast -> List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
       | _ -> (
           let tdecls = typecheck abs_filename src decls in
           match !stage with
