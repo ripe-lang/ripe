@@ -2,6 +2,8 @@
 
 (name ripe)
 
+(cram enable)
+
 (generate_opam_files true)
 
 (source
