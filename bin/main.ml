@@ -1,21 +1,38 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* TODO(b021):  need a total rewrite of this once *)
+type stage = Tokens | Ast | Tast | Check | Qbe | Asm | Bin
 
-let dump_ast = ref false
-let do_typecheck = ref false
-let emit_qbe = ref false
-let do_run = ref false
+let stage_of_string = function
+  | "tokens" -> Tokens
+  | "ast" -> Ast
+  | "tast" -> Tast
+  | "check" -> Check
+  | "qbe" -> Qbe
+  | "asm" -> Asm
+  | s ->
+      Printf.eprintf "ripec: unknown emit stage: %s\n" s;
+      exit 2
+
+let stage = ref Bin
+let out = ref ""
 let file = ref ""
 
-let spec =
-  [
-    ("-dump-ast", Arg.Set dump_ast, "Dump parsed AST");
-    ("-typecheck", Arg.Set do_typecheck, "Run the typechecker");
-    ("-emit-qbe", Arg.Set emit_qbe, "Emit QBE IL to stdout (not compile)");
-    (* temporary *)
-    ("-run", Arg.Set do_run, "Compile and run immediately");
-  ]
+let usage_msg =
+  "The Ripe compiler\n\n\
+   Usage:\n\
+  \  ripec [options] <file.rp>\n\n\
+   Options:\n\
+  \  -emit <stage>   stop after a stage: tokens|ast|tast|check|qbe|asm\n\
+  \  -o <file>       write the output here\n\
+  \  -help           show this help\n"
+
+let print_help () =
+  print_string usage_msg;
+  exit 0
+
+let die msg =
+  Printf.eprintf "ripec: %s\n" msg;
+  exit 2
 
 let read_file filename =
   let ic = open_in filename in
@@ -25,63 +42,122 @@ let read_file filename =
   close_in ic;
   Bytes.to_string src
 
-let parse_file filename =
+(* write to -o if set, else stdout *)
+let output_text s =
+  if !out = "" then print_string s
+  else
+    let oc = open_out !out in
+    output_string oc s;
+    close_out oc
+
+let dump_tokens lexbuf =
+  let rec loop () =
+    let t = Ripe.Lexer.read lexbuf in
+    print_endline (Ripe.Tokens.show_token t);
+    if t <> Ripe.Tokens.EOF then loop ()
+  in
+  loop ()
+
+let parse lexbuf =
+  match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
+  | decls -> decls
+  | exception Ripe.Parser.ParseErrors diags ->
+      List.iter
+        (fun (pos, msg) ->
+          Printf.eprintf "%s:%d:%d: %s\n" pos.Lexing.pos_fname pos.pos_lnum
+            (pos.pos_cnum - pos.pos_bol)
+            msg)
+        diags;
+      exit 1
+
+let typecheck filename src decls =
+  match Ripe.Typechecker.typecheck filename src decls with
+  | tdecls -> tdecls
+  | exception Ripe.Typechecker.TypeErrors msgs ->
+      List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
+      exit 1
+
+let run cmd =
+  if Sys.command cmd <> 0 then (
+    Printf.eprintf "ripec: command failed: %s\n" cmd;
+    exit 1)
+
+let compile_binary base il =
+  let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
+  let tmp_asm = Filename.temp_file "ripe" ".s" in
+  let oc = open_out tmp_qbe in
+  output_string oc il;
+  close_out oc;
+  run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
+  run (Printf.sprintf "cc -o %s %s" base tmp_asm);
+  Sys.remove tmp_qbe;
+  Sys.remove tmp_asm
+
+let emit_asm il =
+  let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
+  let tmp_asm = Filename.temp_file "ripe" ".s" in
+  let oc = open_out tmp_qbe in
+  output_string oc il;
+  close_out oc;
+  run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
+  let asm = read_file tmp_asm in
+  Sys.remove tmp_qbe;
+  Sys.remove tmp_asm;
+  asm
+
+let compile filename =
   let abs_filename = Unix.realpath filename in
   (* TODO(5d10): emit paths relative to project root *)
   let src = read_file filename in
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
   Ripe.Lexer.reset ();
-  let decls =
-    (* TODO(7b48): merge with TypeErrors into one diagnostics flush *)
-    match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
-    | decls -> decls
-    | exception Ripe.Parser.ParseErrors diags ->
-        List.iter
-          (fun (pos, msg) ->
-            Printf.eprintf "%s:%d:%d: %s\n" pos.Lexing.pos_fname pos.pos_lnum
-              (pos.pos_cnum - pos.pos_bol)
-              msg)
-          diags;
-        exit 1
-  in
-
-  if !dump_ast then
-    List.iter (fun d -> print_endline (Ripe.Ast.decl_to_string d)) decls;
-  if !do_typecheck || !emit_qbe || not !dump_ast then
-    match Ripe.Typechecker.typecheck abs_filename src decls with
-    | tdecls ->
-        if !do_typecheck then print_endline "typecheck: ok"
-        else
-          let il = Ripe.Codegen.emit_qbe tdecls in
-          if !emit_qbe then print_string il
-          else
-            let base = Filename.remove_extension (Filename.basename !file) in
-            let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
-            let tmp_asm = Filename.temp_file "ripe" ".s" in
-            let oc = open_out tmp_qbe in
-            output_string oc il;
-            close_out oc;
-            let run cmd =
-              if Sys.command cmd <> 0 then (
-                Printf.eprintf "ripec: command failed: %s\n" cmd;
-                exit 1)
-            in
-            let out = if !do_run then Filename.temp_file "ripe" "" else base in
-            run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
-            run (Printf.sprintf "cc -o %s %s" out tmp_asm);
-            Sys.remove tmp_qbe;
-            Sys.remove tmp_asm;
-            if !do_run then (
-              let code = Sys.command out in
-              Sys.remove out;
-              exit code)
-    | exception Ripe.Typechecker.TypeErrors msgs ->
-        List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
-        exit 1
+  match !stage with
+  | Tokens -> dump_tokens lexbuf
+  | _ -> (
+      let decls = parse lexbuf in
+      match !stage with
+      | Tokens -> assert false
+      | Ast ->
+          List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
+      | _ -> (
+          let tdecls = typecheck abs_filename src decls in
+          match !stage with
+          | Tokens | Ast -> assert false
+          | Check -> print_endline "typecheck: ok"
+          | Tast ->
+              List.iter
+                (fun d -> print_endline (Ripe.Typed_ast.show_tdecl d))
+                tdecls
+          | _ -> (
+              let il = Ripe.Codegen.emit_qbe tdecls in
+              match !stage with
+              | Qbe -> output_text il
+              | Asm -> output_text (emit_asm il)
+              | _ ->
+                  let base =
+                    if !out = "" then
+                      Filename.remove_extension (Filename.basename !file)
+                    else !out
+                  in
+                  compile_binary base il)))
 
 let () =
-  (* TODO(7d9f): Update usage text for options *)
-  Arg.parse spec (fun f -> file := f) "Usage: ripec file.rp>";
-  if !file = "" then Arg.usage spec "Usage: ripec <file.rp>"
-  else parse_file !file
+  let rec parse_args = function
+    | [] -> ()
+    | ("-help" | "--help" | "-h") :: _ -> print_help ()
+    | "-emit" :: s :: rest ->
+        stage := stage_of_string s;
+        parse_args rest
+    | "-o" :: p :: rest ->
+        out := p;
+        parse_args rest
+    | ("-emit" | "-o") :: [] -> die "missing argument"
+    | f :: _ when String.length f > 0 && f.[0] = '-' ->
+        die (Printf.sprintf "unknown option: %s" f)
+    | f :: rest ->
+        file := f;
+        parse_args rest
+  in
+  parse_args (List.tl (Array.to_list Sys.argv));
+  if !file = "" then print_help () else compile !file

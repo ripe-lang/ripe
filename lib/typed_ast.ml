@@ -29,6 +29,7 @@ and texpr =
   | TDataPtr of texpr * ty
   | TZero of ty
   | TUndef of ty
+[@@deriving show]
 
 type tstmt =
   | TConst of string * ty * texpr
@@ -41,6 +42,7 @@ type tstmt =
   | TContinue
   | TExpr of texpr
   | TBlock of tstmt list
+[@@deriving show]
 
 type tfunc_def = {
   name : string;
@@ -50,6 +52,7 @@ type tfunc_def = {
   modifiers : Ast.modifier list;
   variadic : bool;
 }
+[@@deriving show]
 
 type tglobal_def = {
   name : string;
@@ -57,6 +60,7 @@ type tglobal_def = {
   init : texpr option;
   is_const : bool;
 }
+[@@deriving show]
 
 type tdecl =
   | TFunc of tfunc_def
@@ -65,6 +69,7 @@ type tdecl =
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
   | TTypeAlias of string * ty
+[@@deriving show]
 
 let ty_of_texpr (e : texpr) : ty =
   match e with
