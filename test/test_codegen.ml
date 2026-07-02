@@ -1232,3 +1232,23 @@ func f() i32 {
         ret %t14
     }
     |}]
+
+let%expect_test "codegen: undefined skips zero-init" =
+  run_codegen {|
+func f() {
+  var a: [4]u8 = undefined
+  var b: [4]u8
+}
+|};
+  [%expect
+    {|
+    <test>:4:3: warning: 'b' declared but never used
+    <test>:3:18: warning: 'a' declared but never used
+    function $f() {
+    @start
+        %a =l alloc4 4
+        %b =l alloc4 4
+        storew 0, %b
+        ret
+    }
+    |}]

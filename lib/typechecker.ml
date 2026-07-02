@@ -367,6 +367,9 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
           parts
       in
       Typed_ast.TInterpString tparts
+  | Undefined ->
+      add_error env "cannot infer type of undefined";
+      dummy_texpr
 (* | _ -> failwith ("Expression not yet implemented: " ^ show_expr e) *)
 
 (* MUST be this type *)
@@ -399,6 +402,7 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
              (List.length elems));
       let tes = List.map (fun e -> check env e elem) elems in
       Typed_ast.TArrayLit (tes, TArray (elem, n))
+  | Undefined -> Typed_ast.TUndef want
   (* not a flexible literal, just check it matches want *)
   | _ -> (
       let te = synth env e in
@@ -728,6 +732,7 @@ let rec is_const_texpr (env : env) (te : Typed_ast.texpr) : bool =
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _
   | TIndex _ | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ ->
       false
+  | TUndef _ -> true
 
 let check_global (env : env) (gd : global_def) : Typed_ast.tglobal_def =
   env.current_span := gd.span;
@@ -735,6 +740,7 @@ let check_global (env : env) (gd : global_def) : Typed_ast.tglobal_def =
   let tinit =
     match gd.init with
     | None -> None
+    | Some e when e.desc = Undefined -> None
     | Some e ->
         let te = check env e t in
         if not (is_const_texpr env te) then

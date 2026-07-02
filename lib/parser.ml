@@ -389,6 +389,9 @@ and parse_primary st =
       done;
       expect st STRING_END;
       mk lo st (InterpString (List.rev !parts))
+  | UNDEFINED ->
+      advance st;
+      mk lo st Undefined
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_comma_list st stop =

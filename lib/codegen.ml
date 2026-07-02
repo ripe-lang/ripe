@@ -350,6 +350,11 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit_zero_into ctx slot t;
       slot
   | T.TZero _ -> "0"
+  | T.TUndef t when is_array_like t ->
+      let slot = fresh ctx in
+      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      slot
+  | T.TUndef _ -> "0"
 
 and emit_unop ctx op e t =
   match op with
@@ -673,6 +678,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       Hashtbl.replace ctx.locals name ();
       match e with
       | T.TZero t -> emit_zero_into ctx ("%" ^ name) t
+      | T.TUndef _ -> ()
       | T.TArrayLit (elems, TArray (elem, _)) ->
           emit_array_lit_into ctx ("%" ^ name) elems elem
       | _ when is_array_like t ->

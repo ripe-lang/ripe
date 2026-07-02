@@ -71,6 +71,7 @@ type token =
   | EOF
   | ERROR of string
   | TYPE
+  | UNDEFINED
 
 let show_token = function
   | INT n -> string_of_int n
@@ -143,3 +144,4 @@ let show_token = function
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | TYPE -> "type"
+  | UNDEFINED -> "undefined"
