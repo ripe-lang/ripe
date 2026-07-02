@@ -15,11 +15,53 @@ let run_src src =
   | exception Ripe.Parser.ParseErrors diags ->
       List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
 
+let replace s old rep =
+  let olen = String.length old in
+  let b = Buffer.create (String.length s) in
+  let i = ref 0 in
+  while !i < String.length s do
+    if !i + olen <= String.length s && String.sub s !i olen = old then begin
+      Buffer.add_string b rep;
+      i := !i + olen
+    end
+    else begin
+      Buffer.add_char b s.[!i];
+      incr i
+    end
+  done;
+  Buffer.contents b
+
+(* feed the il through qbe so malformed output fails the test *)
+let check_qbe il =
+  let ssa = Filename.temp_file "ripe_test" ".ssa" in
+  let err = Filename.temp_file "ripe_test" ".err" in
+  let oc = open_out ssa in
+  output_string oc il;
+  close_out oc;
+  let cmd =
+    Printf.sprintf "qbe -o /dev/null %s 2> %s" (Filename.quote ssa)
+      (Filename.quote err)
+  in
+  if Sys.command cmd <> 0 then begin
+    let ic = open_in err in
+    (try
+       while true do
+         print_endline (replace (input_line ic) ssa "<il>")
+       done
+     with End_of_file -> ());
+    close_in ic
+  end;
+  Sys.remove ssa;
+  Sys.remove err
+
 let run_codegen src =
   match parse src with
   | decls -> (
       match Ripe.Typechecker.typecheck "<test>" src decls with
-      | tdecls -> print_string (Ripe.Codegen.emit_qbe tdecls)
+      | tdecls ->
+          let il = Ripe.Codegen.emit_qbe tdecls in
+          print_string il;
+          check_qbe il
       | exception Ripe.Typechecker.TypeErrors msgs ->
           List.iter (fun msg -> print_endline ("TypeError: " ^ msg)) msgs)
   | exception Ripe.Parser.ParseErrors diags ->
