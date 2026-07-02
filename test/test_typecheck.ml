@@ -868,3 +868,12 @@ let%expect_test "typecheck: undefined without type cannot infer" =
 let%expect_test "typecheck: undefined with type ok" =
   run_src "func f() i32 { var x: i32 = undefined return x }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: missing return on a path" =
+  run_src "func f(n: i32) i32 { if n > 0 { return 1 } }";
+  [%expect {| TypeError: <test>:1:1: missing return in 'f' |}]
+
+let%expect_test "typecheck: if and else both return ok" =
+  run_src
+    "func f(n: i32) i32 { if n > 0 { return 1 } else { return 0 } }";
+  [%expect {| ok |}]
