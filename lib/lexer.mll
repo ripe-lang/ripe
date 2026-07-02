@@ -23,7 +23,7 @@ let last_token : Tokens.token option ref = ref None
 
 let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING_END
-  | TRUE | FALSE | NULL
+  | TRUE | FALSE | NULL | UNDEFINED
   | BREAK | CONTINUE | RETURN
   | RPAREN | RBRACE | RBRACKET -> true
   | _ -> false
@@ -90,6 +90,7 @@ and read_main = parse
       | "public"   -> PUBLIC
       | "func"     -> FUNC
       | "type"     -> TYPE
+      | "undefined" -> UNDEFINED
       | _          -> IDENT s
     }
   | "==" { EQ }

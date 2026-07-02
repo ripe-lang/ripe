@@ -78,6 +78,7 @@ let rec dump_expr (e : Ripe.Ast.expr) =
       ^ String.concat "" (List.map (fun e -> " " ^ dump_expr e) elems)
       ^ ")"
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
+  | Undefined -> "undefined"
 
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =

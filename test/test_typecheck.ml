@@ -803,3 +803,14 @@ let%expect_test "typecheck: var without type or value cannot infer" =
     <test>:1:12: warning: 'x' declared but never used
     TypeError: <test>:1:12: cannot infer type of 'x'
     |}]
+
+let%expect_test "typecheck: undefined without type cannot infer" =
+  run_src "func f() { var x = undefined }";
+  [%expect {|
+    <test>:1:20: warning: 'x' declared but never used
+    TypeError: <test>:1:20: cannot infer type of undefined
+    |}]
+
+let%expect_test "typecheck: undefined with type ok" =
+  run_src "func f() i32 { var x: i32 = undefined return x }";
+  [%expect {| ok |}]

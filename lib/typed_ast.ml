@@ -28,6 +28,7 @@ and texpr =
   | TSliceExpr of texpr * texpr * texpr * ty
   | TDataPtr of texpr * ty
   | TZero of ty
+  | TUndef of ty
 
 type tstmt =
   | TConst of string * ty * texpr
@@ -90,3 +91,4 @@ let ty_of_texpr (e : texpr) : ty =
   | TSliceExpr (_, _, _, t) -> t
   | TDataPtr (_, t) -> t
   | TZero t -> t
+  | TUndef t -> t

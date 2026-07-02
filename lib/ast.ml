@@ -91,6 +91,7 @@ and expr_desc =
   | InterpString of interp_part list
   | ArrayLit of expr list
   | Index of expr * expr
+  | Undefined
 [@@deriving show]
 
 and expr = { desc : expr_desc; span : span } [@@deriving show]
