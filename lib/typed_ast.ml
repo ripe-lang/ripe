@@ -86,7 +86,7 @@ let ty_of_texpr (e : texpr) : ty =
   | TInterpString _ -> TPointer (TInt I8)
   | TArrayLit (_, t) -> t
   | TIndex (_, _, t) -> t
-  | TLen _ -> TInt I64
+  | TLen _ -> TInt Usize
   | TToSlice (_, t) -> t
   | TSliceExpr (_, _, _, t) -> t
   | TDataPtr (_, t) -> t

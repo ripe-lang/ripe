@@ -492,7 +492,7 @@ func f() {
 let%expect_test "codegen: array len is a constant" =
   run_codegen
     {|
-func f() i64 {
+func f() usize {
   var a: [4]i32 = [1, 2, 3, 4]
   return a.len
 }
@@ -891,7 +891,7 @@ func f() i32 {
 let%expect_test "codegen: slice len loads from fat pointer" =
   run_codegen
     {|
-func f() i64 {
+func f() usize {
   var a: [3]i32 = [1, 2, 3]
   const s: []i32 = a[0..3]
   return s.len

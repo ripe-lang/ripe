@@ -10,7 +10,8 @@ let qbe_ty (t : ty) : string =
   match t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
   (* FIXME(d969): Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "l"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct _ | TArray _ | TSlice _ -> "l"
@@ -18,14 +19,14 @@ let qbe_ty (t : ty) : string =
 
 (* Returns "u" for unsigned integer types, "s" for signed/other *)
 let signedness (t : ty) : string =
-  match t with TInt (U8 | U16 | U32 | U64) -> "u" | _ -> "s"
+  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> "u" | _ -> "s"
 
 (* byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
   | I8 | U8 -> 1
   | I16 | U16 -> 2
   | I32 | U32 -> 4
-  | I64 | U64 -> 8
+  | I64 | U64 | Isize | Usize -> 8
 
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
@@ -83,7 +84,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
 (* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =
   match t with
-  | TInt (I64 | U64)
+  | TInt (I64 | U64 | Isize | Usize)
   | TFloat F64
   | TPointer _ | TNull | TCStr | TStruct _ | TFunc _ ->
       "alloc8"
@@ -99,7 +100,8 @@ let qbe_load (t : ty) : string =
   | TInt U16 -> "loaduh"
   | TInt I32 -> "loadsw"
   | TInt U32 -> "loaduw"
-  | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "loadl"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
@@ -110,7 +112,8 @@ let qbe_store (t : ty) : string =
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
-  | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "storel"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
@@ -917,7 +920,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TInt (I16 | U16) -> "h"
   | TInt (I32 | U32) -> "w"
   (* null is a pointer no type but all pointers are 64-bit *)
-  | TInt (I64 | U64) | TPointer _ | TNull | TCStr | TFunc _ -> "l"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct sn -> ":" ^ sn

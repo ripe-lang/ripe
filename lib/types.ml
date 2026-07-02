@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64
+type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 [@@deriving show { with_path = false }]
 
 type float_kind = F32 | F64 [@@deriving show { with_path = false }]
@@ -28,6 +28,8 @@ let rec show_ty = function
   | TInt U16 -> "u16"
   | TInt U32 -> "u32"
   | TInt U64 -> "u64"
+  | TInt Isize -> "isize"
+  | TInt Usize -> "usize"
   | TFloat F32 -> "f32"
   | TFloat F64 -> "f64"
   | TBool -> "bool"

@@ -144,6 +144,8 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named "u16" -> TInt U16
   | Named "u32" -> TInt U32
   | Named "u64" -> TInt U64
+  | Named "isize" -> TInt Isize
+  | Named "usize" -> TInt Usize
   | Named "f32" -> TFloat F32
   | Named "f64" -> TFloat F64
   | Named "bool" -> TBool
@@ -266,6 +268,7 @@ let is_lvalue (te : Typed_ast.texpr) : bool =
 let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
 let is_ordered = function TInt _ | TFloat _ -> true | _ -> false
 let is_integer = function TInt _ -> true | _ -> false
+let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
 (* Figure out the type*)
 let rec synth (env : env) (e : expr) : Typed_ast.texpr =
@@ -335,11 +338,7 @@ let rec synth (env : env) (e : expr) : Typed_ast.texpr =
               let inclusive =
                 match idx.desc with RangeInclusive _ -> true | _ -> false
               in
-              let tlo = synth env lo in
-              let lt = Typed_ast.ty_of_texpr tlo in
-              if not (is_integer lt) then
-                add_error env "slice bounds must be integers";
-              let thi = check env hi lt in
+              let tlo, thi, lt = check_range_bounds env lo hi in
               let thi =
                 if inclusive then
                   Typed_ast.TBinOp (Ast.Add, thi, Typed_ast.TInt (1, lt), lt)
@@ -417,6 +416,24 @@ and check (env : env) (e : expr) (want : ty) : Typed_ast.texpr =
         (* materialize the fat pointer when a fixed array coerces to a slice *)
         | TSlice _, TArray _ -> Typed_ast.TToSlice (te, want)
         | _ -> te)
+
+and check_range_bounds (env : env) (lo : expr) (hi : expr) =
+  let tlo, thi, t =
+    (* lone literal on the left, typed on the right: bend the literal to hi *)
+    if is_int_literal lo && not (is_int_literal hi) then
+      (* Printf.eprintf "range: branch 1 (bend literal lo to hi)\n"; *)
+      let thi = synth env hi in
+      let t = Typed_ast.ty_of_texpr thi in
+      (check env lo t, thi, t)
+    (* otherwise anchor on lo and check hi against it (also covers two literals) *)
+      else
+      (* Printf.eprintf "range: branch 2 (anchor on lo)\n"; *)
+      let tlo = synth env lo in
+      let t = Typed_ast.ty_of_texpr tlo in
+      (tlo, check env hi t, t)
+  in
+  if not (is_integer t) then add_error env "range bounds must be integers";
+  (tlo, thi, t)
 
 and check_args (env : env) (sig_ : func_sig) (args : expr list) :
     Typed_ast.texpr list =
@@ -630,11 +647,7 @@ let rec check_stmt (env : env) (s : stmt) : env * Typed_ast.tstmt =
       let titer, elem_ty =
         match iter.desc with
         | Range (lo, hi) | RangeInclusive (lo, hi) ->
-            let tlo = synth env lo in
-            let t = Typed_ast.ty_of_texpr tlo in
-            if not (is_integer t) then
-              add_error env "range bounds must be integers";
-            let thi = check env hi t in
+            let tlo, thi, t = check_range_bounds env lo hi in
             let node =
               match iter.desc with
               | RangeInclusive _ -> Typed_ast.TRangeInclusive (tlo, thi)

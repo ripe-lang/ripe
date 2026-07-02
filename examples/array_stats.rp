@@ -21,7 +21,7 @@ func main() i32 {
   var scores: [5]i32 = [30, 10, 50, 20, 40]
 
   # In-place scaling with a compound assignment on an element.
-  for i in 0..scores.len as i32 {
+  for i in 0..scores.len {
     scores[i] += 1
   }
 
