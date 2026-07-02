@@ -910,7 +910,9 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* TODO(978e): Emit implicit return for non-void functions where the last expression is the return value. *)
   if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
-    else if tfd.ret_ty = TVoid then emit ctx "    ret\n";
+    else if tfd.ret_ty = TVoid then emit ctx "    ret\n"
+      (* unreachable, but QBE needs every block terminated *)
+    else emit ctx "    hlt\n";
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"
 
