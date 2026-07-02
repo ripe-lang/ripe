@@ -7,7 +7,7 @@ func main() i32 {
 
   # Skip the zero init
   var buf: [4]u8 = undefined
-  for i in 0..buf.len as i32 {
+  for i in 0..buf.len {
     buf[i] = i as u8
   }
 

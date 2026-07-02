@@ -502,13 +502,13 @@ let%expect_test "typecheck: index result type" =
   run_src "func f() i32 { var a: [2]i32 = [1, 2] return a[0] }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: len is i64" =
-  run_src "func f() i64 { var a: [2]i32 = [1, 2] return a.len }";
+let%expect_test "typecheck: len is usize" =
+  run_src "func f() usize { var a: [2]i32 = [1, 2] return a.len }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: len mismatched with i32" =
   run_src "func f() i32 { var a: [2]i32 = [1, 2] return a.len }";
-  [%expect {| TypeError: <test>:1:46: expected i32 but found i64 |}]
+  [%expect {| TypeError: <test>:1:46: expected i32 but found usize |}]
 
 let%expect_test "typecheck: array no such field" =
   run_src "func f() { var a: [2]i32 = [1, 2] a.foo }";
@@ -522,7 +522,7 @@ let%expect_test "typecheck: index element assign type mismatch" =
   run_src "func f() { var a: [2]i32 = [1, 2] a[0] = true }";
   [%expect {| TypeError: <test>:1:42: expected i32 but found bool |}]
 
-let%expect_test "typecheck: for over range ok" =
+let%expect_test "typecheck: for over range ok (branch 2)" =
   run_src "func f() { for i in 0..5 { const x = i } }";
   [%expect
     {|
@@ -530,7 +530,7 @@ let%expect_test "typecheck: for over range ok" =
     ok
     |}]
 
-let%expect_test "typecheck: for over inclusive range ok" =
+let%expect_test "typecheck: for over inclusive range ok (branch 2)" =
   run_src "func f() { for i in 0..=5 { const x = i } }";
   [%expect
     {|
@@ -574,16 +574,16 @@ let%expect_test "typecheck: for over non-iterable" =
     TypeError: <test>:1:21: cannot iterate over type 'i32'
     |}]
 
-let%expect_test "typecheck: range bounds must be integers" =
+let%expect_test "typecheck: range bounds must be integers (branch 2)" =
   run_src "func f() { for i in true..5 { const x = i } }";
   [%expect
     {|
     <test>:1:41: warning: 'x' declared but never used
-    TypeError: <test>:1:21: range bounds must be integers
     TypeError: <test>:1:27: expected bool but found i32
+    TypeError: <test>:1:27: range bounds must be integers
     |}]
 
-let%expect_test "typecheck: range bound type mismatch" =
+let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
   run_src {|
 func f() {
   const n: i64 = 5
@@ -593,7 +593,60 @@ func f() {
   [%expect
     {|
     <test>:4:29: warning: 'x' declared but never used
-    TypeError: <test>:4:15: expected i32 but found i64
+    ok
+    |}]
+
+let%expect_test "typecheck: range over len needs no cast (branch 1)" =
+  run_src
+    {|
+func f() {
+  var a: [4]i32 = [1, 2, 3, 4]
+  for i in 0..a.len { a[i] = 0 }
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test
+    "typecheck: typed left endpoint bends the literal right (branch 2)" =
+  run_src {|
+func f() {
+  const n: i64 = 5
+  for i in n..10 { const x = i }
+}
+|};
+  [%expect
+    {|
+    <test>:4:30: warning: 'x' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: slice bound over len needs no cast (branch 1)" =
+  run_src
+    {|
+func f() {
+  var a: [4]i32 = [1, 2, 3, 4]
+  const s: []i32 = a[0..a.len]
+}
+|};
+  [%expect
+    {|
+    <test>:4:22: warning: 's' declared but never used
+    ok
+    |}]
+
+let%expect_test "typecheck: two typed endpoints still must match (branch 2)" =
+  run_src
+    {|
+func f() {
+  const m: i32 = 0
+  const n: i64 = 5
+  for i in m..n { const x = i }
+}
+|};
+  [%expect
+    {|
+    <test>:5:29: warning: 'x' declared but never used
+    TypeError: <test>:5:15: expected i32 but found i64
     |}]
 
 let%expect_test "typecheck: break inside for" =
@@ -660,24 +713,24 @@ func f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: inclusive range slice ok" =
+let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
     "func f() i32 { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..=2] return \
      s[2] }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: slice bounds must be integers" =
+let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
   run_src "func f() { var a: [3]i32 = [1,2,3] const s: []i32 = a[true..2] }";
   [%expect
     {|
     <test>:1:61: warning: 's' declared but never used
-    TypeError: <test>:1:55: slice bounds must be integers
     TypeError: <test>:1:61: expected bool but found i32
+    TypeError: <test>:1:61: range bounds must be integers
     |}]
 
-let%expect_test "typecheck: slice .len is i64" =
+let%expect_test "typecheck: slice .len is usize" =
   run_src
-    "func f() i64 { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..3] return \
+    "func f() usize { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..3] return \
      s.len }";
   [%expect {| ok |}]
 

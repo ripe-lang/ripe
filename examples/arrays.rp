@@ -18,7 +18,7 @@ func main() i32 {
 
   # for over a range.
   var doubled: i32 = 0
-  for i in 0..a.len as i32 {
+  for i in 0..a.len {
     doubled += a[i] * 2
   }
 

@@ -1,9 +1,9 @@
 # Linear search over a slice: returns the index of `target`, or -1 if absent.
 # Works on any array length because slices are fat pointers (ptr + len).
 func index_of(xs: []i32, target: i32) i32 {
-  for i in 0..xs.len as i32 {
+  for i in 0..xs.len {
     if xs[i] == target {
-      return i
+      return i as i32
     }
   }
   return -1
