@@ -1275,12 +1275,11 @@ func sign(n: i32) i32 {
         %t3 =w csltw %t2, 0
         jnz %t3, @if.then1_0, @if.cond1_1
     @if.then1_0
-        %t4 =w neg 1
-        ret %t4
+        ret -1
     @if.cond1_1
-        %t5 =w loadsw %n
-        %t6 =w csgtw %t5, 0
-        jnz %t6, @if.then1_1, @if.else1
+        %t4 =w loadsw %n
+        %t5 =w csgtw %t4, 0
+        jnz %t5, @if.then1_1, @if.else1
     @if.then1_1
         ret 1
     @if.else1

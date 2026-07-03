@@ -422,6 +422,9 @@ and check (env : env) (e : expr) (want : ty) : T.texpr =
           add_error env
             (Printf.sprintf "expected %s but found f64" (show_ty want));
           T.mk (TFloat F64) (T.TFloat f))
+  | UnOp (Neg, { desc = Int n; _ }) -> check env { e with desc = Int (-n) } want
+  | UnOp (Neg, { desc = Float f; _ }) ->
+      check env { e with desc = Float (-.f) } want
   | ArrayLit elems -> (
       match want with
       | TArray (elem, n) ->
