@@ -17,7 +17,8 @@ type typ_desc =
   | Array of int * typ
   | Slice of typ
 
-and typ = { tdesc : typ_desc; span : span } [@@deriving show]
+and typ = { tdesc : typ_desc; span : span }
+[@@deriving show { with_path = false }]
 
 type binop =
   | Add
@@ -43,7 +44,7 @@ type binop =
   | SubAssign
   | MulAssign
   | DivAssign
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 let show_binop_sym = function
   | Add -> "+"
@@ -70,9 +71,11 @@ let show_binop_sym = function
   | MulAssign -> "*="
   | DivAssign -> "/="
 
-type unop = Neg | Not | BitNot | Deref | AddressOf [@@deriving show]
+type unop = Neg | Not | BitNot | Deref | AddressOf
+[@@deriving show { with_path = false }]
 
-type interp_part = Lit of string | Interp of expr [@@deriving show]
+type interp_part = Lit of string | Interp of expr
+[@@deriving show { with_path = false }]
 
 and expr_desc =
   | Int of int
@@ -95,9 +98,10 @@ and expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
-and expr = { desc : expr_desc; span : span } [@@deriving show]
+and expr = { desc : expr_desc; span : span }
+[@@deriving show { with_path = false }]
 
 (* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt_desc =
@@ -111,14 +115,16 @@ type stmt_desc =
   | Continue
   | Expr of expr
   | Block of stmt list
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
-and stmt = { sdesc : stmt_desc; span : span } [@@deriving show]
+and stmt = { sdesc : stmt_desc; span : span }
+[@@deriving show { with_path = false }]
 
-type modifier = Pub | Inline [@@deriving show]
+type modifier = Pub | Inline [@@deriving show { with_path = false }]
 
 (* kept separate for distinction *)
-type param = { name : string; typ : typ; span : span } [@@deriving show]
+type param = { name : string; typ : typ; span : span }
+[@@deriving show { with_path = false }]
 
 type field = {
   name : string;
@@ -126,7 +132,7 @@ type field = {
   modifiers : modifier list;
   span : span;
 }
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 type func_def = {
   name : string;
@@ -137,7 +143,7 @@ type func_def = {
   variadic : bool;
   span : span;
 }
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 type struct_def = {
   name : string;
@@ -145,7 +151,7 @@ type struct_def = {
   modifiers : modifier list;
   span : span;
 }
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 type global_def = {
   name : string;
@@ -154,10 +160,10 @@ type global_def = {
   is_const : bool;
   span : span;
 }
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 type type_alias_def = { name : string; typ : typ; span : span }
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 type decl =
   | Func of func_def
@@ -165,6 +171,6 @@ type decl =
   | Extern of func_def
   | Global of global_def
   | TypeAlias of type_alias_def
-[@@deriving show]
+[@@deriving show { with_path = false }]
 
 let decl_to_string = show_decl
