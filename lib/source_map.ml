@@ -38,3 +38,15 @@ let span_to_locs t (span : Ast.span) =
   let start_line, start_col = lookup t span.lo in
   let end_line, end_col = lookup t span.hi in
   (start_line, start_col, end_line, end_col)
+
+(* byte offsets of the line containing pos, newline excluded *)
+let line_bounds t pos =
+  let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
+  let start = t.line_starts.(i) in
+  let stop =
+    if i + 1 < Array.length t.line_starts then t.line_starts.(i + 1) - 1
+    else
+      let len = String.length t.src in
+      if len > start && t.src.[len - 1] = '\n' then len - 1 else len
+  in
+  (start, stop)
