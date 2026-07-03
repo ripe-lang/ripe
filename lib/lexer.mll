@@ -102,10 +102,10 @@ and read_main st = parse
   | ';'  { SEMI }
   | '='  { ASSIGN }
   | '('  { st.paren_depth <- st.paren_depth + 1; LPAREN }
-  | ')'  { st.paren_depth <- st.paren_depth - 1; RPAREN }
+  | ')'  { st.paren_depth <- max 0 (st.paren_depth - 1); RPAREN }
   (* brackets bump paren_depth so array literals can span lines *)
   | '['  { st.paren_depth <- st.paren_depth + 1; LBRACKET }
-  | ']'  { st.paren_depth <- st.paren_depth - 1; RBRACKET }
+  | ']'  { st.paren_depth <- max 0 (st.paren_depth - 1); RBRACKET }
   | '{'  { if st.in_interp then
              st.interp_brace_depth <- st.interp_brace_depth + 1;
            LBRACE }
