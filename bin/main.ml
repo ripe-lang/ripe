@@ -34,21 +34,12 @@ let die msg =
   Printf.eprintf "ripec: %s\n" msg;
   exit 2
 
-let read_file filename =
-  let ic = open_in filename in
-  let n = in_channel_length ic in
-  let src = Bytes.create n in
-  really_input ic src 0 n;
-  close_in ic;
-  Bytes.to_string src
+let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 (* write to -o if set, else stdout *)
 let output_text s =
   if !out = "" then print_string s
-  else
-    let oc = open_out !out in
-    output_string oc s;
-    close_out oc
+  else Out_channel.with_open_text !out (fun oc -> output_string oc s)
 
 let dump_tokens lexbuf =
   let buf = Buffer.create 256 in
