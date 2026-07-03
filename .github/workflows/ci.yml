@@ -44,7 +44,7 @@ jobs:
       - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune runtest
         env:
-          QBE: ${{ github.workspace }}/vendor/qbe/obj/qbe
+          QBE: ${{ github.workspace }}/vendor/qbe/qbe
 
   build:
     runs-on: ubuntu-latest
