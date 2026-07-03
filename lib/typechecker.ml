@@ -136,29 +136,18 @@ let lookup_struct (env : env) (name : string) : struct_info =
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
-  | Named "i8" -> TInt I8
-  | Named "i16" -> TInt I16
-  | Named "i32" -> TInt I32
-  | Named "i64" -> TInt I64
-  | Named "u8" -> TInt U8
-  | Named "u16" -> TInt U16
-  | Named "u32" -> TInt U32
-  | Named "u64" -> TInt U64
-  | Named "isize" -> TInt Isize
-  | Named "usize" -> TInt Usize
-  | Named "f32" -> TFloat F32
-  | Named "f64" -> TFloat F64
-  | Named "bool" -> TBool
-  | Named "cstr" -> TCStr
   | Named name -> (
-      if Hashtbl.mem env.structs name then TStruct name
-      else
-        match Hashtbl.find_opt env.aliases name with
-        | Some aliased -> aliased
-        | None ->
-            env.current_span := t.span;
-            add_error env ("undefined type '" ^ name ^ "'");
-            TInt I32)
+      match List.assoc_opt name builtin_tys with
+      | Some bt -> bt
+      | None -> (
+          if Hashtbl.mem env.structs name then TStruct name
+          else
+            match Hashtbl.find_opt env.aliases name with
+            | Some aliased -> aliased
+            | None ->
+                env.current_span := t.span;
+                add_error env ("undefined type '" ^ name ^ "'");
+                TInt I32))
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (n, t) -> TArray (ty_of_ast env t, n)
   | Slice t -> TSlice (ty_of_ast env t)
