@@ -175,6 +175,12 @@ let rec compatible (want : ty) (got : ty) : bool =
       && compatible r1 r2
   | _ -> want = got
 
+(* main implicitly returns i32 for the C runtime, everything else void *)
+let ret_ty_of (env : env) (fd : func_def) : ty =
+  match fd.ret with
+  | Some t -> ty_of_ast env t
+  | None -> if fd.name = "main" then TInt I32 else TVoid
+
 (* First pass collecting signatures so that the compiler
    can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
@@ -191,12 +197,7 @@ let collect_func (env : env) (fd : func_def) : unit =
       fd.params
   in
 
-  (* Default to void, except main implicitly returns i32 for the C runtime *)
-  let ret_ty =
-    match fd.ret with
-    | Some t -> ty_of_ast env t
-    | None -> if fd.name = "main" then TInt I32 else TVoid
-  in
+  let ret_ty = ret_ty_of env fd in
   (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
 
   (* FIXME(79e6): Check for duplicate function/extern definitions. Need to fix
@@ -703,11 +704,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     List.map (fun (p : param) -> (p.name, ty_of_ast env p.typ)) fd.params
   in
 
-  let ret_ty =
-    match fd.ret with
-    | Some t -> ty_of_ast env t
-    | None -> if fd.name = "main" then TInt I32 else TVoid
-  in
+  let ret_ty = ret_ty_of env fd in
 
   let func_env = push_scope { env with ret_ty } in
   (* params pre-marked used so they don't warn *)
