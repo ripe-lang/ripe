@@ -66,32 +66,9 @@ and read_main = parse
   | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {
-      match s with
-      | "const"  -> CONST
-      | "var"    -> VAR
-      | "return" -> RETURN
-      | "if"     -> IF
-      | "elseif" -> ELSEIF
-      | "else"   -> ELSE
-      | "while"  -> WHILE
-      | "for"    -> FOR
-      | "in"     -> IN
-      | "true"     -> TRUE
-      | "false"    -> FALSE
-      | "break"    -> BREAK
-      | "continue" -> CONTINUE
-      | "as"       -> AS
-      | "sizeof"   -> SIZEOF
-      | "null"     -> NULL
-      | "extern"   -> EXTERN
-      | "struct"   -> STRUCT
-      (* FIXME: I don't know if I like "inline" something feels weird *)
-      | "inline"   -> INLINE
-      | "public"   -> PUBLIC
-      | "func"     -> FUNC
-      | "type"     -> TYPE
-      | "undefined" -> UNDEFINED
-      | _          -> IDENT s
+      match lookup_keyword s with
+      | Some t -> t
+      | None -> IDENT s
     }
   | "==" { EQ }
   | "!=" { NEQ }
