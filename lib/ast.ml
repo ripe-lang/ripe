@@ -98,7 +98,7 @@ and expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of string * (string * expr) list
+  | StructLit of string * (string * span * expr) list
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
