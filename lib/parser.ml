@@ -533,13 +533,18 @@ and parse_for st =
   let body = parse_block st in
   mks lo st (For (name, iter, body))
 
-(* func add(a: i32, b: i32) i32 { return a + b } *)
-let parse_func st mods =
-  let lo = cur_pos st in
+(* func NAME(params) ret *)
+let parse_signature st =
   expect st FUNC;
   let name = expect_ident st in
   let params, variadic = parse_params st in
   let ret = parse_ret_type st in
+  (name, params, ret, variadic)
+
+(* func add(a: i32, b: i32) i32 { ... } *)
+let parse_func st mods =
+  let lo = cur_pos st in
+  let name, params, ret, variadic = parse_signature st in
   skip_semi st;
   let body = parse_block st in
   let hi = cur_pos st in
@@ -581,10 +586,7 @@ let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
-  expect st FUNC;
-  let name = expect_ident st in
-  let params, variadic = parse_params st in
-  let ret = parse_ret_type st in
+  let name, params, ret, variadic = parse_signature st in
   let hi = cur_pos st in
   skip_semi st;
   Extern
