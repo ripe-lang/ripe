@@ -51,12 +51,15 @@ let output_text s =
     close_out oc
 
 let dump_tokens lexbuf =
+  let buf = Buffer.create 256 in
   let rec loop () =
     let t = Ripe.Lexer.read lexbuf in
-    print_endline (Ripe.Tokens.show_token t);
+    Buffer.add_string buf (Ripe.Tokens.show_token t);
+    Buffer.add_char buf '\n';
     if t <> Ripe.Tokens.EOF then loop ()
   in
-  loop ()
+  loop ();
+  Buffer.contents buf
 
 let parse lexbuf =
   match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
@@ -113,21 +116,26 @@ let compile filename =
   Lexing.set_filename lexbuf abs_filename;
   Ripe.Lexer.reset ();
   match !stage with
-  | Tokens -> dump_tokens lexbuf
+  | Tokens -> output_text (dump_tokens lexbuf)
   | _ -> (
       let decls = parse lexbuf in
       match !stage with
       | Tokens -> assert false
-      | Ast -> List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
+      | Ast ->
+          output_text
+            (String.concat "\n"
+               (List.map (fun d -> Ripe.Ast.show_decl d) decls)
+            ^ "\n")
       | _ -> (
           let tdecls = typecheck abs_filename src decls in
           match !stage with
           | Tokens | Ast -> assert false
-          | Check -> print_endline "typecheck: ok"
+          | Check -> output_text "typecheck: ok\n"
           | Tast ->
-              List.iter
-                (fun d -> print_endline (Ripe.Typed_ast.show_tdecl d))
-                tdecls
+              output_text
+                (String.concat "\n"
+                   (List.map (fun d -> Ripe.Typed_ast.show_tdecl d) tdecls)
+                ^ "\n")
           | _ -> (
               let il = Ripe.Codegen.emit_qbe tdecls in
               match !stage with
