@@ -344,6 +344,7 @@ let rec synth (env : env) (e : expr) : T.texpr =
       | t ->
           add_error env ("cannot index type '" ^ show_ty t ^ "'");
           dummy_texpr)
+  | InterpString [] -> T.mk (TPointer (TInt I8)) (T.TCStr "")
   | InterpString [ Lit s ] -> T.mk (TPointer (TInt I8)) (T.TCStr s)
   | InterpString parts ->
       let tparts =
