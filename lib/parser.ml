@@ -540,6 +540,7 @@ and parse_if st =
   let else_body =
     if st.tok = ELSE then begin
       advance st;
+      (* TODO: hint elseif *)
       skip_semi st;
       parse_block st
     end

@@ -971,3 +971,19 @@ const p: pt = pt { x: g(), y: 2 }
 |};
   [%expect
     {| TypeError: <test>:4:31: initializer for 'p' must be a constant expression |}]
+
+let%expect_test "typecheck: duplicate struct field" =
+  run_src {|
+struct pt { x: i32, x: i64 }
+|};
+  [%expect {| TypeError: <test>:2:21: duplicate field 'x' in struct 'pt' |}]
+
+let%expect_test "typecheck: three duplicate struct fields" =
+  run_src {|
+struct pt { x: i32, x: i64, x: bool }
+|};
+  [%expect
+    {|
+    TypeError: <test>:2:21: duplicate field 'x' in struct 'pt'
+    TypeError: <test>:2:29: duplicate field 'x' in struct 'pt'
+    |}]

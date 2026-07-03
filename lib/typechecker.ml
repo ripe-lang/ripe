@@ -220,6 +220,15 @@ let collect_struct (env : env) (sd : struct_def) : unit =
     let field_tys =
       List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
     in
+    let seen = Hashtbl.create 8 in
+    List.iter
+      (fun (f : field) ->
+        if Hashtbl.mem seen f.name then (
+          env.current_span := f.span;
+          add_error env
+            ("duplicate field '" ^ f.name ^ "' in struct '" ^ sd.name ^ "'"))
+        else Hashtbl.add seen f.name ())
+      sd.fields;
     Hashtbl.replace env.structs sd.name { field_tys }
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
