@@ -231,6 +231,7 @@ let%expect_test "codegen: if/else" =
         %t4 =w loadsw %a
         ret %t4
     @if.end1
+        hlt
     }
     |}]
 
@@ -1250,5 +1251,41 @@ func f() {
         %b =l alloc4 4
         storew 0, %b
         ret
+    }
+    |}]
+
+(* every branch returns, so the merge block is empty and needs a terminator *)
+let%expect_test "codegen: if where all paths return" =
+  run_codegen
+    {|
+func sign(n: i32) i32 {
+  if n < 0 { return -1 }
+  elseif n > 0 { return 1 }
+  else { return 0 }
+}
+|};
+  [%expect
+    {|
+    function w $sign(w %t0) {
+    @start
+        %n =l alloc4 4
+        storew %t0, %n
+    @if.cond1_0
+        %t2 =w loadsw %n
+        %t3 =w csltw %t2, 0
+        jnz %t3, @if.then1_0, @if.cond1_1
+    @if.then1_0
+        %t4 =w neg 1
+        ret %t4
+    @if.cond1_1
+        %t5 =w loadsw %n
+        %t6 =w csgtw %t5, 0
+        jnz %t6, @if.then1_1, @if.else1
+    @if.then1_1
+        ret 1
+    @if.else1
+        ret 0
+    @if.end1
+        hlt
     }
     |}]

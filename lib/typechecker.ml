@@ -698,7 +698,20 @@ and check_stmts (env : env) (stmts : stmt list) : env * Typed_ast.tstmt list =
   in
   (final_env, List.rev tstmts_reversed)
 
-let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
+(* every path through the stmts ends in a return *)
+let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
+
+and stmt_returns (s : stmt) : bool =
+  match s.sdesc with
+  | Return _ -> true
+  | Block body -> stmts_return body
+  | If (branches, else_body) ->
+      else_body <> [] && stmts_return else_body
+      && List.for_all (fun (_, body) -> stmts_return body) branches
+  | _ -> false
+
+let check_func ?(is_extern = false) (env : env) (fd : func_def) :
+    Typed_ast.tfunc_def =
   let params =
     List.map (fun (p : param) -> (p.name, ty_of_ast env p.typ)) fd.params
   in
@@ -717,9 +730,16 @@ let check_func (env : env) (fd : func_def) : Typed_ast.tfunc_def =
       func_env params
   in
 
-  (* TODO(932a): check all paths return for non-void functions *)
   let final_env, tbody = check_stmts param_env fd.body in
   pop_scope final_env;
+
+  if
+    (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
+    && not (stmts_return fd.body)
+  then begin
+    env.current_span := fd.span;
+    add_error env (Printf.sprintf "missing return in '%s'" fd.name)
+  end;
 
   {
     Typed_ast.name = fd.name;
@@ -769,7 +789,7 @@ let check_decl (env : env) (decl : decl) : Typed_ast.tdecl =
       let tfd = check_func env fd in
       Typed_ast.TFunc tfd
   | Extern fd ->
-      let tfd = check_func env fd in
+      let tfd = check_func ~is_extern:true env fd in
       Typed_ast.TExtern tfd
   | Struct sd ->
       env.current_span := sd.span;

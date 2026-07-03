@@ -18,6 +18,8 @@ jobs:
         OPAMROOTISOK: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: dorny/paths-filter@v3
         id: filter
@@ -38,7 +40,11 @@ jobs:
       - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune build @fmt
       - if: steps.filter.outputs.code == 'true'
+        run: make -C vendor/qbe
+      - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune runtest
+        env:
+          QBE: ${{ github.workspace }}/vendor/qbe/qbe
 
   build:
     runs-on: ubuntu-latest
