@@ -85,13 +85,15 @@ let run cmd =
     Printf.eprintf "ripec: command failed: %s\n" cmd;
     exit 1)
 
+let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
+
 let compile_binary base il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
   let oc = open_out tmp_qbe in
   output_string oc il;
   close_out oc;
-  run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
+  run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
   run (Printf.sprintf "cc -o %s %s" base tmp_asm);
   Sys.remove tmp_qbe;
   Sys.remove tmp_asm
@@ -102,7 +104,7 @@ let emit_asm il =
   let oc = open_out tmp_qbe in
   output_string oc il;
   close_out oc;
-  run (Printf.sprintf "qbe -o %s %s" tmp_asm tmp_qbe);
+  run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
   let asm = read_file tmp_asm in
   Sys.remove tmp_qbe;
   Sys.remove tmp_asm;
