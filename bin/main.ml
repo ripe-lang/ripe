@@ -125,8 +125,7 @@ let compile filename =
       | Tokens -> assert false
       | Ast ->
           output_text
-            (String.concat "\n"
-               (List.map (fun d -> Ripe.Ast.show_decl d) decls)
+            (String.concat "\n" (List.map (fun d -> Ripe.Ast.show_decl d) decls)
             ^ "\n")
       | _ -> (
           let tdecls = typecheck abs_filename src decls in
