@@ -41,10 +41,10 @@ let output_text s =
   if !out = "" then print_string s
   else Out_channel.with_open_text !out (fun oc -> output_string oc s)
 
-let dump_tokens lexbuf =
+let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
   let rec loop () =
-    let t = Ripe.Lexer.read lexbuf in
+    let t = read lexbuf in
     Buffer.add_string buf (Ripe.Tokens.show_token t);
     Buffer.add_char buf '\n';
     if t <> Ripe.Tokens.EOF then loop ()
@@ -52,8 +52,8 @@ let dump_tokens lexbuf =
   loop ();
   Buffer.contents buf
 
-let parse lexbuf =
-  match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
+let parse read lexbuf =
+  match Ripe.Parser.parse read lexbuf with
   | decls -> decls
   | exception Ripe.Parser.ParseErrors diags ->
       List.iter
@@ -104,11 +104,11 @@ let compile filename =
   let src = read_file filename in
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
-  Ripe.Lexer.reset ();
+  let read = Ripe.Lexer.read (Ripe.Lexer.make_state ()) in
   match !stage with
-  | Tokens -> output_text (dump_tokens lexbuf)
+  | Tokens -> output_text (dump_tokens read lexbuf)
   | _ -> (
-      let decls = parse lexbuf in
+      let decls = parse read lexbuf in
       match !stage with
       | Tokens -> assert false
       | Ast ->

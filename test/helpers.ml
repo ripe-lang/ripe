@@ -1,9 +1,9 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 let parse src =
-  Ripe.Lexer.reset ();
+  let st = Ripe.Lexer.make_state () in
   let lexbuf = Lexing.from_string src in
-  Ripe.Parser.parse Ripe.Lexer.read lexbuf
+  Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
 
 let run_src src =
   match parse src with
