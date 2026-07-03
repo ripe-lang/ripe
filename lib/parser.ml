@@ -416,10 +416,12 @@ and parse_struct_lit_fields st =
       skip_semi st;
       let fields = ref [] in
       while st.tok <> RBRACE do
+        let nlo = cur_pos st in
         let name = expect_ident st in
+        let nspan = { lo = nlo; hi = cur_pos st } in
         expect st COLON;
         let e = parse_expr st 1 in
-        fields := (name, e) :: !fields;
+        fields := (name, nspan, e) :: !fields;
         if st.tok = COMMA then advance st;
         skip_semi st
       done;
