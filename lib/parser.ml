@@ -54,6 +54,18 @@ let expect st t =
              (show_token st.tok) ))
   else advance st
 
+(* item (, item)* with an optional trailing comma before stop *)
+let comma_sep st stop parse_one =
+  let items = ref [] in
+  if st.tok <> stop then begin
+    items := [ parse_one () ];
+    while st.tok = COMMA do
+      advance st;
+      if st.tok <> stop then items := parse_one () :: !items
+    done
+  end;
+  List.rev !items
+
 let mk lo st desc =
   let hi = cur_pos st in
   { desc; span = { lo; hi } }
@@ -94,17 +106,7 @@ let rec parse_typ st =
         mkt lo st (Array (n, parse_typ st))
   | LPAREN ->
       advance st;
-      let params =
-        if st.tok = RPAREN then []
-        else begin
-          let acc = ref [ parse_typ st ] in
-          while st.tok = COMMA do
-            advance st;
-            acc := parse_typ st :: !acc
-          done;
-          List.rev !acc
-        end
-      in
+      let params = comma_sep st RPAREN (fun () -> parse_typ st) in
       expect st RPAREN;
       let ret =
         match st.tok with
@@ -115,20 +117,18 @@ let rec parse_typ st =
   | _ -> raise (ParseError (cur_lex_pos st, "expected type"))
 
 let parse_modifiers st =
-  let mods = ref [] in
-  let cont = ref true in
-  while !cont do
+  let rec go acc =
     match st.tok with
     | INLINE ->
         advance st;
-        mods := Ast.Inline :: !mods
+        go (Ast.Inline :: acc)
     (* TODO(74d8): not entirely sure yet. static? public? *)
     | PUBLIC ->
         advance st;
-        mods := Ast.Pub :: !mods
-    | _ -> cont := false
-  done;
-  List.rev !mods
+        go (Ast.Pub :: acc)
+    | _ -> List.rev acc
+  in
+  go []
 
 (* x: i32 *)
 let parse_fields st =
@@ -394,18 +394,7 @@ and parse_primary st =
       mk lo st Undefined
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
-and parse_comma_list st stop =
-  if st.tok = stop then []
-  else begin
-    let first = parse_expr st 1 in
-    let rest = ref [ first ] in
-    while st.tok = COMMA do
-      advance st;
-      (* allow a trailing comma before the closing token *)
-      if st.tok <> stop then rest := parse_expr st 1 :: !rest
-    done;
-    List.rev !rest
-  end
+and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
@@ -501,15 +490,17 @@ and parse_if st =
   let cond = parse_expr st 1 in
   skip_semi st;
   let body = parse_block st in
-  let elseifs = ref [] in
-  while st.tok = ELSEIF do
-    advance st;
-    let c = parse_expr st 1 in
-    skip_semi st;
-    let b = parse_block st in
-    (* collecting elseifs in order *)
-    elseifs := (c, b) :: !elseifs
-  done;
+  let rec parse_elseifs acc =
+    if st.tok = ELSEIF then begin
+      advance st;
+      let c = parse_expr st 1 in
+      skip_semi st;
+      let b = parse_block st in
+      parse_elseifs ((c, b) :: acc)
+    end
+    else List.rev acc
+  in
+  let elseifs = parse_elseifs [] in
   let else_body =
     if st.tok = ELSE then begin
       advance st;
@@ -518,7 +509,7 @@ and parse_if st =
     end
     else [] (* no else branch, uniform with body type *)
   in
-  mks lo st (If ((cond, body) :: List.rev !elseifs, else_body))
+  mks lo st (If ((cond, body) :: elseifs, else_body))
 
 (* while i < len { } *)
 and parse_while st =
@@ -542,13 +533,18 @@ and parse_for st =
   let body = parse_block st in
   mks lo st (For (name, iter, body))
 
-(* func add(a: i32, b: i32) i32 { return a + b } *)
-let parse_func st mods =
-  let lo = cur_pos st in
+(* func NAME(params) ret *)
+let parse_signature st =
   expect st FUNC;
   let name = expect_ident st in
   let params, variadic = parse_params st in
   let ret = parse_ret_type st in
+  (name, params, ret, variadic)
+
+(* func add(a: i32, b: i32) i32 { ... } *)
+let parse_func st mods =
+  let lo = cur_pos st in
+  let name, params, ret, variadic = parse_signature st in
   skip_semi st;
   let body = parse_block st in
   let hi = cur_pos st in
@@ -590,10 +586,7 @@ let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
-  expect st FUNC;
-  let name = expect_ident st in
-  let params, variadic = parse_params st in
-  let ret = parse_ret_type st in
+  let name, params, ret, variadic = parse_signature st in
   let hi = cur_pos st in
   skip_semi st;
   Extern
@@ -608,29 +601,21 @@ let parse_extern st =
     }
 
 let parse_decl st =
-  match st.tok with
-  | EXTERN -> parse_extern st
-  | STRUCT -> parse_struct st []
-  | FUNC -> parse_func st []
-  | CONST | VAR -> parse_global st
-  | TYPE -> parse_type_alias st
-  | PUBLIC | INLINE -> (
-      let mods = parse_modifiers st in
-      match st.tok with
-      | STRUCT -> parse_struct st mods
-      | FUNC -> parse_func st mods
-      | _ ->
-          raise
-            (ParseError
-               ( cur_lex_pos st,
-                 Printf.sprintf "expected declaration but found '%s'"
-                   (show_token st.tok) )))
-  | _ ->
-      raise
-        (ParseError
-           ( cur_lex_pos st,
-             Printf.sprintf "expected declaration but found '%s'"
-               (show_token st.tok) ))
+  let err () =
+    raise
+      (ParseError
+         ( cur_lex_pos st,
+           Printf.sprintf "expected declaration but found '%s'"
+             (show_token st.tok) ))
+  in
+  let mods = parse_modifiers st in
+  match (mods, st.tok) with
+  | _, STRUCT -> parse_struct st mods
+  | _, FUNC -> parse_func st mods
+  | [], EXTERN -> parse_extern st
+  | [], (CONST | VAR) -> parse_global st
+  | [], TYPE -> parse_type_alias st
+  | _ -> err ()
 
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =

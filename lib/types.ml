@@ -19,19 +19,22 @@ type ty =
   | TSlice of ty
 [@@deriving show { with_path = false }]
 
+let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
+let float_kinds = [ F32; F64 ]
+
+(* single source for builtin type names used by both parsing and printing *)
+let builtin_tys =
+  List.map
+    (fun k -> (String.lowercase_ascii (show_int_kind k), TInt k))
+    int_kinds
+  @ List.map
+      (fun k -> (String.lowercase_ascii (show_float_kind k), TFloat k))
+      float_kinds
+  @ [ ("bool", TBool); ("cstr", TCStr) ]
+
 let rec show_ty = function
-  | TInt I8 -> "i8"
-  | TInt I16 -> "i16"
-  | TInt I32 -> "i32"
-  | TInt I64 -> "i64"
-  | TInt U8 -> "u8"
-  | TInt U16 -> "u16"
-  | TInt U32 -> "u32"
-  | TInt U64 -> "u64"
-  | TInt Isize -> "isize"
-  | TInt Usize -> "usize"
-  | TFloat F32 -> "f32"
-  | TFloat F64 -> "f64"
+  | TInt k -> String.lowercase_ascii (show_int_kind k)
+  | TFloat k -> String.lowercase_ascii (show_float_kind k)
   | TBool -> "bool"
   | TCStr -> "cstr"
   | TVoid -> "void"

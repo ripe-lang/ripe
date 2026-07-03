@@ -172,3 +172,15 @@ let%expect_test "parse: multiline array literal" =
     <test>:4:5: warning: 'a' declared but never used
     ok
     |}]
+
+let%expect_test "parse: modifiers on func" =
+  run_src "public inline func f() {}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifier before non-func decl" =
+  run_src "public const X: i32 = 1";
+  [%expect {| ParseError: expected declaration but found 'const' |}]
+
+let%expect_test "parse: stray token at top level" =
+  run_src "return 1";
+  [%expect {| ParseError: expected declaration but found 'return' |}]

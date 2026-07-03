@@ -34,26 +34,17 @@ let die msg =
   Printf.eprintf "ripec: %s\n" msg;
   exit 2
 
-let read_file filename =
-  let ic = open_in filename in
-  let n = in_channel_length ic in
-  let src = Bytes.create n in
-  really_input ic src 0 n;
-  close_in ic;
-  Bytes.to_string src
+let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 (* write to -o if set, else stdout *)
 let output_text s =
   if !out = "" then print_string s
-  else
-    let oc = open_out !out in
-    output_string oc s;
-    close_out oc
+  else Out_channel.with_open_text !out (fun oc -> output_string oc s)
 
-let dump_tokens lexbuf =
+let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
   let rec loop () =
-    let t = Ripe.Lexer.read lexbuf in
+    let t = read lexbuf in
     Buffer.add_string buf (Ripe.Tokens.show_token t);
     Buffer.add_char buf '\n';
     if t <> Ripe.Tokens.EOF then loop ()
@@ -61,8 +52,8 @@ let dump_tokens lexbuf =
   loop ();
   Buffer.contents buf
 
-let parse lexbuf =
-  match Ripe.Parser.parse Ripe.Lexer.read lexbuf with
+let parse read lexbuf =
+  match Ripe.Parser.parse read lexbuf with
   | decls -> decls
   | exception Ripe.Parser.ParseErrors diags ->
       List.iter
@@ -87,26 +78,23 @@ let run cmd =
 
 let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
 
-let compile_binary base il =
+(* lower IL through qbe and return the emitted asm path *)
+let run_qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
-  let oc = open_out tmp_qbe in
-  output_string oc il;
-  close_out oc;
+  Out_channel.with_open_text tmp_qbe (fun oc -> output_string oc il);
   run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
-  run (Printf.sprintf "cc -o %s %s" base tmp_asm);
   Sys.remove tmp_qbe;
+  tmp_asm
+
+let compile_binary base il =
+  let tmp_asm = run_qbe il in
+  run (Printf.sprintf "cc -o %s %s" base tmp_asm);
   Sys.remove tmp_asm
 
 let emit_asm il =
-  let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
-  let tmp_asm = Filename.temp_file "ripe" ".s" in
-  let oc = open_out tmp_qbe in
-  output_string oc il;
-  close_out oc;
-  run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
+  let tmp_asm = run_qbe il in
   let asm = read_file tmp_asm in
-  Sys.remove tmp_qbe;
   Sys.remove tmp_asm;
   asm
 
@@ -116,11 +104,11 @@ let compile filename =
   let src = read_file filename in
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
-  Ripe.Lexer.reset ();
+  let read = Ripe.Lexer.read (Ripe.Lexer.make_state ()) in
   match !stage with
-  | Tokens -> output_text (dump_tokens lexbuf)
+  | Tokens -> output_text (dump_tokens read lexbuf)
   | _ -> (
-      let decls = parse lexbuf in
+      let decls = parse read lexbuf in
       match !stage with
       | Tokens -> assert false
       | Ast ->

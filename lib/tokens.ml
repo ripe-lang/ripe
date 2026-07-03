@@ -73,6 +73,36 @@ type token =
   | TYPE
   | UNDEFINED
 
+let keywords =
+  [
+    ("const", CONST);
+    ("var", VAR);
+    ("return", RETURN);
+    ("if", IF);
+    ("elseif", ELSEIF);
+    ("else", ELSE);
+    ("while", WHILE);
+    ("for", FOR);
+    ("in", IN);
+    ("true", TRUE);
+    ("false", FALSE);
+    ("break", BREAK);
+    ("continue", CONTINUE);
+    ("as", AS);
+    ("sizeof", SIZEOF);
+    ("null", NULL);
+    ("extern", EXTERN);
+    ("struct", STRUCT);
+    (* FIXME: I don't know if I like "inline" something feels weird *)
+    ("inline", INLINE);
+    ("public", PUBLIC);
+    ("func", FUNC);
+    ("type", TYPE);
+    ("undefined", UNDEFINED);
+  ]
+
+let lookup_keyword s = List.assoc_opt s keywords
+
 let show_token = function
   | INT n -> string_of_int n
   | FLOAT f -> string_of_float f
@@ -106,28 +136,7 @@ let show_token = function
   | MINUS_ASSIGN -> "-="
   | STAR_ASSIGN -> "*="
   | SLASH_ASSIGN -> "/="
-  | CONST -> "const"
-  | VAR -> "var"
-  | RETURN -> "return"
-  | IF -> "if"
-  | ELSEIF -> "elseif"
-  | ELSE -> "else"
-  | WHILE -> "while"
-  | FOR -> "for"
-  | IN -> "in"
-  | BREAK -> "break"
-  | CONTINUE -> "continue"
-  | STRUCT -> "struct"
-  | EXTERN -> "extern"
-  | INLINE -> "inline"
-  | PUBLIC -> "public"
-  | FUNC -> "func"
   | CARET -> "^"
-  | TRUE -> "true"
-  | FALSE -> "false"
-  | NULL -> "null"
-  | AS -> "as"
-  | SIZEOF -> "sizeof"
   | LPAREN -> "("
   | RPAREN -> ")"
   | LBRACE -> "{"
@@ -143,5 +152,7 @@ let show_token = function
   | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | TYPE -> "type"
-  | UNDEFINED -> "undefined"
+  | ( CONST | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN | TRUE
+    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
+    | PUBLIC | FUNC | TYPE | UNDEFINED ) as t ->
+      fst (List.find (fun (_, t') -> t' = t) keywords)

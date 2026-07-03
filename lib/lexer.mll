@@ -6,20 +6,30 @@ open Tokens
 let next_line lexbuf =
   Lexing.new_line lexbuf
 
-let buf = Buffer.create 64 (* auto buffer resize *)
+(* per lex session state so multiple lexbufs can be live at once *)
+type state = {
+  buf : Buffer.t; (* auto buffer resize *)
+  (* FIXME: fixes multiline expressions in () but
+    new error w/ newlines forever on unclosed parens *)
+  mutable paren_depth : int;
+  (* string interpolation state *)
+  mutable in_string : bool;
+  mutable in_interp : bool;
+  mutable interp_brace_depth : int;
+  token_queue : Tokens.token Queue.t;
+  (* trying to emulate go semicolons *)
+  mutable last_token : Tokens.token option;
+}
 
-(* FIXME: fixes multiline expressions in () but
-  new error w/ newlines forever on unclosed parens *)
-let paren_depth = ref 0
-
-(* string interpolation state *)
-let in_string = ref false
-let in_interp = ref false
-let interp_brace_depth = ref 0
-let token_queue : Tokens.token Queue.t = Queue.create ()
-
-(* trying to emulate go semicolons *)
-let last_token : Tokens.token option ref = ref None
+let make_state () = {
+  buf = Buffer.create 64;
+  paren_depth = 0;
+  in_string = false;
+  in_interp = false;
+  interp_brace_depth = 0;
+  token_queue = Queue.create ();
+  last_token = None;
+}
 
 let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING_END
@@ -27,14 +37,6 @@ let can_end_stmt = function
   | BREAK | CONTINUE | RETURN
   | RPAREN | RBRACE | RBRACKET -> true
   | _ -> false
-
-let reset () =
-  paren_depth := 0;
-  in_string := false;
-  in_interp := false;
-  interp_brace_depth := 0;
-  Queue.clear token_queue;
-  last_token := None
 }
 
 let digit   = ['0'-'9']
@@ -43,55 +45,32 @@ let alnum   = alpha | digit
 let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
-rule read = parse
+rule read st = parse
   | "" { let tok =
-           if not (Queue.is_empty token_queue) then
-             Queue.pop token_queue
-           else if !in_string && not !in_interp then
-             read_string lexbuf
+           if not (Queue.is_empty st.token_queue) then
+             Queue.pop st.token_queue
+           else if st.in_string && not st.in_interp then
+             read_string st lexbuf
            else
-             read_main lexbuf
+             read_main st lexbuf
          in
-         last_token := Some tok;
+         st.last_token <- Some tok;
          tok }
 
-and read_main = parse
-  | white              { read lexbuf }
-  | '#' [^ '\n' '\r']* { read lexbuf }
+and read_main st = parse
+  | white              { read st lexbuf }
+  | '#' [^ '\n' '\r']* { read st lexbuf }
   | newline            { next_line lexbuf;
-                         if !paren_depth > 0 then read lexbuf
-                         else match !last_token with
+                         if st.paren_depth > 0 then read st lexbuf
+                         else match st.last_token with
                               | Some t when can_end_stmt t -> SEMI
-                              | _ -> read lexbuf }
+                              | _ -> read st lexbuf }
   | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
   | digit+ as n        { INT (int_of_string n) }
   | alpha alnum* as s  {
-      match s with
-      | "const"  -> CONST
-      | "var"    -> VAR
-      | "return" -> RETURN
-      | "if"     -> IF
-      | "elseif" -> ELSEIF
-      | "else"   -> ELSE
-      | "while"  -> WHILE
-      | "for"    -> FOR
-      | "in"     -> IN
-      | "true"     -> TRUE
-      | "false"    -> FALSE
-      | "break"    -> BREAK
-      | "continue" -> CONTINUE
-      | "as"       -> AS
-      | "sizeof"   -> SIZEOF
-      | "null"     -> NULL
-      | "extern"   -> EXTERN
-      | "struct"   -> STRUCT
-      (* FIXME: I don't know if I like "inline" something feels weird *)
-      | "inline"   -> INLINE
-      | "public"   -> PUBLIC
-      | "func"     -> FUNC
-      | "type"     -> TYPE
-      | "undefined" -> UNDEFINED
-      | _          -> IDENT s
+      match lookup_keyword s with
+      | Some t -> t
+      | None -> IDENT s
     }
   | "==" { EQ }
   | "!=" { NEQ }
@@ -122,64 +101,66 @@ and read_main = parse
   | '.'  { DOT }
   | ';'  { SEMI }
   | '='  { ASSIGN }
-  | '('  { incr paren_depth; LPAREN }
-  | ')'  { decr paren_depth; RPAREN }
+  | '('  { st.paren_depth <- st.paren_depth + 1; LPAREN }
+  | ')'  { st.paren_depth <- st.paren_depth - 1; RPAREN }
   (* brackets bump paren_depth so array literals can span lines *)
-  | '['  { incr paren_depth; LBRACKET }
-  | ']'  { decr paren_depth; RBRACKET }
-  | '{'  { if !in_interp then incr interp_brace_depth;
+  | '['  { st.paren_depth <- st.paren_depth + 1; LBRACKET }
+  | ']'  { st.paren_depth <- st.paren_depth - 1; RBRACKET }
+  | '{'  { if st.in_interp then
+             st.interp_brace_depth <- st.interp_brace_depth + 1;
            LBRACE }
-  | '}'  { if !in_interp && !interp_brace_depth = 0 then begin
-             in_interp := false;
+  | '}'  { if st.in_interp && st.interp_brace_depth = 0 then begin
+             st.in_interp <- false;
              INTERP_END
            end else begin
-             if !in_interp then decr interp_brace_depth;
+             if st.in_interp then
+               st.interp_brace_depth <- st.interp_brace_depth - 1;
              RBRACE
            end }
   | ':'  { COLON }
   | ','  { COMMA }
   | '^'  { CARET }
   (* TODO: char literal *)
-  | '"'  { Buffer.clear buf;
-           in_string := true;
-           Queue.push STRING_START token_queue;
-           read_string lexbuf }
+  | '"'  { Buffer.clear st.buf;
+           st.in_string <- true;
+           Queue.push STRING_START st.token_queue;
+           read_string st lexbuf }
   | eof  { EOF }
   | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
 
 
 (* TODO: pass buffer as param instead of global and handle illegal escape *)
-and read_string = parse
-  | '"'  { if Buffer.length buf > 0 then begin
-             Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
-             Buffer.clear buf
+and read_string st = parse
+  | '"'  { if Buffer.length st.buf > 0 then begin
+             Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;
+             Buffer.clear st.buf
            end;
-           in_string := false;
-           Queue.push STRING_END token_queue;
-           Queue.pop token_queue }
-  | "{{" { Buffer.add_char buf '{'; read_string lexbuf }
-  | "}}" { Buffer.add_char buf '}'; read_string lexbuf }
-  | '{'  { if Buffer.length buf > 0 then begin
-              Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
-              Buffer.clear buf
+           st.in_string <- false;
+           Queue.push STRING_END st.token_queue;
+           Queue.pop st.token_queue }
+  | "{{" { Buffer.add_char st.buf '{'; read_string st lexbuf }
+  | "}}" { Buffer.add_char st.buf '}'; read_string st lexbuf }
+  | '{'  { if Buffer.length st.buf > 0 then begin
+              Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;
+              Buffer.clear st.buf
             end;
-            Queue.push INTERP_START token_queue;
-            in_interp := true;
-            interp_brace_depth := 0;
-            Queue.pop token_queue }
-  | '\\' 'n'      { Buffer.add_char buf '\n'; read_string lexbuf }
-  | '\\' 't'      { Buffer.add_char buf '\t'; read_string lexbuf }
-  | '\\' '\\'     { Buffer.add_char buf '\\'; read_string lexbuf }
-  | '\\' '"'      { Buffer.add_char buf '"';  read_string lexbuf }
-  | [^ '"' '\\' '{' '}']+  { Buffer.add_string buf (Lexing.lexeme lexbuf); read_string lexbuf }
+            Queue.push INTERP_START st.token_queue;
+            st.in_interp <- true;
+            st.interp_brace_depth <- 0;
+            Queue.pop st.token_queue }
+  | '\\' 'n'      { Buffer.add_char st.buf '\n'; read_string st lexbuf }
+  | '\\' 't'      { Buffer.add_char st.buf '\t'; read_string st lexbuf }
+  | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
+  | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
+  | [^ '"' '\\' '{' '}']+  { Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
   (* recover so the parser sees a closed string plus an error *)
-  | eof  { if Buffer.length buf > 0 then begin
-             Queue.push (STRING_PART (Buffer.contents buf)) token_queue;
-             Buffer.clear buf
+  | eof  { if Buffer.length st.buf > 0 then begin
+             Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;
+             Buffer.clear st.buf
            end;
-           in_string := false;
-           in_interp := false;
-           interp_brace_depth := 0;
-           Queue.push STRING_END token_queue;
-           Queue.push (ERROR "unterminated string") token_queue;
-           Queue.pop token_queue }
+           st.in_string <- false;
+           st.in_interp <- false;
+           st.interp_brace_depth <- 0;
+           Queue.push STRING_END st.token_queue;
+           Queue.push (ERROR "unterminated string") st.token_queue;
+           Queue.pop st.token_queue }
