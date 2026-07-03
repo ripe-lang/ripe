@@ -256,7 +256,7 @@ let is_lvalue (te : T.texpr) : bool =
   | _ -> false
 
 let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
-let is_ordered = function TInt _ | TFloat _ -> true | _ -> false
+let is_ordered = is_numeric
 let is_integer = function TInt _ -> true | _ -> false
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
