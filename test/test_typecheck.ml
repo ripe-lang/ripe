@@ -982,7 +982,8 @@ let%expect_test "typecheck: three duplicate struct fields" =
   run_src {|
 struct pt { x: i32, x: i64, x: bool }
 |};
-  [%expect {|
+  [%expect
+    {|
     TypeError: <test>:2:21: duplicate field 'x' in struct 'pt'
     TypeError: <test>:2:29: duplicate field 'x' in struct 'pt'
     |}]
