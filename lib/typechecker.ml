@@ -757,7 +757,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   let tinit =
     match gd.init with
     | None -> None
-    | Some e when e.desc = Undefined -> None
+    | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te = check env e t in
         if not (is_const_texpr env te) then
