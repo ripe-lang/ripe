@@ -876,3 +876,98 @@ let%expect_test "typecheck: missing return on a path" =
 let%expect_test "typecheck: if and else both return ok" =
   run_src "func f(n: i32) i32 { if n > 0 { return 1 } else { return 0 } }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: struct literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  const p = pt { x: 3, y: 4 }
+  return p.x + p.y
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: empty struct literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  const p = pt { }
+  return p.x
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: struct literal unknown field" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  const p = pt { z: 1 }
+}
+|};
+  [%expect
+    {|
+    <test>:4:13: warning: 'p' declared but never used
+    TypeError: <test>:4:13: 'pt' has no field 'z'
+    |}]
+
+let%expect_test "typecheck: struct literal duplicate field" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  const p = pt { x: 1, x: 2 }
+}
+|};
+  [%expect
+    {|
+    <test>:4:21: warning: 'p' declared but never used
+    TypeError: <test>:4:13: duplicate field 'x'
+    |}]
+
+let%expect_test "typecheck: struct literal wrong field type" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  const p = pt { x: true }
+}
+|};
+  [%expect
+    {|
+    <test>:4:21: warning: 'p' declared but never used
+    TypeError: <test>:4:21: expected i32 but found bool
+    |}]
+
+let%expect_test "typecheck: undefined struct literal" =
+  run_src {|
+func f() {
+  const p = nope { x: 1 }
+}
+|};
+  [%expect
+    {|
+    <test>:3:13: warning: 'p' declared but never used
+    TypeError: <test>:3:13: undefined struct 'nope'
+    |}]
+
+let%expect_test "typecheck: const global struct literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+const origin: pt = pt { x: 1, y: 2 }
+func f() i32 { return origin.x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: global struct literal must be constant" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func g() i32 { return 1 }
+const p: pt = pt { x: g(), y: 2 }
+|};
+  [%expect
+    {| TypeError: <test>:4:31: initializer for 'p' must be a constant expression |}]

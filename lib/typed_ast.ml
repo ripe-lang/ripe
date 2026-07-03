@@ -30,6 +30,7 @@ and texpr_desc =
   | TDataPtr of texpr
   | TZero
   | TUndef
+  | TStructLit of string * (string * texpr) list
 
 and texpr = { desc : texpr_desc; ty : ty }
 [@@deriving show { with_path = false }]

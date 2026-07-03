@@ -123,6 +123,11 @@ let rec dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
   | Undefined -> "undefined"
+  | StructLit (name, fields) ->
+      "(struct " ^ name
+      ^ String.concat ""
+          (List.map (fun (f, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")") fields)
+      ^ ")"
 
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =

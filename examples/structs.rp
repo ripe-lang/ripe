@@ -1,0 +1,22 @@
+# Structs: literals, zero init, and field access.
+
+struct point { x: i32, y: i32 }
+
+struct rect { origin: point, w: i32, h: i32 }
+
+func area(r: rect) i32 {
+  return r.w * r.h
+}
+
+func main() i32 {
+  const p = point { x: 3, y: 4 }
+
+  # Unset fields are zero initialized.
+  const q = point { x: 1 }
+
+  # Literals nest.
+  const r = rect { origin: p, w: 2, h: 5 }
+
+  # 3 + 4 + 1 + 0 + 10 + 3 = 21
+  return p.x + p.y + q.x + q.y + area(r) + r.origin.x
+}

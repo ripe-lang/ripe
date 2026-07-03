@@ -1289,3 +1289,229 @@ func sign(n: i32) i32 {
         hlt
     }
     |}]
+
+let%expect_test "codegen: struct zero initialization covers full size" =
+  run_codegen
+    {|
+struct pt { x: i64, y: i64, z: i32 }
+func f() i64 {
+  var p: pt
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { l, l, w }
+
+    function l $f() {
+    @start
+        %p =l alloc8 24
+        storel 0, %p
+        %t0 =l add %p, 8
+        storel 0, %t0
+        %t1 =l add %p, 16
+        storel 0, %t1
+        %t2 =l loadl %p
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: struct param field read" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f(p: pt) i32 { return p.y }
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f(l %t0) {
+    @start
+        %p =l alloc8 8
+        %t1 =l loadl %t0
+        storel %t1, %p
+        %t2 =l add %p, 4
+        %t3 =w loadsw %t2
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: struct var init copies bytes" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f(a: pt) i32 {
+  var b: pt = a
+  return b.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f(l %t0) {
+    @start
+        %a =l alloc8 8
+        %t1 =l loadl %t0
+        storel %t1, %a
+        %b =l alloc8 8
+        %t2 =l loadl %a
+        storel %t2, %b
+        %t3 =w loadsw %b
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: array field of struct indexes in place" =
+  run_codegen
+    {|
+struct buf { data: [4]i32, n: i32 }
+func f() i32 {
+  var b: buf
+  return b.data[2]
+}
+|};
+  [%expect
+    {|
+    type :buf = { w 4, w }
+
+    function w $f() {
+    @start
+        %b =l alloc8 20
+        storel 0, %b
+        %t0 =l add %b, 8
+        storel 0, %t0
+        %t1 =l add %b, 16
+        storew 0, %t1
+        %t2 =l extsw 2
+        %t3 =l mul %t2, 4
+        %t4 =l add %b, %t3
+        %t5 =w loadsw %t4
+        ret %t5
+    }
+    |}]
+
+let%expect_test "codegen: struct literal" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  const p = pt { x: 3, y: 4 }
+  return p.y
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 3, %p
+        %t0 =l add %p, 4
+        storew 4, %t0
+        %t1 =l add %p, 4
+        %t2 =w loadsw %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: partial struct literal zeroes omitted fields" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  const p = pt { x: 3 }
+  return p.y
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 3, %p
+        %t0 =l add %p, 4
+        storew 0, %t0
+        %t1 =l add %p, 4
+        %t2 =w loadsw %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: nested struct literal" =
+  run_codegen
+    {|
+struct inner { a: i32 }
+struct outer { i: inner, b: i32 }
+func f() i32 {
+  const o = outer { i: inner { a: 1 }, b: 2 }
+  return o.i.a + o.b
+}
+|};
+  [%expect
+    {|
+    type :inner = { w }
+    type :outer = { :inner, w }
+
+    function w $f() {
+    @start
+        %o =l alloc8 8
+        storew 1, %o
+        %t0 =l add %o, 4
+        storew 2, %t0
+        %t1 =w loadsw %o
+        %t2 =l add %o, 4
+        %t3 =w loadsw %t2
+        %t4 =w add %t1, %t3
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: struct literal as value" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  return (pt { x: 1, y: 2 }).y
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %t0 =l alloc8 8
+        storew 1, %t0
+        %t1 =l add %t0, 4
+        storew 2, %t1
+        %t2 =l add %t0, 4
+        %t3 =w loadsw %t2
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: const global struct data with padding" =
+  run_codegen
+    {|
+struct mix { a: i8, b: i64 }
+const g: mix = mix { a: 1, b: 2 }
+func f() i64 { return g.b }
+|};
+  [%expect
+    {|
+    type :mix = { b, l }
+
+    data $g = align 8 { b 1, z 7, l 2 }
+
+    function l $f() {
+    @start
+        %t0 =l add $g, 8
+        %t1 =l loadl %t0
+        ret %t1
+    }
+    |}]
