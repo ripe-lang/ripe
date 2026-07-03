@@ -76,7 +76,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
               0 fields
           in
           align_to offset struct_align
-      | None -> 0)
+      | None -> assert false)
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* fat pointer: { ptr, len } *)
   | TSlice _ -> 16
