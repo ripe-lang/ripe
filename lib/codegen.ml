@@ -90,7 +90,8 @@ let rec alloc_instr (t : ty) : string =
       "alloc8"
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
-  | _ -> "alloc4"
+  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
+  | TVoid -> assert false
 
 let qbe_load (t : ty) : string =
   match t with
