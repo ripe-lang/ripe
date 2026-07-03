@@ -184,3 +184,62 @@ let%expect_test "parse: modifier before non-func decl" =
 let%expect_test "parse: stray token at top level" =
   run_src "return 1";
   [%expect {| ParseError: expected declaration but found 'return' |}]
+
+let%expect_test "parse: struct literal" =
+  parse_expr "pt { x: 3, y: 4 }";
+  [%expect {| (struct pt (x 3) (y 4)) |}]
+
+let%expect_test "parse: empty struct literal" =
+  parse_expr "pt { }";
+  [%expect {| (struct pt) |}]
+
+let%expect_test "parse: struct literal trailing comma" =
+  parse_expr "pt { x: 3, }";
+  [%expect {| (struct pt (x 3)) |}]
+
+let%expect_test "parse: nested struct literal" =
+  parse_expr "wrap { p: pt { x: 1 } }";
+  [%expect {| (struct wrap (p (struct pt (x 1)))) |}]
+
+let%expect_test "parse: struct literal as call argument" =
+  parse_expr "dist(pt { x: 1, y: 2 })";
+  [%expect {| (call dist (struct pt (x 1) (y 2))) |}]
+
+let%expect_test "parse: field access on struct literal" =
+  parse_expr "pt { x: 1 }.x";
+  [%expect {| (. (struct pt (x 1)) x) |}]
+
+let%expect_test "parse: multiline struct literal" =
+  run_src
+    "struct pt { x: i32, y: i32 }\n\
+     func f() i32 {\n\
+    \  const p = pt {\n\
+    \    x: 1,\n\
+    \    y: 2\n\
+    \  }\n\
+    \  return p.x\n\
+     }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: if condition is not a struct literal" =
+  run_src "func f(x: bool) i32 { if x { return 1 } return 0 }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: while condition is not a struct literal" =
+  run_src "func f(x: bool) { while x { return } }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: for iterable is not a struct literal" =
+  run_src
+    "func f(xs: []i32) i32 {\n\
+    \  var s: i32 = 0\n\
+    \  for x in xs { s += x }\n\
+    \  return s\n\
+     }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: parenthesized struct literal in condition" =
+  run_src
+    "struct pt { x: i32 }\n\
+     func f() i32 { if (pt { x: 1 }).x == 1 { return 1 } return 0 }";
+  [%expect {| ok |}]

@@ -366,6 +366,11 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
       slot
   | T.TUndef -> "0"
+  | T.TStructLit (sname, tfields) ->
+      let slot = fresh ctx in
+      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_struct_lit_into ctx slot sname tfields;
+      slot
 
 and emit_unop ctx op e t =
   match op with
@@ -496,6 +501,37 @@ and emit_array_lit_into ctx base elems elem =
           emit ctx "    %s %s, %s\n" (qbe_store elem) v addr)
     elems
 
+and emit_struct_lit_into ctx base sname tfields =
+  let fields = Hashtbl.find ctx.structs sname in
+  List.iter
+    (fun (fname, (fe : T.texpr)) ->
+      let ft = fe.T.ty in
+      let offset = field_offset ctx.structs fields fname in
+      let addr =
+        if offset = 0 then base
+        else
+          let a = fresh ctx in
+          emit ctx "    %s =l add %s, %d\n" a base offset;
+          a
+      in
+      match fe.T.desc with
+      | T.TStructLit (sub, subfields) ->
+          emit_struct_lit_into ctx addr sub subfields
+      | T.TArrayLit sub ->
+          let subelem =
+            match ft with TArray (e, _) -> e | _ -> assert false
+          in
+          emit_array_lit_into ctx addr sub subelem
+      | T.TZero -> emit_zero_into ctx addr ft
+      | T.TUndef -> ()
+      | _ when is_aggregate ft ->
+          let src = emit_expr ctx fe in
+          emit_aggregate_copy ctx addr src (ty_size ctx.structs ft)
+      | _ ->
+          let v = emit_expr ctx fe in
+          emit ctx "    %s %s, %s\n" (qbe_store ft) v addr)
+    tfields
+
 (* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
 and emit_assign ctx l r _t =
   match l.T.desc with
@@ -513,6 +549,8 @@ and emit_assign ctx l r _t =
       (match (r.T.desc, t) with
       | T.TArrayLit elems, TArray (elem, _) ->
           emit_array_lit_into ctx base elems elem
+      | T.TStructLit (sname, tfields), _ ->
+          emit_struct_lit_into ctx base sname tfields
       | _ ->
           (* aggregate: copy the value's bytes into the target slot *)
           let src = emit_expr ctx r in
@@ -701,6 +739,8 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
             match e.T.ty with TArray (el, _) -> el | _ -> assert false
           in
           emit_array_lit_into ctx ("%" ^ name) elems elem
+      | T.TStructLit (sname, tfields) ->
+          emit_struct_lit_into ctx ("%" ^ name) sname tfields
       | _ when is_aggregate t ->
           (* aggregate: copy the value's bytes into the variable's slot *)
           let src = emit_expr ctx e in
@@ -977,6 +1017,25 @@ let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
   | T.TArrayLit elems ->
       String.concat ", " (List.map (const_array_fields ctx) elems)
+  | T.TStructLit (_, tfields) ->
+      let off = ref 0 in
+      let parts = ref [] in
+      List.iter
+        (fun (_, (fe : T.texpr)) ->
+          let ft = fe.T.ty in
+          let aligned = align_to !off (ty_align ctx.structs ft) in
+          if aligned > !off then
+            parts := Printf.sprintf "z %d" (aligned - !off) :: !parts;
+          (match fe.T.desc with
+          | T.TZero ->
+              parts := Printf.sprintf "z %d" (ty_size ctx.structs ft) :: !parts
+          | _ -> parts := const_array_fields ctx fe :: !parts);
+          off := aligned + ty_size ctx.structs ft)
+        tfields;
+      let total = ty_size ctx.structs te.T.ty in
+      if total > !off then
+        parts := Printf.sprintf "z %d" (total - !off) :: !parts;
+      String.concat ", " (List.rev !parts)
   | _ -> Printf.sprintf "%s %s" (qbe_ext_ty te.T.ty) (fold_const_value ctx te)
 
 let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
@@ -987,7 +1046,7 @@ let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
       emit ctx "data $%s = align %d { z %d }\n" gd.name align size
   | Some te -> (
       match gd.ty with
-      | TArray _ ->
+      | TArray _ | TStruct _ ->
           emit ctx "data $%s = align %d { %s }\n" gd.name align
             (const_array_fields ctx te)
       | _ ->

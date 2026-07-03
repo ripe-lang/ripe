@@ -360,6 +360,31 @@ let rec synth (env : env) (e : expr) : T.texpr =
   | Undefined ->
       add_error env "cannot infer type of undefined";
       dummy_texpr
+  | StructLit (name, inits) ->
+      if not (Hashtbl.mem env.structs name) then (
+        add_error env ("undefined struct '" ^ name ^ "'");
+        dummy_texpr)
+      else
+        let info = lookup_struct env name in
+        let seen = Hashtbl.create 4 in
+        List.iter
+          (fun (fname, _) ->
+            if not (List.mem_assoc fname info.field_tys) then
+              add_error env ("'" ^ name ^ "' has no field '" ^ fname ^ "'")
+            else if Hashtbl.mem seen fname then
+              add_error env ("duplicate field '" ^ fname ^ "'")
+            else Hashtbl.replace seen fname ())
+          inits;
+        (* omitted fields are zero-initialized *)
+        let tfields =
+          List.map
+            (fun (fname, ft) ->
+              match List.assoc_opt fname inits with
+              | Some e -> (fname, check env e ft)
+              | None -> (fname, T.mk ft T.TZero))
+            info.field_tys
+        in
+        T.mk (TStruct name) (T.TStructLit (name, tfields))
 (* | _ -> failwith ("Expression not yet implemented: " ^ show_expr e) *)
 
 (* MUST be this type *)
@@ -745,6 +770,8 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TZero -> true
   (* an array literal is constant when all its elements are *)
   | TArrayLit elems -> List.for_all (is_const_texpr env) elems
+  | TStructLit (_, fields) ->
+      List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* never compile-time by design *)
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _
   | TIndex _ | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ ->

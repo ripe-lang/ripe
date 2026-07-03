@@ -14,6 +14,7 @@ type state = {
   lexbuf : Lexing.lexbuf;
   read : Lexing.lexbuf -> token;
   mutable diags : (Lexing.position * string) list;
+  mutable no_struct_lit : bool;
 }
 
 type assoc = Left | Right | NonAssoc
@@ -239,6 +240,13 @@ let binop_of = function
   | SLASH_ASSIGN -> DivAssign
   | _ -> failwith "not a binary operator"
 
+let in_brackets st f =
+  let saved = st.no_struct_lit in
+  st.no_struct_lit <- false;
+  let r = f () in
+  st.no_struct_lit <- saved;
+  r
+
 let rec parse_expr st min_prec =
   let lo = cur_pos st in
   let lhs = ref (parse_prefix st) in
@@ -318,7 +326,7 @@ and parse_postfix st lhs =
       parse_postfix st (mk lo st (FieldAccess (lhs, name)))
   | LBRACKET ->
       advance st;
-      let idx = parse_expr st 1 in
+      let idx = in_brackets st (fun () -> parse_expr st 1) in
       expect st RBRACKET;
       parse_postfix st (mk lo st (Index (lhs, idx)))
   | _ -> lhs
@@ -344,7 +352,7 @@ and parse_primary st =
       mk lo st Null
   | LPAREN ->
       advance st;
-      let e = parse_expr st 1 in
+      let e = in_brackets st (fun () -> parse_expr st 1) in
       expect st RPAREN;
       e
   (* [1, 2, 3] array literal *)
@@ -368,6 +376,12 @@ and parse_primary st =
         expect st RPAREN;
         mk lo st (Call (name, args))
       end
+      else if at st LBRACE && not st.no_struct_lit then begin
+        advance st;
+        let fields = parse_struct_lit_fields st in
+        expect st RBRACE;
+        mk lo st (StructLit (name, fields))
+      end
       else mk lo st (Ident name)
   (* "hello {name}!" *)
   | STRING_START ->
@@ -382,7 +396,7 @@ and parse_primary st =
         | INTERP_START ->
             (* {expr} *)
             advance st;
-            let e = parse_expr st 1 in
+            let e = in_brackets st (fun () -> parse_expr st 1) in
             expect st INTERP_END;
             parts := Interp e :: !parts
         | _ -> assert false (* should be unreachable *)
@@ -395,6 +409,28 @@ and parse_primary st =
   | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
+
+(* x: 3, y: 4 *)
+and parse_struct_lit_fields st =
+  in_brackets st (fun () ->
+      skip_semi st;
+      let fields = ref [] in
+      while st.tok <> RBRACE do
+        let name = expect_ident st in
+        expect st COLON;
+        let e = parse_expr st 1 in
+        fields := (name, e) :: !fields;
+        if st.tok = COMMA then advance st;
+        skip_semi st
+      done;
+      List.rev !fields)
+
+(* IDENT { in an if/while/for header is the body, not a struct literal *)
+and parse_header_expr st =
+  st.no_struct_lit <- true;
+  let e = parse_expr st 1 in
+  st.no_struct_lit <- false;
+  e
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
@@ -487,13 +523,13 @@ and parse_if st =
   let lo = cur_pos st in
   advance st;
   (* IF *)
-  let cond = parse_expr st 1 in
+  let cond = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
   let rec parse_elseifs acc =
     if st.tok = ELSEIF then begin
       advance st;
-      let c = parse_expr st 1 in
+      let c = parse_header_expr st in
       skip_semi st;
       let b = parse_block st in
       parse_elseifs ((c, b) :: acc)
@@ -516,7 +552,7 @@ and parse_while st =
   let lo = cur_pos st in
   advance st;
   (* WHILE *)
-  let cond = parse_expr st 1 in
+  let cond = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
   mks lo st (While (cond, body))
@@ -528,7 +564,7 @@ and parse_for st =
   (* FOR *)
   let name = expect_ident st in
   expect st IN;
-  let iter = parse_expr st 1 in
+  let iter = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
   mks lo st (For (name, iter, body))
@@ -640,7 +676,7 @@ let parse_program st =
 
 let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
     Ast.decl list =
-  let st = { tok = EOF; lexbuf; read; diags = [] } in
+  let st = { tok = EOF; lexbuf; read; diags = []; no_struct_lit = false } in
   advance st;
   let decls = parse_program st in
   match List.rev st.diags with [] -> decls | ds -> raise (ParseErrors ds)
