@@ -31,6 +31,8 @@ let replace s old rep =
   done;
   Buffer.contents b
 
+let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
+
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
   let ssa = Filename.temp_file "ripe_test" ".ssa" in
@@ -39,8 +41,8 @@ let check_qbe il =
   output_string oc il;
   close_out oc;
   let cmd =
-    Printf.sprintf "qbe -o /dev/null %s 2> %s" (Filename.quote ssa)
-      (Filename.quote err)
+    Printf.sprintf "%s -o /dev/null %s 2> %s" (Filename.quote qbe)
+      (Filename.quote ssa) (Filename.quote err)
   in
   if Sys.command cmd <> 0 then begin
     let ic = open_in err in
