@@ -365,6 +365,20 @@ let rec synth (env : env) (e : expr) : T.texpr =
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
   env.current_span := e.span;
+  (* synthesize then check the result matches want *)
+  let check_by_synth () =
+    let te = synth env e in
+    let got = te.T.ty in
+    if not (compatible want got) then (
+      add_error env
+        (Printf.sprintf "expected %s but found %s" (show_ty want) (show_ty got));
+      te)
+    else
+      match (want, got) with
+      (* materialize the fat pointer when a fixed array coerces to a slice *)
+      | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
+      | _ -> te
+  in
   match e.desc with
   | Int n -> (
       (* TODO(0ab1): Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
@@ -382,31 +396,18 @@ and check (env : env) (e : expr) (want : ty) : T.texpr =
           add_error env
             (Printf.sprintf "expected %s but found f64" (show_ty want));
           T.mk (TFloat F64) (T.TFloat f))
-  | ArrayLit elems when match want with TArray _ -> true | _ -> false ->
-      let elem, n =
-        match want with TArray (e, n) -> (e, n) | _ -> assert false
-      in
-      if List.length elems <> n then
-        add_error env
-          (Printf.sprintf "expected %d elements but found %d" n
-             (List.length elems));
-      let tes = List.map (fun e -> check env e elem) elems in
-      T.mk (TArray (elem, n)) (T.TArrayLit tes)
+  | ArrayLit elems -> (
+      match want with
+      | TArray (elem, n) ->
+          if List.length elems <> n then
+            add_error env
+              (Printf.sprintf "expected %d elements but found %d" n
+                 (List.length elems));
+          let tes = List.map (fun e -> check env e elem) elems in
+          T.mk (TArray (elem, n)) (T.TArrayLit tes)
+      | _ -> check_by_synth ())
   | Undefined -> T.mk want T.TUndef
-  (* not a flexible literal, just check it matches want *)
-  | _ -> (
-      let te = synth env e in
-      let got = te.T.ty in
-      if not (compatible want got) then (
-        add_error env
-          (Printf.sprintf "expected %s but found %s" (show_ty want)
-             (show_ty got));
-        te)
-      else
-        match (want, got) with
-        (* materialize the fat pointer when a fixed array coerces to a slice *)
-        | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
-        | _ -> te)
+  | _ -> check_by_synth ()
 
 and check_range_bounds (env : env) (lo : expr) (hi : expr) =
   let tlo, thi, t =
