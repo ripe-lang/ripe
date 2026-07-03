@@ -601,29 +601,21 @@ let parse_extern st =
     }
 
 let parse_decl st =
-  match st.tok with
-  | EXTERN -> parse_extern st
-  | STRUCT -> parse_struct st []
-  | FUNC -> parse_func st []
-  | CONST | VAR -> parse_global st
-  | TYPE -> parse_type_alias st
-  | PUBLIC | INLINE -> (
-      let mods = parse_modifiers st in
-      match st.tok with
-      | STRUCT -> parse_struct st mods
-      | FUNC -> parse_func st mods
-      | _ ->
-          raise
-            (ParseError
-               ( cur_lex_pos st,
-                 Printf.sprintf "expected declaration but found '%s'"
-                   (show_token st.tok) )))
-  | _ ->
-      raise
-        (ParseError
-           ( cur_lex_pos st,
-             Printf.sprintf "expected declaration but found '%s'"
-               (show_token st.tok) ))
+  let err () =
+    raise
+      (ParseError
+         ( cur_lex_pos st,
+           Printf.sprintf "expected declaration but found '%s'"
+             (show_token st.tok) ))
+  in
+  let mods = parse_modifiers st in
+  match (mods, st.tok) with
+  | _, STRUCT -> parse_struct st mods
+  | _, FUNC -> parse_func st mods
+  | [], EXTERN -> parse_extern st
+  | [], (CONST | VAR) -> parse_global st
+  | [], TYPE -> parse_type_alias st
+  | _ -> err ()
 
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =
