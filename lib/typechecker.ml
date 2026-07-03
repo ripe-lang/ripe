@@ -67,7 +67,7 @@ let add_warning (env : env) (msg : string) : unit =
 
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
-let pop_scope (env : env) : unit =
+let warn_unused_in_scope (env : env) : unit =
   match env.vars with
   | [] -> ()
   | scope :: _ ->
@@ -617,19 +617,19 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
             let tc = check env cond TBool in
             let inner = push_scope env in
             let final_inner, tbody = check_stmts inner body in
-            pop_scope final_inner;
+            warn_unused_in_scope final_inner;
             (tc, tbody))
           branches
       in
       let inner = push_scope env in
       let final_inner, telse = check_stmts inner else_body in
-      pop_scope final_inner;
+      warn_unused_in_scope final_inner;
       (env, T.TIf (tbranches, telse))
   | While (cond, body) ->
       let tc = check env cond TBool in
       let inner = push_scope { env with in_loop = true } in
       let final_inner, tbody = check_stmts inner body in
-      pop_scope final_inner;
+      warn_unused_in_scope final_inner;
       (env, T.TWhile (tc, tbody))
   | For (name, iter, body) ->
       (* a range binds the loop var to the bound type and an array binds it to the
@@ -655,7 +655,7 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
       let inner = push_scope { env with in_loop = true } in
       let inner = extend_var inner name elem_ty in
       let final_inner, tbody = check_stmts inner body in
-      pop_scope final_inner;
+      warn_unused_in_scope final_inner;
       (env, T.TFor (name, elem_ty, titer, tbody))
   | Break ->
       if not env.in_loop then add_error env "break outside loop";
@@ -666,7 +666,7 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
   | Block stmts ->
       let inner = push_scope env in
       let final_inner, tstmts = check_stmts inner stmts in
-      pop_scope final_inner;
+      warn_unused_in_scope final_inner;
       (env, T.TBlock tstmts)
 
 (* TODO(0c77): push/pop scope for match arms when match is implemented *)
@@ -716,7 +716,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   in
 
   let final_env, tbody = check_stmts param_env fd.body in
-  pop_scope final_env;
+  warn_unused_in_scope final_env;
 
   if
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
