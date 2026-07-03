@@ -177,7 +177,9 @@ let lvalue_name (e : T.texpr) : string =
   match e with T.TIdent (name, _) -> name | _ -> failwith "expected lvalue"
 
 (* aggregates are addressed by pointer: an ident of this type is its base address *)
-let is_array_like = function TArray _ | TSlice _ -> true | _ -> false
+let is_aggregate = function
+  | TArray _ | TSlice _ | TStruct _ -> true
+  | _ -> false
 
 (* bytes between consecutive elements (element size rounded up to its alignment) *)
 let stride structs elem =
@@ -195,7 +197,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TNull _ -> "0"
   | T.TChar c -> string_of_int (Char.code c)
   (* aggregate: the slot itself is the value, so yield its address *)
-  | T.TIdent (name, t) when is_array_like t ->
+  | T.TIdent (name, t) when is_aggregate t ->
       if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
   | T.TIdent (name, t) -> (
       if Hashtbl.mem ctx.locals name then (
@@ -270,15 +272,18 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           emit ctx "    %s =l add %s, %d\n" p base offset;
           p
       in
-      let tmp = fresh ctx in
-      emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
-      tmp
+      (* aggregate field: its address is the value, same as TIndex below *)
+      if is_aggregate ft then ptr
+      else
+        let tmp = fresh ctx in
+        emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
+        tmp
   (* TODO(c75e): codegen for string interpolation *)
   | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
   | T.TIndex (base, idx, elem) ->
       let addr = emit_index_addr ctx base idx elem in
       (* nested array: the element is itself an aggregate, yield its address *)
-      if is_array_like elem then addr
+      if is_aggregate elem then addr
       else
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty elem) (qbe_load elem) addr;
@@ -347,13 +352,13 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         (ty_size ctx.structs aty);
       emit_array_lit_into ctx slot elems elem;
       slot
-  | T.TZero t when is_array_like t ->
+  | T.TZero t when is_aggregate t ->
       let slot = fresh ctx in
       emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
       emit_zero_into ctx slot t;
       slot
   | T.TZero _ -> "0"
-  | T.TUndef t when is_array_like t ->
+  | T.TUndef t when is_aggregate t ->
       let slot = fresh ctx in
       emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
       slot
@@ -415,7 +420,7 @@ and emit_index_addr ctx base idx elem =
 (* write a zero value of type t into the slot at dest *)
 and emit_zero_into ctx dest t =
   match t with
-  | TArray _ | TSlice _ ->
+  | TArray _ | TSlice _ | TStruct _ ->
       let size = ty_size ctx.structs t in
       let off = ref 0 in
       let step w store =
@@ -476,7 +481,7 @@ and emit_array_lit_into ctx base elems elem =
       (* nested literal (multi-dimensional array): recurse into the sub-array *)
       | T.TArrayLit (sub, TArray (subelem, _)) ->
           emit_array_lit_into ctx addr sub subelem
-      | _ when is_array_like elem ->
+      | _ when is_aggregate elem ->
           (* element is an aggregate value: copy its bytes into place *)
           let src = emit_expr ctx el in
           emit_aggregate_copy ctx addr src (ty_size ctx.structs elem)
@@ -493,7 +498,7 @@ and emit_assign ctx l r _t =
       let rv = emit_expr ctx r in
       emit ctx "    %s %s, %s\n" (qbe_store elem) rv addr;
       rv
-  | T.TIdent (name, t) when is_array_like t ->
+  | T.TIdent (name, t) when is_aggregate t ->
       let base =
         if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
       in
@@ -684,7 +689,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | T.TUndef _ -> ()
       | T.TArrayLit (elems, TArray (elem, _)) ->
           emit_array_lit_into ctx ("%" ^ name) elems elem
-      | _ when is_array_like t ->
+      | _ when is_aggregate t ->
           (* aggregate: copy the value's bytes into the variable's slot *)
           let src = emit_expr ctx e in
           emit_aggregate_copy ctx ("%" ^ name) src (ty_size ctx.structs t)
@@ -844,7 +849,7 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s =l mul %s, %d\n" off i (stride ctx.structs elem_ty);
       let addr = fresh ctx in
       emit ctx "    %s =l add %s, %s\n" addr storage off;
-      (if is_array_like elem_ty then
+      (if is_aggregate elem_ty then
          (* aggregate element: copy its bytes into the loop variable *)
          emit_aggregate_copy ctx ("%" ^ name) addr (ty_size ctx.structs elem_ty)
        else
@@ -899,7 +904,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
         (ty_size ctx.structs t);
       (* aggregates arrive as a pointer, copy the value into the local slot *)
-      if is_array_like t then
+      if is_aggregate t then
         emit_aggregate_copy ctx ("%" ^ name) tmp (ty_size ctx.structs t)
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
       Hashtbl.replace ctx.locals name ())

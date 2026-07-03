@@ -1289,3 +1289,105 @@ func sign(n: i32) i32 {
         hlt
     }
     |}]
+
+let%expect_test "codegen: struct zero initialization covers full size" =
+  run_codegen
+    {|
+struct pt { x: i64, y: i64, z: i32 }
+func f() i64 {
+  var p: pt
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { l, l, w }
+
+    function l $f() {
+    @start
+        %p =l alloc8 24
+        storel 0, %p
+        %t0 =l add %p, 8
+        storel 0, %t0
+        %t1 =l add %p, 16
+        storel 0, %t1
+        %t2 =l loadl %p
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: struct param field read" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f(p: pt) i32 { return p.y }
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f(l %t0) {
+    @start
+        %p =l alloc8 8
+        %t1 =l loadl %t0
+        storel %t1, %p
+        %t2 =l add %p, 4
+        %t3 =w loadsw %t2
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: struct var init copies bytes" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f(a: pt) i32 {
+  var b: pt = a
+  return b.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f(l %t0) {
+    @start
+        %a =l alloc8 8
+        %t1 =l loadl %t0
+        storel %t1, %a
+        %b =l alloc8 8
+        %t2 =l loadl %a
+        storel %t2, %b
+        %t3 =w loadsw %b
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: array field of struct indexes in place" =
+  run_codegen
+    {|
+struct buf { data: [4]i32, n: i32 }
+func f() i32 {
+  var b: buf
+  return b.data[2]
+}
+|};
+  [%expect
+    {|
+    type :buf = { w 4, w }
+
+    function w $f() {
+    @start
+        %b =l alloc8 20
+        storel 0, %b
+        %t0 =l add %b, 8
+        storel 0, %t0
+        %t1 =l add %b, 16
+        storew 0, %t1
+        %t2 =l extsw 2
+        %t3 =l mul %t2, 4
+        %t4 =l add %b, %t3
+        %t5 =w loadsw %t4
+        ret %t5
+    }
+    |}]
