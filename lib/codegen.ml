@@ -234,12 +234,12 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       lbl
   | T.TCall (name, args) ->
       let ret_ty = t in
-      (* recursively emit each arg (nested calls produce temps) *)
       let arg_strs =
-        List.map
-          (fun (a : T.texpr) ->
-            Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
-          args
+        List.rev
+          (List.rev_map
+             (fun (a : T.texpr) ->
+               Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
+             args)
       in
       (* local var holding a fn ptr: load then call indirectly *)
       let callee =
