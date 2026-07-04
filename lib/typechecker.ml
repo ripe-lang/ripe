@@ -549,6 +549,8 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
+      if not (is_lvalue te) then
+        add_error env e.span "cannot take address of expression";
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
 (* Synthesize the type of a field access expression. *)
