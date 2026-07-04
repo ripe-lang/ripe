@@ -1,7 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 (* TODO(825c): Add file id for multi file comp later *)
-(* I was going to wait before doing byte offset but the dump-ast was way too long. *)
 type span = { lo : int; hi : int }
 
 let pp_span fmt { lo; hi } = Format.fprintf fmt "(%d,%d)" lo hi

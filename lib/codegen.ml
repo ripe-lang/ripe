@@ -988,7 +988,6 @@ let rec qbe_ext_ty (t : ty) : string =
   | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
-  (* its nothing. like actually nothing. *)
   | TVoid -> assert false
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
