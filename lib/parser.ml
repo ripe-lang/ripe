@@ -550,7 +550,14 @@ and parse_if st =
   let else_body =
     if st.tok = ELSE then begin
       advance st;
-      (* TODO(2247): hint elseif *)
+      if st.tok = IF then
+        raise
+          (ParseError
+             Diagnostic.(
+               error "expected block after else"
+               |> at (cur_span st)
+               |> label "found if"
+               |> help "the keyword is elseif, one word"));
       skip_semi st;
       parse_block st
     end
