@@ -104,6 +104,8 @@ let compile filename =
   let abs_filename = Unix.realpath filename in
   (* TODO(5d10): emit paths relative to project root *)
   let src = read_file filename in
+  if not (String.is_valid_utf_8 src) then
+    die (Printf.sprintf "%s: not valid UTF-8" filename);
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
   let read = Ripe.Lexer.read (Ripe.Lexer.make_state ()) in
