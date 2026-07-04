@@ -122,7 +122,7 @@ let qbe_store (t : ty) : string =
 
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
-  locals : (string, unit) Hashtbl.t;
+  locals : (string, string) Hashtbl.t;
   globals : (string, unit) Hashtbl.t;
   buf : Buffer.t;
   strings : (string * string) list ref;
@@ -145,6 +145,18 @@ let fresh_id ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
   n
+
+let new_slot ctx name =
+  if Hashtbl.mem ctx.locals name then Printf.sprintf "%s.%d" name (fresh_id ctx)
+  else name
+
+let bind_local ctx name slot = Hashtbl.replace ctx.locals name slot
+let local_slot ctx name = Hashtbl.find_opt ctx.locals name
+let save_locals ctx = Hashtbl.copy ctx.locals
+
+let restore_locals ctx saved =
+  Hashtbl.reset ctx.locals;
+  Hashtbl.iter (Hashtbl.replace ctx.locals) saved
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
@@ -199,18 +211,22 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
   (* aggregate: the slot itself is the value so yield its address *)
-  | T.TIdent name when is_aggregate t ->
-      if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
+  | T.TIdent name when is_aggregate t -> (
+      match local_slot ctx name with
+      | Some slot -> "%" ^ slot
+      | None -> if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name)
   | T.TIdent name -> (
-      if Hashtbl.mem ctx.locals name then (
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) name;
-        tmp)
-      else if Hashtbl.mem ctx.globals name then (
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s %s $%s\n" tmp (qbe_ty t) (qbe_load t) name;
-        tmp)
-      else match t with TFunc _ -> "$" ^ name | _ -> "%" ^ name)
+      match local_slot ctx name with
+      | Some slot ->
+          let tmp = fresh ctx in
+          emit ctx "    %s =%s %s %%%s\n" tmp (qbe_ty t) (qbe_load t) slot;
+          tmp
+      | None -> (
+          if Hashtbl.mem ctx.globals name then (
+            let tmp = fresh ctx in
+            emit ctx "    %s =%s %s $%s\n" tmp (qbe_ty t) (qbe_load t) name;
+            tmp)
+          else match t with TFunc _ -> "$" ^ name | _ -> "%" ^ name))
   | T.TCStr s ->
       let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
       incr ctx.str_ctr;
@@ -227,11 +243,12 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       in
       (* local var holding a fn ptr: load then call indirectly *)
       let callee =
-        if Hashtbl.mem ctx.locals name then (
-          let tmp = fresh ctx in
-          emit ctx "    %s =l loadl %%%s\n" tmp name;
-          tmp)
-        else "$" ^ name
+        match local_slot ctx name with
+        | Some slot ->
+            let tmp = fresh ctx in
+            emit ctx "    %s =l loadl %%%s\n" tmp slot;
+            tmp
+        | None -> "$" ^ name
       in
       if ret_ty = TVoid then (
         (* void: no result to capture so just emit the call *)
@@ -544,7 +561,10 @@ and emit_assign ctx l r _t =
   | T.TIdent name when is_aggregate l.T.ty ->
       let t = l.T.ty in
       let base =
-        if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
+        match local_slot ctx name with
+        | Some slot -> "%" ^ slot
+        | None ->
+            if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
       in
       (match (r.T.desc, t) with
       | T.TArrayLit elems, TArray (elem, _) ->
@@ -559,12 +579,13 @@ and emit_assign ctx l r _t =
   | _ ->
       let rv = emit_expr ctx r in
       (match l.T.desc with
-      | T.TIdent name when Hashtbl.mem ctx.locals name ->
-          emit ctx "    %s %s, %%%s\n" (qbe_store l.T.ty) rv name
-      | T.TIdent name when Hashtbl.mem ctx.globals name ->
-          emit ctx "    %s %s, $%s\n" (qbe_store l.T.ty) rv name
-      | T.TIdent name ->
-          emit ctx "    %%%s =%s copy %s\n" name (qbe_ty r.T.ty) rv
+      | T.TIdent name -> (
+          match local_slot ctx name with
+          | Some slot -> emit ctx "    %s %s, %%%s\n" (qbe_store l.T.ty) rv slot
+          | None ->
+              if Hashtbl.mem ctx.globals name then
+                emit ctx "    %s %s, $%s\n" (qbe_store l.T.ty) rv name
+              else emit ctx "    %%%s =%s copy %s\n" name (qbe_ty r.T.ty) rv)
       | _ -> ());
       rv
 
@@ -603,19 +624,21 @@ and emit_compound_assign ctx op l r =
       let lt = l.T.ty in
       let qt = qbe_ty lt in
       let cur = fresh ctx in
-      if Hashtbl.mem ctx.locals name then
-        emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) name
-      else if Hashtbl.mem ctx.globals name then
-        emit ctx "    %s =%s %s $%s\n" cur qt (qbe_load lt) name
-      else emit ctx "    %s =%s copy %%%s\n" cur qt name;
+      (match local_slot ctx name with
+      | Some slot -> emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load lt) slot
+      | None ->
+          if Hashtbl.mem ctx.globals name then
+            emit ctx "    %s =%s %s $%s\n" cur qt (qbe_load lt) name
+          else emit ctx "    %s =%s copy %%%s\n" cur qt name);
       let rv = emit_expr ctx r in
       let new_val = fresh ctx in
       emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op lt) cur rv;
-      if Hashtbl.mem ctx.locals name then
-        emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val name
-      else if Hashtbl.mem ctx.globals name then
-        emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
-      else emit ctx "    %%%s =%s copy %s\n" name qt new_val;
+      (match local_slot ctx name with
+      | Some slot -> emit ctx "    %s %s, %%%s\n" (qbe_store lt) new_val slot
+      | None ->
+          if Hashtbl.mem ctx.globals name then
+            emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
+          else emit ctx "    %%%s =%s copy %s\n" name qt new_val);
       new_val
 
 and is_float_ty = function TFloat _ -> true | _ -> false
@@ -726,28 +749,29 @@ and emit_cast ctx v src_ty target_ty =
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s with
-  | T.TConst (name, t, e) | T.TVar (name, t, e) -> (
+  | T.TConst (name, t, e) | T.TVar (name, t, e) ->
       (* stack slot sized by type (struct sizes resolved from context) *)
-      emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
+      let slot = new_slot ctx name in
+      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr t)
         (ty_size ctx.structs t);
-      Hashtbl.replace ctx.locals name ();
-      match e.T.desc with
-      | T.TZero -> emit_zero_into ctx ("%" ^ name) e.T.ty
+      (* init runs before binding so `var x = x + 1` reads the shadowed outer x *)
+      (match e.T.desc with
+      | T.TZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
       | T.TUndef -> ()
       | T.TArrayLit elems ->
           let elem =
             match e.T.ty with TArray (el, _) -> el | _ -> assert false
           in
-          emit_array_lit_into ctx ("%" ^ name) elems elem
+          emit_array_lit_into ctx ("%" ^ slot) elems elem
       | T.TStructLit (sname, tfields) ->
-          emit_struct_lit_into ctx ("%" ^ name) sname tfields
+          emit_struct_lit_into ctx ("%" ^ slot) sname tfields
       | _ when is_aggregate t ->
-          (* aggregate: copy the value's bytes into the variable's slot *)
           let src = emit_expr ctx e in
-          emit_aggregate_copy ctx ("%" ^ name) src (ty_size ctx.structs t)
+          emit_aggregate_copy ctx ("%" ^ slot) src (ty_size ctx.structs t)
       | _ ->
           let v = emit_expr ctx e in
-          emit ctx "    %s %s, %%%s\n" (qbe_store t) v name)
+          emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot);
+      bind_local ctx name slot
   | T.TReturn None ->
       if not !(ctx.terminated) then emit ctx "    ret\n";
       ctx.terminated := true
@@ -772,7 +796,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       let else_lbl = Printf.sprintf "@if.else%d" id in
       let end_lbl = Printf.sprintf "@if.end%d" id in
       match branches with
-      | [] -> emit_stmts ctx else_body
+      | [] -> emit_scoped ctx else_body
       | _ ->
           List.iteri
             (fun i (cond, body) ->
@@ -783,23 +807,15 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
               let cv = emit_expr ctx cond in
               emit_jnz ctx cv (List.nth then_lbls i) next_lbl;
               emit_label ctx (List.nth then_lbls i);
-              emit_stmts ctx body;
+              emit_scoped ctx body;
               emit_jmp ctx end_lbl)
             branches;
           emit_label ctx else_lbl;
-          emit_stmts ctx else_body;
+          emit_scoped ctx else_body;
           emit_label ctx end_lbl)
   | T.TBlock stmts ->
       (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
-      (* locals is a flat hashtable so save and restore it for block scope *)
-      let saved = Hashtbl.copy ctx.locals in
-      emit_stmts ctx stmts;
-      let to_remove =
-        Hashtbl.fold
-          (fun k () acc -> if Hashtbl.mem saved k then acc else k :: acc)
-          ctx.locals []
-      in
-      List.iter (Hashtbl.remove ctx.locals) to_remove
+      emit_scoped ctx stmts
   | T.TBreak -> (
       match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
   | T.TContinue -> (
@@ -816,7 +832,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       emit_label ctx body_lbl;
       (* continue re-tests the condition and break exits *)
       ctx.loops := (test_lbl, end_lbl) :: !(ctx.loops);
-      emit_stmts ctx body;
+      emit_scoped ctx body;
       ctx.loops := List.tl !(ctx.loops);
       emit_jmp ctx test_lbl;
       emit_label ctx end_lbl
@@ -831,27 +847,29 @@ and emit_for ctx name elem_ty iter body =
   let end_lbl = Printf.sprintf "@for.end%d" id in
   let qt = qbe_ty elem_ty in
   let sign = signedness elem_ty in
+  let slot = new_slot ctx name in
+  let saved = save_locals ctx in
   let run_body () =
     ctx.loops := (cont_lbl, end_lbl) :: !(ctx.loops);
     emit_stmts ctx body;
     ctx.loops := List.tl !(ctx.loops)
   in
-  match iter.T.desc with
+  (match iter.T.desc with
   | T.TRange (lo, hi) | T.TRangeInclusive (lo, hi) ->
       let inclusive =
         match iter.T.desc with T.TRangeInclusive _ -> true | _ -> false
       in
       (* loop var lives in a stack slot so the body can read and increment it *)
-      emit ctx "    %%%s =l %s %d\n" name (alloc_instr elem_ty)
+      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr elem_ty)
         (ty_size ctx.structs elem_ty);
-      Hashtbl.replace ctx.locals name ();
       let lov = emit_expr ctx lo in
-      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov name;
+      bind_local ctx name slot;
+      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov slot;
       (* upper bound is evaluated once before the loop *)
       let hiv = emit_expr ctx hi in
       emit_label ctx cond_lbl;
       let cur = fresh ctx in
-      emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load elem_ty) name;
+      emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load elem_ty) slot;
       let cmp = fresh ctx in
       let cmpop = if inclusive then "le" else "lt" in
       emit ctx "    %s =w c%s%s%s %s, %s\n" cmp sign cmpop qt cur hiv;
@@ -860,10 +878,10 @@ and emit_for ctx name elem_ty iter body =
       run_body ();
       emit_label ctx cont_lbl;
       let cur2 = fresh ctx in
-      emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) name;
+      emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) slot;
       let nxt = fresh ctx in
       emit ctx "    %s =%s add %s, 1\n" nxt qt cur2;
-      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt name;
+      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt slot;
       emit_jmp ctx cond_lbl;
       emit_label ctx end_lbl
   | _ ->
@@ -887,9 +905,9 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s =l alloc8 8\n" idx;
       emit ctx "    storel 0, %s\n" idx;
       (* element binding slot, refreshed each iteration *)
-      emit ctx "    %%%s =l %s %d\n" name (alloc_instr elem_ty)
+      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr elem_ty)
         (ty_size ctx.structs elem_ty);
-      Hashtbl.replace ctx.locals name ();
+      bind_local ctx name slot;
       emit_label ctx cond_lbl;
       let i = fresh ctx in
       emit ctx "    %s =l loadl %s\n" i idx;
@@ -903,11 +921,11 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s =l add %s, %s\n" addr storage off;
       (if is_aggregate elem_ty then
          (* aggregate element: copy its bytes into the loop variable *)
-         emit_aggregate_copy ctx ("%" ^ name) addr (ty_size ctx.structs elem_ty)
+         emit_aggregate_copy ctx ("%" ^ slot) addr (ty_size ctx.structs elem_ty)
        else
          let v = fresh ctx in
          emit ctx "    %s =%s %s %s\n" v qt (qbe_load elem_ty) addr;
-         emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) v name);
+         emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) v slot);
       run_body ();
       emit_label ctx cont_lbl;
       let i2 = fresh ctx in
@@ -916,10 +934,16 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s =l add %s, 1\n" nxt i2;
       emit ctx "    storel %s, %s\n" nxt idx;
       emit_jmp ctx cond_lbl;
-      emit_label ctx end_lbl
+      emit_label ctx end_lbl);
+  restore_locals ctx saved
 (* | _ -> () *)
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
+
+and emit_scoped ctx stmts =
+  let saved = save_locals ctx in
+  emit_stmts ctx stmts;
+  restore_locals ctx saved
 
 let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* temporaries and locals are function scoped *)
@@ -959,7 +983,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
       if is_aggregate t then
         emit_aggregate_copy ctx ("%" ^ name) tmp (ty_size ctx.structs t)
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
-      Hashtbl.replace ctx.locals name ())
+      bind_local ctx name name)
     param_tmps;
 
   emit_stmts ctx tfd.body;

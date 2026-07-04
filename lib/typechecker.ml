@@ -67,10 +67,7 @@ let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
   let info = { ty = t; used = ref used; span } in
   match env.vars with
   | [] -> assert false (* no active scope *)
-  | scope :: rest ->
-      if List.mem_assoc name scope then
-        emit env (Error.named span "already defined" name);
-      { env with vars = ((name, info) :: scope) :: rest }
+  | scope :: rest -> { env with vars = ((name, info) :: scope) :: rest }
 
 let lookup_var_opt (env : env) (name : string) : ty option =
   let rec search = function
