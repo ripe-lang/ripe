@@ -1537,3 +1537,313 @@ func f() i64 { return g.b }
         ret %t1
     }
     |}]
+
+let%expect_test "codegen: nested block shadow keeps outer slot" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 1
+  {
+    var x: i32 = 2
+    x = x + 5
+  }
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 1, %x
+        %x.0 =l alloc4 4
+        storew 2, %x.0
+        %t1 =w loadsw %x.0
+        %t2 =w add %t1, 5
+        storew %t2, %x.0
+        %t3 =w loadsw %x
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: same scope redeclare shadows and reads outer" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 1
+  var x: i32 = x + 4
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 1, %x
+        %x.0 =l alloc4 4
+        %t1 =w loadsw %x
+        %t2 =w add %t1, 4
+        storew %t2, %x.0
+        %t3 =w loadsw %x.0
+        ret %t3
+    }
+    |}]
+
+let%expect_test
+    "codegen: if-branch shadow does not leak, later global write hits global" =
+  run_codegen
+    {|
+var g: i32 = 0
+func f(c: bool) {
+  if c {
+    var g: i32 = 5
+    g = g + 1
+  }
+  g = 10
+}
+|};
+  [%expect
+    {|
+    data $g = align 4 { w 0 }
+
+    function $f(w %t0) {
+    @start
+        %c =l alloc4 1
+        storeb %t0, %c
+    @if.cond1_0
+        %t2 =w loadub %c
+        jnz %t2, @if.then1_0, @if.else1
+    @if.then1_0
+        %g =l alloc4 4
+        storew 5, %g
+        %t3 =w loadsw %g
+        %t4 =w add %t3, 1
+        storew %t4, %g
+        jmp @if.end1
+    @if.else1
+    @if.end1
+        storew 10, $g
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: local shadows global inside function" =
+  run_codegen
+    {|
+var g: i32 = 0
+func f() i32 {
+  var g: i32 = 7
+  g = g + 1
+  return g
+}
+|};
+  [%expect
+    {|
+    data $g = align 4 { w 0 }
+
+    function w $f() {
+    @start
+        %g =l alloc4 4
+        storew 7, %g
+        %t0 =w loadsw %g
+        %t1 =w add %t0, 1
+        storew %t1, %g
+        %t2 =w loadsw %g
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: for loop var shadows outer, outer intact after loop" =
+  run_codegen
+    {|
+func f() i32 {
+  var i: i32 = 99
+  for i in 0..3 {
+    var y: i32 = i
+  }
+  return i
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %i =l alloc4 4
+        storew 99, %i
+        %i.1 =l alloc4 4
+        storew 0, %i.1
+    @for.cond0
+        %t2 =w loadsw %i.1
+        %t3 =w csltw %t2, 3
+        jnz %t3, @for.body0, @for.end0
+    @for.body0
+        %y =l alloc4 4
+        %t4 =w loadsw %i.1
+        storew %t4, %y
+    @for.cont0
+        %t5 =w loadsw %i.1
+        %t6 =w add %t5, 1
+        storew %t6, %i.1
+        jmp @for.cond0
+    @for.end0
+        %t7 =w loadsw %i
+        ret %t7
+    }
+    |}]
+
+let%expect_test "codegen: while body shadow" =
+  run_codegen
+    {|
+func f(n: i32) i32 {
+  var x: i32 = 1
+  while x < n {
+    var x: i32 = 100
+    x = x + 1
+  }
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %n =l alloc4 4
+        storew %t0, %n
+        %x =l alloc4 4
+        storew 1, %x
+    @while.cond1
+        %t2 =w loadsw %x
+        %t3 =w loadsw %n
+        %t4 =w csltw %t2, %t3
+        jnz %t4, @while.body1, @while.end1
+    @while.body1
+        %x.5 =l alloc4 4
+        storew 100, %x.5
+        %t6 =w loadsw %x.5
+        %t7 =w add %t6, 1
+        storew %t7, %x.5
+        jmp @while.cond1
+    @while.end1
+        %t8 =w loadsw %x
+        ret %t8
+    }
+    |}]
+
+let%expect_test "codegen: type changing shadow" =
+  run_codegen
+    {|
+func f() i64 {
+  var x: i32 = 1
+  var x: i64 = 2
+  return x
+}
+|};
+  [%expect
+    {|
+    function l $f() {
+    @start
+        %x =l alloc4 4
+        storew 1, %x
+        %x.0 =l alloc8 8
+        storel 2, %x.0
+        %t1 =l loadl %x.0
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: struct local shadow uses distinct slot" =
+  run_codegen
+    {|
+struct P { x: i32, y: i32 }
+func f() i32 {
+  var p: P = P { x: 1, y: 2 }
+  {
+    var p: P = P { x: 3, y: 4 }
+  }
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :P = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 1, %p
+        %t0 =l add %p, 4
+        storew 2, %t0
+        %p.1 =l alloc8 8
+        storew 3, %p.1
+        %t2 =l add %p.1, 4
+        storew 4, %t2
+        %t3 =w loadsw %p
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: triple nested shadow gets distinct slots" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 1
+  {
+    var x: i32 = 2
+    {
+      var x: i32 = 3
+      x = x + 1
+    }
+    x = x + 1
+  }
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 1, %x
+        %x.0 =l alloc4 4
+        storew 2, %x.0
+        %x.1 =l alloc4 4
+        storew 3, %x.1
+        %t2 =w loadsw %x.1
+        %t3 =w add %t2, 1
+        storew %t3, %x.1
+        %t4 =w loadsw %x.0
+        %t5 =w add %t4, 1
+        storew %t5, %x.0
+        %t6 =w loadsw %x
+        ret %t6
+    }
+    |}]
+
+let%expect_test "codegen: compound assign on shadowed local" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 1
+  {
+    var x: i32 = 10
+    x += 5
+  }
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 1, %x
+        %x.0 =l alloc4 4
+        storew 10, %x.0
+        %t1 =w loadsw %x.0
+        %t2 =w add %t1, 5
+        storew %t2, %x.0
+        %t3 =w loadsw %x
+        ret %t3
+    }
+    |}]
