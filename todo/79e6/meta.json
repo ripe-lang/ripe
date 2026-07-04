@@ -5,9 +5,9 @@
   "depends": [],
   "id": "79e6",
   "priority": "low",
-  "source": "lib/typechecker.ml:185",
+  "source": "lib/typechecker.ml:180",
   "status": "open",
   "tags": [],
   "title": "Check for duplicate function/extern definitions. Need to fix",
-  "updated_at": "2026-07-03 23:01:28.001649"
+  "updated_at": "2026-07-04 17:07:05.989911"
 }

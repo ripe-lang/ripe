@@ -5,9 +5,9 @@
   "depends": [],
   "id": "07aa",
   "priority": "low",
-  "source": "lib/codegen.ml:176",
+  "source": "lib/codegen.ml:190",
   "status": "open",
   "tags": [],
   "title": "handle @(^ptr) (deref) and @s.field (struct field access)",
-  "updated_at": "2026-07-03 23:01:27.999735"
+  "updated_at": "2026-07-04 17:07:05.990843"
 }

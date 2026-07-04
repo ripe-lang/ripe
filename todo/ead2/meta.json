@@ -5,9 +5,9 @@
   "depends": [],
   "id": "ead2",
   "priority": "low",
-  "source": "lib/codegen.ml:1099",
+  "source": "lib/codegen.ml:1198",
   "status": "open",
   "tags": [],
   "title": "enforce pub visibility on struct fields",
-  "updated_at": "2026-07-03 23:01:28.001161"
+  "updated_at": "2026-07-04 17:07:05.992090"
 }

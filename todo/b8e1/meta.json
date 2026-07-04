@@ -5,9 +5,9 @@
   "depends": [],
   "id": "b8e1",
   "priority": "low",
-  "source": "lib/typechecker.ml:143",
+  "source": "lib/typechecker.ml:138",
   "status": "open",
   "tags": [],
   "title": "Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)?",
-  "updated_at": "2026-07-03 23:01:28.001437"
+  "updated_at": "2026-07-04 17:07:05.989734"
 }

@@ -5,9 +5,9 @@
   "depends": [],
   "id": "b65f",
   "priority": "low",
-  "source": "lib/codegen.ml:285",
+  "source": "lib/codegen.ml:305",
   "status": "open",
   "tags": [],
   "title": "interp string codegen",
-  "updated_at": "2026-07-03 23:01:28.000149"
+  "updated_at": "2026-07-04 17:07:05.991199"
 }

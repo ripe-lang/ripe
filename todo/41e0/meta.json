@@ -5,9 +5,9 @@
   "depends": [],
   "id": "41e0",
   "priority": "low",
-  "source": "lib/codegen.ml:257",
+  "source": "lib/codegen.ml:277",
   "status": "open",
   "tags": [],
   "title": "range codegen",
-  "updated_at": "2026-07-03 23:01:27.999855"
+  "updated_at": "2026-07-04 17:07:05.990937"
 }

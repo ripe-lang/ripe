@@ -5,9 +5,9 @@
   "depends": [],
   "id": "e68f",
   "priority": "low",
-  "source": "lib/codegen.ml:259",
+  "source": "lib/codegen.ml:279",
   "status": "open",
   "tags": [],
   "title": "explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented.",
-  "updated_at": "2026-07-03 23:01:27.999947"
+  "updated_at": "2026-07-04 17:07:05.991024"
 }

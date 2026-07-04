@@ -5,9 +5,9 @@
   "depends": [],
   "id": "ab17",
   "priority": "low",
-  "source": "lib/codegen.ml:998",
+  "source": "lib/codegen.ml:1069",
   "status": "open",
   "tags": [],
   "title": "fold arithmetic",
-  "updated_at": "2026-07-03 23:01:28.001017"
+  "updated_at": "2026-07-04 17:07:05.992002"
 }

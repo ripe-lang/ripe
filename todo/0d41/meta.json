@@ -5,9 +5,9 @@
   "depends": [],
   "id": "0d41",
   "priority": "low",
-  "source": "lib/typechecker.ml:11",
+  "source": "lib/typechecker.ml:9",
   "status": "open",
   "tags": [],
   "title": "I should be allowed to shadow function name with a variable but not",
-  "updated_at": "2026-07-03 23:01:28.001327"
+  "updated_at": "2026-07-04 17:07:05.989626"
 }
