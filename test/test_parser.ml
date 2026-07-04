@@ -248,6 +248,16 @@ let%expect_test "parse: multiline array literal" =
     ok
     |}]
 
+let%expect_test "parse: line tracking after multiline string" =
+  run_src "func f() {\n  let s = \"line one\nline two\"\n  @\n}";
+  [%expect
+    {|
+    error: unexpected character: @
+      at <test>:4:3
+          @
+          ^
+    |}]
+
 let%expect_test "parse: modifiers on func" =
   run_src "public inline func f() {}";
   [%expect {| ok |}]
