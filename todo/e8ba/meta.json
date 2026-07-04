@@ -1,1 +1,13 @@
-{"id": "e8ba", "title": "change to Call of expr * expr list for function pointers and method calls", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-16 14:51:36.737561", "updated_at": "2026-07-01 02:38:08.305352", "source": "lib/ast.ml:82", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-16 14:51:36.737561",
+  "depends": [],
+  "id": "e8ba",
+  "priority": "low",
+  "source": "lib/ast.ml:88",
+  "status": "open",
+  "tags": [],
+  "title": "change to Call of expr * expr list for function pointers and method calls",
+  "updated_at": "2026-07-03 23:01:27.999012"
+}

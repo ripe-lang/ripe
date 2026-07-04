@@ -1,1 +1,13 @@
-{"id": "b5ca", "title": "dedicated \"cannot chain comparison operators\" message by checking if l is a comparison node", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-17 00:46:25.340974", "updated_at": "2026-07-01 02:38:08.306862", "source": "lib/typechecker.ml:445", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-17 00:46:25.340974",
+  "depends": [],
+  "id": "b5ca",
+  "priority": "low",
+  "source": "lib/typechecker.ml:486",
+  "status": "open",
+  "tags": [],
+  "title": "dedicated \"cannot chain comparison operators\" message by checking if l is a comparison node",
+  "updated_at": "2026-07-03 23:01:28.002221"
+}

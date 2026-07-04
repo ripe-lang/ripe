@@ -93,7 +93,7 @@ let keywords =
     ("null", NULL);
     ("extern", EXTERN);
     ("struct", STRUCT);
-    (* FIXME: I don't know if I like "inline" something feels weird *)
+    (* FIXME(ee4a): I don't know if I like "inline" something feels weird *)
     ("inline", INLINE);
     ("public", PUBLIC);
     ("func", FUNC);

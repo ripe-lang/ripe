@@ -1,1 +1,13 @@
-{"id": "fa20", "title": "finer recovery inside blocks, sync to next stmt boundary", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-19 03:08:44.283295", "updated_at": "2026-07-01 02:38:08.305937", "source": "lib/parser.ml:632", "depends": [], "blocks": [], "assignee": null}
+{
+  "assignee": null,
+  "blocks": [],
+  "created_at": "2026-05-19 03:08:44.283295",
+  "depends": [],
+  "id": "fa20",
+  "priority": "low",
+  "source": "lib/parser.ml:661",
+  "status": "open",
+  "tags": [],
+  "title": "finer recovery inside blocks, sync to next stmt boundary",
+  "updated_at": "2026-07-03 23:01:28.003031"
+}

@@ -1,1 +1,13 @@
-{"id": "b8e1", "title": "Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)?", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527612", "updated_at": "2026-07-01 02:38:08.306201", "source": "lib/typechecker.ml:169", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.527612",
+  "depends": [],
+  "id": "b8e1",
+  "priority": "low",
+  "source": "lib/typechecker.ml:143",
+  "status": "open",
+  "tags": [],
+  "title": "Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)?",
+  "updated_at": "2026-07-03 23:01:28.001437"
+}

@@ -1,1 +1,13 @@
-{"id": "b5ae", "title": "Better error messages", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.528384", "updated_at": "2026-07-01 02:38:08.307078", "source": "lib/typechecker.ml:552", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.528384",
+  "depends": [],
+  "id": "b5ae",
+  "priority": "low",
+  "source": "lib/typechecker.ml:596",
+  "status": "open",
+  "tags": [],
+  "title": "Better error messages",
+  "updated_at": "2026-07-03 23:01:28.002410"
+}

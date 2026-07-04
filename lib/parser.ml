@@ -31,6 +31,7 @@ let rec advance st =
   st.prev_end <- st.lexbuf.Lexing.lex_curr_p.pos_cnum;
   st.tok <- st.read st.lexbuf;
   match st.tok with
+  (* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
   | ERROR msg ->
       Diagnostic.error_at st.diags (cur_span st) msg;
       advance st
@@ -549,7 +550,7 @@ and parse_if st =
   let else_body =
     if st.tok = ELSE then begin
       advance st;
-      (* TODO: hint elseif *)
+      (* TODO(2247): hint elseif *)
       skip_semi st;
       parse_block st
     end

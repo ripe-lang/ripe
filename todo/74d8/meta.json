@@ -1,1 +1,13 @@
-{"id": "74d8", "title": "not entirely sure yet. static? public?", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-15 20:02:50.583614", "updated_at": "2026-07-01 02:38:08.305665", "source": "lib/parser.ml:125", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-15 20:02:50.583614",
+  "depends": [],
+  "id": "74d8",
+  "priority": "low",
+  "source": "lib/parser.ml:140",
+  "status": "open",
+  "tags": [],
+  "title": "not entirely sure yet. static? public?",
+  "updated_at": "2026-07-03 23:01:28.002667"
+}

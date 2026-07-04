@@ -1,1 +1,13 @@
-{"id": "9b1e", "title": "Add a rawptr/voidptr keyword for untyped pointers (C's void pointer)", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527776", "updated_at": "2026-07-01 02:38:08.306657", "source": "lib/typechecker.ml:226", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.527776",
+  "depends": [],
+  "id": "9b1e",
+  "priority": "low",
+  "source": "lib/typechecker.ml:200",
+  "status": "open",
+  "tags": [],
+  "title": "Add a rawptr/voidptr keyword for untyped pointers (C's void pointer)",
+  "updated_at": "2026-07-03 23:01:28.001996"
+}

@@ -1,1 +1,13 @@
-{"id": "bdc9", "title": "`as` silently loses data like C. Add a safe cast that catches bad conversions at runtime.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-04-04 04:23:48.649543", "updated_at": "2026-07-01 02:38:08.308485", "source": "lib/codegen.ml:618", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-04-04 04:23:48.649543",
+  "depends": [],
+  "id": "bdc9",
+  "priority": "low",
+  "source": "lib/codegen.ml:678",
+  "status": "open",
+  "tags": [],
+  "title": "`as` silently loses data like C. Add a safe cast that catches bad conversions at runtime.",
+  "updated_at": "2026-07-03 23:01:28.000248"
+}

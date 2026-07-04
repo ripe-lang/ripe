@@ -1,1 +1,13 @@
-{"id": "0c77", "title": "push/pop scope for match arms when match is implemented", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-16 22:38:44.586501", "updated_at": "2026-07-01 02:38:08.307178", "source": "lib/typechecker.ml:659", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-16 22:38:44.586501",
+  "depends": [],
+  "id": "0c77",
+  "priority": "low",
+  "source": "lib/typechecker.ml:699",
+  "status": "open",
+  "tags": [],
+  "title": "push/pop scope for match arms when match is implemented",
+  "updated_at": "2026-07-03 23:01:28.002511"
+}

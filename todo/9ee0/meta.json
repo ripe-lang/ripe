@@ -1,1 +1,13 @@
-{"id": "9ee0", "title": "parse modifiers", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-28 13:03:33.248558", "updated_at": "2026-07-01 02:38:08.305763", "source": "lib/parser.ml:137", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-28 13:03:33.248558",
+  "depends": [],
+  "id": "9ee0",
+  "priority": "low",
+  "source": "lib/parser.ml:152",
+  "status": "open",
+  "tags": [],
+  "title": "parse modifiers",
+  "updated_at": "2026-07-03 23:01:28.002808"
+}

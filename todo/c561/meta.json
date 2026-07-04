@@ -1,1 +1,13 @@
-{"id": "c561", "title": "emit inline functions at call site", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526860", "updated_at": "2026-07-01 02:38:08.308948", "source": "lib/codegen.ml:881", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.526860",
+  "depends": [],
+  "id": "c561",
+  "priority": "low",
+  "source": "lib/codegen.ml:948",
+  "status": "open",
+  "tags": [],
+  "title": "emit inline functions at call site",
+  "updated_at": "2026-07-03 23:01:28.000725"
+}
