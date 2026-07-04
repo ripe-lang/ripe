@@ -485,7 +485,7 @@ func f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: redeclare local" =
+let%expect_test "typecheck: redeclare local shadows" =
   run_src {|
 func f() {
   const x: i32 = 1
@@ -499,16 +499,40 @@ func f() {
           const x: i32 = 1
                 ^
     help: prefix with an underscore: _x
-    error: already defined: x
-      at <test>:4:9
-          const x: i32 = 2
-                ^
     warning: unused variable: x
       at <test>:4:9
           const x: i32 = 2
                 ^
     help: prefix with an underscore: _x
+    ok
     |}]
+
+let%expect_test "typecheck: shadow can change type and the new type wins" =
+  run_src {|
+func f() i64 {
+  var x: i32 = 1
+  var x: i64 = 2
+  return x
+}
+|};
+  [%expect {|
+    warning: unused variable: x
+      at <test>:3:7
+          var x: i32 = 1
+              ^
+    help: prefix with an underscore: _x
+    ok
+    |}]
+
+let%expect_test "typecheck: shadow reads the old binding in its initializer" =
+  run_src {|
+func f() i32 {
+  var x: i32 = 1
+  var x: i32 = x + 4
+  return x
+}
+|};
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: type annot mismatch on var" =
   run_src "func f() { var x: bool = 1 }";
