@@ -2134,7 +2134,8 @@ let%expect_test "codegen: self referential const is a cycle" =
 const X: i32 = X
 func f() i32 { return X }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: cyclic constant: X
       at <test>:2:16
         const X: i32 = X
@@ -2147,7 +2148,8 @@ const A: i32 = B
 const B: i32 = A
 func f() i32 { return A }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: cyclic constant: B
       at <test>:2:16
         const A: i32 = B

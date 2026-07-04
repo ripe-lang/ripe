@@ -1096,7 +1096,8 @@ and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =
   | Some v -> v
   | None -> (
       match Hashtbl.find_opt ctx.const_inits name with
-      | None -> raise (CodegenErrors [ Error.named span "cyclic constant" name ])
+      | None ->
+          raise (CodegenErrors [ Error.named span "cyclic constant" name ])
       | Some init ->
           Hashtbl.remove ctx.const_inits name;
           let v = fold_const_value ctx init in
