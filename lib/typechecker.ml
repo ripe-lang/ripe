@@ -706,8 +706,11 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
         if returned && not warned then
           add_warning current_env s.span "unreachable code";
         let next_env, ts = check_stmt current_env s in
-        let is_return = match s.sdesc with Return _ -> true | _ -> false in
-        (next_env, ts :: acc, returned || is_return, warned || returned))
+        (* break and continue end the block just like return does *)
+        let terminates =
+          match s.sdesc with Return _ | Break | Continue -> true | _ -> false
+        in
+        (next_env, ts :: acc, returned || terminates, warned || returned))
       (env, [], false, false) stmts
   in
   (final_env, List.rev tstmts_reversed)
