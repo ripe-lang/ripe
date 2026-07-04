@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-03 23:01:27.978976",
+  "depends": [],
+  "id": "16dc",
+  "priority": "low",
+  "source": "vendor/qbe/rv64/emit.c:462",
+  "status": "open",
+  "tags": [],
+  "title": "only need space for registers",
+  "updated_at": "2026-07-03 23:01:27.978976"
+}

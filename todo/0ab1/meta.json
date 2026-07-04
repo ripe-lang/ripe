@@ -1,1 +1,13 @@
-{"id": "0ab1", "title": "Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527893", "updated_at": "2026-07-01 02:38:08.306756", "source": "lib/typechecker.ml:371", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.527893",
+  "depends": [],
+  "id": "0ab1",
+  "priority": "low",
+  "source": "lib/typechecker.ml:399",
+  "status": "open",
+  "tags": [],
+  "title": "Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow.",
+  "updated_at": "2026-07-03 23:01:28.002115"
+}

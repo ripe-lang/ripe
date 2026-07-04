@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-03 23:01:27.978485",
+  "depends": [],
+  "id": "cbd4",
+  "priority": "low",
+  "source": "vendor/qbe/rv64/emit.c:137",
+  "status": "open",
+  "tags": [],
+  "title": "fix isel to ensure no offset for SGlo */",
+  "updated_at": "2026-07-03 23:01:27.978485"
+}

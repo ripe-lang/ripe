@@ -1,1 +1,13 @@
-{"id": "79e6", "title": "Check for duplicate function/extern definitions. Need to fix", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-17 21:50:30.326879", "updated_at": "2026-07-01 02:38:08.306401", "source": "lib/typechecker.ml:210", "depends": [], "blocks": [], "assignee": null}
+{
+  "assignee": null,
+  "blocks": [],
+  "created_at": "2026-05-17 21:50:30.326879",
+  "depends": [],
+  "id": "79e6",
+  "priority": "low",
+  "source": "lib/typechecker.ml:185",
+  "status": "open",
+  "tags": [],
+  "title": "Check for duplicate function/extern definitions. Need to fix",
+  "updated_at": "2026-07-03 23:01:28.001649"
+}

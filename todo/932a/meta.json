@@ -1,1 +1,13 @@
-{"id": "932a", "title": "check all paths return for non-void functions", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-16 21:50:48.479355", "updated_at": "2026-07-01 02:38:08.307324", "source": "lib/typechecker.ml:697", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-16 21:50:48.479355",
+  "depends": [],
+  "id": "932a",
+  "priority": "low",
+  "source": "lib/typechecker.ml:697",
+  "status": "orphaned",
+  "tags": [],
+  "title": "check all paths return for non-void functions",
+  "updated_at": "2026-07-03 23:01:27.998356"
+}

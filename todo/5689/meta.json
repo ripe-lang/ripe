@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-03 23:01:27.990785",
+  "depends": [],
+  "id": "5689",
+  "priority": "low",
+  "source": "lib/parser.ml:34",
+  "status": "open",
+  "tags": [],
+  "title": "cap at 20 errors then bail, with a flag to list the rest",
+  "updated_at": "2026-07-03 23:01:27.990785"
+}

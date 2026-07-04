@@ -1,1 +1,13 @@
-{"id": "ead2", "title": "enforce pub visibility on struct fields", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527029", "updated_at": "2026-07-01 02:38:08.309332", "source": "lib/codegen.ml:1013", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.527029",
+  "depends": [],
+  "id": "ead2",
+  "priority": "low",
+  "source": "lib/codegen.ml:1099",
+  "status": "open",
+  "tags": [],
+  "title": "enforce pub visibility on struct fields",
+  "updated_at": "2026-07-03 23:01:28.001161"
+}

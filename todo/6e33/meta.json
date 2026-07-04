@@ -1,1 +1,13 @@
-{"id": "6e33", "title": "Create a custom _start.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.526761", "updated_at": "2026-07-01 02:38:08.308773", "source": "lib/codegen.ml:876", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.526761",
+  "depends": [],
+  "id": "6e33",
+  "priority": "low",
+  "source": "lib/codegen.ml:943",
+  "status": "open",
+  "tags": [],
+  "title": "Create a custom _start.",
+  "updated_at": "2026-07-03 23:01:28.000521"
+}

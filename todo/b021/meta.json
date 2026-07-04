@@ -1,1 +1,13 @@
-{"id": "b021", "title": "need a total rewrite of this once", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.525263", "updated_at": "2026-07-01 02:38:08.304569", "source": "bin/main.ml:3", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.525263",
+  "depends": [],
+  "id": "b021",
+  "priority": "low",
+  "source": "bin/main.ml:3",
+  "status": "orphaned",
+  "tags": [],
+  "title": "need a total rewrite of this once",
+  "updated_at": "2026-07-03 23:01:27.998495"
+}

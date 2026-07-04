@@ -1,1 +1,13 @@
-{"id": "0d41", "title": "I should be allowed to shadow function name with a variable but not", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.527486", "updated_at": "2026-07-01 02:38:08.306109", "source": "lib/typechecker.ml:10", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.527486",
+  "depends": [],
+  "id": "0d41",
+  "priority": "low",
+  "source": "lib/typechecker.ml:11",
+  "status": "open",
+  "tags": [],
+  "title": "I should be allowed to shadow function name with a variable but not",
+  "updated_at": "2026-07-03 23:01:28.001327"
+}

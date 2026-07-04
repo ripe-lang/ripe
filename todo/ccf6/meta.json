@@ -1,1 +1,13 @@
-{"id": "ccf6", "title": "Validate that the operand is a numeric type", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.528334", "updated_at": "2026-07-01 02:38:08.306983", "source": "lib/typechecker.ml:551", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.528334",
+  "depends": [],
+  "id": "ccf6",
+  "priority": "low",
+  "source": "lib/typechecker.ml:595",
+  "status": "open",
+  "tags": [],
+  "title": "Validate that the operand is a numeric type",
+  "updated_at": "2026-07-03 23:01:28.002312"
+}

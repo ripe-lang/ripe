@@ -1,1 +1,13 @@
-{"id": "5d10", "title": "emit paths relative to project root", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-16 18:44:43.486348", "updated_at": "2026-07-01 02:38:08.304675", "source": "bin/main.ml:30", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-16 18:44:43.486348",
+  "depends": [],
+  "id": "5d10",
+  "priority": "low",
+  "source": "bin/main.ml:105",
+  "status": "open",
+  "tags": [],
+  "title": "emit paths relative to project root",
+  "updated_at": "2026-07-03 23:01:27.998724"
+}

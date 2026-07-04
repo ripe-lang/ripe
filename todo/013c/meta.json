@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-03 23:01:27.980075",
+  "depends": [],
+  "id": "013c",
+  "priority": "low",
+  "source": "vendor/qbe/rv64/isel.c:202",
+  "status": "open",
+  "tags": [],
+  "title": "replace cmp+jnz with beq/bne/blt[u]/bge[u] */",
+  "updated_at": "2026-07-03 23:01:27.980075"
+}

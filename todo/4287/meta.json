@@ -1,1 +1,13 @@
-{"id": "4287", "title": "Reordering struct fields by alignment to minimize padding", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.525923", "updated_at": "2026-07-01 02:38:08.307700", "source": "lib/codegen.ml:33", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.525923",
+  "depends": [],
+  "id": "4287",
+  "priority": "low",
+  "source": "lib/codegen.ml:34",
+  "status": "open",
+  "tags": [],
+  "title": "Reordering struct fields by alignment to minimize padding",
+  "updated_at": "2026-07-03 23:01:27.999363"
+}

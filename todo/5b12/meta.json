@@ -1,1 +1,13 @@
-{"id": "5b12", "title": "Add DFS cycle detection to prevent infinite recursion", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-17 21:50:30.327496", "updated_at": "2026-07-01 02:38:08.306570", "source": "lib/typechecker.ml:220", "depends": [], "blocks": [], "assignee": null}
+{
+  "assignee": null,
+  "blocks": [],
+  "created_at": "2026-05-17 21:50:30.327496",
+  "depends": [],
+  "id": "5b12",
+  "priority": "low",
+  "source": "lib/typechecker.ml:195",
+  "status": "open",
+  "tags": [],
+  "title": "Add DFS cycle detection to prevent infinite recursion",
+  "updated_at": "2026-07-03 23:01:28.001877"
+}

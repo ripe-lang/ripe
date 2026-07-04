@@ -1,1 +1,13 @@
-{"id": "ab17", "title": "fold arithmetic", "status": "open", "priority": "low", "tags": [], "created_at": "2026-05-17 19:44:07.975448", "updated_at": "2026-07-01 02:38:08.309222", "source": "lib/codegen.ml:928", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-05-17 19:44:07.975448",
+  "depends": [],
+  "id": "ab17",
+  "priority": "low",
+  "source": "lib/codegen.ml:998",
+  "status": "open",
+  "tags": [],
+  "title": "fold arithmetic",
+  "updated_at": "2026-07-03 23:01:28.001017"
+}
