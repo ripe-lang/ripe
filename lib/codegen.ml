@@ -132,6 +132,8 @@ type ctx = {
   loops : (string * string) list ref;
   (* true once the current block ended in a jmp/ret and QBE rejects anything after *)
   terminated : bool ref;
+  const_vals : (string, string) Hashtbl.t;
+  const_inits : (string, T.texpr) Hashtbl.t;
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -1063,13 +1065,26 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       in
       prefix ^ Printf.sprintf "%.*g" digits f
   | T.TCast e -> fold_const_value ctx e
-  | T.TIdent name -> "$" ^ name
+  | T.TIdent name -> resolve_const ctx name
   | T.TCStr s ->
       let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
       incr ctx.str_ctr;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
   | _ -> failwith "non-trivial constant initializer"
+
+(* yank it from the table first so a cycle dies here instead of looping forever *)
+and resolve_const (ctx : ctx) (name : string) : string =
+  match Hashtbl.find_opt ctx.const_vals name with
+  | Some v -> v
+  | None -> (
+      match Hashtbl.find_opt ctx.const_inits name with
+      | None -> failwith ("cyclic constant initializer: " ^ name)
+      | Some init ->
+          Hashtbl.remove ctx.const_inits name;
+          let v = fold_const_value ctx init in
+          Hashtbl.replace ctx.const_vals name v;
+          v)
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
 let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
@@ -1146,12 +1161,19 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       str_ctr = ref 0;
       loops = ref [];
       terminated = ref false;
+      const_vals = Hashtbl.create 16;
+      const_inits = Hashtbl.create 16;
     }
   in
 
   List.iter
     (function
-      | T.TGlobal gd -> Hashtbl.replace ctx.globals gd.name () | _ -> ())
+      | T.TGlobal gd ->
+          Hashtbl.replace ctx.globals gd.name ();
+          (match gd.init with
+          | Some te when gd.is_const -> Hashtbl.replace ctx.const_inits gd.name te
+          | _ -> ())
+      | _ -> ())
     tdecls;
 
   (* Struct type def *)

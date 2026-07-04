@@ -2074,3 +2074,54 @@ func f(a: bool, b: bool) i32 {
         ret 0
     }
     |}]
+
+let%expect_test "codegen: const references another const by value" =
+  run_codegen {|
+const A: i32 = 5
+const B: i32 = A
+func f() i32 { return B }
+|};
+  [%expect {|
+    data $A = align 4 { w 5 }
+    data $B = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $B
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: const references a later const" =
+  run_codegen {|
+const B: i32 = A
+const A: i32 = 5
+func f() i32 { return B }
+|};
+  [%expect {|
+    data $B = align 4 { w 5 }
+    data $A = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $B
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: var initialized from a const" =
+  run_codegen {|
+const A: i32 = 5
+var B: i32 = A
+func f() i32 { return B }
+|};
+  [%expect {|
+    data $A = align 4 { w 5 }
+    data $B = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $B
+        ret %t0
+    }
+    |}]
