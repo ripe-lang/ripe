@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - ripe.opam.locked
-      - Dockerfile
+      - .github/Dockerfile
       - .github/workflows/build-image.yml
   workflow_dispatch:
 
@@ -25,5 +25,6 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: .github/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}/ci:latest
