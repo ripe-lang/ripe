@@ -6,26 +6,33 @@ open Tokens
 open Ast
 
 (* internal, used to unwind from grammar rules. parse converts to ParseErrors *)
-exception ParseError of Lexing.position * string
-exception ParseErrors of (Lexing.position * string) list
+exception ParseError of Diagnostic.t
+exception ParseErrors of Diagnostic.t list
 
 type state = {
   mutable tok : token;
   lexbuf : Lexing.lexbuf;
   read : Lexing.lexbuf -> token;
-  mutable diags : (Lexing.position * string) list;
+  diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
   mutable prev_end : int;
 }
 
 type assoc = Left | Right | NonAssoc
 
+(* span of the current lookahead token so the caret lands under it *)
+let cur_span st =
+  {
+    lo = st.lexbuf.Lexing.lex_start_p.pos_cnum;
+    hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum;
+  }
+
 let rec advance st =
   st.prev_end <- st.lexbuf.Lexing.lex_curr_p.pos_cnum;
   st.tok <- st.read st.lexbuf;
   match st.tok with
   | ERROR msg ->
-      st.diags <- (st.lexbuf.lex_start_p, msg) :: st.diags;
+      Diagnostic.error_at st.diags (cur_span st) msg;
       advance st
   | _ -> ()
 
@@ -33,7 +40,17 @@ let at st t = st.tok = t
 
 (* start of the current lookahead token *)
 let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
-let cur_lex_pos st = st.lexbuf.Lexing.lex_start_p
+
+let fail st headline =
+  raise (ParseError Diagnostic.(error headline |> at (cur_span st)))
+
+let fail_found st headline =
+  raise
+    (ParseError
+       Diagnostic.(
+         error headline
+         |> at (cur_span st)
+         |> label (Printf.sprintf "found %s" (show_token st.tok))))
 
 (* newlines lex as SEMI *)
 let skip_semi st =
@@ -46,7 +63,7 @@ let expect_ident st =
   | IDENT s ->
       advance st;
       s
-  | _ -> raise (ParseError (cur_lex_pos st, "expected identifier"))
+  | _ -> fail_found st "expected identifier"
 
 let expect_ident_span st =
   let lo = st.lexbuf.Lexing.lex_start_p.pos_cnum in
@@ -56,11 +73,7 @@ let expect_ident_span st =
 
 let expect st t =
   if st.tok <> t then
-    raise
-      (ParseError
-         ( cur_lex_pos st,
-           Printf.sprintf "expected '%s' but found '%s'" (show_token t)
-             (show_token st.tok) ))
+    fail_found st (Printf.sprintf "expected %s" (show_token t))
   else advance st
 
 (* item (, item)* with an optional trailing comma before stop *)
@@ -101,7 +114,7 @@ let rec parse_typ st =
           | INT n ->
               advance st;
               n
-          | _ -> raise (ParseError (cur_lex_pos st, "expected array size"))
+          | _ -> fail_found st "expected array size"
         in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
@@ -115,7 +128,7 @@ let rec parse_typ st =
         | _ -> None
       in
       mkt lo st (FuncPtr (params, ret))
-  | _ -> raise (ParseError (cur_lex_pos st, "expected type"))
+  | _ -> fail_found st "expected type"
 
 let parse_modifiers st =
   let rec go acc =
@@ -185,8 +198,7 @@ let parse_params st =
       else params := parse_one () :: !params
     done
   end;
-  if !variadic && st.tok = COMMA then
-    raise (ParseError (cur_lex_pos st, "'...' must be the last parameter"));
+  if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
   expect st RPAREN;
   (List.rev !params, !variadic)
 
@@ -283,11 +295,9 @@ let rec parse_expr st min_prec =
         (* TODO(a300): better message, point at both operators *)
         (match (assoc, prec_of st.tok) with
         | NonAssoc, Some (p, _) when p = prec ->
-            raise
-              (ParseError
-                 ( cur_lex_pos st,
-                   "cannot chain non-associative operator '" ^ show_token st.tok
-                   ^ "'" ))
+            fail st
+              (Printf.sprintf "cannot chain non-associative operator %s"
+                 (show_token st.tok))
         | _ -> ());
         lhs := parse_postfix st !lhs
   done;
@@ -405,7 +415,7 @@ and parse_primary st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
-  | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
+  | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
@@ -637,13 +647,7 @@ let parse_extern st =
     }
 
 let parse_decl st =
-  let err () =
-    raise
-      (ParseError
-         ( cur_lex_pos st,
-           Printf.sprintf "expected declaration but found '%s'"
-             (show_token st.tok) ))
-  in
+  let err () = fail_found st "expected declaration" in
   let mods = parse_modifiers st in
   match (mods, st.tok) with
   | _, STRUCT -> parse_struct st mods
@@ -668,8 +672,8 @@ let parse_program st =
     try
       decls := parse_decl st :: !decls;
       skip_semi st
-    with ParseError (p, m) ->
-      st.diags <- (p, m) :: st.diags;
+    with ParseError d ->
+      Diagnostic.emit st.diags d;
       sync_to_decl st
   done;
   List.rev !decls
@@ -677,8 +681,17 @@ let parse_program st =
 let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
     Ast.decl list =
   let st =
-    { tok = EOF; lexbuf; read; diags = []; no_struct_lit = false; prev_end = 0 }
+    {
+      tok = EOF;
+      lexbuf;
+      read;
+      diags = Diagnostic.sink ();
+      no_struct_lit = false;
+      prev_end = 0;
+    }
   in
   advance st;
   let decls = parse_program st in
-  match List.rev st.diags with [] -> decls | ds -> raise (ParseErrors ds)
+  match Diagnostic.drain st.diags with
+  | [] -> decls
+  | ds -> raise (ParseErrors ds)

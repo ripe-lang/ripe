@@ -6,11 +6,37 @@ open Helpers
 
 let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
-  [%expect {| ParseError: expected expression |}]
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:15
+        func f() { g( }
+                      ^ found }
+    |}]
 
 let%expect_test "parse: stray token" =
   run_src "func f() { @ }";
-  [%expect {| ParseError: unexpected character: @ |}]
+  [%expect
+    {|
+    error: unexpected character: @
+      at <test>:1:12
+        func f() { @ }
+                   ^
+    |}]
+
+let%expect_test "parse: unterminated string" =
+  run_src "func f() { const s = \"oops";
+  [%expect
+    {|
+    error: unterminated string
+      at <test>:1:27
+        func f() { const s = "oops
+                                  ^
+    error: expected }
+      at <test>:1:27
+        func f() { const s = "oops
+                                  ^ found <eof>
+    |}]
 
 let%expect_test "parse: hex/binary literals" =
   run_src "func f() i32 { return 0xff + 0b1010 }";
@@ -42,20 +68,38 @@ let%expect_test "parse: recover, two broken decls" =
   run_src "func f() { @ } func g() { $ }";
   [%expect
     {|
-    ParseError: unexpected character: @
-    ParseError: unexpected character: $
+    error: unexpected character: @
+      at <test>:1:12
+        func f() { @ } func g() { $ }
+                   ^
+    error: unexpected character: $
+      at <test>:1:27
+        func f() { @ } func g() { $ }
+                                  ^
     |}]
 
 let%expect_test "parse: recover, broken then good" =
   run_src "func f() { return + } func g() i32 { return 1 }";
-  [%expect {| ParseError: expected expression |}]
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:19
+        func f() { return + } func g() i32 { return 1 }
+                          ^ found +
+    |}]
 
 let%expect_test "parse: recover, lex error then grammar error" =
   run_src "func f() { @ } func g() { return + }";
   [%expect
     {|
-    ParseError: unexpected character: @
-    ParseError: expected expression
+    error: unexpected character: @
+      at <test>:1:12
+        func f() { @ } func g() { return + }
+                   ^
+    error: expected expression
+      at <test>:1:34
+        func f() { @ } func g() { return + }
+                                         ^ found +
     |}]
 
 let%expect_test "parse: precedence + vs *" =
@@ -76,7 +120,13 @@ let%expect_test "parse: cast binds tighter than +" =
 
 let%expect_test "parse: comparison non-associative" =
   parse_expr "a < b < c";
-  [%expect {| ParseError: cannot chain non-associative operator '<' |}]
+  [%expect
+    {|
+    error: cannot chain non-associative operator <
+      at <test>:1:26
+        func _f() { return a < b < c }
+                                 ^
+    |}]
 
 let%expect_test "parse: unary minus and not" =
   parse_expr "!flag && -x > 0";
@@ -108,7 +158,13 @@ let%expect_test "parse: range inclusive" =
 
 let%expect_test "parse: range non-associative" =
   parse_expr "0..5..10";
-  [%expect {| ParseError: cannot chain non-associative operator '..' |}]
+  [%expect
+    {|
+    error: cannot chain non-associative operator ..
+      at <test>:1:24
+        func _f() { return 0..5..10 }
+                               ^~
+    |}]
 
 let%expect_test "parse: array literal" =
   parse_expr "[1, 2, 3]";
@@ -152,7 +208,13 @@ let%expect_test "parse: slice of pointer type" =
 
 let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
-  [%expect {| ParseError: expected array size |}]
+  [%expect
+    {|
+    error: expected array size
+      at <test>:1:12
+        func f(a: [xyz]i32) {}
+                   ^~~ found xyz
+    |}]
 
 let%expect_test "parse: array literal trailing comma" =
   parse_expr "[1, 2, 3,]";
@@ -192,11 +254,23 @@ let%expect_test "parse: modifiers on func" =
 
 let%expect_test "parse: modifier before non-func decl" =
   run_src "public const X: i32 = 1";
-  [%expect {| ParseError: expected declaration but found 'const' |}]
+  [%expect
+    {|
+    error: expected declaration
+      at <test>:1:8
+        public const X: i32 = 1
+               ^~~~~ found const
+    |}]
 
 let%expect_test "parse: stray token at top level" =
   run_src "return 1";
-  [%expect {| ParseError: expected declaration but found 'return' |}]
+  [%expect
+    {|
+    error: expected declaration
+      at <test>:1:1
+        return 1
+        ^~~~~~ found return
+    |}]
 
 let%expect_test "parse: struct literal" =
   parse_expr "pt { x: 3, y: 4 }";

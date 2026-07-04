@@ -26,7 +26,9 @@ let run_src src =
             (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
             diags)
   | exception Ripe.Parser.ParseErrors diags ->
-      List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
+      List.iter
+        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+        diags
 
 let replace s old rep =
   let olen = String.length old in
@@ -82,13 +84,17 @@ let run_codegen src =
             (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
             diags)
   | exception Ripe.Parser.ParseErrors diags ->
-      List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
+      List.iter
+        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+        diags
 
 let parse_only src =
   match parse src with
   | decls -> List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
   | exception Ripe.Parser.ParseErrors diags ->
-      List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
+      List.iter
+        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+        diags
 
 (* compact s-expr expression dumper, no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
@@ -154,4 +160,6 @@ let parse_expr src =
       print_endline (dump_expr e)
   | _ -> print_endline "<parse_expr: unexpected shape>"
   | exception Ripe.Parser.ParseErrors diags ->
-      List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
+      List.iter
+        (fun d -> print_string (Ripe.Diagnostic.render (ctx wrapped) d))
+        diags
