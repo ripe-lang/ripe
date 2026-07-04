@@ -104,7 +104,7 @@ and expr_desc =
 and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
 
-(* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
+(* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
 type stmt_desc =
   | Const of string * span * typ option * expr
   | Var of string * span * typ option * expr option
@@ -173,5 +173,3 @@ type decl =
   | Global of global_def
   | TypeAlias of type_alias_def
 [@@deriving show { with_path = false }]
-
-let decl_to_string = show_decl
