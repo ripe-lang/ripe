@@ -787,7 +787,7 @@ and emit_cast ctx v src_ty target_ty =
   tmp
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
-  match s with
+  match s.T.tsdesc with
   | T.TConst (name, t, e) | T.TVar (name, t, e) ->
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = new_slot ctx name in

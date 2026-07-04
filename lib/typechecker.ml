@@ -245,7 +245,11 @@ let is_integer = function TInt _ -> true | _ -> false
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
 (* Figure out the type*)
+(* stamp the source span here so the mk sites underneath stay span free *)
 let rec synth (env : env) (e : expr) : T.texpr =
+  { (synth_desc env e) with T.span = e.span }
+
+and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
@@ -376,6 +380,9 @@ let rec synth (env : env) (e : expr) : T.texpr =
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
+  { (check_desc env e want) with T.span = e.span }
+
+and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   (* synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
@@ -594,6 +601,10 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
+  let env', tsdesc = check_stmt_desc env s in
+  (env', { T.tsdesc; span = s.span })
+
+and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
   match s.sdesc with
   | Const (name, nspan, ann, e) ->
       let t, te =
