@@ -4,4 +4,10 @@
  (inline_tests)
  (preprocess
   (pps ppx_expect ppx_inline_test))
- (modules helpers test_parser test_typecheck test_codegen test_source_map))
+ (modules
+  helpers
+  test_parser
+  test_typecheck
+  test_codegen
+  test_source_map
+  test_diagnostic))

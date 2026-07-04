@@ -3,6 +3,8 @@
  (modules
   ast
   source_map
+  diagnostic
+  error
   tokens
   lexer
   parser
