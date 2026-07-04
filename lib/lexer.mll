@@ -153,7 +153,9 @@ and read_string st = parse
   | '\\' 't'      { Buffer.add_char st.buf '\t'; read_string st lexbuf }
   | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
-  | [^ '"' '\\' '{' '}']+  { Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
+  (* FIXME allow raw newlines for now, revisit them in the future *)
+  | newline { next_line lexbuf; Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
+  | [^ '"' '\\' '{' '}' '\r' '\n']+  { Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
   (* recover so the parser sees a closed string plus an error *)
   | eof  { if Buffer.length st.buf > 0 then begin
              Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;

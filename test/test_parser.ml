@@ -248,6 +248,16 @@ let%expect_test "parse: multiline array literal" =
     ok
     |}]
 
+let%expect_test "parse: line tracking after multiline string" =
+  run_src "func f() {\n  let s = \"line one\nline two\"\n  @\n}";
+  [%expect
+    {|
+    error: unexpected character: @
+      at <test>:4:3
+          @
+          ^
+    |}]
+
 let%expect_test "parse: modifiers on func" =
   run_src "public inline func f() {}";
   [%expect {| ok |}]
@@ -311,6 +321,17 @@ let%expect_test "parse: multiline struct literal" =
 let%expect_test "parse: if condition is not a struct literal" =
   run_src "func f(x: bool) i32 { if x { return 1 } return 0 }";
   [%expect {| ok |}]
+
+let%expect_test "parse: else if hints elseif" =
+  run_src "func f(x: bool) { if x {} else if x {} }";
+  [%expect
+    {|
+    error: expected block after else
+      at <test>:1:32
+        func f(x: bool) { if x {} else if x {} }
+                                       ^~ found if
+    help: the keyword is elseif, one word
+    |}]
 
 let%expect_test "parse: while condition is not a struct literal" =
   run_src "func f(x: bool) { while x { return } }";

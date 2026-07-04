@@ -95,6 +95,28 @@ let%expect_test "typecheck: break inside while" =
   run_src "func f() { while true { break } }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: unreachable code after break" =
+  run_src "func f() { while true { break\n    g() } }\nfunc g() {}";
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:2:5
+            g() } }
+            ^~~
+    ok
+    |}]
+
+let%expect_test "typecheck: unreachable code after continue" =
+  run_src "func f() { while true { continue\n    g() } }\nfunc g() {}";
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:2:5
+            g() } }
+            ^~~
+    ok
+    |}]
+
 let%expect_test "typecheck: forward reference" =
   run_src {|
 func f() { g() }
