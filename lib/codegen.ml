@@ -1012,7 +1012,6 @@ let rec qbe_ext_ty (t : ty) : string =
   | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
-  (* its nothing. like actually nothing. *)
   | TVoid -> assert false
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
@@ -1034,6 +1033,11 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       prefix ^ Printf.sprintf "%.*g" digits f
   | T.TCast e -> fold_const_value ctx e
   | T.TIdent name -> "$" ^ name
+  | T.TCStr s ->
+      let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
+      incr ctx.str_ctr;
+      ctx.strings := (lbl, s) :: !(ctx.strings);
+      lbl
   | _ -> failwith "non-trivial constant initializer"
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)

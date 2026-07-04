@@ -1,12 +1,10 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 (* TODO(825c): Add file id for multi file comp later *)
-(* I was going to wait before doing byte offset but the dump-ast was way too long. *)
 type span = { lo : int; hi : int }
 
-(* spans elided from dumps so derived show stays readable *)
-let pp_span fmt (_ : span) = Format.pp_print_string fmt "_"
-let show_span (_ : span) = "_"
+let pp_span fmt { lo; hi } = Format.fprintf fmt "(%d,%d)" lo hi
+let show_span s = Format.asprintf "%a" pp_span s
 let dummy_span = { lo = 0; hi = 0 }
 
 type typ_desc =
@@ -104,7 +102,7 @@ and expr_desc =
 and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
 
-(* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
+(* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
 type stmt_desc =
   | Const of string * span * typ option * expr
   | Var of string * span * typ option * expr option
@@ -173,5 +171,3 @@ type decl =
   | Global of global_def
   | TypeAlias of type_alias_def
 [@@deriving show { with_path = false }]
-
-let decl_to_string = show_decl

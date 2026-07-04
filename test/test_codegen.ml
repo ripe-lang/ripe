@@ -424,6 +424,24 @@ func f() i32 { return n }
     }
     |}]
 
+let%expect_test "codegen: global cstr init" =
+  run_codegen {|
+var msg: cstr = "hello"
+func f() cstr { return msg }
+|};
+  [%expect
+    {|
+    data $msg = align 8 { l $str0 }
+
+    function l $f() {
+    @start
+        %t0 =l loadl $msg
+        ret %t0
+    }
+
+    data $str0 = { b "hello", b 0 }
+    |}]
+
 let%expect_test "codegen: deref read local ptr" =
   run_codegen
     {|
