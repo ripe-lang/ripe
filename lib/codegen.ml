@@ -1184,10 +1184,11 @@ let emit_qbe (tdecls : T.tdecl list) : string =
 
   List.iter
     (function
-      | T.TGlobal gd ->
+      | T.TGlobal gd -> (
           Hashtbl.replace ctx.globals gd.name ();
-          (match gd.init with
-          | Some te when gd.is_const -> Hashtbl.replace ctx.const_inits gd.name te
+          match gd.init with
+          | Some te when gd.is_const ->
+              Hashtbl.replace ctx.const_inits gd.name te
           | _ -> ())
       | _ -> ())
     tdecls;

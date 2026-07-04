@@ -2081,7 +2081,8 @@ const A: i32 = 5
 const B: i32 = A
 func f() i32 { return B }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $A = align 4 { w 5 }
     data $B = align 4 { w 5 }
 
@@ -2098,7 +2099,8 @@ const B: i32 = A
 const A: i32 = 5
 func f() i32 { return B }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $B = align 4 { w 5 }
     data $A = align 4 { w 5 }
 
@@ -2115,7 +2117,8 @@ const A: i32 = 5
 var B: i32 = A
 func f() i32 { return B }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $A = align 4 { w 5 }
     data $B = align 4 { w 5 }
 
