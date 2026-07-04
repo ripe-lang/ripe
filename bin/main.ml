@@ -99,6 +99,8 @@ let emit_asm il =
   asm
 
 let compile filename =
+  if not (Sys.file_exists filename) then
+    die (Printf.sprintf "no such file %s" filename);
   let abs_filename = Unix.realpath filename in
   (* TODO(5d10): emit paths relative to project root *)
   let src = read_file filename in
