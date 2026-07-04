@@ -515,7 +515,8 @@ func f() i64 {
   return x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     warning: unused variable: x
       at <test>:3:7
           var x: i32 = 1
@@ -525,7 +526,8 @@ func f() i64 {
     |}]
 
 let%expect_test "typecheck: shadow reads the old binding in its initializer" =
-  run_src {|
+  run_src
+    {|
 func f() i32 {
   var x: i32 = 1
   var x: i32 = x + 4

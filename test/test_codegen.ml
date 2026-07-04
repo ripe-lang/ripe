@@ -1572,7 +1572,8 @@ func f() i32 {
     }
     |}]
 
-let%expect_test "codegen: if-branch shadow does not leak, later global write hits global" =
+let%expect_test
+    "codegen: if-branch shadow does not leak, later global write hits global" =
   run_codegen
     {|
 var g: i32 = 0
@@ -1584,7 +1585,8 @@ func f(c: bool) {
   g = 10
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $g = align 4 { w 0 }
 
     function $f(w %t0) {
@@ -1618,7 +1620,8 @@ func f() i32 {
   return g
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     data $g = align 4 { w 0 }
 
     function w $f() {
@@ -1644,7 +1647,8 @@ func f() i32 {
   return i
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %i =l alloc4 4
@@ -1682,7 +1686,8 @@ func f(n: i32) i32 {
   return x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0) {
     @start
         %n =l alloc4 4
@@ -1716,7 +1721,8 @@ func f() i64 {
   return x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function l $f() {
     @start
         %x =l alloc4 4
@@ -1740,7 +1746,8 @@ func f() i32 {
   return p.x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     type :P = { w, w }
 
     function w $f() {
@@ -1774,7 +1781,8 @@ func f() i32 {
   return x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %x =l alloc4 4
@@ -1806,7 +1814,8 @@ func f() i32 {
   return x
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f() {
     @start
         %x =l alloc4 4
