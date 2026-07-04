@@ -379,6 +379,21 @@ let%expect_test "typecheck: not on non-bool" =
                               ^ expected bool, found i32
     |}]
 
+let%expect_test "typecheck: address of rvalue rejected" =
+  run_src "func f() { const x = &5 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:18
+        func f() { const x = &5 }
+                         ^
+    help: prefix with an underscore: _x
+    error: cannot take address of expression
+      at <test>:1:23
+        func f() { const x = &5 }
+                              ^
+    |}]
+
 let%expect_test "typecheck: shift on int ok" =
   run_src "func f() i32 { return 1 << 3 }";
   [%expect {| ok |}]
