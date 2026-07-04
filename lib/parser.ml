@@ -6,24 +6,33 @@ open Tokens
 open Ast
 
 (* internal, used to unwind from grammar rules. parse converts to ParseErrors *)
-exception ParseError of Lexing.position * string
-exception ParseErrors of (Lexing.position * string) list
+exception ParseError of Diagnostic.t
+exception ParseErrors of Diagnostic.t list
 
 type state = {
   mutable tok : token;
   lexbuf : Lexing.lexbuf;
   read : Lexing.lexbuf -> token;
-  mutable diags : (Lexing.position * string) list;
+  diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
+  mutable prev_end : int;
 }
 
 type assoc = Left | Right | NonAssoc
 
+(* span of the current lookahead token so the caret lands under it *)
+let cur_span st =
+  {
+    lo = st.lexbuf.Lexing.lex_start_p.pos_cnum;
+    hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum;
+  }
+
 let rec advance st =
+  st.prev_end <- st.lexbuf.Lexing.lex_curr_p.pos_cnum;
   st.tok <- st.read st.lexbuf;
   match st.tok with
   | ERROR msg ->
-      st.diags <- (st.lexbuf.lex_start_p, msg) :: st.diags;
+      Diagnostic.error_at st.diags (cur_span st) msg;
       advance st
   | _ -> ()
 
@@ -31,7 +40,17 @@ let at st t = st.tok = t
 
 (* start of the current lookahead token *)
 let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
-let cur_lex_pos st = st.lexbuf.Lexing.lex_start_p
+
+let fail st headline =
+  raise (ParseError Diagnostic.(error headline |> at (cur_span st)))
+
+let fail_found st headline =
+  raise
+    (ParseError
+       Diagnostic.(
+         error headline
+         |> at (cur_span st)
+         |> label (Printf.sprintf "found %s" (show_token st.tok))))
 
 (* newlines lex as SEMI *)
 let skip_semi st =
@@ -44,15 +63,17 @@ let expect_ident st =
   | IDENT s ->
       advance st;
       s
-  | _ -> raise (ParseError (cur_lex_pos st, "expected identifier"))
+  | _ -> fail_found st "expected identifier"
+
+let expect_ident_span st =
+  let lo = st.lexbuf.Lexing.lex_start_p.pos_cnum in
+  let hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum in
+  let name = expect_ident st in
+  (name, { lo; hi })
 
 let expect st t =
   if st.tok <> t then
-    raise
-      (ParseError
-         ( cur_lex_pos st,
-           Printf.sprintf "expected '%s' but found '%s'" (show_token t)
-             (show_token st.tok) ))
+    fail_found st (Printf.sprintf "expected %s" (show_token t))
   else advance st
 
 (* item (, item)* with an optional trailing comma before stop *)
@@ -67,17 +88,9 @@ let comma_sep st stop parse_one =
   end;
   List.rev !items
 
-let mk lo st desc =
-  let hi = cur_pos st in
-  { desc; span = { lo; hi } }
-
-let mks lo st sdesc =
-  let hi = cur_pos st in
-  { sdesc; span = { lo; hi } }
-
-let mkt lo st tdesc =
-  let hi = cur_pos st in
-  { tdesc; span = { lo; hi } }
+let mk lo st desc = { desc; span = { lo; hi = st.prev_end } }
+let mks lo st sdesc = { sdesc; span = { lo; hi = st.prev_end } }
+let mkt lo st tdesc = { tdesc; span = { lo; hi = st.prev_end } }
 
 (* i32, *i32, (i32, i32) i32 *)
 let rec parse_typ st =
@@ -101,7 +114,7 @@ let rec parse_typ st =
           | INT n ->
               advance st;
               n
-          | _ -> raise (ParseError (cur_lex_pos st, "expected array size"))
+          | _ -> fail_found st "expected array size"
         in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
@@ -115,7 +128,7 @@ let rec parse_typ st =
         | _ -> None
       in
       mkt lo st (FuncPtr (params, ret))
-  | _ -> raise (ParseError (cur_lex_pos st, "expected type"))
+  | _ -> fail_found st "expected type"
 
 let parse_modifiers st =
   let rec go acc =
@@ -137,14 +150,12 @@ let parse_fields st =
   while st.tok <> RBRACE do
     (* TODO(9ee0): parse modifiers *)
     (* let mods = parse_modifiers st in *)
-    let lo = cur_pos st in
-    let name = expect_ident st in
+    let name, nspan = expect_ident_span st in
     expect st COLON;
     let t = parse_typ st in
-    let hi = cur_pos st in
     (* Replace modifiers with modifiers = mods *)
     fields :=
-      ({ name; typ = t; modifiers = []; span = { lo; hi } } : field) :: !fields;
+      ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
     if st.tok = COMMA then advance st;
     skip_semi st
   done;
@@ -160,7 +171,7 @@ let parse_struct st mods =
   expect st LBRACE;
   let fields = parse_fields st in
   expect st RBRACE;
-  let hi = cur_pos st in
+  let hi = st.prev_end in
   skip_semi st;
   Struct { name; fields; modifiers = mods; span = { lo; hi } }
 
@@ -174,7 +185,7 @@ let parse_params st =
     let name = expect_ident st in
     expect st COLON;
     let t = parse_typ st in
-    let hi = cur_pos st in
+    let hi = st.prev_end in
     ({ name; typ = t; span = { lo; hi } } : param)
   in
   if st.tok <> RPAREN then begin
@@ -187,8 +198,7 @@ let parse_params st =
       else params := parse_one () :: !params
     done
   end;
-  if !variadic && st.tok = COMMA then
-    raise (ParseError (cur_lex_pos st, "'...' must be the last parameter"));
+  if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
   expect st RPAREN;
   (List.rev !params, !variadic)
 
@@ -285,11 +295,9 @@ let rec parse_expr st min_prec =
         (* TODO(a300): better message, point at both operators *)
         (match (assoc, prec_of st.tok) with
         | NonAssoc, Some (p, _) when p = prec ->
-            raise
-              (ParseError
-                 ( cur_lex_pos st,
-                   "cannot chain non-associative operator '" ^ show_token st.tok
-                   ^ "'" ))
+            fail st
+              (Printf.sprintf "cannot chain non-associative operator %s"
+                 (show_token st.tok))
         | _ -> ());
         lhs := parse_postfix st !lhs
   done;
@@ -369,6 +377,7 @@ and parse_primary st =
       expect st RPAREN;
       mk lo st (SizeOf t)
   | IDENT name ->
+      let nspan = { lo; hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum } in
       advance st;
       if at st LPAREN then begin
         advance st;
@@ -380,7 +389,7 @@ and parse_primary st =
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
-        mk lo st (StructLit (name, fields))
+        mk lo st (StructLit (name, nspan, fields))
       end
       else mk lo st (Ident name)
   (* "hello {name}!" *)
@@ -406,7 +415,7 @@ and parse_primary st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
-  | _ -> raise (ParseError (cur_lex_pos st, "expected expression"))
+  | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
@@ -416,10 +425,10 @@ and parse_struct_lit_fields st =
       skip_semi st;
       let fields = ref [] in
       while st.tok <> RBRACE do
-        let name = expect_ident st in
+        let name, nspan = expect_ident_span st in
         expect st COLON;
         let e = parse_expr st 1 in
-        fields := (name, e) :: !fields;
+        fields := (name, nspan, e) :: !fields;
         if st.tok = COMMA then advance st;
         skip_semi st
       done;
@@ -438,7 +447,7 @@ and parse_simple_stmt st =
   (* const x: i32 = 42 *)
   | CONST ->
       advance st;
-      let name = expect_ident st in
+      let name, nspan = expect_ident_span st in
       (* optional type annotation since the typechecker can infer it *)
       let ann =
         if at st COLON then (
@@ -449,11 +458,11 @@ and parse_simple_stmt st =
       (* const always requires a value *)
       expect st ASSIGN;
       let e = parse_expr st 1 in
-      mks lo st (Const (name, ann, e))
+      mks lo st (Const (name, nspan, ann, e))
   (* var x: i32 / var x = 42 / var x *)
   | VAR ->
       advance st;
-      let name = expect_ident st in
+      let name, nspan = expect_ident_span st in
       let ann =
         if at st COLON then (
           advance st;
@@ -466,7 +475,7 @@ and parse_simple_stmt st =
           Some (parse_expr st 1))
         else None
       in
-      mks lo st (Var (name, ann, e))
+      mks lo st (Var (name, nspan, ann, e))
   | BREAK ->
       advance st;
       mks lo st Break
@@ -563,12 +572,12 @@ and parse_for st =
   let lo = cur_pos st in
   advance st;
   (* FOR *)
-  let name = expect_ident st in
+  let name, nspan = expect_ident_span st in
   expect st IN;
   let iter = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
-  mks lo st (For (name, iter, body))
+  mks lo st (For (name, nspan, iter, body))
 
 (* func NAME(params) ret *)
 let parse_signature st =
@@ -584,7 +593,7 @@ let parse_func st mods =
   let name, params, ret, variadic = parse_signature st in
   skip_semi st;
   let body = parse_block st in
-  let hi = cur_pos st in
+  let hi = st.prev_end in
   Func
     { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
 
@@ -602,7 +611,7 @@ let parse_global st =
       Some (parse_expr st 1))
     else None
   in
-  let hi = cur_pos st in
+  let hi = st.prev_end in
   skip_semi st;
   Global { name; typ; init; is_const; span = { lo; hi } }
 
@@ -614,7 +623,7 @@ let parse_type_alias st =
   let name = expect_ident st in
   expect st ASSIGN;
   let typ = parse_typ st in
-  let hi = cur_pos st in
+  let hi = st.prev_end in
   skip_semi st;
   Ast.TypeAlias { name; typ; span = { lo; hi } }
 
@@ -624,7 +633,7 @@ let parse_extern st =
   advance st;
   (* EXTERN *)
   let name, params, ret, variadic = parse_signature st in
-  let hi = cur_pos st in
+  let hi = st.prev_end in
   skip_semi st;
   Extern
     {
@@ -638,13 +647,7 @@ let parse_extern st =
     }
 
 let parse_decl st =
-  let err () =
-    raise
-      (ParseError
-         ( cur_lex_pos st,
-           Printf.sprintf "expected declaration but found '%s'"
-             (show_token st.tok) ))
-  in
+  let err () = fail_found st "expected declaration" in
   let mods = parse_modifiers st in
   match (mods, st.tok) with
   | _, STRUCT -> parse_struct st mods
@@ -669,15 +672,26 @@ let parse_program st =
     try
       decls := parse_decl st :: !decls;
       skip_semi st
-    with ParseError (p, m) ->
-      st.diags <- (p, m) :: st.diags;
+    with ParseError d ->
+      Diagnostic.emit st.diags d;
       sync_to_decl st
   done;
   List.rev !decls
 
 let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
     Ast.decl list =
-  let st = { tok = EOF; lexbuf; read; diags = []; no_struct_lit = false } in
+  let st =
+    {
+      tok = EOF;
+      lexbuf;
+      read;
+      diags = Diagnostic.sink ();
+      no_struct_lit = false;
+      prev_end = 0;
+    }
+  in
   advance st;
   let decls = parse_program st in
-  match List.rev st.diags with [] -> decls | ds -> raise (ParseErrors ds)
+  match Diagnostic.drain st.diags with
+  | [] -> decls
+  | ds -> raise (ParseErrors ds)

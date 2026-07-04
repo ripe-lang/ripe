@@ -6,7 +6,7 @@ open Ast
 open Types
 module T = Typed_ast
 
-exception TypeErrors of string list
+exception TypeErrors of Diagnostic.t list
 
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
@@ -26,14 +26,10 @@ type env = {
   aliases : (string, ty) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
-  errors : string list ref;
-  warnings : string list ref;
-  filename : string;
-  sm : Source_map.t;
-  current_span : Ast.span ref;
+  diags : Diagnostic.sink;
 }
 
-let make_env (filename : string) (sm : Source_map.t) : env =
+let make_env () : env =
   {
     vars = [];
     funcs = Hashtbl.create 16;
@@ -42,29 +38,13 @@ let make_env (filename : string) (sm : Source_map.t) : env =
     aliases = Hashtbl.create 8;
     ret_ty = TVoid;
     in_loop = false;
-    errors = ref [];
-    warnings = ref [];
-    filename;
-    sm;
-    current_span = ref Ast.dummy_span;
+    diags = Diagnostic.sink ();
   }
 
-let add_error (env : env) (msg : string) : unit =
-  let span = !(env.current_span) in
-  let line, col = Source_map.lookup env.sm span.lo in
-  let formatted = Printf.sprintf "%s:%d:%d: %s" env.filename line col msg in
-  env.errors := formatted :: !(env.errors)
-
+let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
+let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
 let dummy_texpr = T.mk (TInt I32) (T.TInt 0)
-
-let add_warning (env : env) (msg : string) : unit =
-  let span = !(env.current_span) in
-  let line, col = Source_map.lookup env.sm span.lo in
-  let formatted =
-    Printf.sprintf "%s:%d:%d: warning: %s" env.filename line col msg
-  in
-  env.warnings := formatted :: !(env.warnings)
-
+let add_warning (env : env) span msg = Diagnostic.warn_at env.diags span msg
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
 let warn_unused_in_scope (env : env) : unit =
@@ -74,19 +54,22 @@ let warn_unused_in_scope (env : env) : unit =
       List.iter
         (fun (name, info) ->
           (* variables prefixed with '_' suppress unused warnings *)
-          if (not !(info.used)) && name.[0] <> '_' then (
-            env.current_span := info.span;
-            add_warning env (Printf.sprintf "'%s' declared but never used" name)))
+          if (not !(info.used)) && name.[0] <> '_' then
+            emit env
+              (Diagnostic.warning (Printf.sprintf "unused variable: %s" name)
+              |> Diagnostic.at info.span
+              |> Diagnostic.help
+                   (Printf.sprintf "prefix with an underscore: _%s" name)))
         scope
 
-let extend_var ?(used = false) (env : env) (name : string) (t : ty) : env =
-  let info = { ty = t; used = ref used; span = !(env.current_span) } in
+let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
+    (t : ty) : env =
+  let info = { ty = t; used = ref used; span } in
   match env.vars with
   | [] -> assert false (* no active scope *)
   | scope :: rest ->
       if List.mem_assoc name scope then
-        add_error env
-          (Printf.sprintf "'%s' is already declared in this scope" name);
+        emit env (Error.named span "already defined" name);
       { env with vars = ((name, info) :: scope) :: rest }
 
 let lookup_var_opt (env : env) (name : string) : ty option =
@@ -101,7 +84,7 @@ let lookup_var_opt (env : env) (name : string) : ty option =
   in
   search env.vars
 
-let lookup_var (env : env) (name : string) : ty =
+let lookup_var (env : env) (span : Ast.span) (name : string) : ty =
   match lookup_var_opt env name with
   | Some t -> t
   | None -> (
@@ -113,14 +96,14 @@ let lookup_var (env : env) (name : string) : ty =
           match Hashtbl.find_opt env.funcs name with
           | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
           | None ->
-              add_error env ("undefined variable '" ^ name ^ "'");
+              emit env (Error.undefined_name span "variable" name);
               TInt I32))
 
-let lookup_func (env : env) (name : string) : func_sig =
+let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs name with
   | Some s -> s
   | None ->
-      add_error env ("undefined function '" ^ name ^ "'");
+      emit env (Error.undefined_name span "function" name);
       { param_tys = []; ret_ty = TVoid; variadic = false }
 
 let is_const_global (env : env) (name : string) : bool =
@@ -128,11 +111,11 @@ let is_const_global (env : env) (name : string) : bool =
   | Some (_, true) -> true
   | _ -> false
 
-let lookup_struct (env : env) (name : string) : struct_info =
+let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
   match Hashtbl.find_opt env.structs name with
   | Some s -> s
   | None ->
-      add_error env ("undefined struct '" ^ name ^ "'");
+      emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
@@ -146,8 +129,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
             match Hashtbl.find_opt env.aliases name with
             | Some aliased -> aliased
             | None ->
-                env.current_span := t.span;
-                add_error env ("undefined type '" ^ name ^ "'");
+                emit env (Error.undefined_name t.span "type" name);
                 TInt I32))
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (n, t) -> TArray (ty_of_ast env t, n)
@@ -175,7 +157,7 @@ let rec compatible (want : ty) (got : ty) : bool =
       && compatible r1 r2
   | _ -> want = got
 
-(* main implicitly returns i32 for the C runtime, everything else void *)
+(* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some t -> ty_of_ast env t
@@ -212,9 +194,8 @@ let collect_func (env : env) (fd : func_def) : unit =
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
 (* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
-  if Hashtbl.mem env.structs sd.name then (
-    env.current_span := sd.span;
-    add_error env ("'" ^ sd.name ^ "' is already defined"))
+  if Hashtbl.mem env.structs sd.name then
+    emit env (Error.named sd.span "already defined" sd.name)
   else
     (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
     let field_tys =
@@ -223,28 +204,24 @@ let collect_struct (env : env) (sd : struct_def) : unit =
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
-        if Hashtbl.mem seen f.name then (
-          env.current_span := f.span;
-          add_error env
-            ("duplicate field '" ^ f.name ^ "' in struct '" ^ sd.name ^ "'"))
+        if Hashtbl.mem seen f.name then
+          emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
     Hashtbl.replace env.structs sd.name { field_tys }
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  env.current_span := td.span;
   if Hashtbl.mem env.aliases td.name then
-    add_error env ("'" ^ td.name ^ "' is already defined")
+    emit env (Error.named td.span "already defined" td.name)
   else
     let t = ty_of_ast env td.typ in
     Hashtbl.replace env.aliases td.name t
 
 let collect_global (env : env) (gd : global_def) : unit =
-  env.current_span := gd.span;
   if gd.is_const && gd.init = None then
-    add_error env ("'" ^ gd.name ^ "' is const and must have an initializer");
+    emit env (Error.named gd.span "const without initializer" gd.name);
   if Hashtbl.mem env.globals gd.name || Hashtbl.mem env.funcs gd.name then
-    add_error env ("'" ^ gd.name ^ "' is already declared at module scope");
+    emit env (Error.named gd.span "already defined" gd.name);
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.is_const)
 
@@ -272,7 +249,6 @@ let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
 (* Figure out the type*)
 let rec synth (env : env) (e : expr) : T.texpr =
-  env.current_span := e.span;
   match e.desc with
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
@@ -291,36 +267,36 @@ let rec synth (env : env) (e : expr) : T.texpr =
       (* Printf.printf "char: '%c'\n" c; *)
       T.mk (TInt I32) (T.TChar c)
   | Ident name ->
-      let t = lookup_var env name in
+      let t = lookup_var env e.span name in
       (* Printf.printf "ident: `%s` (found type: %s)\n" name (show_ty t); *)
       T.mk t (T.TIdent name)
   | Call (name, args) -> (
       match lookup_var_opt env name with
       | Some (TFunc (param_tys, ret_ty)) ->
           let sig_ = { param_tys; ret_ty; variadic = false } in
-          let targs = check_args env sig_ args in
+          let targs = check_args env e.span sig_ args in
           T.mk ret_ty (T.TCall (name, targs))
       | Some _ ->
-          add_error env ("'" ^ name ^ "' is not callable");
+          emit env (Error.named e.span "not callable" name);
           dummy_texpr
       | None ->
-          let sig_ = lookup_func env name in
-          let targs = check_args env sig_ args in
+          let sig_ = lookup_func env e.span name in
+          let targs = check_args env e.span sig_ args in
           T.mk sig_.ret_ty (T.TCall (name, targs)))
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
-  | FieldAccess (inner_e, fname) -> synth_field env inner_e fname
+  | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
   | Cast (e, t) ->
       let te = synth env e in
       let ty = ty_of_ast env t in
       T.mk ty (T.TCast te)
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
-  (* ranges are not first-class values, only for-loop iterators and slice bounds *)
+  (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
   | Range _ | RangeInclusive _ ->
-      add_error env "a range can only be used in a for-loop or a slice";
+      add_error env e.span "range is only valid in a for loop or slice";
       dummy_texpr
   | ArrayLit [] ->
-      add_error env "cannot infer type of empty array literal";
+      add_error env e.span "cannot infer type of empty array literal";
       dummy_texpr
   | ArrayLit (e0 :: rest) ->
       let te0 = synth env e0 in
@@ -348,10 +324,10 @@ let rec synth (env : env) (e : expr) : T.texpr =
           | _ ->
               let tidx = synth env idx in
               if not (is_integer tidx.T.ty) then
-                add_error env "array index must be an integer";
+                add_error env idx.span "array index must be an integer";
               T.mk elem (T.TIndex (tbase, tidx)))
       | t ->
-          add_error env ("cannot index type '" ^ show_ty t ^ "'");
+          emit env (Error.named e.span "cannot index type" (show_ty t));
           dummy_texpr)
   | InterpString [] -> T.mk (TPointer (TInt I8)) (T.TCStr "")
   | InterpString [ Lit s ] -> T.mk (TPointer (TInt I8)) (T.TCStr s)
@@ -368,28 +344,32 @@ let rec synth (env : env) (e : expr) : T.texpr =
       in
       T.mk (TPointer (TInt I8)) (T.TInterpString tparts)
   | Undefined ->
-      add_error env "cannot infer type of undefined";
+      add_error env e.span "cannot infer type of undefined";
       dummy_texpr
-  | StructLit (name, inits) ->
+  | StructLit (name, name_span, inits) ->
       if not (Hashtbl.mem env.structs name) then (
-        add_error env ("undefined struct '" ^ name ^ "'");
+        emit env (Error.undefined_name name_span "struct" name);
         dummy_texpr)
       else
-        let info = lookup_struct env name in
+        let info = lookup_struct env name_span name in
         let seen = Hashtbl.create 4 in
         List.iter
-          (fun (fname, _) ->
+          (fun (fname, fspan, _) ->
             if not (List.mem_assoc fname info.field_tys) then
-              add_error env ("'" ^ name ^ "' has no field '" ^ fname ^ "'")
+              emit env (Error.named fspan "no field" fname)
             else if Hashtbl.mem seen fname then
-              add_error env ("duplicate field '" ^ fname ^ "'")
+              emit env (Error.named fspan "duplicate field" fname)
             else Hashtbl.replace seen fname ())
           inits;
         (* omitted fields are zero-initialized *)
         let tfields =
           List.map
             (fun (fname, ft) ->
-              match List.assoc_opt fname inits with
+              match
+                List.find_map
+                  (fun (n, _, e) -> if n = fname then Some e else None)
+                  inits
+              with
               | Some e -> (fname, check env e ft)
               | None -> (fname, T.mk ft T.TZero))
             info.field_tys
@@ -399,14 +379,14 @@ let rec synth (env : env) (e : expr) : T.texpr =
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
-  env.current_span := e.span;
   (* synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
     let got = te.T.ty in
     if not (compatible want got) then (
-      add_error env
-        (Printf.sprintf "expected %s but found %s" (show_ty want) (show_ty got));
+      emit env
+        (Error.type_mismatch e.span ~expected:(show_ty want)
+           ~found:(show_ty got));
       te)
     else
       match (want, got) with
@@ -421,15 +401,15 @@ and check (env : env) (e : expr) (want : ty) : T.texpr =
       | TInt _ -> T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
-          add_error env
-            (Printf.sprintf "expected %s but found i32" (show_ty want));
+          emit env
+            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
       match want with
       | TFloat _ -> T.mk want (T.TFloat f)
       | _ ->
-          add_error env
-            (Printf.sprintf "expected %s but found f64" (show_ty want));
+          emit env
+            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int n; _ }) -> check env { e with desc = Int (-n) } want
   | UnOp (Neg, { desc = Float f; _ }) ->
@@ -438,9 +418,10 @@ and check (env : env) (e : expr) (want : ty) : T.texpr =
       match want with
       | TArray (elem, n) ->
           if List.length elems <> n then
-            add_error env
-              (Printf.sprintf "expected %d elements but found %d" n
-                 (List.length elems));
+            emit env
+              (Error.arity e.span
+                 ~expected:(Printf.sprintf "expected %d elements" n)
+                 ~found:(List.length elems));
           let tes = List.map (fun e -> check env e elem) elems in
           T.mk (TArray (elem, n)) (T.TArrayLit tes)
       | _ -> check_by_synth ())
@@ -462,17 +443,20 @@ and check_range_bounds (env : env) (lo : expr) (hi : expr) =
       let t = tlo.T.ty in
       (tlo, check env hi t, t)
   in
-  if not (is_integer t) then add_error env "range bounds must be integers";
+  if not (is_integer t) then
+    add_error env lo.span "range bounds must be integers";
   (tlo, thi, t)
 
-and check_args (env : env) (sig_ : func_sig) (args : expr list) : T.texpr list =
+and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
+    (args : expr list) : T.texpr list =
   let n_params = List.length sig_.param_tys in
   let n_args = List.length args in
   if sig_.variadic then
     if n_args < n_params then (
-      add_error env
-        (Printf.sprintf "expected at least %d arguments but got %d" n_params
-           n_args);
+      emit env
+        (Error.arity span
+           ~expected:(Printf.sprintf "expected at least %d arguments" n_params)
+           ~found:n_args);
       [])
     else
       let fixed = List.filteri (fun i _ -> i < n_params) args in
@@ -480,8 +464,10 @@ and check_args (env : env) (sig_ : func_sig) (args : expr list) : T.texpr list =
       List.map2 (fun e want -> check env e want) fixed sig_.param_tys
       @ List.map (synth env) rest
   else if n_params <> n_args then (
-    add_error env
-      (Printf.sprintf "expected %d arguments but got %d" n_params n_args);
+    emit env
+      (Error.arity span
+         ~expected:(Printf.sprintf "expected %d arguments" n_params)
+         ~found:n_args);
     [])
   else List.map2 (fun e want -> check env e want) args sig_.param_tys
 
@@ -491,8 +477,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_numeric t) then
-        add_error env
-          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
@@ -506,8 +492,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_ordered t) then
-        add_error env
-          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -519,19 +505,19 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_integer t) then
-        add_error env
-          (Printf.sprintf "cannot apply '%s' to type '%s'" (show_binop_sym op)
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign ->
       let tl = synth env l in
       if not (is_lvalue tl) then
-        add_error env "cannot assign to this expression";
+        add_error env l.span "cannot assign to expression";
       (* reject assignment to a const global *)
       (match tl.T.desc with
       | TIdent name when is_const_global env name ->
-          add_error env ("cannot assign to const '" ^ name ^ "'")
+          emit env (Error.named l.span "cannot assign to const" name)
       | _ -> ());
       let t = tl.T.ty in
       let tr = check env r t in
@@ -544,8 +530,8 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        add_error env
-          (Printf.sprintf "cannot apply '-' to type '%s'" (show_ty t));
+        add_error env e.span
+          (Printf.sprintf "cannot apply `-` to %s" (show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Not ->
       let te = check env e TBool in
@@ -554,23 +540,23 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_integer t) then
-        add_error env
-          (Printf.sprintf "cannot apply '~' to type '%s'" (show_ty t));
+        add_error env e.span
+          (Printf.sprintf "cannot apply `~` to %s" (show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
       match te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | t ->
-          add_error env
-            ("cannot dereference non-pointer type '" ^ show_ty t ^ "'");
+          emit env (Error.named e.span "cannot dereference type" (show_ty t));
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
 (* Synthesize the type of a field access expression. *)
-and synth_field (env : env) (e : expr) (fname : string) : T.texpr =
+and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
+    T.texpr =
   let te = synth env e in
   let ty = te.T.ty in
   match ty with
@@ -579,13 +565,14 @@ and synth_field (env : env) (e : expr) (fname : string) : T.texpr =
       | "len" -> T.mk (TInt Usize) (T.TLen te)
       | "ptr" -> T.mk (TPointer elem) (T.TDataPtr te)
       | _ ->
-          add_error env
-            ("type '" ^ show_ty ty ^ "' has no field '" ^ fname ^ "'");
+          emit env
+            (Error.named span "no field" fname
+            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
           dummy_texpr)
-  | _ -> synth_struct_field env te ty fname
+  | _ -> synth_struct_field env span te ty fname
 
-and synth_struct_field (env : env) (te : T.texpr) (ty : ty) (fname : string) :
-    T.texpr =
+and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
+    (fname : string) : T.texpr =
   let rec peel = function
     | TStruct sname -> Some sname
     | TPointer t -> peel t
@@ -593,22 +580,23 @@ and synth_struct_field (env : env) (te : T.texpr) (ty : ty) (fname : string) :
   in
   match peel ty with
   | None ->
-      add_error env ("type '" ^ show_ty ty ^ "' has no fields");
+      emit env (Error.named span "type has no fields" (show_ty ty));
       dummy_texpr
   | Some sname -> (
-      let info = lookup_struct env sname in
+      let info = lookup_struct env span sname in
       match List.assoc_opt fname info.field_tys with
       | Some ft -> T.mk ft (T.TFieldAccess (te, fname))
       | None ->
-          add_error env ("'" ^ sname ^ "' has no field '" ^ fname ^ "'");
+          emit env
+            (Error.named span "no field" fname
+            |> Diagnostic.label (Printf.sprintf "on struct %s" sname));
           dummy_texpr)
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
-  env.current_span := s.span;
   match s.sdesc with
-  | Const (name, ann, e) ->
+  | Const (name, nspan, ann, e) ->
       let t, te =
         match ann with
         | Some a ->
@@ -619,8 +607,8 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
             let te = synth env e in
             (te.T.ty, te)
       in
-      (extend_var env name t, T.TConst (name, t, te))
-  | Var (name, ann, e) ->
+      (extend_var env nspan name t, T.TConst (name, t, te))
+  | Var (name, nspan, ann, e) ->
       let t, te =
         match (ann, e) with
         | Some a, Some e ->
@@ -634,13 +622,13 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
             let want = ty_of_ast env a in
             (want, T.mk want T.TZero)
         | None, None ->
-            add_error env (Printf.sprintf "cannot infer type of '%s'" name);
+            emit env (Error.named nspan "cannot infer type" name);
             (TInt I32, dummy_texpr)
       in
-      (extend_var env name t, T.TVar (name, t, te))
+      (extend_var env nspan name t, T.TVar (name, t, te))
   | Return None ->
       if env.ret_ty <> TVoid then
-        add_error env "empty return in non-void function";
+        add_error env s.span "empty return in non-void function";
       (env, T.TReturn None)
   | Return (Some e) ->
       let te = check env e env.ret_ty in
@@ -669,7 +657,7 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
       let final_inner, tbody = check_stmts inner body in
       warn_unused_in_scope final_inner;
       (env, T.TWhile (tc, tbody))
-  | For (name, iter, body) ->
+  | For (name, nspan, iter, body) ->
       (* a range binds the loop var to the bound type and an array binds it to the
          element type. ranges are handled here since they are not first-class values *)
       let titer, elem_ty =
@@ -687,19 +675,20 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
             match ti.T.ty with
             | TArray (elem, _) | TSlice elem -> (ti, elem)
             | t ->
-                add_error env ("cannot iterate over type '" ^ show_ty t ^ "'");
+                emit env
+                  (Error.named iter.span "cannot iterate over type" (show_ty t));
                 (ti, TInt I32))
       in
       let inner = push_scope { env with in_loop = true } in
-      let inner = extend_var inner name elem_ty in
+      let inner = extend_var inner nspan name elem_ty in
       let final_inner, tbody = check_stmts inner body in
       warn_unused_in_scope final_inner;
       (env, T.TFor (name, elem_ty, titer, tbody))
   | Break ->
-      if not env.in_loop then add_error env "break outside loop";
+      if not env.in_loop then add_error env s.span "break outside loop";
       (env, T.TBreak)
   | Continue ->
-      if not env.in_loop then add_error env "continue outside loop";
+      if not env.in_loop then add_error env s.span "continue outside loop";
       (env, T.TContinue)
   | Block stmts ->
       let inner = push_scope env in
@@ -715,9 +704,8 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
   let final_env, tstmts_reversed, _, _ =
     List.fold_left
       (fun (current_env, acc, returned, warned) (s : stmt) ->
-        if returned && not warned then (
-          current_env.current_span := s.span;
-          add_warning current_env "unreachable code");
+        if returned && not warned then
+          add_warning current_env s.span "unreachable code";
         let next_env, ts = check_stmt current_env s in
         (* Slow: e', acc @ [ ts ] this is O(n^2) I think with append*)
         let is_return = match s.sdesc with Return _ -> true | _ -> false in
@@ -739,9 +727,12 @@ and stmt_returns (s : stmt) : bool =
   | _ -> false
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
-  let params =
-    List.map (fun (p : param) -> (p.name, ty_of_ast env p.typ)) fd.params
+  let params_typed =
+    List.map
+      (fun (p : param) -> (p.name, ty_of_ast env p.typ, p.span))
+      fd.params
   in
+  let params = List.map (fun (name, t, _) -> (name, t)) params_typed in
 
   let ret_ty = ret_ty_of env fd in
 
@@ -749,8 +740,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* params pre-marked used so they don't warn *)
   let param_env =
     List.fold_left
-      (fun e (name, t) -> extend_var ~used:true e name t)
-      func_env params
+      (fun e (name, t, span) -> extend_var ~used:true e span name t)
+      func_env params_typed
   in
 
   let final_env, tbody = check_stmts param_env fd.body in
@@ -760,8 +751,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
     && not (stmts_return fd.body)
   then begin
-    env.current_span := fd.span;
-    add_error env (Printf.sprintf "missing return in '%s'" fd.name)
+    let span = match fd.ret with Some t -> t.span | None -> fd.span in
+    emit env (Error.named span "missing return" fd.name)
   end;
 
   {
@@ -792,7 +783,6 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TUndef -> true
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
-  env.current_span := gd.span;
   let t = ty_of_ast env gd.typ in
   let tinit =
     match gd.init with
@@ -801,8 +791,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     | Some e ->
         let te = check env e t in
         if not (is_const_texpr env te) then
-          add_error env
-            ("initializer for '" ^ gd.name ^ "' must be a constant expression");
+          emit env (Error.named e.span "initializer must be constant" gd.name);
         Some te
   in
   { T.name = gd.name; ty = t; init = tinit; is_const = gd.is_const }
@@ -816,8 +805,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       let tfd = check_func ~is_extern:true env fd in
       T.TExtern tfd
   | Struct sd ->
-      env.current_span := sd.span;
-      let info = lookup_struct env sd.name in
+      let info = lookup_struct env sd.span sd.name in
       T.TStruct (sd.name, info.field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
   | TypeAlias td ->
@@ -825,13 +813,12 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       T.TTypeAlias (td.name, t)
 (* | _ -> failwith "Declaration not supported yet" *)
 
-let typecheck (filename : string) (src : string) (decls : decl list) :
-    T.tdecl list =
-  let sm = Source_map.create src in
-  let env = make_env filename sm in
+(* hands warnings back for the edge to render and blows up on any error *)
+let typecheck (decls : decl list) : T.tdecl list * Diagnostic.t list =
+  let env = make_env () in
   List.iter (collect_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
-  List.iter (fun w -> Printf.eprintf "%s\n%!" w) (List.rev !(env.warnings));
-  match List.rev !(env.errors) with
-  | [] -> tdecls
-  | errors -> raise (TypeErrors errors)
+  let all = Diagnostic.drain env.diags in
+  let is_err (d : Diagnostic.t) = d.severity = Diagnostic.Error in
+  if List.exists is_err all then raise (TypeErrors all)
+  else (tdecls, List.filter (fun d -> not (is_err d)) all)

@@ -140,6 +140,7 @@ and read_string st = parse
            Queue.pop st.token_queue }
   | "{{" { Buffer.add_char st.buf '{'; read_string st lexbuf }
   | "}}" { Buffer.add_char st.buf '}'; read_string st lexbuf }
+  | '}'  { Buffer.add_char st.buf '}'; read_string st lexbuf }
   | '{'  { if Buffer.length st.buf > 0 then begin
               Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;
               Buffer.clear st.buf

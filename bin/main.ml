@@ -52,23 +52,23 @@ let dump_tokens read lexbuf =
   loop ();
   Buffer.contents buf
 
-let parse read lexbuf =
+let render_all ctx diags =
+  List.iter (fun d -> Printf.eprintf "%s" (Ripe.Diagnostic.render ctx d)) diags
+
+let parse ctx read lexbuf =
   match Ripe.Parser.parse read lexbuf with
   | decls -> decls
   | exception Ripe.Parser.ParseErrors diags ->
-      List.iter
-        (fun (pos, msg) ->
-          Printf.eprintf "%s:%d:%d: %s\n" pos.Lexing.pos_fname pos.pos_lnum
-            (pos.pos_cnum - pos.pos_bol)
-            msg)
-        diags;
+      render_all ctx diags;
       exit 1
 
-let typecheck filename src decls =
-  match Ripe.Typechecker.typecheck filename src decls with
-  | tdecls -> tdecls
-  | exception Ripe.Typechecker.TypeErrors msgs ->
-      List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
+let typecheck ctx decls =
+  match Ripe.Typechecker.typecheck decls with
+  | tdecls, warns ->
+      render_all ctx warns;
+      tdecls
+  | exception Ripe.Typechecker.TypeErrors diags ->
+      render_all ctx diags;
       exit 1
 
 let run cmd =
@@ -99,16 +99,26 @@ let emit_asm il =
   asm
 
 let compile filename =
+  if not (Sys.file_exists filename) then
+    die (Printf.sprintf "no such file %s" filename);
   let abs_filename = Unix.realpath filename in
   (* TODO(5d10): emit paths relative to project root *)
   let src = read_file filename in
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
   let read = Ripe.Lexer.read (Ripe.Lexer.make_state ()) in
+  let sm = Ripe.Source_map.create src in
+  let ctx =
+    {
+      Ripe.Diagnostic.sm;
+      filename = abs_filename;
+      color = Unix.isatty Unix.stderr;
+    }
+  in
   match !stage with
   | Tokens -> output_text (dump_tokens read lexbuf)
   | _ -> (
-      let decls = parse read lexbuf in
+      let decls = parse ctx read lexbuf in
       match !stage with
       | Tokens -> assert false
       | Ast ->
@@ -116,7 +126,7 @@ let compile filename =
             (String.concat "\n" (List.map (fun d -> Ripe.Ast.show_decl d) decls)
             ^ "\n")
       | _ -> (
-          let tdecls = typecheck abs_filename src decls in
+          let tdecls = typecheck ctx decls in
           match !stage with
           | Tokens | Ast -> assert false
           | Check -> output_text "typecheck: ok\n"

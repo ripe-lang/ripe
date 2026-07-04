@@ -17,7 +17,7 @@ let qbe_ty (t : ty) : string =
   | TStruct _ | TArray _ | TSlice _ -> "l"
   | TVoid -> assert false
 
-(* Returns "u" for unsigned integer types, "s" for signed/other *)
+(* "u" for unsigned int types and "s" for signed or other *)
 let signedness (t : ty) : string =
   match t with TInt (U8 | U16 | U32 | U64 | Usize) -> "u" | _ -> "s"
 
@@ -130,7 +130,7 @@ type ctx = {
   str_ctr : int ref;
   (* enclosing loops as (continue target, break target) labels, innermost first *)
   loops : (string * string) list ref;
-  (* true once the current block ended in a jmp/ret, QBE rejects anything after *)
+  (* true once the current block ended in a jmp/ret and QBE rejects anything after *)
   terminated : bool ref;
 }
 
@@ -153,7 +153,7 @@ let emit_label ctx lbl =
   emit ctx "%s\n" lbl;
   ctx.terminated := false
 
-(* jmp/jnz end a block, so anything emitted after until the next label is dropped *)
+(* jmp/jnz end a block so anything emitted after until the next label is dropped *)
 let emit_jmp ctx lbl =
   if not !(ctx.terminated) then emit ctx "    jmp %s\n" lbl;
   ctx.terminated := true
@@ -198,7 +198,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBool b -> if b then "1" else "0"
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
-  (* aggregate: the slot itself is the value, so yield its address *)
+  (* aggregate: the slot itself is the value so yield its address *)
   | T.TIdent name when is_aggregate t ->
       if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name
   | T.TIdent name -> (
@@ -234,7 +234,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         else "$" ^ name
       in
       if ret_ty = TVoid then (
-        (* void: no result to capture, just emit the call *)
+        (* void: no result to capture so just emit the call *)
         emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
         "")
       else
@@ -275,7 +275,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           emit ctx "    %s =l add %s, %d\n" p base offset;
           p
       in
-      (* aggregate field: its address is the value, same as TIndex below *)
+      (* aggregate field: its address is the value like TIndex below *)
       if is_aggregate ft then ptr
       else
         let tmp = fresh ctx in
@@ -286,7 +286,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TIndex (base, idx) ->
       let elem = t in
       let addr = emit_index_addr ctx base idx elem in
-      (* nested array: the element is itself an aggregate, yield its address *)
+      (* nested array: the element is itself an aggregate so yield its address *)
       if is_aggregate elem then addr
       else
         let tmp = fresh ctx in
@@ -395,7 +395,7 @@ and emit_unop ctx op e t =
       else emit ctx "    %s =l copy %%%s\n" tmp name;
       tmp
 
-(* pointer math is 64-bit, widen a word-sized value to a long *)
+(* pointer math is 64-bit so widen a word-sized value to a long *)
 and widen_to_l ctx v ty =
   if qbe_ty ty = "l" then v
   else
@@ -450,7 +450,7 @@ and emit_zero_into ctx dest t =
       step 1 "storeb"
   | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
 
-(* copy size bytes from src to dest, used for by-value aggregate (slice) moves *)
+(* copy size bytes from src to dest for by-value aggregate (slice) moves *)
 and emit_aggregate_copy ctx dest src size =
   let off = ref 0 in
   let step w letter load store =
@@ -532,7 +532,7 @@ and emit_struct_lit_into ctx base sname tfields =
           emit ctx "    %s %s, %s\n" (qbe_store ft) v addr)
     tfields
 
-(* separated from emit_binop to stop evaluating the lhs, it emit dead loads *)
+(* split from emit_binop so the lhs is not re-evaluated into dead loads *)
 and emit_assign ctx l r _t =
   match l.T.desc with
   | T.TIndex (base, idx) ->
@@ -791,7 +791,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit_label ctx end_lbl)
   | T.TBlock stmts ->
       (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
-      (* locals is a flat hashtable, save and restore for block scope *)
+      (* locals is a flat hashtable so save and restore it for block scope *)
       let saved = Hashtbl.copy ctx.locals in
       emit_stmts ctx stmts;
       let to_remove =
@@ -814,7 +814,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       let cv = emit_expr ctx cond in
       emit_jnz ctx cv body_lbl end_lbl;
       emit_label ctx body_lbl;
-      (* continue re-tests the condition, break exits *)
+      (* continue re-tests the condition and break exits *)
       ctx.loops := (test_lbl, end_lbl) :: !(ctx.loops);
       emit_stmts ctx body;
       ctx.loops := List.tl !(ctx.loops);
@@ -955,7 +955,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     (fun (name, t, tmp) ->
       emit ctx "    %%%s =l %s %d\n" name (alloc_instr t)
         (ty_size ctx.structs t);
-      (* aggregates arrive as a pointer, copy the value into the local slot *)
+      (* aggregates arrive as a pointer so copy the value into the local slot *)
       if is_aggregate t then
         emit_aggregate_copy ctx ("%" ^ name) tmp (ty_size ctx.structs t)
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp name;
@@ -968,7 +968,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n"
-      (* unreachable, but QBE needs every block terminated *)
+      (* unreachable but QBE needs every block terminated *)
     else emit ctx "    hlt\n";
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
   emit ctx "}\n\n"

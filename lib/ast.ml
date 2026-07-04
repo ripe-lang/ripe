@@ -98,7 +98,7 @@ and expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of string * (string * expr) list
+  | StructLit of string * span * (string * span * expr) list
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
@@ -106,12 +106,12 @@ and expr = { desc : expr_desc; span : span }
 
 (* TODO(68e6): Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y) *)
 type stmt_desc =
-  | Const of string * typ option * expr
-  | Var of string * typ option * expr option
+  | Const of string * span * typ option * expr
+  | Var of string * span * typ option * expr option
   | Return of expr option
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list
-  | For of string * expr * stmt list
+  | For of string * span * expr * stmt list
   | Break
   | Continue
   | Expr of expr
