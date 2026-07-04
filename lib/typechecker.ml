@@ -6,8 +6,6 @@ open Ast
 open Types
 module T = Typed_ast
 
-exception TypeErrors of Diagnostic.t list
-
 (* TODO(0d41): I should be allowed to shadow function name with a variable but not
 with another function in the same scope. (same with structs) *)
 
@@ -832,5 +830,5 @@ let typecheck (decls : decl list) : T.tdecl list * Diagnostic.t list =
   let tdecls = List.map (check_decl env) decls in
   let all = Diagnostic.drain env.diags in
   let is_err (d : Diagnostic.t) = d.severity = Diagnostic.Error in
-  if List.exists is_err all then raise (TypeErrors all)
+  if List.exists is_err all then raise (Diagnostic.Errors all)
   else (tdecls, List.filter (fun d -> not (is_err d)) all)

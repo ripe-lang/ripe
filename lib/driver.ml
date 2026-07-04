@@ -90,7 +90,11 @@ let compile ~stage ~out ~filename =
   in
   let read, lexbuf, ctx = load filename in
   (* each stage is a possible stopping point, so bail once we hit the target *)
-  let stop_at target emit = if stage = target then (emit (); raise Exit) in
+  let stop_at target emit =
+    if stage = target then (
+      emit ();
+      raise Exit)
+  in
   try
     stop_at Tokens (fun () -> output_text (dump_tokens read lexbuf));
     let decls = Parser.parse read lexbuf in

@@ -16,6 +16,9 @@ type t = {
   suggestion : string option; (* closing "help:" line *)
 }
 
+(* any pass raises this to abort with a batch of diagnostics *)
+exception Errors of t list
+
 let make severity headline =
   {
     severity;

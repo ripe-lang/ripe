@@ -5,9 +5,7 @@
 open Tokens
 open Ast
 
-(* internal, used to unwind from grammar rules. parse converts to ParseErrors *)
 exception ParseError of Diagnostic.t
-exception ParseErrors of Diagnostic.t list
 
 type state = {
   mutable tok : token;
@@ -702,4 +700,4 @@ let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
   let decls = parse_program st in
   match Diagnostic.drain st.diags with
   | [] -> decls
-  | ds -> raise (ParseErrors ds)
+  | ds -> raise (Diagnostic.Errors ds)
