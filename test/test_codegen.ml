@@ -805,13 +805,13 @@ func f() i32 {
 
     function w $f() {
     @start
+        %t2 =l alloc8 16
         %a =l alloc4 12
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        %t2 =l alloc8 16
         storel %a, %t2
         %t3 =l add %t2, 8
         storel 3, %t3
@@ -833,6 +833,7 @@ func f() i32 {
     {|
     function w $f() {
     @start
+        %t8 =l alloc8 16
         %a =l alloc4 16
         storew 1, %a
         %t0 =l add %a, 4
@@ -847,7 +848,6 @@ func f() i32 {
         %t5 =l mul %t3, 4
         %t6 =l add %a, %t5
         %t7 =l sub %t4, %t3
-        %t8 =l alloc8 16
         storel %t6, %t8
         %t9 =l add %t8, 8
         storel %t7, %t9
@@ -879,6 +879,7 @@ func f() i32 {
     {|
     function w $f() {
     @start
+        %t9 =l alloc8 16
         %a =l alloc4 16
         storew 1, %a
         %t0 =l add %a, 4
@@ -894,7 +895,6 @@ func f() i32 {
         %t6 =l mul %t3, 4
         %t7 =l add %a, %t6
         %t8 =l sub %t5, %t3
-        %t9 =l alloc8 16
         storel %t7, %t9
         %t10 =l add %t9, 8
         storel %t8, %t10
@@ -926,6 +926,7 @@ func f() usize {
     {|
     function l $f() {
     @start
+        %t7 =l alloc8 16
         %a =l alloc4 12
         storew 1, %a
         %t0 =l add %a, 4
@@ -938,7 +939,6 @@ func f() usize {
         %t4 =l mul %t2, 4
         %t5 =l add %a, %t4
         %t6 =l sub %t3, %t2
-        %t7 =l alloc8 16
         storel %t5, %t7
         %t8 =l add %t7, 8
         storel %t6, %t8
@@ -1019,6 +1019,7 @@ func f() {
     {|
     function $f() {
     @start
+        %t7 =l alloc8 16
         %a =l alloc4 12
         storew 1, %a
         %t0 =l add %a, 4
@@ -1031,7 +1032,6 @@ func f() {
         %t4 =l mul %t2, 4
         %t5 =l add %a, %t4
         %t6 =l sub %t3, %t2
-        %t7 =l alloc8 16
         storel %t5, %t7
         %t8 =l add %t7, 8
         storel %t6, %t8
@@ -1223,9 +1223,9 @@ func f() i32 {
     {|
     function w $f() {
     @start
+        %t1 =l alloc4 12
         %s =l alloc4 4
         storew 0, %s
-        %t1 =l alloc4 12
         storew 1, %t1
         %t2 =l add %t1, 4
         storew 2, %t2
