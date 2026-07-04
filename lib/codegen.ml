@@ -266,6 +266,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         l,
         r ) ->
       emit_compound_assign ctx op l r
+  | T.TBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
   | T.TBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.TUnOp (op, e) -> emit_unop ctx op e t
   | T.TCast e ->
@@ -643,6 +644,40 @@ and emit_compound_assign ctx op l r =
 
 and is_float_ty = function TFloat _ -> true | _ -> false
 
+(* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
+and emit_branch ctx e true_lbl false_lbl =
+  match e.T.desc with
+  | T.TBinOp (Ast.And, l, r) ->
+      let mid = Printf.sprintf "@and.rhs%d" (fresh_id ctx) in
+      emit_branch ctx l mid false_lbl;
+      emit_label ctx mid;
+      emit_branch ctx r true_lbl false_lbl
+  | T.TBinOp (Ast.Or, l, r) ->
+      let mid = Printf.sprintf "@or.rhs%d" (fresh_id ctx) in
+      emit_branch ctx l true_lbl mid;
+      emit_label ctx mid;
+      emit_branch ctx r true_lbl false_lbl
+  | T.TUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
+  | _ ->
+      let v = emit_expr ctx e in
+      emit_jnz ctx v true_lbl false_lbl
+
+(* same condition but wanted as a 0/1 value, e.g. let ok = a && b *)
+and emit_bool_value ctx e =
+  let id = fresh_id ctx in
+  let true_lbl = Printf.sprintf "@bool.true%d" id in
+  let false_lbl = Printf.sprintf "@bool.false%d" id in
+  let join_lbl = Printf.sprintf "@bool.join%d" id in
+  emit_branch ctx e true_lbl false_lbl;
+  emit_label ctx true_lbl;
+  emit_jmp ctx join_lbl;
+  emit_label ctx false_lbl;
+  emit_jmp ctx join_lbl;
+  emit_label ctx join_lbl;
+  let res = fresh ctx in
+  emit ctx "    %s =w phi %s 1, %s 0\n" res true_lbl false_lbl;
+  res
+
 and emit_binop ctx op l r t =
   (* recursively evaluate *)
   let lv = emit_expr ctx l in
@@ -686,8 +721,6 @@ and emit_binop ctx op l r t =
       if is_float_ty lty then
         emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.And -> emit ctx "    %s =w and %s, %s\n" tmp lv rv
-  | Ast.Or -> emit ctx "    %s =w or %s, %s\n" tmp lv rv
   | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
   | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
@@ -804,8 +837,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
                 if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
               in
               emit_label ctx (List.nth cond_lbls i);
-              let cv = emit_expr ctx cond in
-              emit_jnz ctx cv (List.nth then_lbls i) next_lbl;
+              emit_branch ctx cond (List.nth then_lbls i) next_lbl;
               emit_label ctx (List.nth then_lbls i);
               emit_scoped ctx body;
               emit_jmp ctx end_lbl)
@@ -827,8 +859,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       let body_lbl = Printf.sprintf "@while.body%d" id in
       let end_lbl = Printf.sprintf "@while.end%d" id in
       emit_label ctx test_lbl;
-      let cv = emit_expr ctx cond in
-      emit_jnz ctx cv body_lbl end_lbl;
+      emit_branch ctx cond body_lbl end_lbl;
       emit_label ctx body_lbl;
       (* continue re-tests the condition and break exits *)
       ctx.loops := (test_lbl, end_lbl) :: !(ctx.loops);

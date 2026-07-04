@@ -207,16 +207,15 @@ func f(a: i32, b: bool) i32 {
         storeb %t1, %b
     @if.cond2_0
         %t3 =w loadub %b
-        %t4 =w ceqw %t3, 0
-        jnz %t4, @if.then2_0, @if.else2
+        jnz %t3, @if.else2, @if.then2_0
     @if.then2_0
-        %t5 =w loadsw %a
-        %t6 =w neg %t5
-        ret %t6
+        %t4 =w loadsw %a
+        %t5 =w neg %t4
+        ret %t5
     @if.else2
     @if.end2
-        %t7 =w loadsw %a
-        ret %t7
+        %t6 =w loadsw %a
+        ret %t6
     }
     |}]
 
@@ -1845,5 +1844,233 @@ func f() i32 {
         storew %t2, %x.0
         %t3 =w loadsw %x
         ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: && short circuits into branches" =
+  run_codegen
+    {|
+func check(p: *i32) i32 {
+  if p != null && *p == 3 { return 1 }
+  return 0
+}
+|};
+  [%expect
+    {|
+    function w $check(l %t0) {
+    @start
+        %p =l alloc8 8
+        storel %t0, %p
+    @if.cond1_0
+        %t3 =l loadl %p
+        %t4 =w cnel %t3, 0
+        jnz %t4, @and.rhs2, @if.else1
+    @and.rhs2
+        %t5 =l loadl %p
+        %t6 =w loadsw %t5
+        %t7 =w ceqw %t6, 3
+        jnz %t7, @if.then1_0, @if.else1
+    @if.then1_0
+        ret 1
+    @if.else1
+    @if.end1
+        ret 0
+    }
+    |}]
+
+let%expect_test "codegen: || short circuits into branches" =
+  run_codegen {|
+func any(a: bool, b: bool) bool {
+  return a || b
+}
+|};
+  [%expect
+    {|
+    function w $any(w %t0, w %t1) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+        %t4 =w loadub %a
+        jnz %t4, @bool.true2, @or.rhs3
+    @or.rhs3
+        %t5 =w loadub %b
+        jnz %t5, @bool.true2, @bool.false2
+    @bool.true2
+        jmp @bool.join2
+    @bool.false2
+        jmp @bool.join2
+    @bool.join2
+        %t6 =w phi @bool.true2 1, @bool.false2 0
+        ret %t6
+    }
+    |}]
+
+let%expect_test "codegen: chained && threads through midpoints" =
+  run_codegen
+    {|
+func f(a: bool, b: bool, c: bool) i32 {
+  if a && b && c { return 1 }
+  return 0
+}
+|};
+  [%expect
+    {|
+    function w $f(w %t0, w %t1, w %t2) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+        %c =l alloc4 1
+        storeb %t2, %c
+    @if.cond3_0
+        %t6 =w loadub %a
+        jnz %t6, @and.rhs5, @if.else3
+    @and.rhs5
+        %t7 =w loadub %b
+        jnz %t7, @and.rhs4, @if.else3
+    @and.rhs4
+        %t8 =w loadub %c
+        jnz %t8, @if.then3_0, @if.else3
+    @if.then3_0
+        ret 1
+    @if.else3
+    @if.end3
+        ret 0
+    }
+    |}]
+
+let%expect_test "codegen: mixed || and && respects precedence" =
+  run_codegen
+    {|
+func f(a: bool, b: bool, c: bool) bool {
+  return a || b && c
+}
+|};
+  [%expect
+    {|
+    function w $f(w %t0, w %t1, w %t2) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+        %c =l alloc4 1
+        storeb %t2, %c
+        %t5 =w loadub %a
+        jnz %t5, @bool.true3, @or.rhs4
+    @or.rhs4
+        %t7 =w loadub %b
+        jnz %t7, @and.rhs6, @bool.false3
+    @and.rhs6
+        %t8 =w loadub %c
+        jnz %t8, @bool.true3, @bool.false3
+    @bool.true3
+        jmp @bool.join3
+    @bool.false3
+        jmp @bool.join3
+    @bool.join3
+        %t9 =w phi @bool.true3 1, @bool.false3 0
+        ret %t9
+    }
+    |}]
+
+let%expect_test "codegen: ! in a condition swaps branch targets" =
+  run_codegen
+    {|
+func f(a: bool, b: bool) i32 {
+  if !a && b { return 1 }
+  return 0
+}
+|};
+  [%expect
+    {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+    @if.cond2_0
+        %t4 =w loadub %a
+        jnz %t4, @if.else2, @and.rhs3
+    @and.rhs3
+        %t5 =w loadub %b
+        jnz %t5, @if.then2_0, @if.else2
+    @if.then2_0
+        ret 1
+    @if.else2
+    @if.end2
+        ret 0
+    }
+    |}]
+
+let%expect_test "codegen: && drives a while condition" =
+  run_codegen {|
+func f(a: bool, b: bool) {
+  while a && b { return }
+}
+|};
+  [%expect
+    {|
+    function $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+    @while.cond2
+        %t4 =w loadub %a
+        jnz %t4, @and.rhs3, @while.end2
+    @and.rhs3
+        %t5 =w loadub %b
+        jnz %t5, @while.body2, @while.end2
+    @while.body2
+        ret
+    @while.end2
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: short circuit result stored in a local" =
+  run_codegen
+    {|
+func f(a: bool, b: bool) i32 {
+  var ok: bool = a && b
+  if ok { return 1 }
+  return 0
+}
+|};
+  [%expect
+    {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 1
+        storeb %t0, %a
+        %b =l alloc4 1
+        storeb %t1, %b
+        %ok =l alloc4 1
+        %t4 =w loadub %a
+        jnz %t4, @and.rhs3, @bool.false2
+    @and.rhs3
+        %t5 =w loadub %b
+        jnz %t5, @bool.true2, @bool.false2
+    @bool.true2
+        jmp @bool.join2
+    @bool.false2
+        jmp @bool.join2
+    @bool.join2
+        %t6 =w phi @bool.true2 1, @bool.false2 0
+        storeb %t6, %ok
+    @if.cond7_0
+        %t8 =w loadub %ok
+        jnz %t8, @if.then7_0, @if.else7
+    @if.then7_0
+        ret 1
+    @if.else7
+    @if.end7
+        ret 0
     }
     |}]

@@ -1,0 +1,15 @@
+func third_is_three(p: *i32) bool {
+  return p != null && *p == 3
+}
+
+func main() i32 {
+  var x: i32 = 3
+  var hit: i32 = 0
+
+  # p is null so the deref never runs, otherwise this would segfault
+  if third_is_three(null) { hit += 100 }
+
+  if third_is_three(&x) { hit += 7 }
+
+  return hit
+}
