@@ -330,3 +330,7 @@ let%expect_test "parse: parenthesized struct literal in condition" =
     "struct pt { x: i32 }\n\
      func f() i32 { if (pt { x: 1 }).x == 1 { return 1 } return 0 }";
   [%expect {| ok |}]
+
+let%expect_test "parse: stray brace in string" =
+  parse_expr "\"a}b\"";
+  [%expect {| <interp> |}]
