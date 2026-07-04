@@ -16,9 +16,18 @@ let%expect_test "parse: hex/binary literals" =
   run_src "func f() i32 { return 0xff + 0b1010 }";
   [%expect
     {|
-    <test>:1:24: warning: unreachable code
-    TypeError: <test>:1:24: undefined variable 'xff'
-    TypeError: <test>:1:31: undefined variable 'b1010'
+    warning: unreachable code
+      at <test>:1:24
+        func f() i32 { return 0xff + 0b1010 }
+                               ^~~~~~~
+    error: undefined variable: xff
+      at <test>:1:24
+        func f() i32 { return 0xff + 0b1010 }
+                               ^~~
+    error: undefined variable: b1010
+      at <test>:1:31
+        func f() i32 { return 0xff + 0b1010 }
+                                      ^~~~~
     |}]
 
 let%expect_test "parse: line comments stripped" =
@@ -169,7 +178,11 @@ let%expect_test "parse: multiline array literal" =
   run_src "func f() {\n  var a: [2]i32 = [\n    1,\n    2\n  ]\n}";
   [%expect
     {|
-    <test>:4:5: warning: 'a' declared but never used
+    warning: unused variable: a
+      at <test>:2:7
+          var a: [2]i32 = [
+              ^
+    help: prefix with an underscore: _a
     ok
     |}]
 

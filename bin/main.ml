@@ -65,10 +65,15 @@ let parse read lexbuf =
       exit 1
 
 let typecheck filename src decls =
-  match Ripe.Typechecker.typecheck filename src decls with
-  | tdecls -> tdecls
-  | exception Ripe.Typechecker.TypeErrors msgs ->
-      List.iter (fun msg -> Printf.eprintf "%s\n" msg) msgs;
+  let sm = Ripe.Source_map.create src in
+  let ctx = { Ripe.Diagnostic.sm; filename; color = Unix.isatty Unix.stderr } in
+  let render d = Printf.eprintf "%s" (Ripe.Diagnostic.render ctx d) in
+  match Ripe.Typechecker.typecheck decls with
+  | tdecls, warns ->
+      List.iter render warns;
+      tdecls
+  | exception Ripe.Typechecker.TypeErrors diags ->
+      List.iter render diags;
       exit 1
 
 let run cmd =

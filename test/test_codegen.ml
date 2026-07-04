@@ -67,7 +67,6 @@ func f() {
 |};
   [%expect
     {|
-    <test>:4:18: warning: 'p' declared but never used
     function $f() {
     @start
         %n =l alloc4 4
@@ -88,7 +87,6 @@ func f() {
 |};
   [%expect
     {|
-    <test>:4:18: warning: 'p' declared but never used
     data $n = align 4 { w 0 }
 
     function $f() {
@@ -109,9 +107,18 @@ func f() { op(1, 2) }
 |};
   [%expect
     {|
-    TypeError: <test>:3:26: initializer for 'op' must be a constant expression
-    TypeError: <test>:4:12: undefined function 'op'
-    TypeError: <test>:4:12: expected 0 arguments but got 2
+    error: initializer must be constant: op
+      at <test>:3:26
+        var op: (i32, i32) i32 = add
+                                 ^~~
+    error: undefined function: op
+      at <test>:4:12
+        func f() { op(1, 2) }
+                   ^~~~~~~~
+    error: expected 0 arguments, found 2
+      at <test>:4:12
+        func f() { op(1, 2) }
+                   ^~~~~~~~
     |}]
 
 let%expect_test "codegen: simple add return" =
@@ -1243,8 +1250,6 @@ func f() {
 |};
   [%expect
     {|
-    <test>:4:3: warning: 'b' declared but never used
-    <test>:3:18: warning: 'a' declared but never used
     function $f() {
     @start
         %a =l alloc4 4

@@ -5,13 +5,26 @@ let parse src =
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
 
+let ctx src =
+  {
+    Ripe.Diagnostic.sm = Ripe.Source_map.create src;
+    filename = "<test>";
+    color = false;
+  }
+
 let run_src src =
   match parse src with
   | decls -> (
-      match Ripe.Typechecker.typecheck "<test>" src decls with
-      | _ -> print_endline "ok"
-      | exception Ripe.Typechecker.TypeErrors msgs ->
-          List.iter (fun msg -> print_endline ("TypeError: " ^ msg)) msgs)
+      match Ripe.Typechecker.typecheck decls with
+      | _, warns ->
+          List.iter
+            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+            warns;
+          print_endline "ok"
+      | exception Ripe.Typechecker.TypeErrors diags ->
+          List.iter
+            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+            diags)
   | exception Ripe.Parser.ParseErrors diags ->
       List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
 
@@ -59,13 +72,15 @@ let check_qbe il =
 let run_codegen src =
   match parse src with
   | decls -> (
-      match Ripe.Typechecker.typecheck "<test>" src decls with
-      | tdecls ->
+      match Ripe.Typechecker.typecheck decls with
+      | tdecls, _ ->
           let il = Ripe.Codegen.emit_qbe tdecls in
           print_string il;
           check_qbe il
-      | exception Ripe.Typechecker.TypeErrors msgs ->
-          List.iter (fun msg -> print_endline ("TypeError: " ^ msg)) msgs)
+      | exception Ripe.Typechecker.TypeErrors diags ->
+          List.iter
+            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+            diags)
   | exception Ripe.Parser.ParseErrors diags ->
       List.iter (fun (_, msg) -> print_endline ("ParseError: " ^ msg)) diags
 
@@ -123,10 +138,12 @@ let rec dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
   | Undefined -> "undefined"
-  | StructLit (name, fields) ->
+  | StructLit (name, _, fields) ->
       "(struct " ^ name
       ^ String.concat ""
-          (List.map (fun (f, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")") fields)
+          (List.map
+             (fun (f, _, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")")
+             fields)
       ^ ")"
 
 (* wrap src in `return ...` so callers can write bare expressions *)
