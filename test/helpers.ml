@@ -13,22 +13,13 @@ let ctx src =
   }
 
 let run_src src =
-  match parse src with
-  | decls -> (
-      match Ripe.Typechecker.typecheck decls with
-      | _, warns ->
-          List.iter
-            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-            warns;
-          print_endline "ok"
-      | exception Ripe.Typechecker.TypeErrors diags ->
-          List.iter
-            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-            diags)
-  | exception Ripe.Parser.ParseErrors diags ->
-      List.iter
-        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-        diags
+  try
+    let decls = parse src in
+    let _, warns = Ripe.Typechecker.typecheck decls in
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) warns;
+    print_endline "ok"
+  with Ripe.Diagnostic.Errors diags ->
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
 
 let replace s old rep =
   let olen = String.length old in
@@ -72,34 +63,19 @@ let check_qbe il =
   Sys.remove err
 
 let run_codegen src =
-  match parse src with
-  | decls -> (
-      match Ripe.Typechecker.typecheck decls with
-      | tdecls, _ -> (
-          match Ripe.Codegen.emit_qbe tdecls with
-          | il ->
-              print_string il;
-              check_qbe il
-          | exception Ripe.Codegen.CodegenErrors diags ->
-              List.iter
-                (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-                diags)
-      | exception Ripe.Typechecker.TypeErrors diags ->
-          List.iter
-            (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-            diags)
-  | exception Ripe.Parser.ParseErrors diags ->
-      List.iter
-        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-        diags
+  try
+    let decls = parse src in
+    let tdecls, _ = Ripe.Typechecker.typecheck decls in
+    let il = Ripe.Codegen.emit_qbe tdecls in
+    print_string il;
+    check_qbe il
+  with Ripe.Diagnostic.Errors diags ->
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
 
 let parse_only src =
-  match parse src with
-  | decls -> List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) decls
-  | exception Ripe.Parser.ParseErrors diags ->
-      List.iter
-        (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
-        diags
+  try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
+  with Ripe.Diagnostic.Errors diags ->
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
 
 (* compact s-expr expression dumper, no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
@@ -160,11 +136,12 @@ let rec dump_expr (e : Ripe.Ast.expr) =
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =
   let wrapped = "func _f() { return " ^ src ^ " }" in
-  match parse wrapped with
-  | [ Ripe.Ast.Func { body = [ { sdesc = Return (Some e); _ } ]; _ } ] ->
-      print_endline (dump_expr e)
-  | _ -> print_endline "<parse_expr: unexpected shape>"
-  | exception Ripe.Parser.ParseErrors diags ->
-      List.iter
-        (fun d -> print_string (Ripe.Diagnostic.render (ctx wrapped) d))
-        diags
+  try
+    match parse wrapped with
+    | [ Ripe.Ast.Func { body = [ { sdesc = Return (Some e); _ } ]; _ } ] ->
+        print_endline (dump_expr e)
+    | _ -> print_endline "<parse_expr: unexpected shape>"
+  with Ripe.Diagnostic.Errors diags ->
+    List.iter
+      (fun d -> print_string (Ripe.Diagnostic.render (ctx wrapped) d))
+      diags

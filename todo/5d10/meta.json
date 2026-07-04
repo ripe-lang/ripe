@@ -5,9 +5,9 @@
   "depends": [],
   "id": "5d10",
   "priority": "low",
-  "source": "bin/main.ml:105",
+  "source": "lib/driver.ml:62",
   "status": "open",
   "tags": [],
   "title": "emit paths relative to project root",
-  "updated_at": "2026-07-03 23:01:27.998724"
+  "updated_at": "2026-07-04 17:07:05.992176"
 }

@@ -11,7 +11,9 @@
   types
   typechecker
   typed_ast
-  codegen)
+  codegen
+  driver)
+ (libraries unix)
  (preprocess
   (pps ppx_deriving.show)))
 

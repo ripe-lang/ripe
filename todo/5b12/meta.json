@@ -5,9 +5,9 @@
   "depends": [],
   "id": "5b12",
   "priority": "low",
-  "source": "lib/typechecker.ml:195",
+  "source": "lib/typechecker.ml:190",
   "status": "open",
   "tags": [],
   "title": "Add DFS cycle detection to prevent infinite recursion",
-  "updated_at": "2026-07-03 23:01:28.001877"
+  "updated_at": "2026-07-04 17:07:05.990087"
 }

@@ -5,9 +5,9 @@
   "depends": [],
   "id": "c75e",
   "priority": "low",
-  "source": "lib/codegen.ml:284",
+  "source": "lib/codegen.ml:304",
   "status": "open",
   "tags": [],
   "title": "codegen for string interpolation",
-  "updated_at": "2026-07-03 23:01:28.000037"
+  "updated_at": "2026-07-04 17:07:05.991112"
 }

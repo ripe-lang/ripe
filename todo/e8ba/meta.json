@@ -5,9 +5,9 @@
   "depends": [],
   "id": "e8ba",
   "priority": "low",
-  "source": "lib/ast.ml:88",
+  "source": "lib/ast.ml:86",
   "status": "open",
   "tags": [],
   "title": "change to Call of expr * expr list for function pointers and method calls",
-  "updated_at": "2026-07-03 23:01:27.999012"
+  "updated_at": "2026-07-04 17:07:05.988835"
 }

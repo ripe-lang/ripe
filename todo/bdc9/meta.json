@@ -5,9 +5,9 @@
   "depends": [],
   "id": "bdc9",
   "priority": "low",
-  "source": "lib/codegen.ml:678",
+  "source": "lib/codegen.ml:740",
   "status": "open",
   "tags": [],
   "title": "`as` silently loses data like C. Add a safe cast that catches bad conversions at runtime.",
-  "updated_at": "2026-07-03 23:01:28.000248"
+  "updated_at": "2026-07-04 17:07:05.991286"
 }

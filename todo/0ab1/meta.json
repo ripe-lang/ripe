@@ -5,9 +5,9 @@
   "depends": [],
   "id": "0ab1",
   "priority": "low",
-  "source": "lib/typechecker.ml:399",
+  "source": "lib/typechecker.ml:401",
   "status": "open",
   "tags": [],
   "title": "Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow.",
-  "updated_at": "2026-07-03 23:01:28.002115"
+  "updated_at": "2026-07-04 17:07:05.990264"
 }

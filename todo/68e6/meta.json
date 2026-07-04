@@ -5,9 +5,9 @@
   "depends": [],
   "id": "68e6",
   "priority": "low",
-  "source": "lib/ast.ml:107",
+  "source": "lib/ast.ml:105",
   "status": "open",
   "tags": [],
   "title": "Support tuple destructuring in let/var bindings e.g. let (a, b) = (x, y)",
-  "updated_at": "2026-07-03 23:01:27.999133"
+  "updated_at": "2026-07-04 17:07:05.988948"
 }

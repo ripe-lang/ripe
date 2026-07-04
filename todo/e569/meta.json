@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-04 17:07:05.957129",
+  "depends": [],
+  "id": "e569",
+  "priority": "low",
+  "source": "bin/main.ml:64",
+  "status": "open",
+  "tags": [],
+  "title": "This code path is messing things up",
+  "updated_at": "2026-07-04 17:07:05.957129"
+}
