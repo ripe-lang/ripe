@@ -124,16 +124,15 @@ type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
   locals : (string, string) Hashtbl.t;
   globals : (string, unit) Hashtbl.t;
-  buf : Buffer.t;
+  buf : Buffer.t ref;
   strings : (string * string) list ref;
   tmp : int ref;
   str_ctr : int ref;
-  (* enclosing loops as (continue target, break target) labels, innermost first *)
   loops : (string * string) list ref;
-  (* true once the current block ended in a jmp/ret and QBE rejects anything after *)
   terminated : bool ref;
   const_vals : (string, string) Hashtbl.t;
   const_inits : (string, T.texpr) Hashtbl.t;
+  entry : Buffer.t ref;
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -160,7 +159,8 @@ let restore_locals ctx saved =
   Hashtbl.reset ctx.locals;
   Hashtbl.iter (Hashtbl.replace ctx.locals) saved
 
-let emit ctx fmt = Printf.bprintf ctx.buf fmt
+let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
+let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
 
 (* start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
@@ -236,12 +236,12 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       lbl
   | T.TCall (name, args) ->
       let ret_ty = t in
-      (* recursively emit each arg (nested calls produce temps) *)
       let arg_strs =
-        List.map
-          (fun (a : T.texpr) ->
-            Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
-          args
+        List.rev
+          (List.rev_map
+             (fun (a : T.texpr) ->
+               Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
+             args)
       in
       (* local var holding a fn ptr: load then call indirectly *)
       let callee =
@@ -344,7 +344,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       in
       (* build a { ptr = &arr[0], len = n } fat pointer on the stack *)
       let slot = fresh ctx in
-      emit ctx "    %s =l alloc8 16\n" slot;
+      emit_entry ctx "    %s =l alloc8 16\n" slot;
       emit ctx "    storel %s, %s\n" arr_addr slot;
       let lenp = fresh ctx in
       emit ctx "    %s =l add %s, 8\n" lenp slot;
@@ -362,7 +362,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let len = fresh ctx in
       emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
       let slot = fresh ctx in
-      emit ctx "    %s =l alloc8 16\n" slot;
+      emit_entry ctx "    %s =l alloc8 16\n" slot;
       emit ctx "    storel %s, %s\n" ptr slot;
       let lenp = fresh ctx in
       emit ctx "    %s =l add %s, 8\n" lenp slot;
@@ -372,23 +372,27 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       (* as a value: materialize into a fresh stack slot and yield its address *)
       let elem = match t with TArray (e, _) -> e | _ -> assert false in
       let slot = fresh ctx in
-      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
+        (ty_size ctx.structs t);
       emit_array_lit_into ctx slot elems elem;
       slot
   | T.TZero when is_aggregate t ->
       let slot = fresh ctx in
-      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
+        (ty_size ctx.structs t);
       emit_zero_into ctx slot t;
       slot
   | T.TZero -> "0"
   | T.TUndef when is_aggregate t ->
       let slot = fresh ctx in
-      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
+        (ty_size ctx.structs t);
       slot
   | T.TUndef -> "0"
   | T.TStructLit (sname, tfields) ->
       let slot = fresh ctx in
-      emit ctx "    %s =l %s %d\n" slot (alloc_instr t) (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
+        (ty_size ctx.structs t);
       emit_struct_lit_into ctx slot sname tfields;
       slot
 
@@ -1007,6 +1011,12 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     (String.concat ", " params_strs);
   emit_label ctx "@start";
 
+  (* divert the body so hoisted @start allocs land ahead of it *)
+  let out = !(ctx.buf) in
+  let body = Buffer.create 256 in
+  ctx.buf := body;
+  ctx.entry := Buffer.create 64;
+
   (* Spill params to stack slots so they can be reassigned *)
   List.iter
     (fun (name, t, tmp) ->
@@ -1020,6 +1030,11 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
     param_tmps;
 
   emit_stmts ctx tfd.body;
+
+  ctx.buf := out;
+  Buffer.add_buffer out !(ctx.entry);
+  Buffer.add_buffer out body;
+
   (* close the final block if control can still fall off the end *)
   (* TODO(978e): Emit implicit return for non-void functions where the last expression is the return value. *)
   if not !(ctx.terminated) then
@@ -1155,7 +1170,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       structs;
       locals = Hashtbl.create 16;
       globals = Hashtbl.create 16;
-      buf = Buffer.create 1024;
+      buf = ref (Buffer.create 1024);
       strings = ref [];
       tmp = ref 0;
       str_ctr = ref 0;
@@ -1163,6 +1178,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       terminated = ref false;
       const_vals = Hashtbl.create 16;
       const_inits = Hashtbl.create 16;
+      entry = ref (Buffer.create 64);
     }
   in
 
@@ -1211,4 +1227,4 @@ let emit_qbe (tdecls : T.tdecl list) : string =
     (fun (lbl, content) -> emit_string_data ctx lbl content)
     (List.rev !(ctx.strings));
 
-  Buffer.contents ctx.buf
+  Buffer.contents !(ctx.buf)
