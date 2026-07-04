@@ -4,6 +4,8 @@
 open Types
 module T = Typed_ast
 
+exception CodegenErrors of Diagnostic.t list
+
 (* TODO(7e23): I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
 
 let qbe_ty (t : ty) : string =
@@ -1080,7 +1082,7 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       in
       prefix ^ Printf.sprintf "%.*g" digits f
   | T.TCast e -> fold_const_value ctx e
-  | T.TIdent name -> resolve_const ctx name
+  | T.TIdent name -> resolve_const ctx name te.T.span
   | T.TCStr s ->
       let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
       incr ctx.str_ctr;
@@ -1089,12 +1091,12 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | _ -> failwith "non-trivial constant initializer"
 
 (* yank it from the table first so a cycle dies here instead of looping forever *)
-and resolve_const (ctx : ctx) (name : string) : string =
+and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =
   match Hashtbl.find_opt ctx.const_vals name with
   | Some v -> v
   | None -> (
       match Hashtbl.find_opt ctx.const_inits name with
-      | None -> failwith ("cyclic constant initializer: " ^ name)
+      | None -> raise (CodegenErrors [ Error.named span "cyclic constant" name ])
       | Some init ->
           Hashtbl.remove ctx.const_inits name;
           let v = fold_const_value ctx init in

@@ -71,6 +71,13 @@ let typecheck ctx decls =
       render_all ctx diags;
       exit 1
 
+let codegen ctx tdecls =
+  match Ripe.Codegen.emit_qbe tdecls with
+  | il -> il
+  | exception Ripe.Codegen.CodegenErrors diags ->
+      render_all ctx diags;
+      exit 1
+
 let run cmd =
   if Sys.command cmd <> 0 then (
     Printf.eprintf "ripec: command failed: %s\n" cmd;
@@ -138,7 +145,7 @@ let compile filename =
                    (List.map (fun d -> Ripe.Typed_ast.show_tdecl d) tdecls)
                 ^ "\n")
           | _ -> (
-              let il = Ripe.Codegen.emit_qbe tdecls in
+              let il = codegen ctx tdecls in
               match !stage with
               | Qbe -> output_text il
               | Asm -> output_text (emit_asm il)

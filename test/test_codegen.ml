@@ -2128,3 +2128,28 @@ func f() i32 { return B }
         ret %t0
     }
     |}]
+
+let%expect_test "codegen: self referential const is a cycle" =
+  run_codegen {|
+const X: i32 = X
+func f() i32 { return X }
+|};
+  [%expect {|
+    error: cyclic constant: X
+      at <test>:2:16
+        const X: i32 = X
+                       ^
+    |}]
+
+let%expect_test "codegen: mutually referential consts are a cycle" =
+  run_codegen {|
+const A: i32 = B
+const B: i32 = A
+func f() i32 { return A }
+|};
+  [%expect {|
+    error: cyclic constant: B
+      at <test>:2:16
+        const A: i32 = B
+                       ^
+    |}]
