@@ -75,10 +75,15 @@ let run_codegen src =
   match parse src with
   | decls -> (
       match Ripe.Typechecker.typecheck decls with
-      | tdecls, _ ->
-          let il = Ripe.Codegen.emit_qbe tdecls in
-          print_string il;
-          check_qbe il
+      | tdecls, _ -> (
+          match Ripe.Codegen.emit_qbe tdecls with
+          | il ->
+              print_string il;
+              check_qbe il
+          | exception Ripe.Codegen.CodegenErrors diags ->
+              List.iter
+                (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))
+                diags)
       | exception Ripe.Typechecker.TypeErrors diags ->
           List.iter
             (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d))

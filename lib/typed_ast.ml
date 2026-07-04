@@ -32,12 +32,13 @@ and texpr_desc =
   | TUndef
   | TStructLit of string * (string * texpr) list
 
-and texpr = { desc : texpr_desc; ty : ty }
+and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
-let mk (ty : ty) (desc : texpr_desc) : texpr = { desc; ty }
+let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
+  { desc; ty; span }
 
-type tstmt =
+type tstmt_desc =
   | TConst of string * ty * texpr
   | TVar of string * ty * texpr
   | TReturn of texpr option
@@ -48,6 +49,8 @@ type tstmt =
   | TContinue
   | TExpr of texpr
   | TBlock of tstmt list
+
+and tstmt = { tsdesc : tstmt_desc; span : Ast.span }
 [@@deriving show { with_path = false }]
 
 type tfunc_def = {
