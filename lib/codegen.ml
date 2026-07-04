@@ -1009,6 +1009,11 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       prefix ^ Printf.sprintf "%.*g" digits f
   | T.TCast e -> fold_const_value ctx e
   | T.TIdent name -> "$" ^ name
+  | T.TCStr s ->
+      let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
+      incr ctx.str_ctr;
+      ctx.strings := (lbl, s) :: !(ctx.strings);
+      lbl
   | _ -> failwith "non-trivial constant initializer"
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
