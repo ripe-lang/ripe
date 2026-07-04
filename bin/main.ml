@@ -160,7 +160,8 @@ let () =
     | "-o" :: p :: rest ->
         out := p;
         parse_args rest
-    | ("-emit" | "-o") :: [] -> die "missing argument: tokens|ast|tast|check|qbe|asm"
+    | ("-emit" | "-o") :: [] ->
+        die "missing argument: tokens|ast|tast|check|qbe|asm"
     | f :: _ when String.length f > 0 && f.[0] = '-' ->
         die (Printf.sprintf "unknown option: %s" f)
     | f :: rest ->
