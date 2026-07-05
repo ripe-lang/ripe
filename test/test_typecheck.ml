@@ -1489,3 +1489,205 @@ struct pt { x: i32, x: i64, x: bool }
         struct pt { x: i32, x: i64, x: bool }
                                     ^
     |}]
+
+let%expect_test "typecheck: type alias mismatch across types" =
+  run_src
+    {|
+type myint = i64
+func f(x: myint) i32 { return 0 }
+func g() { f(true) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:14
+        func g() { f(true) }
+                     ^~~~ expected i64, found bool
+    |}]
+
+let%expect_test "typecheck: cstr parameter accepts string literal" =
+  run_src
+    {|
+extern func strlen(s: cstr) i64
+func f() i64 { return strlen("hi") }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: extern variadic accepts extra args" =
+  run_src
+    {|
+extern func printf(fmt: cstr, ...) i32
+func f() { printf("%d %d", 1, 2) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: pointer equality yields bool" =
+  run_src {|
+func f(a: *i32, b: *i32) bool { return a == b }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: nested struct field type mismatch" =
+  run_src
+    {|
+struct inner { a: i32 }
+struct outer { i: inner }
+func f() {
+  var o: outer = outer { i: inner { a: 1 } }
+  o.i.a = true
+}
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:6:11
+          o.i.a = true
+                  ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: struct with array field initializes ok" =
+  run_src
+    {|
+struct buf { data: [4]i32, n: i32 }
+func f() i32 {
+  var b: buf = buf { data: [1, 2, 3, 4], n: 4 }
+  return b.n
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: function returning struct ok" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func origin() pt { return pt { x: 0, y: 0 } }
+func f() i32 { return origin().x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: void call result cannot be assigned" =
+  run_src {|
+func g() { }
+func f() { var x: i32 = g() }
+|};
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:3:16
+        func f() { var x: i32 = g() }
+                       ^
+    help: prefix with an underscore: _x
+    error: type mismatch
+      at <test>:3:25
+        func f() { var x: i32 = g() }
+                                ^~~ expected i32, found void
+    |}]
+
+let%expect_test "typecheck: modifiers public inline typecheck ok" =
+  run_src {|
+public inline func f() i32 { return 1 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: struct field whose type is another struct" =
+  run_src
+    {|
+struct b_t { x: i32 }
+struct a { b: b_t }
+func f() i32 {
+  var v: a = a { b: b_t { x: 1 } }
+  return v.b.x
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array of structs iterates element type" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var pts: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
+  var s: i32 = 0
+  for p in pts { s += p.x }
+  return s
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: cast int to float ok" =
+  run_src {|
+func f() f64 {
+  var a: i32 = 3
+  return a as f64
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: cast float to int ok" =
+  run_src {|
+func f() i32 {
+  var a: f64 = 3.5
+  return a as i32
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array size mismatch as argument" =
+  run_src
+    {|
+func take(a: [4]i32) {}
+func f() {
+  var a: [3]i32 = [1, 2, 3]
+  take(a)
+}
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:5:8
+          take(a)
+               ^ expected [4]i32, found [3]i32
+    |}]
+
+let%expect_test "typecheck: global var initialized from const" =
+  run_src
+    {|
+const base: i32 = 10
+var counter: i32 = base
+func f() i32 { return counter }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: extern variadic requires the fixed args" =
+  run_src {|
+extern func printf(fmt: cstr, ...) i32
+func f() { printf() }
+|};
+  [%expect
+    {|
+    error: expected at least 1 arguments, found 0
+      at <test>:3:12
+        func f() { printf() }
+                   ^~~~~~~~
+    |}]
+
+let%expect_test "typecheck: continue inside while" =
+  run_src "func f() { while true { continue } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: bool relational comparison rejected" =
+  run_src
+    {|
+func f() bool {
+  var a: bool = true
+  var b: bool = false
+  return a < b
+}
+|};
+  [%expect
+    {|
+    error: cannot apply `<` to bool
+      at <test>:5:10
+          return a < b
+                 ^
+    |}]

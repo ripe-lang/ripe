@@ -355,3 +355,121 @@ let%expect_test "parse: parenthesized struct literal in condition" =
 let%expect_test "parse: stray brace in string" =
   parse_expr "\"a}b\"";
   [%expect {| <interp> |}]
+
+let%expect_test "parse: crlf newline as statement separator" =
+  run_src "func f() i32 {\r\n  const x: i32 = 1\r\n  return x\r\n}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: stray closing paren" =
+  run_src "func f() { ) }";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:12
+        func f() { ) }
+                   ^ found )
+    |}]
+
+let%expect_test "parse: comment at eof with no trailing newline" =
+  run_src "func f() i32 { return 1 }\n# trailing comment";
+  [%expect {| ok |}]
+
+let%expect_test "parse: bitand binds tighter than comparison" =
+  parse_expr "a & 1 == 0";
+  [%expect {| (== (& a 1) 0) |}]
+
+let%expect_test "parse: bitor binds looser than bitand" =
+  parse_expr "a | b & c";
+  [%expect {| (| a (& b c)) |}]
+
+let%expect_test "parse: bitxor sits between bitor and bitand" =
+  parse_expr "a | b ^ c & d";
+  [%expect {| (| a (^ b (& c d))) |}]
+
+let%expect_test "parse: shift binds tighter than bitand" =
+  parse_expr "a & b << c";
+  [%expect {| (& a (<< b c)) |}]
+
+let%expect_test "parse: add binds tighter than shift" =
+  parse_expr "a << b + c";
+  [%expect {| (<< a (+ b c)) |}]
+
+let%expect_test "parse: logical and binds tighter than or" =
+  parse_expr "a || b && c";
+  [%expect {| (|| a (&& b c)) |}]
+
+let%expect_test "parse: comparison binds tighter than logical and" =
+  parse_expr "a && b < c";
+  [%expect {| (&& a (< b c)) |}]
+
+let%expect_test "parse: cast chain" =
+  parse_expr "x as i32 as f64";
+  [%expect {| (as (as x i32) f64) |}]
+
+let%expect_test "parse: negation binds tighter than multiply" =
+  parse_expr "-2 * 3";
+  [%expect {| (* (neg 2) 3) |}]
+
+let%expect_test "parse: double negation" =
+  parse_expr "!!x";
+  [%expect {| (! (! x)) |}]
+
+let%expect_test "parse: bitnot" =
+  parse_expr "~x";
+  [%expect {| (~ x) |}]
+
+let%expect_test "parse: field access after call" =
+  parse_expr "f().x";
+  [%expect {| (. (call f) x) |}]
+
+let%expect_test "parse: index after call" =
+  parse_expr "f()[0]";
+  [%expect {| (index (call f) 0) |}]
+
+let%expect_test "parse: sizeof array type" =
+  parse_expr "sizeof([4]i32)";
+  [%expect {| (sizeof [4]i32) |}]
+
+let%expect_test "parse: struct literal nested inside array literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:4:7
+          var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
+              ^
+    help: prefix with an underscore: _a
+    ok
+    |}]
+
+let%expect_test "parse: function pointer parameter type" =
+  run_src {|
+func apply(g: (i32) i32, v: i32) i32 { return g(v) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: multiple parameters" =
+  run_src "func f(a: i32, b: i32, c: i32) i32 { return a + b + c }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: while true" =
+  run_src "func f() { while true { break } }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: elseif chain with else" =
+  run_src
+    {|
+func f(x: i32) i32 {
+  if x < 0 { return 0 }
+  elseif x == 0 { return 1 }
+  elseif x < 10 { return 2 }
+  else { return 3 }
+}
+|};
+  [%expect {| ok |}]
