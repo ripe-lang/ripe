@@ -6,21 +6,27 @@ module T = Typed_ast
 
 (* TODO(7e23): I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
 
-let qbe_ty (t : ty) : string =
+type qbe_base = W | L | S | D
+
+let qbe_base (t : ty) : qbe_base =
   match t with
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
+  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> W
   (* FIXME(d969): Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
-      "l"
-  | TFloat F32 -> "s"
-  | TFloat F64 -> "d"
-  | TStruct _ | TArray _ | TSlice _ -> "l"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ -> L
+  | TFloat F32 -> S
+  | TFloat F64 -> D
+  | TStruct _ | TArray _ | TSlice _ -> L
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
 
-(* "u" for unsigned int types and "s" for signed or other *)
-let signedness (t : ty) : string =
-  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> "u" | _ -> "s"
+let qbe_ty (t : ty) : string =
+  match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
+
+let is_unsigned (t : ty) : bool =
+  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> true | _ -> false
+
+(* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
+let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
 
 (* byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
@@ -30,6 +36,66 @@ let int_kind_size = function
   | I64 | U64 | Isize | Usize -> 8
 
 let float_kind_size = function F32 -> 4 | F64 -> 8
+
+(* the integers keep their real width
+   so folding wraps like the runtime type *)
+type const_num = Ni32 of Int32.t | Ni64 of Int64.t | Nf of float
+
+let const_bool b = Ni32 (if b then 1l else 0l)
+
+(* the source signedness says whether the
+   new high bits are zeros or the sign bit *)
+let const_to_int64 (src_ty : ty) (n : const_num) : Int64.t =
+  match n with
+  | Ni64 n -> n
+  | Ni32 n ->
+      if is_unsigned src_ty then Int64.logand (Int64.of_int32 n) 0xFFFFFFFFL
+      else Int64.of_int32 n
+  | Nf f -> Int64.of_float f
+
+let const_to_float (n : const_num) : float =
+  match n with
+  | Ni32 n -> Int32.to_float n
+  | Ni64 n -> Int64.to_float n
+  | Nf f -> f
+
+(* the narrow kinds get masked back to width
+   so the value wraps like the target type *)
+let wrap_const (ty : ty) (n : Int64.t) : const_num =
+  match ty with
+  | TInt (I64 | U64 | Isize | Usize) -> Ni64 n
+  | TInt kind ->
+      let bits = int_kind_size kind * 8 in
+      let fitted =
+        if is_unsigned (TInt kind) then
+          Int64.logand n (Int64.sub (Int64.shift_left 1L bits) 1L)
+        else
+          let shift = 64 - bits in
+          Int64.shift_right (Int64.shift_left n shift) shift
+      in
+      Ni32 (Int64.to_int32 fitted)
+  | _ -> if qbe_base ty = L then Ni64 n else Ni32 (Int64.to_int32 n)
+
+let format_const_num (ty : ty) (n : const_num) : string =
+  match n with
+  | Ni32 n -> Int32.to_string n
+  | Ni64 n -> Int64.to_string n
+  | Nf f ->
+      let prefix, digits =
+        match ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+      in
+      prefix ^ Printf.sprintf "%.*g" digits f
+
+(* undoes the s_/d_ tag format_const_num stamps on floats *)
+let parse_const_num (ty : ty) (s : string) : const_num =
+  match ty with
+  | TFloat _ ->
+      let n = String.length s in
+      let s = if n > 2 && s.[1] = '_' then String.sub s 2 (n - 2) else s in
+      Nf (float_of_string s)
+  | _ ->
+      if qbe_base ty = L then Ni64 (Int64.of_string s)
+      else Ni32 (Int32.of_string s)
 
 (* C ABI alignment and padding rules *)
 (* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
@@ -477,10 +543,10 @@ and emit_unop ctx op e t =
 
 (* pointer math is 64-bit so widen a word-sized value to a long *)
 and widen_to_l ctx v ty =
-  if qbe_ty ty = "l" then v
+  if qbe_base ty = L then v
   else
     let t = fresh ctx in
-    let ins = if signedness ty = "u" then "extuw" else "extsw" in
+    let ins = if is_unsigned ty then "extuw" else "extsw" in
     emit ctx "    %s =l %s %s\n" t ins v;
     t
 
@@ -740,9 +806,7 @@ and compound_arith op lt =
   | Ast.SubAssign -> "sub"
   | Ast.MulAssign -> "mul"
   | Ast.DivAssign ->
-      if is_float_ty lt then "div"
-      else if signedness lt = "u" then "udiv"
-      else "div"
+      if is_float_ty lt then "div" else if is_unsigned lt then "udiv" else "div"
   | _ ->
       raise
         (Diagnostic.Errors
@@ -841,6 +905,7 @@ and emit_binop ctx op l r t =
   let lty = l.T.ty in
   let op_qt = qbe_ty lty in
   let sign = signedness lty in
+  let unsigned = is_unsigned lty in
 
   let tmp = fresh ctx in
   (match op with
@@ -849,11 +914,11 @@ and emit_binop ctx op l r t =
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div ->
       let instr =
-        if is_float_ty lty then "div" else if sign = "u" then "udiv" else "div"
+        if is_float_ty lty then "div" else if unsigned then "udiv" else "div"
       in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Mod ->
-      let instr = if sign = "u" then "urem" else "rem" in
+      let instr = if unsigned then "urem" else "rem" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   (* floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
@@ -880,7 +945,7 @@ and emit_binop ctx op l r t =
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
   | Ast.Lshift -> emit ctx "    %s =%s shl %s, %s\n" tmp qt lv rv
   | Ast.Rshift ->
-      let instr = if sign = "s" then "sar" else "shr" in
+      let instr = if unsigned then "shr" else "sar" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | _ ->
       raise
@@ -888,54 +953,67 @@ and emit_binop ctx op l r t =
            [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
   tmp
 
+(* the extend that masks a narrow
+   integer target back down to its width *)
+and narrow_int_instr = function
+  | TInt I8 -> Some "extsb"
+  | TInt U8 -> Some "extub"
+  | TInt I16 -> Some "extsh"
+  | TInt U16 -> Some "extuh"
+  | _ -> None
+
+(* a narrow int only fills the low bits of its w register
+   so a cast has to mask it back down *)
+and narrow_int_to ctx v target_ty =
+  match narrow_int_instr target_ty with
+  | None -> v
+  | Some instr ->
+      let tmp = fresh ctx in
+      emit ctx "    %s =w %s %s\n" tmp instr v;
+      tmp
+
 (* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
 and emit_cast ctx v src_ty target_ty =
   let tmp = fresh ctx in
-  let src_q = qbe_ty src_ty in
-  let tgt_q = qbe_ty target_ty in
-  (match (src_q, tgt_q) with
-  (* same QBE base type *)
-  | s, t when s = t -> emit ctx "    %s =%s copy %s\n" tmp t v
-  (* word -> long: sign/zero extend *)
-  | "w", "l" ->
-      let instr = if signedness src_ty = "u" then "extuw" else "extsw" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  (* long -> word: truncate *)
-  | "l", "w" -> emit ctx "    %s =w copy %s\n" tmp v
-  (* single -> double *)
-  | "s", "d" -> emit ctx "    %s =d exts %s\n" tmp v
-  (* double -> single *)
-  | "d", "s" -> emit ctx "    %s =s truncd %s\n" tmp v
-  (* word -> float *)
-  | "w", "s" ->
-      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
-      emit ctx "    %s =s %s %s\n" tmp instr v
-  | "w", "d" ->
-      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
-      emit ctx "    %s =d %s %s\n" tmp instr v
-  (* long -> float *)
-  | "l", "s" ->
-      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
-      emit ctx "    %s =s %s %s\n" tmp instr v
-  | "l", "d" ->
-      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
-      emit ctx "    %s =d %s %s\n" tmp instr v
-  (* float -> word *)
-  | "s", "w" ->
-      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
-      emit ctx "    %s =w %s %s\n" tmp instr v
-  | "d", "w" ->
-      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
-      emit ctx "    %s =w %s %s\n" tmp instr v
-  (* float -> long *)
-  | "s", "l" ->
-      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  | "d", "l" ->
-      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  | _ -> emit ctx "    %s =%s copy %s\n" tmp tgt_q v);
-  tmp
+  let tgt = qbe_ty target_ty in
+  (* the extend already truncates so the copy would be redundant *)
+  match (narrow_int_instr target_ty, qbe_base src_ty) with
+  | Some instr, (W | L) ->
+      emit ctx "    %s =w %s %s\n" tmp instr v;
+      tmp
+  | _ ->
+      (match (qbe_base src_ty, qbe_base target_ty) with
+      (* the same base type is a plain bit copy *)
+      | W, W | L, L | S, S | D, D -> emit ctx "    %s =%s copy %s\n" tmp tgt v
+      (* word widens to long, long truncates to word *)
+      | W, L ->
+          let instr = if is_unsigned src_ty then "extuw" else "extsw" in
+          emit ctx "    %s =l %s %s\n" tmp instr v
+      | L, W -> emit ctx "    %s =w copy %s\n" tmp v
+      (* single and double swap precision *)
+      | S, D -> emit ctx "    %s =d exts %s\n" tmp v
+      | D, S -> emit ctx "    %s =s truncd %s\n" tmp v
+      (* an integer turns into a float *)
+      | (W | L), (S | D) ->
+          let instr =
+            match (qbe_base src_ty, is_unsigned src_ty) with
+            | W, true -> "uwtof"
+            | W, false -> "swtof"
+            | _, true -> "ultof"
+            | _, false -> "sltof"
+          in
+          emit ctx "    %s =%s %s %s\n" tmp tgt instr v
+      (* a float turns into an integer *)
+      | (S | D), (W | L) ->
+          let instr =
+            match (qbe_base src_ty, is_unsigned target_ty) with
+            | S, true -> "stoui"
+            | S, false -> "stosi"
+            | _, true -> "dtoui"
+            | _, false -> "dtosi"
+          in
+          emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
+      narrow_int_to ctx tmp target_ty
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s.T.tsdesc with
@@ -1232,26 +1310,6 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
-type const_num = CInt of int | CFloat of float
-
-let format_const_num (ty : ty) (n : const_num) : string =
-  match n with
-  | CInt n -> string_of_int n
-  | CFloat f ->
-      let prefix, digits =
-        match ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
-      in
-      prefix ^ Printf.sprintf "%.*g" digits f
-
-(* undoes the s_/d_ tag format_const_num stamps on floats *)
-let parse_const_num (ty : ty) (s : string) : const_num =
-  match ty with
-  | TFloat _ ->
-      let n = String.length s in
-      let s = if n > 2 && s.[1] = '_' then String.sub s 2 (n - 2) else s in
-      CFloat (float_of_string s)
-  | _ -> CInt (int_of_string s)
-
 let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
   | T.TInt n -> string_of_int n
@@ -1259,7 +1317,7 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
-  | T.TFloat f -> format_const_num te.T.ty (CFloat f)
+  | T.TFloat f -> format_const_num te.T.ty (Nf f)
   | T.TCast e -> (
       match te.T.ty with
       | TInt _ | TFloat _ | TBool ->
@@ -1282,86 +1340,97 @@ and unsupported_const span =
 
 and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   match te.T.desc with
-  | T.TInt n -> CInt n
-  | T.TBool b -> CInt (if b then 1 else 0)
-  | T.TChar c -> CInt (Char.code c)
-  | T.TFloat f -> CFloat f
-  | T.TSizeOf t -> CInt (ty_size ctx.structs t)
+  | T.TInt n -> wrap_const te.T.ty (Int64.of_int n)
+  | T.TBool b -> const_bool b
+  | T.TChar c -> Ni32 (Int32.of_int (Char.code c))
+  | T.TFloat f -> Nf f
+  | T.TSizeOf t -> wrap_const te.T.ty (Int64.of_int (ty_size ctx.structs t))
   | T.TIdent name -> parse_const_num te.T.ty (resolve_const ctx name te.T.span)
   | T.TCast e -> (
-      match (te.T.ty, fold_const_num ctx e) with
-      | TFloat _, CInt n -> CFloat (float_of_int n)
-      | TFloat _, CFloat f -> CFloat f
-      | _, CFloat f -> CInt (int_of_float f)
-      | _, CInt n -> CInt n)
+      let v = fold_const_num ctx e in
+      match (te.T.ty, v) with
+      | TFloat _, Nf f -> Nf f
+      | TFloat _, _ -> Nf (const_to_float v)
+      | _, Nf f -> wrap_const te.T.ty (Int64.of_float f)
+      | _, _ -> wrap_const te.T.ty (const_to_int64 e.T.ty v))
   | T.TUnOp (Ast.Neg, e) -> (
       match fold_const_num ctx e with
-      | CInt n -> CInt (-n)
-      | CFloat f -> CFloat (-.f))
+      | Nf f -> Nf (-.f)
+      | v -> wrap_const te.T.ty (Int64.neg (const_to_int64 e.T.ty v)))
   | T.TUnOp (Ast.BitNot, e) -> (
       match fold_const_num ctx e with
-      | CInt n -> CInt (lnot n)
-      | CFloat _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
+      | Nf _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
+      | v -> wrap_const te.T.ty (Int64.lognot (const_to_int64 e.T.ty v)))
   | T.TUnOp (Ast.Not, e) -> (
       match fold_const_num ctx e with
-      | CInt n -> CInt (if n = 0 then 1 else 0)
-      | CFloat _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
+      | Nf _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
+      | v -> const_bool (const_to_int64 e.T.ty v = 0L))
   | T.TUnOp ((Ast.Deref | Ast.AddressOf), _) ->
       raise (Diagnostic.Errors [ unsupported_const te.T.span ])
   | T.TBinOp (op, l, r) ->
-      fold_const_binop te.T.span op (fold_const_num ctx l)
-        (fold_const_num ctx r)
+      fold_const_binop te.T.span op ~result_ty:te.T.ty ~operand_ty:l.T.ty
+        (fold_const_num ctx l) (fold_const_num ctx r)
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
-and fold_const_binop (span : Ast.span) (op : Ast.binop) (a : const_num)
-    (b : const_num) : const_num =
+and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
+    ~(operand_ty : ty) (a : const_num) (b : const_num) : const_num =
   match (a, b) with
-  | CInt x, CInt y -> (
+  | Nf _, _ | _, Nf _ -> (
+      let x, y = (const_to_float a, const_to_float b) in
       match op with
-      | Ast.Add -> CInt (x + y)
-      | Ast.Sub -> CInt (x - y)
-      | Ast.Mul -> CInt (x * y)
-      | Ast.Div when y = 0 ->
+      | Ast.Add -> Nf (x +. y)
+      | Ast.Sub -> Nf (x -. y)
+      | Ast.Mul -> Nf (x *. y)
+      | Ast.Div -> Nf (x /. y)
+      | Ast.Eq -> const_bool (x = y)
+      | Ast.Neq -> const_bool (x <> y)
+      | Ast.Lt -> const_bool (x < y)
+      | Ast.Gt -> const_bool (x > y)
+      | Ast.Lte -> const_bool (x <= y)
+      | Ast.Gte -> const_bool (x >= y)
+      | _ -> raise (Diagnostic.Errors [ unsupported_const span ]))
+  | _ -> (
+      let unsigned = is_unsigned operand_ty in
+      let x = const_to_int64 operand_ty a and y = const_to_int64 operand_ty b in
+      let wrap = wrap_const result_ty in
+      let cmp =
+        if unsigned then Int64.unsigned_compare x y else Int64.compare x y
+      in
+      match op with
+      | Ast.Add -> wrap (Int64.add x y)
+      | Ast.Sub -> wrap (Int64.sub x y)
+      | Ast.Mul -> wrap (Int64.mul x y)
+      | Ast.Div when y = 0L ->
           raise
             (Diagnostic.Errors
                [ Diagnostic.(error "division by zero in constant" |> at span) ])
-      | Ast.Div -> CInt (x / y)
-      | Ast.Mod when y = 0 ->
+      | Ast.Div ->
+          wrap (if unsigned then Int64.unsigned_div x y else Int64.div x y)
+      | Ast.Mod when y = 0L ->
           raise
             (Diagnostic.Errors
                [ Diagnostic.(error "remainder by zero in constant" |> at span) ])
-      | Ast.Mod -> CInt (x mod y)
-      | Ast.BitAnd -> CInt (x land y)
-      | Ast.BitOr -> CInt (x lor y)
-      | Ast.BitXor -> CInt (x lxor y)
-      | Ast.Lshift -> CInt (x lsl y)
-      | Ast.Rshift -> CInt (x asr y)
-      | Ast.Eq -> CInt (if x = y then 1 else 0)
-      | Ast.Neq -> CInt (if x <> y then 1 else 0)
-      | Ast.Lt -> CInt (if x < y then 1 else 0)
-      | Ast.Gt -> CInt (if x > y then 1 else 0)
-      | Ast.Lte -> CInt (if x <= y then 1 else 0)
-      | Ast.Gte -> CInt (if x >= y then 1 else 0)
-      | Ast.And -> CInt (if x <> 0 && y <> 0 then 1 else 0)
-      | Ast.Or -> CInt (if x <> 0 || y <> 0 then 1 else 0)
+      | Ast.Mod ->
+          wrap (if unsigned then Int64.unsigned_rem x y else Int64.rem x y)
+      | Ast.BitAnd -> wrap (Int64.logand x y)
+      | Ast.BitOr -> wrap (Int64.logor x y)
+      | Ast.BitXor -> wrap (Int64.logxor x y)
+      | Ast.Lshift -> wrap (Int64.shift_left x (Int64.to_int y))
+      | Ast.Rshift ->
+          wrap
+            (if unsigned then Int64.shift_right_logical x (Int64.to_int y)
+             else Int64.shift_right x (Int64.to_int y))
+      | Ast.Eq -> const_bool (x = y)
+      | Ast.Neq -> const_bool (x <> y)
+      | Ast.Lt -> const_bool (cmp < 0)
+      | Ast.Gt -> const_bool (cmp > 0)
+      | Ast.Lte -> const_bool (cmp <= 0)
+      | Ast.Gte -> const_bool (cmp >= 0)
+      | Ast.And -> const_bool (x <> 0L && y <> 0L)
+      | Ast.Or -> const_bool (x <> 0L || y <> 0L)
       | Ast.Assign | Ast.AddAssign | Ast.SubAssign | Ast.MulAssign
       | Ast.DivAssign ->
           raise (Diagnostic.Errors [ unsupported_const span ]))
-  | (CInt _ | CFloat _), (CInt _ | CFloat _) -> (
-      let as_float = function CInt n -> float_of_int n | CFloat f -> f in
-      let x, y = (as_float a, as_float b) in
-      match op with
-      | Ast.Add -> CFloat (x +. y)
-      | Ast.Sub -> CFloat (x -. y)
-      | Ast.Mul -> CFloat (x *. y)
-      | Ast.Div -> CFloat (x /. y)
-      | Ast.Eq -> CInt (if x = y then 1 else 0)
-      | Ast.Neq -> CInt (if x <> y then 1 else 0)
-      | Ast.Lt -> CInt (if x < y then 1 else 0)
-      | Ast.Gt -> CInt (if x > y then 1 else 0)
-      | Ast.Lte -> CInt (if x <= y then 1 else 0)
-      | Ast.Gte -> CInt (if x >= y then 1 else 0)
-      | _ -> raise (Diagnostic.Errors [ unsupported_const span ]))
 
 (* yank it from the table first so a cycle dies here instead of looping forever *)
 and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =

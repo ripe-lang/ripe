@@ -364,6 +364,62 @@ let%expect_test "codegen: int widen cast" =
     }
     |}]
 
+let%expect_test "codegen: unsigned narrowing cast masks" =
+  run_codegen "func f() i64 { return (1000 as u8) as i64 }";
+  [%expect
+    {|
+    function l $f() {
+    @start
+        %t0 =w extub 1000
+        %t1 =l extuw %t0
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: signed narrowing cast sign extends" =
+  run_codegen "func f(a: i32) i8 { return a as i8 }";
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w extsb %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: u16 narrowing cast masks" =
+  run_codegen "func f(a: i32) u16 { return a as u16 }";
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w extuh %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: global const narrowing cast folds" =
+  run_codegen {|
+const A: u8 = 1000 as u8
+func f() u8 { return A }
+|};
+  [%expect
+    {|
+    data $A = align 1 { b 232 }
+
+    function w $f() {
+    @start
+        %t0 =w loadub $A
+        ret %t0
+    }
+    |}]
+
 let%expect_test "codegen: sizeof int" =
   run_codegen "func f() i64 { return sizeof(i32) as i64 }";
   [%expect
@@ -2863,7 +2919,9 @@ let%expect_test "codegen: assignment operator in constant" =
   expect_errors (fun () ->
       ignore
         (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Assign
-           (Ripe.Codegen.CInt 1) (Ripe.Codegen.CInt 2)));
+           ~result_ty:(Ripe.Types.TInt Ripe.Types.I32)
+           ~operand_ty:(Ripe.Types.TInt Ripe.Types.I32) (Ripe.Codegen.Ni32 1l)
+           (Ripe.Codegen.Ni32 2l)));
   [%expect
     {|
     error: unsupported constant expression
@@ -2877,7 +2935,9 @@ let%expect_test "codegen: unsupported float operation in constant" =
   expect_errors (fun () ->
       ignore
         (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Lshift
-           (Ripe.Codegen.CFloat 1.0) (Ripe.Codegen.CFloat 2.0)));
+           ~result_ty:(Ripe.Types.TFloat Ripe.Types.F64)
+           ~operand_ty:(Ripe.Types.TFloat Ripe.Types.F64) (Ripe.Codegen.Nf 1.0)
+           (Ripe.Codegen.Nf 2.0)));
   [%expect
     {|
     error: unsupported constant expression
