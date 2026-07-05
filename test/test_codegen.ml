@@ -2155,3 +2155,238 @@ func f() i32 { return A }
         const A: i32 = B
                        ^
     |}]
+
+let%expect_test "codegen: assign through struct pointer deref" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p: pt = pt { x: 34, y: 56 }
+  var q: *pt = &p
+  *q.x = 8
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 34, %p
+        %t0 =l add %p, 4
+        storew 56, %t0
+        %q =l alloc8 8
+        %t1 =l copy %p
+        storel %t1, %q
+        %t2 =l loadl %q
+        storew 8, %t2
+        %t3 =w loadsw %p
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: assign through scalar pointer deref" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 10
+  var q: *i32 = &x
+  *q = 42
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 10, %x
+        %q =l alloc8 8
+        %t0 =l copy %x
+        storel %t0, %q
+        %t1 =l loadl %q
+        storew 42, %t1
+        %t2 =w loadsw %x
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: assign to struct field directly" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p: pt = pt { x: 1, y: 2 }
+  p.x = 7
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 1, %p
+        %t0 =l add %p, 4
+        storew 2, %t0
+        storew 7, %p
+        %t1 =w loadsw %p
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: compound assign to struct field" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p: pt = pt { x: 1, y: 2 }
+  p.x += 5
+  return p.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 1, %p
+        %t0 =l add %p, 4
+        storew 2, %t0
+        %t1 =w loadsw %p
+        %t2 =w add %t1, 5
+        storew %t2, %p
+        %t3 =w loadsw %p
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: compound assign through scalar pointer deref" =
+  run_codegen
+    {|
+func f() i32 {
+  var x: i32 = 10
+  var q: *i32 = &x
+  *q += 5
+  return x
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 10, %x
+        %q =l alloc8 8
+        %t0 =l copy %x
+        storel %t0, %q
+        %t1 =l loadl %q
+        %t2 =w loadsw %t1
+        %t3 =w add %t2, 5
+        storew %t3, %t1
+        %t4 =w loadsw %x
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: address-of struct field" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p: pt = pt { x: 7, y: 0 }
+  var px: *i32 = &(p.x)
+  return *px
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 7, %p
+        %t0 =l add %p, 4
+        storew 0, %t0
+        %px =l alloc8 8
+        %t1 =l copy %p
+        storel %t1, %px
+        %t2 =l loadl %px
+        %t3 =w loadsw %t2
+        ret %t3
+    }
+    |}]
+
+let%expect_test "codegen: address-of deref" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p: pt = pt { x: 3, y: 0 }
+  var pt1: *pt = &p
+  var pt2: *pt = &(*pt1)
+  return pt2.x
+}
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 3, %p
+        %t0 =l add %p, 4
+        storew 0, %t0
+        %pt1 =l alloc8 8
+        %t1 =l copy %p
+        storel %t1, %pt1
+        %pt2 =l alloc8 8
+        %t2 =l loadl %pt1
+        %t3 =l copy %t2
+        storel %t3, %pt2
+        %t4 =l loadl %pt2
+        %t5 =w loadsw %t4
+        ret %t5
+    }
+    |}]
+
+let%expect_test "codegen: address-of array index" =
+  run_codegen
+    {|
+func f() i32 {
+  var arr: [4]i32 = [1, 2, 3, 4]
+  var p: *i32 = &(arr[2])
+  return *p
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %arr =l alloc4 16
+        storew 1, %arr
+        %t0 =l add %arr, 4
+        storew 2, %t0
+        %t1 =l add %arr, 8
+        storew 3, %t1
+        %t2 =l add %arr, 12
+        storew 4, %t2
+        %p =l alloc8 8
+        %t3 =l extsw 2
+        %t4 =l mul %t3, 4
+        %t5 =l add %arr, %t4
+        %t6 =l copy %t5
+        storel %t6, %p
+        %t7 =l loadl %p
+        %t8 =w loadsw %t7
+        ret %t8
+    }
+    |}]
