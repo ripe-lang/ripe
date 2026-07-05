@@ -1,66 +1,65 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ripe
+open Climate
 
-let stage = ref Driver.Bin
-let out = ref ""
-let file = ref ""
-let emit_stages = "tokens, ast, tast, check, qbe, asm"
+let emit_stages =
+  [
+    ("tokens", Driver.Tokens, "the lexer token stream");
+    ("ast", Driver.Ast, "the untyped syntax tree");
+    ("tast", Driver.Tast, "the typed syntax tree");
+    ("check", Driver.Check, "the typecheck result");
+    ("qbe", Driver.Qbe, "the QBE intermediate representation");
+    ("asm", Driver.Asm, "the target assembly");
+  ]
 
-(* FIXME(0844): I'm still unsure if I have to have ripec: in front. Also, I should add colors. *)
-let die msg =
-  Printf.eprintf "ripec: error: %s\n" msg;
-  exit 2
+let stage_names = String.concat ", " (List.map (fun (n, _, _) -> n) emit_stages)
 
-let stage_of_string = function
-  | "tokens" -> Driver.Tokens
-  | "ast" -> Driver.Ast
-  | "tast" -> Driver.Tast
-  | "check" -> Driver.Check
-  | "qbe" -> Driver.Qbe
-  | "asm" -> Driver.Asm
-  | s ->
-      die
-        (Printf.sprintf "unknown emit stage `%s`, expected one of: %s" s
-           emit_stages)
+let stage_help =
+  String.concat "\n"
+    (List.map
+       (fun (name, _, desc) ->
+         Printf.sprintf "                          %-6s  %s" name desc)
+       emit_stages)
 
 let usage_msg =
   Printf.sprintf
     "The Ripe compiler\n\n\
-     USAGE:\n\
-    \  ripec [OPTIONS] <FILE>\n\n\
-     OPTIONS:\n\
-    \  -emit <STAGE>       Stop compilation after a given stage\n\
-    \                      Supported stages: %s\n\
-    \  -o <FILE>           Write the compiler output to <FILE>\n\
-    \  -h, --help          Display this list of options\n\n\
-     EXAMPLES:\n\
+     Usage: ripec [OPTIONS] <FILE>\n\n\
+     Options:\n\
+    \  -e, --emit <STAGE>    Stop compilation after <STAGE> and print its output:\n\
+     %s\n\
+    \  -o, --output <FILE>   Write the compiler output to <FILE>\n\
+    \  -h, --help            Display this list of options\n\n\
+     Examples:\n\
     \  ripec source.rp\n\
-    \  ripec -emit tast source.rp\n\
+    \  ripec --emit tast source.rp\n\
     \  ripec -o output.s source.rp"
-    emit_stages
+    stage_help
 
-let print_help_and_exit () =
-  print_endline usage_msg;
-  exit 0
+let emit_conv =
+  Arg_parser.enum ~default_value_name:"STAGE"
+    (List.map (fun (name, stage, _) -> (name, stage)) emit_stages)
 
-let speclist =
-  [
-    ("-emit", Arg.String (fun s -> stage := stage_of_string s), "");
-    ("-o", Arg.Set_string out, "");
-    ("-h", Arg.Unit print_help_and_exit, "");
-    ("-help", Arg.Unit print_help_and_exit, "");
-    ("--help", Arg.Unit print_help_and_exit, "");
-  ]
+let command =
+  let open Arg_parser in
+  let+ stage = named_opt [ "e"; "emit" ] emit_conv
+  and+ out = named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
+  and+ filename = pos_req 0 file ~value_name:"FILE" in
+  let stage = Option.value stage ~default:Driver.Bin in
+  Driver.compile ~stage ~out ~filename
+
+let is_help arg = arg = "-h" || arg = "--help"
 
 let () =
-  try
-    Arg.parse_argv ~current:(ref 0) Sys.argv speclist (fun f -> file := f) "";
-    if !file = "" then print_help_and_exit ()
-    else Driver.compile ~stage:!stage ~out:!out ~filename:!file
-  with
-  | Arg.Help _ -> print_help_and_exit ()
-  | Arg.Bad msg ->
-      (* FIXME(e569): This code path is messing things up *)
-      let clean_msg = String.init (String.length msg - 1) (fun i -> msg.[i]) in
-      die clean_msg
+  let args =
+    match Array.to_list Sys.argv with
+    | _ :: rest -> rest
+    | [] -> []
+  in
+  if args = [] || List.exists is_help args then (
+    print_endline usage_msg;
+    exit 0)
+  else
+    Command.eval ~program_name:(Literal "ripec") ~help_style:Help_style.plain
+      (Command.singleton command) args

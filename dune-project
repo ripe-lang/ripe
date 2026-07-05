@@ -22,7 +22,7 @@
  (synopsis "Ripe compiler and language tooling")
  (description
   "Ripe is a systems programming language with an OCaml compiler and QBE backend.")
- (depends ocaml ppx_deriving ocamlformat ppx_expect ppx_inline_test)
+ (depends ocaml climate ppx_deriving ocamlformat ppx_expect ppx_inline_test)
  (tags
   ("compiler" "language" "systems" "qbe")))
 
