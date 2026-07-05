@@ -2390,3 +2390,264 @@ func f() i32 {
         ret %t8
     }
     |}]
+
+let%expect_test "codegen: bitwise or" =
+  run_codegen "func f(a: i32, b: i32) i32 { return a | b }";
+  [%expect {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w or %t2, %t3
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: bitwise xor" =
+  run_codegen "func f(a: i32, b: i32) i32 { return a ^ b }";
+  [%expect {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w xor %t2, %t3
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: right shift on signed int" =
+  run_codegen "func f(a: i32, b: i32) i32 { return a >> b }";
+  [%expect {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w sar %t2, %t3
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: right shift on unsigned int" =
+  run_codegen "func f(a: u32, b: u32) u32 { return a >> b }";
+  [%expect {|
+    function w $f(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loaduw %a
+        %t3 =w loaduw %b
+        %t4 =w shr %t2, %t3
+        ret %t4
+    }
+    |}]
+
+let%expect_test "codegen: cast int to float" =
+  run_codegen "func f(a: i32) f64 { return a as f64 }";
+  [%expect {|
+    function d $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =d swtof %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: cast float to int" =
+  run_codegen "func f(a: f64) i32 { return a as i32 }";
+  [%expect {|
+    function w $f(d %t0) {
+    @start
+        %a =l alloc8 8
+        stored %t0, %a
+        %t1 =d loadd %a
+        %t2 =w dtosi %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: elseif chain" =
+  run_codegen
+    {|
+func f(x: i32) i32 {
+  if x < 0 { return 0 }
+  elseif x == 0 { return 1 }
+  else { return 2 }
+}
+|};
+  [%expect {|
+    function w $f(w %t0) {
+    @start
+        %x =l alloc4 4
+        storew %t0, %x
+    @if.cond1_0
+        %t2 =w loadsw %x
+        %t3 =w csltw %t2, 0
+        jnz %t3, @if.then1_0, @if.cond1_1
+    @if.then1_0
+        ret 0
+    @if.cond1_1
+        %t4 =w loadsw %x
+        %t5 =w ceqw %t4, 0
+        jnz %t5, @if.then1_1, @if.else1
+    @if.then1_1
+        ret 1
+    @if.else1
+        ret 2
+    @if.end1
+        hlt
+    }
+    |}]
+
+let%expect_test "codegen: function call as argument to another call" =
+  run_codegen
+    {|
+func inc(x: i32) i32 { return x + 1 }
+func add(a: i32, b: i32) i32 { return a + b }
+func f() i32 { return add(inc(1), inc(2)) }
+|};
+  [%expect {|
+    function w $inc(w %t0) {
+    @start
+        %x =l alloc4 4
+        storew %t0, %x
+        %t1 =w loadsw %x
+        %t2 =w add %t1, 1
+        ret %t2
+    }
+
+    function w $add(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w add %t2, %t3
+        ret %t4
+    }
+
+    function w $f() {
+    @start
+        %t0 =w call $inc(w 1)
+        %t1 =w call $inc(w 2)
+        %t2 =w call $add(w %t0, w %t1)
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: compound multiply assign on local" =
+  run_codegen {|
+func f() {
+  var n: i32 = 3
+  n *= 4
+}
+|};
+  [%expect {|
+    function $f() {
+    @start
+        %n =l alloc4 4
+        storew 3, %n
+        %t0 =w loadsw %n
+        %t1 =w mul %t0, 4
+        storew %t1, %n
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: compound divide assign on local" =
+  run_codegen {|
+func f() {
+  var n: i32 = 12
+  n /= 4
+}
+|};
+  [%expect {|
+    function $f() {
+    @start
+        %n =l alloc4 4
+        storew 12, %n
+        %t0 =w loadsw %n
+        %t1 =w div %t0, 4
+        storew %t1, %n
+        ret
+    }
+    |}]
+
+let%expect_test "codegen: struct passed by value to function" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+func read_x(p: pt) i32 { return p.x }
+func f() i32 {
+  var p: pt = pt { x: 5, y: 6 }
+  return read_x(p)
+}
+|};
+  [%expect {|
+    type :pt = { w, w }
+
+    function w $read_x(l %t0) {
+    @start
+        %p =l alloc8 8
+        %t1 =l loadl %t0
+        storel %t1, %p
+        %t2 =w loadsw %p
+        ret %t2
+    }
+
+    function w $f() {
+    @start
+        %p =l alloc8 8
+        storew 5, %p
+        %t0 =l add %p, 4
+        storew 6, %t0
+        %t1 =w call $read_x(l %p)
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: void function with early return" =
+  run_codegen
+    {|
+func f(x: i32) {
+  if x < 0 { return }
+  var y: i32 = x + 1
+}
+|};
+  [%expect {|
+    function $f(w %t0) {
+    @start
+        %x =l alloc4 4
+        storew %t0, %x
+    @if.cond1_0
+        %t2 =w loadsw %x
+        %t3 =w csltw %t2, 0
+        jnz %t3, @if.then1_0, @if.else1
+    @if.then1_0
+        ret
+    @if.else1
+    @if.end1
+        %y =l alloc4 4
+        %t4 =w loadsw %x
+        %t5 =w add %t4, 1
+        storew %t5, %y
+        ret
+    }
+    |}]
