@@ -5,9 +5,9 @@
   "depends": [],
   "id": "aa3a",
   "priority": "low",
-  "source": "lib/codegen.ml:1045",
+  "source": "lib/codegen.ml:1092",
   "status": "open",
   "tags": [],
   "title": "error in typechecker for non-void functions missing a return on all paths",
-  "updated_at": "2026-07-04 17:07:05.991914"
+  "updated_at": "2026-07-04 23:13:08.000388"
 }
