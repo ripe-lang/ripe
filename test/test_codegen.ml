@@ -409,7 +409,8 @@ let%expect_test "codegen: newtype widening cast keeps its base signedness" =
 newtype Id = u16
 func f(a: Id) i64 { return a as i64 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function l $f(w %t0) {
     @start
         %a =l alloc4 2
