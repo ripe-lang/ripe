@@ -953,54 +953,67 @@ and emit_binop ctx op l r t =
            [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
   tmp
 
+(* the extend that masks a narrow
+   integer target back down to its width *)
+and narrow_int_instr = function
+  | TInt I8 -> Some "extsb"
+  | TInt U8 -> Some "extub"
+  | TInt I16 -> Some "extsh"
+  | TInt U16 -> Some "extuh"
+  | _ -> None
+
+(* a narrow int only fills the low bits of its w register
+   so a cast has to mask it back down *)
+and narrow_int_to ctx v target_ty =
+  match narrow_int_instr target_ty with
+  | None -> v
+  | Some instr ->
+      let tmp = fresh ctx in
+      emit ctx "    %s =w %s %s\n" tmp instr v;
+      tmp
+
 (* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
 and emit_cast ctx v src_ty target_ty =
   let tmp = fresh ctx in
-  let src_q = qbe_ty src_ty in
-  let tgt_q = qbe_ty target_ty in
-  (match (src_q, tgt_q) with
-  (* same QBE base type *)
-  | s, t when s = t -> emit ctx "    %s =%s copy %s\n" tmp t v
-  (* word -> long: sign/zero extend *)
-  | "w", "l" ->
-      let instr = if signedness src_ty = "u" then "extuw" else "extsw" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  (* long -> word: truncate *)
-  | "l", "w" -> emit ctx "    %s =w copy %s\n" tmp v
-  (* single -> double *)
-  | "s", "d" -> emit ctx "    %s =d exts %s\n" tmp v
-  (* double -> single *)
-  | "d", "s" -> emit ctx "    %s =s truncd %s\n" tmp v
-  (* word -> float *)
-  | "w", "s" ->
-      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
-      emit ctx "    %s =s %s %s\n" tmp instr v
-  | "w", "d" ->
-      let instr = if signedness src_ty = "u" then "uwtof" else "swtof" in
-      emit ctx "    %s =d %s %s\n" tmp instr v
-  (* long -> float *)
-  | "l", "s" ->
-      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
-      emit ctx "    %s =s %s %s\n" tmp instr v
-  | "l", "d" ->
-      let instr = if signedness src_ty = "u" then "ultof" else "sltof" in
-      emit ctx "    %s =d %s %s\n" tmp instr v
-  (* float -> word *)
-  | "s", "w" ->
-      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
-      emit ctx "    %s =w %s %s\n" tmp instr v
-  | "d", "w" ->
-      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
-      emit ctx "    %s =w %s %s\n" tmp instr v
-  (* float -> long *)
-  | "s", "l" ->
-      let instr = if signedness target_ty = "u" then "stoui" else "stosi" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  | "d", "l" ->
-      let instr = if signedness target_ty = "u" then "dtoui" else "dtosi" in
-      emit ctx "    %s =l %s %s\n" tmp instr v
-  | _ -> emit ctx "    %s =%s copy %s\n" tmp tgt_q v);
-  tmp
+  let tgt = qbe_ty target_ty in
+  (* the extend already truncates so the copy would be redundant *)
+  match (narrow_int_instr target_ty, qbe_base src_ty) with
+  | Some instr, (W | L) ->
+      emit ctx "    %s =w %s %s\n" tmp instr v;
+      tmp
+  | _ ->
+      (match (qbe_base src_ty, qbe_base target_ty) with
+      (* the same base type is a plain bit copy *)
+      | W, W | L, L | S, S | D, D -> emit ctx "    %s =%s copy %s\n" tmp tgt v
+      (* word widens to long, long truncates to word *)
+      | W, L ->
+          let instr = if is_unsigned src_ty then "extuw" else "extsw" in
+          emit ctx "    %s =l %s %s\n" tmp instr v
+      | L, W -> emit ctx "    %s =w copy %s\n" tmp v
+      (* single and double swap precision *)
+      | S, D -> emit ctx "    %s =d exts %s\n" tmp v
+      | D, S -> emit ctx "    %s =s truncd %s\n" tmp v
+      (* an integer turns into a float *)
+      | (W | L), (S | D) ->
+          let instr =
+            match (qbe_base src_ty, is_unsigned src_ty) with
+            | W, true -> "uwtof"
+            | W, false -> "swtof"
+            | _, true -> "ultof"
+            | _, false -> "sltof"
+          in
+          emit ctx "    %s =%s %s %s\n" tmp tgt instr v
+      (* a float turns into an integer *)
+      | (S | D), (W | L) ->
+          let instr =
+            match (qbe_base src_ty, is_unsigned target_ty) with
+            | S, true -> "stoui"
+            | S, false -> "stosi"
+            | _, true -> "dtoui"
+            | _, false -> "dtosi"
+          in
+          emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
+      narrow_int_to ctx tmp target_ty
 
 let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s.T.tsdesc with
