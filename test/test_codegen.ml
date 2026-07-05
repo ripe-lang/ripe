@@ -2863,7 +2863,9 @@ let%expect_test "codegen: assignment operator in constant" =
   expect_errors (fun () ->
       ignore
         (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Assign
-           (Ripe.Codegen.CInt 1) (Ripe.Codegen.CInt 2)));
+           ~result_ty:(Ripe.Types.TInt Ripe.Types.I32)
+           ~operand_ty:(Ripe.Types.TInt Ripe.Types.I32) (Ripe.Codegen.Ni32 1l)
+           (Ripe.Codegen.Ni32 2l)));
   [%expect
     {|
     error: unsupported constant expression
@@ -2877,7 +2879,9 @@ let%expect_test "codegen: unsupported float operation in constant" =
   expect_errors (fun () ->
       ignore
         (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Lshift
-           (Ripe.Codegen.CFloat 1.0) (Ripe.Codegen.CFloat 2.0)));
+           ~result_ty:(Ripe.Types.TFloat Ripe.Types.F64)
+           ~operand_ty:(Ripe.Types.TFloat Ripe.Types.F64) (Ripe.Codegen.Nf 1.0)
+           (Ripe.Codegen.Nf 2.0)));
   [%expect
     {|
     error: unsupported constant expression
