@@ -72,6 +72,13 @@ let run_codegen src =
   with Ripe.Diagnostic.Errors diags ->
     List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
 
+let expect_errors f =
+  try
+    f ();
+    print_endline "<no error>"
+  with Ripe.Diagnostic.Errors diags ->
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx "") d)) diags
+
 let parse_only src =
   try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
   with Ripe.Diagnostic.Errors diags ->
