@@ -71,6 +71,7 @@ type token =
   | EOF
   | ERROR of string
   | TYPE
+  | NEWTYPE
   | UNDEFINED
 
 let keywords =
@@ -98,6 +99,7 @@ let keywords =
     ("public", PUBLIC);
     ("func", FUNC);
     ("type", TYPE);
+    ("newtype", NEWTYPE);
     ("undefined", UNDEFINED);
   ]
 
@@ -154,5 +156,5 @@ let show_token = function
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( CONST | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN | TRUE
     | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
-    | PUBLIC | FUNC | TYPE | UNDEFINED ) as t ->
+    | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)

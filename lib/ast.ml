@@ -171,4 +171,5 @@ type decl =
   | Extern of func_def
   | Global of global_def
   | TypeAlias of type_alias_def
+  | Newtype of type_alias_def
 [@@deriving show { with_path = false }]

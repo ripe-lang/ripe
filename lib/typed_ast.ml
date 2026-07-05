@@ -78,4 +78,5 @@ type tdecl =
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
   | TTypeAlias of string * ty
+  | TNewtype of string * ty
 [@@deriving show { with_path = false }]

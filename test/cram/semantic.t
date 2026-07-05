@@ -218,6 +218,13 @@ A type alias behaves exactly like the type it names.
   > }'
   [type_alias exit=9]
 
+A newtype cast to and from its base type is a no-op bit copy at runtime.
+
+  $ run newtype_cast 'newtype Celsius = f32
+  > func to_f(c: Celsius) f32 { return (c as f32 * 1.8 + 32.0) }
+  > func main() i32 { return to_f(100.0 as Celsius) as i32 }'
+  [newtype_cast exit=212]
+
 An assignment expression yields the assigned value, so a chained assign
 sets both names.
 

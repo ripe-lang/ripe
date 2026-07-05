@@ -633,6 +633,18 @@ let parse_type_alias st =
   skip_semi st;
   Ast.TypeAlias { name; typ; span = { lo; hi } }
 
+(* newtype Celsius = f32 *)
+let parse_newtype st =
+  let lo = cur_pos st in
+  advance st;
+  (* NEWTYPE *)
+  let name = expect_ident st in
+  expect st ASSIGN;
+  let typ = parse_typ st in
+  let hi = st.prev_end in
+  skip_semi st;
+  Ast.Newtype { name; typ; span = { lo; hi } }
+
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
@@ -661,12 +673,15 @@ let parse_decl st =
   | [], EXTERN -> parse_extern st
   | [], (CONST | VAR) -> parse_global st
   | [], TYPE -> parse_type_alias st
+  | [], NEWTYPE -> parse_newtype st
   | _ -> err ()
 
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =
   match st.tok with
-  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC | TYPE -> ()
+  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC | TYPE
+  | NEWTYPE ->
+      ()
   | _ ->
       advance st;
       sync_to_decl st
