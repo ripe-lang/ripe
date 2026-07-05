@@ -17,3 +17,15 @@ let named span msg name = error (Printf.sprintf "%s: %s" msg name) |> at span
 
 let arity span ~expected ~found =
   error (Printf.sprintf "%s, found %d" expected found) |> at span
+
+let unsupported span msg = error (msg ^ " is not yet supported") |> at span
+
+let internal ?span msg =
+  let d =
+    error "internal compiler error"
+    |> detail (msg ^ "\n")
+    |> help
+         "this is a bug in ripec, please report it at \
+          https://github.com/ripe-lang/ripe/issues"
+  in
+  match span with Some sp -> at sp d | None -> d

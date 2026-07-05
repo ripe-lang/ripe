@@ -2730,3 +2730,159 @@ func f(x: i32) {
         ret
     }
     |}]
+
+let%expect_test "codegen: division by zero in constant" =
+  run_codegen {|const X: i32 = 1 / 0|};
+  [%expect
+    {|
+    error: division by zero in constant
+      at <test>:1:16
+        const X: i32 = 1 / 0
+                       ^~~~~
+    |}]
+
+let%expect_test "codegen: remainder by zero in constant" =
+  run_codegen {|const X: i32 = 1 % 0|};
+  [%expect
+    {|
+    error: remainder by zero in constant
+      at <test>:1:16
+        const X: i32 = 1 % 0
+                       ^~~~~
+    |}]
+
+let%expect_test "codegen: string interpolation" =
+  run_codegen {|
+func f() {
+  var x: i32 = 1
+  var s: cstr = "a{x}"
+}
+|};
+  [%expect
+    {|
+    error: string interpolation is not yet supported
+      at <test>:4:19
+          var s: cstr = "a{x}"
+                          ^~~~
+    |}]
+
+(* internal invariants: the typechecker keeps these unreachable from source, so
+   drive the codegen helpers directly *)
+
+let empty_structs () : (string, (string * Ripe.Types.ty) list) Hashtbl.t =
+  Hashtbl.create 0
+
+let%expect_test "codegen ICE: TVoid has no QBE base type" =
+  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_ty Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no QBE base type
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no alignment" =
+  expect_errors (fun () ->
+      ignore (Ripe.Codegen.ty_align (empty_structs ()) Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no alignment
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no size" =
+  expect_errors (fun () ->
+      ignore (Ripe.Codegen.ty_size (empty_structs ()) Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no size
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no alloc instruction" =
+  expect_errors (fun () -> ignore (Ripe.Codegen.alloc_instr Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no alloc instruction
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no load instruction" =
+  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_load Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no load instruction
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no store instruction" =
+  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_store Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no store instruction
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: TVoid has no extended type" =
+  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_ext_ty Ripe.Types.TVoid));
+  [%expect
+    {|
+    error: internal compiler error
+    TVoid has no extended type
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: missing struct layout in alignment" =
+  expect_errors (fun () ->
+      ignore
+        (Ripe.Codegen.ty_align (empty_structs ()) (Ripe.Types.TStruct "Foo")));
+  [%expect
+    {|
+    error: internal compiler error
+    no layout recorded for struct Foo
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen ICE: missing struct layout in size" =
+  expect_errors (fun () ->
+      ignore
+        (Ripe.Codegen.ty_size (empty_structs ()) (Ripe.Types.TStruct "Foo")));
+  [%expect
+    {|
+    error: internal compiler error
+    no layout recorded for struct Foo
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
+    |}]
+
+let%expect_test "codegen: assignment operator in constant" =
+  expect_errors (fun () ->
+      ignore
+        (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Assign
+           (Ripe.Codegen.CInt 1) (Ripe.Codegen.CInt 2)));
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:1:1
+
+        ^
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "codegen: unsupported float operation in constant" =
+  expect_errors (fun () ->
+      ignore
+        (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Lshift
+           (Ripe.Codegen.CFloat 1.0) (Ripe.Codegen.CFloat 2.0)));
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:1:1
+
+        ^
+    help: constant initializers must fold to a compile-time value
+    |}]

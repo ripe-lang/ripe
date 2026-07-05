@@ -15,7 +15,8 @@ let qbe_ty (t : ty) : string =
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct _ | TArray _ | TSlice _ -> "l"
-  | TVoid -> assert false
+  | TVoid ->
+      raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
 
 (* "u" for unsigned int types and "s" for signed or other *)
 let signedness (t : ty) : string =
@@ -41,14 +42,21 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> assert false
+  | TVoid ->
+      raise (Diagnostic.Errors [ Error.internal "TVoid has no alignment" ])
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
           List.fold_left
             (fun acc (_, ft) -> max acc (ty_align structs ft))
             1 fields
-      | None -> assert false)
+      | None ->
+          raise
+            (Diagnostic.Errors
+               [
+                 Error.internal
+                   (Printf.sprintf "no layout recorded for struct %s" name);
+               ]))
   | TArray (e, _) -> ty_align structs e
   | TSlice _ -> 8
 
@@ -62,7 +70,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> assert false
+  | TVoid -> raise (Diagnostic.Errors [ Error.internal "TVoid has no size" ])
   | TStruct name -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
@@ -76,7 +84,13 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
               0 fields
           in
           align_to offset struct_align
-      | None -> assert false)
+      | None ->
+          raise
+            (Diagnostic.Errors
+               [
+                 Error.internal
+                   (Printf.sprintf "no layout recorded for struct %s" name);
+               ]))
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* fat pointer: { ptr, len } *)
   | TSlice _ -> 16
@@ -91,7 +105,9 @@ let rec alloc_instr (t : ty) : string =
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
-  | TVoid -> assert false
+  | TVoid ->
+      raise
+        (Diagnostic.Errors [ Error.internal "TVoid has no alloc instruction" ])
 
 let qbe_load (t : ty) : string =
   match t with
@@ -106,7 +122,9 @@ let qbe_load (t : ty) : string =
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
-  | TVoid -> assert false
+  | TVoid ->
+      raise
+        (Diagnostic.Errors [ Error.internal "TVoid has no load instruction" ])
 
 let qbe_store (t : ty) : string =
   match t with
@@ -118,7 +136,9 @@ let qbe_store (t : ty) : string =
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
-  | TVoid -> assert false
+  | TVoid ->
+      raise
+        (Diagnostic.Errors [ Error.internal "TVoid has no store instruction" ])
 
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
@@ -179,7 +199,10 @@ let emit_jnz ctx v then_lbl else_lbl =
 
 let field_offset structs fields fname =
   let rec go off = function
-    | [] -> failwith ("unknown field: " ^ fname)
+    | [] ->
+        raise
+          (Diagnostic.Errors
+             [ Error.internal (Printf.sprintf "unknown field %s" fname) ])
     | (n, ft) :: rest ->
         let a = ty_align structs ft in
         let off = align_to off a in
@@ -188,7 +211,12 @@ let field_offset structs fields fname =
   go 0 fields
 
 let lvalue_name (e : T.texpr) : string =
-  match e.T.desc with T.TIdent name -> name | _ -> failwith "expected lvalue"
+  match e.T.desc with
+  | T.TIdent name -> name
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Error.internal ~span:e.T.span "expected an lvalue" ])
 
 (* aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate = function
@@ -273,7 +301,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TCast e ->
       let v = emit_expr ctx e in
       emit_cast ctx v e.T.ty t
-  | T.TRange _ | T.TRangeInclusive _ -> failwith "TODO(41e0): range codegen"
+  | T.TRange _ | T.TRangeInclusive _ ->
+      raise
+        (Diagnostic.Errors [ Error.unsupported e.T.span "range expressions" ])
   | T.TSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.TFieldAccess (e, field) ->
       let ft = t in
@@ -285,7 +315,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
         tmp
   (* TODO(c75e): codegen for string interpolation *)
-  | T.TInterpString _ -> failwith "TODO(b65f): interp string codegen"
+  | T.TInterpString _ ->
+      raise
+        (Diagnostic.Errors [ Error.unsupported e.T.span "string interpolation" ])
   | T.TIndex (base, idx) ->
       let elem = t in
       let addr = emit_index_addr ctx base idx elem in
@@ -306,7 +338,13 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           let l = fresh ctx in
           emit ctx "    %s =l loadl %s\n" l lenp;
           l
-      | t -> failwith ("TLen on non-array type: " ^ show_ty t))
+      | t ->
+          raise
+            (Diagnostic.Errors
+               [
+                 Error.internal ~span:e.T.span
+                   (Printf.sprintf "TLen on non-array type: %s" (show_ty t));
+               ]))
   | T.TDataPtr e -> (
       match e.T.ty with
       | TSlice _ ->
@@ -317,13 +355,25 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           p
       (* an array's base address is already the pointer to its first element *)
       | TArray _ -> emit_expr ctx e
-      | t -> failwith ("TDataPtr on non-array type: " ^ show_ty t))
+      | t ->
+          raise
+            (Diagnostic.Errors
+               [
+                 Error.internal ~span:e.T.span
+                   (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t));
+               ]))
   | T.TToSlice arr ->
       let arr_addr = emit_expr ctx arr in
       let n =
         match arr.T.ty with
         | TArray (_, n) -> n
-        | t -> failwith ("cannot coerce to slice: " ^ show_ty t)
+        | t ->
+            raise
+              (Diagnostic.Errors
+                 [
+                   Error.internal ~span:arr.T.span
+                     (Printf.sprintf "cannot coerce to slice: %s" (show_ty t));
+                 ])
       in
       (* build a { ptr = &arr[0], len = n } fat pointer on the stack *)
       let slot = fresh ctx in
@@ -334,7 +384,17 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit ctx "    storel %d, %s\n" n lenp;
       slot
   | T.TSliceExpr (base, lo, hi) ->
-      let elem = match t with TSlice e -> e | _ -> assert false in
+      let elem =
+        match t with
+        | TSlice e -> e
+        | _ ->
+            raise
+              (Diagnostic.Errors
+                 [
+                   Error.internal ~span:e.T.span
+                     "slice expression on non-slice type";
+                 ])
+      in
       let storage = data_ptr ctx base in
       let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
       let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
@@ -353,7 +413,17 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       slot
   | T.TArrayLit elems ->
       (* as a value: materialize into a fresh stack slot and yield its address *)
-      let elem = match t with TArray (e, _) -> e | _ -> assert false in
+      let elem =
+        match t with
+        | TArray (el, _) -> el
+        | _ ->
+            raise
+              (Diagnostic.Errors
+                 [
+                   Error.internal ~span:e.T.span
+                     "array literal on non-array type";
+                 ])
+      in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
         (ty_size ctx.structs t);
@@ -394,7 +464,10 @@ and emit_unop ctx op e t =
           emit ctx "    %s =w ceqw %s, 0\n" tmp ev
       | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
       | Ast.Deref -> emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
-      | _ -> assert false);
+      | _ ->
+          raise
+            (Diagnostic.Errors
+               [ Error.internal ~span:e.T.span "unexpected unary operator" ]));
       tmp
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
@@ -442,7 +515,10 @@ and emit_lvalue_addr ctx (e : T.texpr) =
   | T.TIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
   | T.TFieldAccess (base, field) -> emit_field_addr ctx base field
   | T.TUnOp (Ast.Deref, inner) -> emit_expr ctx inner
-  | _ -> failwith "expected lvalue"
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Error.internal ~span:e.T.span "expected an lvalue" ])
 
 (* address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
 and emit_field_addr ctx base field =
@@ -450,7 +526,13 @@ and emit_field_addr ctx base field =
   let rec peel = function
     | TStruct n -> n
     | TPointer t -> peel t
-    | _ -> assert false
+    | _ ->
+        raise
+          (Diagnostic.Errors
+             [
+               Error.internal ~span:base.T.span
+                 "field access on non-struct type";
+             ])
   in
   let struct_name = peel base.T.ty in
   let fields = Hashtbl.find ctx.structs struct_name in
@@ -525,7 +607,15 @@ and emit_array_lit_into ctx base elems elem =
       (* nested literal (multi-dimensional array): recurse into the sub-array *)
       | T.TArrayLit sub ->
           let subelem =
-            match el.T.ty with TArray (e, _) -> e | _ -> assert false
+            match el.T.ty with
+            | TArray (e, _) -> e
+            | _ ->
+                raise
+                  (Diagnostic.Errors
+                     [
+                       Error.internal ~span:el.T.span
+                         "nested array literal on non-array type";
+                     ])
           in
           emit_array_lit_into ctx addr sub subelem
       | _ when is_aggregate elem ->
@@ -555,7 +645,15 @@ and emit_struct_lit_into ctx base sname tfields =
           emit_struct_lit_into ctx addr sub subfields
       | T.TArrayLit sub ->
           let subelem =
-            match ft with TArray (e, _) -> e | _ -> assert false
+            match ft with
+            | TArray (e, _) -> e
+            | _ ->
+                raise
+                  (Diagnostic.Errors
+                     [
+                       Error.internal ~span:fe.T.span
+                         "array literal field on non-array type";
+                     ])
           in
           emit_array_lit_into ctx addr sub subelem
       | T.TZero -> emit_zero_into ctx addr ft
@@ -645,7 +743,10 @@ and compound_arith op lt =
       if is_float_ty lt then "div"
       else if signedness lt = "u" then "udiv"
       else "div"
-  | _ -> assert false
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Error.internal "unexpected compound assignment operator" ])
 
 and emit_compound_assign ctx op l r =
   match l.T.desc with
@@ -781,7 +882,10 @@ and emit_binop ctx op l r t =
   | Ast.Rshift ->
       let instr = if sign = "s" then "sar" else "shr" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
-  | _ -> assert false);
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
   tmp
 
 (* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
@@ -846,7 +950,15 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | T.TUndef -> ()
       | T.TArrayLit elems ->
           let elem =
-            match e.T.ty with TArray (el, _) -> el | _ -> assert false
+            match e.T.ty with
+            | TArray (el, _) -> el
+            | _ ->
+                raise
+                  (Diagnostic.Errors
+                     [
+                       Error.internal ~span:e.T.span
+                         "array literal on non-array type";
+                     ])
           in
           emit_array_lit_into ctx ("%" ^ slot) elems elem
       | T.TStructLit (sname, tfields) ->
@@ -983,7 +1095,13 @@ and emit_for ctx name elem_ty iter body =
             let l = fresh ctx in
             emit ctx "    %s =l loadl %s\n" l lenp;
             (p, l)
-        | t -> failwith ("cannot iterate over type: " ^ show_ty t)
+        | t ->
+            raise
+              (Diagnostic.Errors
+                 [
+                   Error.internal ~span:iter.T.span
+                     (Printf.sprintf "cannot iterate over type: %s" (show_ty t));
+                 ])
       in
       let idx = Printf.sprintf "%%for.i%d" id in
       emit ctx "    %s =l alloc8 8\n" idx;
@@ -1107,7 +1225,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
-  | TVoid -> assert false
+  | TVoid ->
+      raise (Diagnostic.Errors [ Error.internal "TVoid has no extended type" ])
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
@@ -1153,7 +1272,13 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
   | T.TBinOp _ | T.TUnOp _ -> format_const_num te.T.ty (fold_const_num ctx te)
-  | _ -> failwith "non-trivial constant initializer"
+  | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
+
+and unsupported_const span =
+  Diagnostic.(
+    error "unsupported constant expression"
+    |> at span
+    |> help "constant initializers must fold to a compile-time value")
 
 and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   match te.T.desc with
@@ -1176,28 +1301,35 @@ and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   | T.TUnOp (Ast.BitNot, e) -> (
       match fold_const_num ctx e with
       | CInt n -> CInt (lnot n)
-      | CFloat _ -> failwith "non-trivial constant initializer")
+      | CFloat _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
   | T.TUnOp (Ast.Not, e) -> (
       match fold_const_num ctx e with
       | CInt n -> CInt (if n = 0 then 1 else 0)
-      | CFloat _ -> failwith "non-trivial constant initializer")
+      | CFloat _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
   | T.TUnOp ((Ast.Deref | Ast.AddressOf), _) ->
-      failwith "non-trivial constant initializer"
+      raise (Diagnostic.Errors [ unsupported_const te.T.span ])
   | T.TBinOp (op, l, r) ->
-      fold_const_binop op (fold_const_num ctx l) (fold_const_num ctx r)
-  | _ -> failwith "non-trivial constant initializer"
+      fold_const_binop te.T.span op (fold_const_num ctx l)
+        (fold_const_num ctx r)
+  | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
-and fold_const_binop (op : Ast.binop) (a : const_num) (b : const_num) :
-    const_num =
+and fold_const_binop (span : Ast.span) (op : Ast.binop) (a : const_num)
+    (b : const_num) : const_num =
   match (a, b) with
   | CInt x, CInt y -> (
       match op with
       | Ast.Add -> CInt (x + y)
       | Ast.Sub -> CInt (x - y)
       | Ast.Mul -> CInt (x * y)
-      | Ast.Div when y = 0 -> failwith "non-trivial constant initializer"
+      | Ast.Div when y = 0 ->
+          raise
+            (Diagnostic.Errors
+               [ Diagnostic.(error "division by zero in constant" |> at span) ])
       | Ast.Div -> CInt (x / y)
-      | Ast.Mod when y = 0 -> failwith "non-trivial constant initializer"
+      | Ast.Mod when y = 0 ->
+          raise
+            (Diagnostic.Errors
+               [ Diagnostic.(error "remainder by zero in constant" |> at span) ])
       | Ast.Mod -> CInt (x mod y)
       | Ast.BitAnd -> CInt (x land y)
       | Ast.BitOr -> CInt (x lor y)
@@ -1214,7 +1346,7 @@ and fold_const_binop (op : Ast.binop) (a : const_num) (b : const_num) :
       | Ast.Or -> CInt (if x <> 0 || y <> 0 then 1 else 0)
       | Ast.Assign | Ast.AddAssign | Ast.SubAssign | Ast.MulAssign
       | Ast.DivAssign ->
-          failwith "non-trivial constant initializer")
+          raise (Diagnostic.Errors [ unsupported_const span ]))
   | (CInt _ | CFloat _), (CInt _ | CFloat _) -> (
       let as_float = function CInt n -> float_of_int n | CFloat f -> f in
       let x, y = (as_float a, as_float b) in
@@ -1229,7 +1361,7 @@ and fold_const_binop (op : Ast.binop) (a : const_num) (b : const_num) :
       | Ast.Gt -> CInt (if x > y then 1 else 0)
       | Ast.Lte -> CInt (if x <= y then 1 else 0)
       | Ast.Gte -> CInt (if x >= y then 1 else 0)
-      | _ -> failwith "non-trivial constant initializer")
+      | _ -> raise (Diagnostic.Errors [ unsupported_const span ]))
 
 (* yank it from the table first so a cycle dies here instead of looping forever *)
 and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =
