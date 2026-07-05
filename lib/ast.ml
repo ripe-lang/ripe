@@ -113,6 +113,7 @@ type stmt_desc =
   | Break
   | Continue
   | Expr of expr
+  (* TODO: blocks are statement only right now, make them usable as expressions like var p = { ... } *)
   | Block of stmt list
 [@@deriving show { with_path = false }]
 
