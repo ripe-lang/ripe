@@ -27,7 +27,8 @@ let usage_msg =
     "The Ripe compiler\n\n\
      Usage: ripec [OPTIONS] <FILE>\n\n\
      Options:\n\
-    \  -e, --emit <STAGE>    Stop compilation after <STAGE> and print its output:\n\
+    \  -e, --emit <STAGE>    Stop compilation after <STAGE> and print its \
+     output:\n\
      %s\n\
     \  -o, --output <FILE>   Write the compiler output to <FILE>\n\
     \  -h, --help            Display this list of options\n\n\
@@ -44,7 +45,8 @@ let emit_conv =
 let command =
   let open Arg_parser in
   let+ stage = named_opt [ "e"; "emit" ] emit_conv
-  and+ out = named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
+  and+ out =
+    named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
   Driver.compile ~stage ~out ~filename
@@ -52,14 +54,11 @@ let command =
 let is_help arg = arg = "-h" || arg = "--help"
 
 let () =
-  let args =
-    match Array.to_list Sys.argv with
-    | _ :: rest -> rest
-    | [] -> []
-  in
+  let args = match Array.to_list Sys.argv with _ :: rest -> rest | [] -> [] in
   if args = [] || List.exists is_help args then (
     print_endline usage_msg;
     exit 0)
   else
     Command.eval ~program_name:(Literal "ripec") ~help_style:Help_style.plain
-      (Command.singleton command) args
+      (Command.singleton command)
+      args

@@ -5,13 +5,17 @@ type stage = Tokens | Ast | Tast | Check | Qbe | Asm | Bin
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 let die msg =
-  let label = Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error in
+  let label =
+    Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
+  in
   Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
 let run cmd =
   if Sys.command cmd <> 0 then (
-    let label = Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error in
+    let label =
+      Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
+    in
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
