@@ -729,6 +729,8 @@ and emit_bool_value ctx e =
   emit ctx "    %s =w phi %s 1, %s 0\n" res true_lbl false_lbl;
   res
 
+(* TODO(2cc1): the local arithmetic always emits instructions instead of
+      folding through fold_const_num *)
 and emit_binop ctx op l r t =
   (* recursively evaluate *)
   let lv = emit_expr ctx l in
@@ -1111,7 +1113,26 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
-(* TODO(ab17): fold arithmetic *)
+type const_num = CInt of int | CFloat of float
+
+let format_const_num (ty : ty) (n : const_num) : string =
+  match n with
+  | CInt n -> string_of_int n
+  | CFloat f ->
+      let prefix, digits =
+        match ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+      in
+      prefix ^ Printf.sprintf "%.*g" digits f
+
+(* undoes the s_/d_ tag format_const_num stamps on floats *)
+let parse_const_num (ty : ty) (s : string) : const_num =
+  match ty with
+  | TFloat _ ->
+      let n = String.length s in
+      let s = if n > 2 && s.[1] = '_' then String.sub s 2 (n - 2) else s in
+      CFloat (float_of_string s)
+  | _ -> CInt (int_of_string s)
+
 let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
   | T.TInt n -> string_of_int n
@@ -1119,19 +1140,96 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
-  | T.TFloat f ->
-      let prefix, digits =
-        match te.T.ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
-      in
-      prefix ^ Printf.sprintf "%.*g" digits f
-  | T.TCast e -> fold_const_value ctx e
+  | T.TFloat f -> format_const_num te.T.ty (CFloat f)
+  | T.TCast e -> (
+      match te.T.ty with
+      | TInt _ | TFloat _ | TBool ->
+          format_const_num te.T.ty (fold_const_num ctx te)
+      | _ -> fold_const_value ctx e)
   | T.TIdent name -> resolve_const ctx name te.T.span
   | T.TCStr s ->
       let lbl = Printf.sprintf "$str%d" !(ctx.str_ctr) in
       incr ctx.str_ctr;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
+  | T.TBinOp _ | T.TUnOp _ -> format_const_num te.T.ty (fold_const_num ctx te)
   | _ -> failwith "non-trivial constant initializer"
+
+and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
+  match te.T.desc with
+  | T.TInt n -> CInt n
+  | T.TBool b -> CInt (if b then 1 else 0)
+  | T.TChar c -> CInt (Char.code c)
+  | T.TFloat f -> CFloat f
+  | T.TSizeOf t -> CInt (ty_size ctx.structs t)
+  | T.TIdent name -> parse_const_num te.T.ty (resolve_const ctx name te.T.span)
+  | T.TCast e -> (
+      match (te.T.ty, fold_const_num ctx e) with
+      | TFloat _, CInt n -> CFloat (float_of_int n)
+      | TFloat _, CFloat f -> CFloat f
+      | _, CFloat f -> CInt (int_of_float f)
+      | _, CInt n -> CInt n)
+  | T.TUnOp (Ast.Neg, e) -> (
+      match fold_const_num ctx e with
+      | CInt n -> CInt (-n)
+      | CFloat f -> CFloat (-.f))
+  | T.TUnOp (Ast.BitNot, e) -> (
+      match fold_const_num ctx e with
+      | CInt n -> CInt (lnot n)
+      | CFloat _ -> failwith "non-trivial constant initializer")
+  | T.TUnOp (Ast.Not, e) -> (
+      match fold_const_num ctx e with
+      | CInt n -> CInt (if n = 0 then 1 else 0)
+      | CFloat _ -> failwith "non-trivial constant initializer")
+  | T.TUnOp ((Ast.Deref | Ast.AddressOf), _) ->
+      failwith "non-trivial constant initializer"
+  | T.TBinOp (op, l, r) ->
+      fold_const_binop op (fold_const_num ctx l) (fold_const_num ctx r)
+  | _ -> failwith "non-trivial constant initializer"
+
+and fold_const_binop (op : Ast.binop) (a : const_num) (b : const_num) :
+    const_num =
+  match (a, b) with
+  | CInt x, CInt y -> (
+      match op with
+      | Ast.Add -> CInt (x + y)
+      | Ast.Sub -> CInt (x - y)
+      | Ast.Mul -> CInt (x * y)
+      | Ast.Div when y = 0 -> failwith "non-trivial constant initializer"
+      | Ast.Div -> CInt (x / y)
+      | Ast.Mod when y = 0 -> failwith "non-trivial constant initializer"
+      | Ast.Mod -> CInt (x mod y)
+      | Ast.BitAnd -> CInt (x land y)
+      | Ast.BitOr -> CInt (x lor y)
+      | Ast.BitXor -> CInt (x lxor y)
+      | Ast.Lshift -> CInt (x lsl y)
+      | Ast.Rshift -> CInt (x asr y)
+      | Ast.Eq -> CInt (if x = y then 1 else 0)
+      | Ast.Neq -> CInt (if x <> y then 1 else 0)
+      | Ast.Lt -> CInt (if x < y then 1 else 0)
+      | Ast.Gt -> CInt (if x > y then 1 else 0)
+      | Ast.Lte -> CInt (if x <= y then 1 else 0)
+      | Ast.Gte -> CInt (if x >= y then 1 else 0)
+      | Ast.And -> CInt (if x <> 0 && y <> 0 then 1 else 0)
+      | Ast.Or -> CInt (if x <> 0 || y <> 0 then 1 else 0)
+      | Ast.Assign | Ast.AddAssign | Ast.SubAssign | Ast.MulAssign
+      | Ast.DivAssign ->
+          failwith "non-trivial constant initializer")
+  | (CInt _ | CFloat _), (CInt _ | CFloat _) -> (
+      let as_float = function CInt n -> float_of_int n | CFloat f -> f in
+      let x, y = (as_float a, as_float b) in
+      match op with
+      | Ast.Add -> CFloat (x +. y)
+      | Ast.Sub -> CFloat (x -. y)
+      | Ast.Mul -> CFloat (x *. y)
+      | Ast.Div -> CFloat (x /. y)
+      | Ast.Eq -> CInt (if x = y then 1 else 0)
+      | Ast.Neq -> CInt (if x <> y then 1 else 0)
+      | Ast.Lt -> CInt (if x < y then 1 else 0)
+      | Ast.Gt -> CInt (if x > y then 1 else 0)
+      | Ast.Lte -> CInt (if x <= y then 1 else 0)
+      | Ast.Gte -> CInt (if x >= y then 1 else 0)
+      | _ -> failwith "non-trivial constant initializer")
 
 (* yank it from the table first so a cycle dies here instead of looping forever *)
 and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =

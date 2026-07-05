@@ -2156,6 +2156,73 @@ func f() i32 { return A }
                        ^
     |}]
 
+let%expect_test "codegen: global const arithmetic" =
+  run_codegen {|
+const A: i32 = 2 + 3
+func f() i32 { return A }
+|};
+  [%expect
+    {|
+    data $A = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $A
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: global const arithmetic referencing another const" =
+  run_codegen
+    {|
+const A: i32 = 5
+const B: i32 = A * 2 + 1
+func f() i32 { return B }
+|};
+  [%expect
+    {|
+    data $A = align 4 { w 5 }
+    data $B = align 4 { w 11 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $B
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: global const float arithmetic" =
+  run_codegen {|
+const A: f64 = 1.5 + 2.5
+func f() f64 { return A }
+|};
+  [%expect
+    {|
+    data $A = align 8 { d d_4 }
+
+    function d $f() {
+    @start
+        %t0 =d loadd $A
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: global const cast arithmetic" =
+  run_codegen {|
+const A: f32 = (1 + 2) as f32
+func f() f32 { return A }
+|};
+  [%expect
+    {|
+    data $A = align 4 { s s_3 }
+
+    function s $f() {
+    @start
+        %t0 =s loads $A
+        ret %t0
+    }
+    |}]
+
 let%expect_test "codegen: assign through struct pointer deref" =
   run_codegen
     {|
