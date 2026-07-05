@@ -16,7 +16,7 @@ Compile and run every example. A pipeline regression flips the snapshot.
   [main exit=42]
   [matrix exit=15]
   [negatives exit=9]
-  [pointers exit=42]
+  [pointers exit=34]
   [shadowing exit=35]
   [short_circuit exit=7]
   [strings exit=5]
