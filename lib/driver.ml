@@ -5,12 +5,14 @@ type stage = Tokens | Ast | Tast | Check | Qbe | Asm | Bin
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 let die msg =
-  Printf.eprintf "ripec: error: %s\n" msg;
+  let label = Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error in
+  Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
 let run cmd =
   if Sys.command cmd <> 0 then (
-    Printf.eprintf "ripec: error: command failed: %s\n" cmd;
+    let label = Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error in
+    Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
 let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"

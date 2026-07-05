@@ -79,6 +79,9 @@ let severity_ansi = function
 let reset = "\027[0m"
 let colored ctx sev s = if ctx.color then severity_ansi sev ^ s ^ reset else s
 
+let severity_label color sev =
+  if color then severity_ansi sev ^ severity_word sev ^ reset else severity_word sev
+
 (* utf8 continuation bytes do not advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
