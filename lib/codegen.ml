@@ -6,21 +6,27 @@ module T = Typed_ast
 
 (* TODO(7e23): I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
 
-let qbe_ty (t : ty) : string =
+type qbe_base = W | L | S | D
+
+let qbe_base (t : ty) : qbe_base =
   match t with
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> "w"
+  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> W
   (* FIXME(d969): Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
-      "l"
-  | TFloat F32 -> "s"
-  | TFloat F64 -> "d"
-  | TStruct _ | TArray _ | TSlice _ -> "l"
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ -> L
+  | TFloat F32 -> S
+  | TFloat F64 -> D
+  | TStruct _ | TArray _ | TSlice _ -> L
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
 
-(* "u" for unsigned int types and "s" for signed or other *)
-let signedness (t : ty) : string =
-  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> "u" | _ -> "s"
+let qbe_ty (t : ty) : string =
+  match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
+
+let is_unsigned (t : ty) : bool =
+  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> true | _ -> false
+
+(* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
+let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
 
 (* byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
@@ -477,10 +483,10 @@ and emit_unop ctx op e t =
 
 (* pointer math is 64-bit so widen a word-sized value to a long *)
 and widen_to_l ctx v ty =
-  if qbe_ty ty = "l" then v
+  if qbe_base ty = L then v
   else
     let t = fresh ctx in
-    let ins = if signedness ty = "u" then "extuw" else "extsw" in
+    let ins = if is_unsigned ty then "extuw" else "extsw" in
     emit ctx "    %s =l %s %s\n" t ins v;
     t
 
@@ -740,9 +746,7 @@ and compound_arith op lt =
   | Ast.SubAssign -> "sub"
   | Ast.MulAssign -> "mul"
   | Ast.DivAssign ->
-      if is_float_ty lt then "div"
-      else if signedness lt = "u" then "udiv"
-      else "div"
+      if is_float_ty lt then "div" else if is_unsigned lt then "udiv" else "div"
   | _ ->
       raise
         (Diagnostic.Errors
@@ -841,6 +845,7 @@ and emit_binop ctx op l r t =
   let lty = l.T.ty in
   let op_qt = qbe_ty lty in
   let sign = signedness lty in
+  let unsigned = is_unsigned lty in
 
   let tmp = fresh ctx in
   (match op with
@@ -849,11 +854,11 @@ and emit_binop ctx op l r t =
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div ->
       let instr =
-        if is_float_ty lty then "div" else if sign = "u" then "udiv" else "div"
+        if is_float_ty lty then "div" else if unsigned then "udiv" else "div"
       in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Mod ->
-      let instr = if sign = "u" then "urem" else "rem" in
+      let instr = if unsigned then "urem" else "rem" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   (* floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
@@ -880,7 +885,7 @@ and emit_binop ctx op l r t =
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
   | Ast.Lshift -> emit ctx "    %s =%s shl %s, %s\n" tmp qt lv rv
   | Ast.Rshift ->
-      let instr = if sign = "s" then "sar" else "shr" in
+      let instr = if unsigned then "shr" else "sar" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | _ ->
       raise
