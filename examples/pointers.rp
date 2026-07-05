@@ -1,3 +1,7 @@
+# Pointers: address-of, deref, and writing through a pointer to a struct field.
+
+struct point { x: i32, y: i32 }
+
 func deref_sum(a: *i32, b: *i32) i32 {
   return *a + *b
 }
@@ -6,8 +10,20 @@ func deref_negate(p: *i32) i32 {
   return -*p
 }
 
-func main() {
+func bump(p: *point) {
+  p.x += 1
+}
+
+func main() i32 {
   var x: i32 = 10
   var y: i32 = 32
-  return deref_sum(&x, &y)
+  const sum = deref_sum(&x, &y)
+  const neg = deref_negate(&x)
+
+  var p: point = point { x: 0, y: 0 }
+  bump(&p)
+  bump(&p)
+
+  # sum(42) + neg(-10) + p.x(2) = 34
+  return sum + neg + p.x
 }
