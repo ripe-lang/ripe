@@ -21,6 +21,7 @@ depends: [
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "camlp-streams" {= "5.0.1"}
+  "climate" {= "0.9.0"}
   "cmdliner" {= "2.1.0"}
   "cppo" {= "1.8.0"}
   "csexp" {= "1.5.2"}

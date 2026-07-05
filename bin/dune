@@ -1,4 +1,4 @@
 (executable
  (public_name ripec)
  (name main)
- (libraries ripe unix))
+ (libraries ripe climate))
