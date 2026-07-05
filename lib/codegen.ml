@@ -187,7 +187,6 @@ let field_offset structs fields fname =
   in
   go 0 fields
 
-(* TODO(07aa): handle @(^ptr) (deref) and @s.field (struct field access) *)
 let lvalue_name (e : T.texpr) : string =
   match e.T.desc with T.TIdent name -> name | _ -> failwith "expected lvalue"
 
@@ -276,25 +275,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit_cast ctx v e.T.ty t
   | T.TRange _ | T.TRangeInclusive _ -> failwith "TODO(41e0): range codegen"
   | T.TSizeOf sz -> string_of_int (ty_size ctx.structs sz)
-  (* TODO(e68f): explicit deref on a struct pointer (p^.x) emits an extra loadl, fix once struct value semantics are implemented. *)
   | T.TFieldAccess (e, field) ->
       let ft = t in
-      let base = emit_expr ctx e in
-      let rec peel = function
-        | TStruct n -> n
-        | TPointer t -> peel t
-        | _ -> assert false
-      in
-      let struct_name = peel e.T.ty in
-      let fields = Hashtbl.find ctx.structs struct_name in
-      let offset = field_offset ctx.structs fields field in
-      let ptr =
-        if offset = 0 then base
-        else
-          let p = fresh ctx in
-          emit ctx "    %s =l add %s, %d\n" p base offset;
-          p
-      in
+      let ptr = emit_field_addr ctx e field in
       (* aggregate field: its address is the value like TIndex below *)
       if is_aggregate ft then ptr
       else
@@ -398,6 +381,8 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
 
 and emit_unop ctx op e t =
   match op with
+  (* dereferencing a struct pointer just yields its address, same as any other aggregate lvalue *)
+  | Ast.Deref when is_aggregate t -> emit_expr ctx e
   | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref ->
       let ev = emit_expr ctx e in
       let qt = qbe_ty t in
@@ -412,11 +397,9 @@ and emit_unop ctx op e t =
       | _ -> assert false);
       tmp
   | Ast.AddressOf ->
-      let name = lvalue_name e in
+      let addr = emit_lvalue_addr ctx e in
       let tmp = fresh ctx in
-      if Hashtbl.mem ctx.globals name then
-        emit ctx "    %s =l copy $%s\n" tmp name
-      else emit ctx "    %s =l copy %%%s\n" tmp name;
+      emit ctx "    %s =l copy %s\n" tmp addr;
       tmp
 
 (* pointer math is 64-bit so widen a word-sized value to a long *)
@@ -448,6 +431,35 @@ and emit_index_addr ctx base idx elem =
   let addr = fresh ctx in
   emit ctx "    %s =l add %s, %s\n" addr storage off;
   addr
+
+(* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
+and emit_lvalue_addr ctx (e : T.texpr) =
+  match e.T.desc with
+  | T.TIdent name -> (
+      match local_slot ctx name with
+      | Some slot -> "%" ^ slot
+      | None -> if Hashtbl.mem ctx.globals name then "$" ^ name else "%" ^ name)
+  | T.TIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
+  | T.TFieldAccess (base, field) -> emit_field_addr ctx base field
+  | T.TUnOp (Ast.Deref, inner) -> emit_expr ctx inner
+  | _ -> failwith "expected lvalue"
+
+(* address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
+and emit_field_addr ctx base field =
+  let addr = emit_expr ctx base in
+  let rec peel = function
+    | TStruct n -> n
+    | TPointer t -> peel t
+    | _ -> assert false
+  in
+  let struct_name = peel base.T.ty in
+  let fields = Hashtbl.find ctx.structs struct_name in
+  let offset = field_offset ctx.structs fields field in
+  if offset = 0 then addr
+  else
+    let p = fresh ctx in
+    emit ctx "    %s =l add %s, %d\n" p addr offset;
+    p
 
 (* write a zero value of type t into the slot at dest *)
 and emit_zero_into ctx dest t =
@@ -583,6 +595,12 @@ and emit_assign ctx l r _t =
           let src = emit_expr ctx r in
           emit_aggregate_copy ctx base src (ty_size ctx.structs t));
       base
+  | T.TFieldAccess (base, field) ->
+      let addr = emit_field_addr ctx base field in
+      emit_store_into ctx l.T.ty addr r
+  | T.TUnOp (Ast.Deref, inner) ->
+      let addr = emit_expr ctx inner in
+      emit_store_into ctx l.T.ty addr r
   | _ ->
       let rv = emit_expr ctx r in
       (match l.T.desc with
@@ -595,6 +613,24 @@ and emit_assign ctx l r _t =
               else emit ctx "    %%%s =%s copy %s\n" name (qbe_ty r.T.ty) rv)
       | _ -> ());
       rv
+
+(* store rhs into an address computed for a pointer or field lvalue *)
+and emit_store_into ctx ty addr r =
+  if is_aggregate ty then begin
+    (match (r.T.desc, ty) with
+    | T.TArrayLit elems, TArray (elem, _) ->
+        emit_array_lit_into ctx addr elems elem
+    | T.TStructLit (sname, tfields), _ ->
+        emit_struct_lit_into ctx addr sname tfields
+    | _ ->
+        let src = emit_expr ctx r in
+        emit_aggregate_copy ctx addr src (ty_size ctx.structs ty));
+    addr
+  end
+  else
+    let rv = emit_expr ctx r in
+    emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
+    rv
 
 (* x += rhs -> x = x + rhs *)
 (* x -= rhs -> x = x - rhs *)
@@ -617,15 +653,13 @@ and emit_compound_assign ctx op l r =
   | T.TIndex (base, idx) ->
       let elem = l.T.ty in
       let addr = emit_index_addr ctx base idx elem in
-      let qt = qbe_ty elem in
-      let cur = fresh ctx in
-      emit ctx "    %s =%s %s %s\n" cur qt (qbe_load elem) addr;
-      let rv = emit_expr ctx r in
-      let new_val = fresh ctx in
-      emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur
-        rv;
-      emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
-      new_val
+      emit_compound_via_addr ctx op elem addr r
+  | T.TFieldAccess (base, field) ->
+      let addr = emit_field_addr ctx base field in
+      emit_compound_via_addr ctx op l.T.ty addr r
+  | T.TUnOp (Ast.Deref, inner) ->
+      let addr = emit_expr ctx inner in
+      emit_compound_via_addr ctx op l.T.ty addr r
   | _ ->
       let name = lvalue_name l in
       let lt = l.T.ty in
@@ -647,6 +681,17 @@ and emit_compound_assign ctx op l r =
             emit ctx "    %s %s, $%s\n" (qbe_store lt) new_val name
           else emit ctx "    %%%s =%s copy %s\n" name qt new_val);
       new_val
+
+(* load through addr, apply the compound op, store the result back *)
+and emit_compound_via_addr ctx op elem addr r =
+  let qt = qbe_ty elem in
+  let cur = fresh ctx in
+  emit ctx "    %s =%s %s %s\n" cur qt (qbe_load elem) addr;
+  let rv = emit_expr ctx r in
+  let new_val = fresh ctx in
+  emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur rv;
+  emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
+  new_val
 
 and is_float_ty = function TFloat _ -> true | _ -> false
 
