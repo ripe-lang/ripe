@@ -9,13 +9,14 @@ module T = Typed_ast
 type qbe_base = W | L | S | D
 
 let qbe_base (t : ty) : qbe_base =
-  match t with
+  match resolve_ty t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> W
   (* FIXME(d969): Null terminated strings? Idk yet. *)
   | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ -> L
   | TFloat F32 -> S
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
 
@@ -23,7 +24,9 @@ let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
 let is_unsigned (t : ty) : bool =
-  match t with TInt (U8 | U16 | U32 | U64 | Usize) -> true | _ -> false
+  match resolve_ty t with
+  | TInt (U8 | U16 | U32 | U64 | Usize) -> true
+  | _ -> false
 
 (* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
 let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
@@ -62,7 +65,7 @@ let const_to_float (n : const_num) : float =
 (* the narrow kinds get masked back to width
    so the value wraps like the target type *)
 let wrap_const (ty : ty) (n : Int64.t) : const_num =
-  match ty with
+  match resolve_ty ty with
   | TInt (I64 | U64 | Isize | Usize) -> Ni64 n
   | TInt kind ->
       let bits = int_kind_size kind * 8 in
@@ -82,13 +85,13 @@ let format_const_num (ty : ty) (n : const_num) : string =
   | Ni64 n -> Int64.to_string n
   | Nf f ->
       let prefix, digits =
-        match ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+        match resolve_ty ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
       in
       prefix ^ Printf.sprintf "%.*g" digits f
 
 (* undoes the s_/d_ tag format_const_num stamps on floats *)
 let parse_const_num (ty : ty) (s : string) : const_num =
-  match ty with
+  match resolve_ty ty with
   | TFloat _ ->
       let n = String.length s in
       let s = if n > 2 && s.[1] = '_' then String.sub s 2 (n - 2) else s in
@@ -103,7 +106,7 @@ let parse_const_num (ty : ty) (s : string) : const_num =
 
 let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
-  match t with
+  match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
@@ -125,13 +128,14 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
                ]))
   | TArray (e, _) -> ty_align structs e
   | TSlice _ -> 8
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
 
 (* n and a must be non-negative *)
 let align_to n a = (n + a - 1) / a * a
 
 let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
-  match t with
+  match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
@@ -160,10 +164,11 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* fat pointer: { ptr, len } *)
   | TSlice _ -> 16
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
 
 (* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =
-  match t with
+  match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TFloat F64
   | TPointer _ | TNull | TCStr | TStruct _ | TFunc _ ->
@@ -171,12 +176,13 @@ let rec alloc_instr (t : ty) : string =
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no alloc instruction" ])
 
 let qbe_load (t : ty) : string =
-  match t with
+  match resolve_ty t with
   | TInt I8 -> "loadsb"
   | TInt U8 | TBool -> "loadub"
   | TInt I16 -> "loadsh"
@@ -188,12 +194,13 @@ let qbe_load (t : ty) : string =
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no load instruction" ])
 
 let qbe_store (t : ty) : string =
-  match t with
+  match resolve_ty t with
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
@@ -202,6 +209,7 @@ let qbe_store (t : ty) : string =
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no store instruction" ])
@@ -285,9 +293,8 @@ let lvalue_name (e : T.texpr) : string =
            [ Error.internal ~span:e.T.span "expected an lvalue" ])
 
 (* aggregates are addressed by pointer: an ident of this type is its base address *)
-let is_aggregate = function
-  | TArray _ | TSlice _ | TStruct _ -> true
-  | _ -> false
+let is_aggregate t =
+  match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
 
 (* bytes between consecutive elements (element size rounded up to its alignment) *)
 let stride structs elem =
@@ -955,7 +962,8 @@ and emit_binop ctx op l r t =
 
 (* the extend that masks a narrow
    integer target back down to its width *)
-and narrow_int_instr = function
+and narrow_int_instr t =
+  match resolve_ty t with
   | TInt I8 -> Some "extsb"
   | TInt U8 -> Some "extub"
   | TInt I16 -> Some "extsh"
@@ -1289,7 +1297,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   emit ctx "}\n\n"
 
 let rec qbe_ext_ty (t : ty) : string =
-  match t with
+  match resolve_ty t with
   | TInt (I8 | U8) | TBool -> "b"
   | TInt (I16 | U16) -> "h"
   | TInt (I32 | U32) -> "w"
@@ -1303,6 +1311,7 @@ let rec qbe_ext_ty (t : ty) : string =
   | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
+  | TNewtype _ -> assert false (* resolve_ty strips this *)
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no extended type" ])
 
@@ -1319,7 +1328,7 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   | T.TFloat f -> format_const_num te.T.ty (Nf f)
   | T.TCast e -> (
-      match te.T.ty with
+      match resolve_ty te.T.ty with
       | TInt _ | TFloat _ | TBool ->
           format_const_num te.T.ty (fold_const_num ctx te)
       | _ -> fold_const_value ctx e)
@@ -1348,7 +1357,7 @@ and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   | T.TIdent name -> parse_const_num te.T.ty (resolve_const ctx name te.T.span)
   | T.TCast e -> (
       let v = fold_const_num ctx e in
-      match (te.T.ty, v) with
+      match (resolve_ty te.T.ty, v) with
       | TFloat _, Nf f -> Nf f
       | TFloat _, _ -> Nf (const_to_float v)
       | _, Nf f -> wrap_const te.T.ty (Int64.of_float f)
@@ -1565,7 +1574,8 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   List.iter
     (function
       | T.TFunc tfd -> emit_func ctx tfd
-      | TExtern _ | T.TStruct _ | T.TGlobal _ | T.TTypeAlias _ -> ())
+      | TExtern _ | T.TStruct _ | T.TGlobal _ | T.TTypeAlias _ | T.TNewtype _ ->
+          ())
     tdecls;
 
   (* String literals (data sections) *)

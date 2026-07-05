@@ -22,6 +22,7 @@ type env = {
   structs : (string, struct_info) Hashtbl.t;
   globals : (string, ty * bool) Hashtbl.t;
   aliases : (string, ty) Hashtbl.t;
+  newtypes : (string, ty) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   diags : Diagnostic.sink;
@@ -34,6 +35,7 @@ let make_env () : env =
     structs = Hashtbl.create 16;
     globals = Hashtbl.create 16;
     aliases = Hashtbl.create 8;
+    newtypes = Hashtbl.create 8;
     ret_ty = TVoid;
     in_loop = false;
     diags = Diagnostic.sink ();
@@ -121,11 +123,14 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       | None -> (
           if Hashtbl.mem env.structs name then TStruct name
           else
-            match Hashtbl.find_opt env.aliases name with
-            | Some aliased -> aliased
-            | None ->
-                emit env (Error.undefined_name t.span "type" name);
-                TInt I32))
+            match Hashtbl.find_opt env.newtypes name with
+            | Some base -> TNewtype (name, base)
+            | None -> (
+                match Hashtbl.find_opt env.aliases name with
+                | Some aliased -> aliased
+                | None ->
+                    emit env (Error.undefined_name t.span "type" name);
+                    TInt I32)))
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (n, t) -> TArray (ty_of_ast env t, n)
   | Slice t -> TSlice (ty_of_ast env t)
@@ -212,6 +217,13 @@ let collect_alias (env : env) (td : type_alias_def) : unit =
     let t = ty_of_ast env td.typ in
     Hashtbl.replace env.aliases td.name t
 
+let collect_newtype (env : env) (td : type_alias_def) : unit =
+  if Hashtbl.mem env.newtypes td.name then
+    emit env (Error.named td.span "already defined" td.name)
+  else
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.newtypes td.name t
+
 let collect_global (env : env) (gd : global_def) : unit =
   if gd.is_const && gd.init = None then
     emit env (Error.named gd.span "const without initializer" gd.name);
@@ -226,6 +238,7 @@ let collect_decl (env : env) (decl : decl) : unit =
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
   | TypeAlias td -> collect_alias env td
+  | Newtype td -> collect_newtype env td
 
 (* Second pass doing the bidirectional type checking *)
 
@@ -821,6 +834,9 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   | TypeAlias td ->
       let t = Hashtbl.find env.aliases td.name in
       T.TTypeAlias (td.name, t)
+  | Newtype td ->
+      let t = Hashtbl.find env.newtypes td.name in
+      T.TNewtype (td.name, t)
 (* | _ -> failwith "Declaration not supported yet" *)
 
 (* hands warnings back for the edge to render and blows up on any error *)

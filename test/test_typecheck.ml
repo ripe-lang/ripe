@@ -1505,6 +1505,30 @@ func g() { f(true) }
                      ^~~~ expected i64, found bool
     |}]
 
+let%expect_test "typecheck: newtype does not mix with its base type" =
+  run_src
+    {|
+newtype Celsius = f32
+func f(x: Celsius) i32 { return 0 }
+func g() { f(1.0) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:14
+        func g() { f(1.0) }
+                     ^~~ expected Celsius, found f64
+    |}]
+
+let%expect_test "typecheck: newtype casts to and from its base type" =
+  run_src
+    {|
+newtype Celsius = f32
+func to_f32(c: Celsius) f32 { return c as f32 }
+func to_celsius(x: f32) Celsius { return x as Celsius }
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: cstr parameter accepts string literal" =
   run_src
     {|

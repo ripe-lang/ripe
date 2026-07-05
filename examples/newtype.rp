@@ -1,0 +1,16 @@
+# Newtypes is a nominal wrapper, distinct from its base type and other newtypes.
+
+newtype Celsius = f32
+newtype Fahrenheit = f32
+
+func to_f(c: Celsius) Fahrenheit {
+  return (c as f32 * 1.8 + 32.0) as Fahrenheit
+}
+
+func main() i32 {
+  const boiling: Celsius = 100.0 as Celsius
+  const f: Fahrenheit = to_f(boiling)
+
+  # 212
+  return f as f32 as i32
+}

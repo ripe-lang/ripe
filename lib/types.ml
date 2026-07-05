@@ -17,6 +17,7 @@ type ty =
   | TFunc of ty list * ty
   | TArray of ty * int
   | TSlice of ty
+  | TNewtype of string * ty
 [@@deriving show { with_path = false }]
 
 let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
@@ -43,7 +44,11 @@ let rec show_ty = function
   | TStruct name -> name
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
+  | TNewtype (name, _) -> name
   | TFunc (ps, r) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
       Printf.sprintf "(%s)%s" p_str r_str
+
+(* sees through a newtype to the concrete representation codegen must use *)
+let rec resolve_ty = function TNewtype (_, base) -> resolve_ty base | t -> t

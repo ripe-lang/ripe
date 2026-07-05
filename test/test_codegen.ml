@@ -404,6 +404,23 @@ let%expect_test "codegen: u16 narrowing cast masks" =
     }
     |}]
 
+let%expect_test "codegen: newtype widening cast keeps its base signedness" =
+  run_codegen {|
+newtype Id = u16
+func f(a: Id) i64 { return a as i64 }
+|};
+  [%expect
+    {|
+    function l $f(w %t0) {
+    @start
+        %a =l alloc4 2
+        storeh %t0, %a
+        %t1 =w loaduh %a
+        %t2 =l extuw %t1
+        ret %t2
+    }
+    |}]
+
 let%expect_test "codegen: global const narrowing cast folds" =
   run_codegen {|
 const A: u8 = 1000 as u8
