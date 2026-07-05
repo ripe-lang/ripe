@@ -2393,7 +2393,8 @@ func f() i32 {
 
 let%expect_test "codegen: bitwise or" =
   run_codegen "func f(a: i32, b: i32) i32 { return a | b }";
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0, w %t1) {
     @start
         %a =l alloc4 4
@@ -2409,7 +2410,8 @@ let%expect_test "codegen: bitwise or" =
 
 let%expect_test "codegen: bitwise xor" =
   run_codegen "func f(a: i32, b: i32) i32 { return a ^ b }";
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0, w %t1) {
     @start
         %a =l alloc4 4
@@ -2425,7 +2427,8 @@ let%expect_test "codegen: bitwise xor" =
 
 let%expect_test "codegen: right shift on signed int" =
   run_codegen "func f(a: i32, b: i32) i32 { return a >> b }";
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0, w %t1) {
     @start
         %a =l alloc4 4
@@ -2441,7 +2444,8 @@ let%expect_test "codegen: right shift on signed int" =
 
 let%expect_test "codegen: right shift on unsigned int" =
   run_codegen "func f(a: u32, b: u32) u32 { return a >> b }";
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0, w %t1) {
     @start
         %a =l alloc4 4
@@ -2457,7 +2461,8 @@ let%expect_test "codegen: right shift on unsigned int" =
 
 let%expect_test "codegen: cast int to float" =
   run_codegen "func f(a: i32) f64 { return a as f64 }";
-  [%expect {|
+  [%expect
+    {|
     function d $f(w %t0) {
     @start
         %a =l alloc4 4
@@ -2470,7 +2475,8 @@ let%expect_test "codegen: cast int to float" =
 
 let%expect_test "codegen: cast float to int" =
   run_codegen "func f(a: f64) i32 { return a as i32 }";
-  [%expect {|
+  [%expect
+    {|
     function w $f(d %t0) {
     @start
         %a =l alloc8 8
@@ -2490,7 +2496,8 @@ func f(x: i32) i32 {
   else { return 2 }
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $f(w %t0) {
     @start
         %x =l alloc4 4
@@ -2521,7 +2528,8 @@ func inc(x: i32) i32 { return x + 1 }
 func add(a: i32, b: i32) i32 { return a + b }
 func f() i32 { return add(inc(1), inc(2)) }
 |};
-  [%expect {|
+  [%expect
+    {|
     function w $inc(w %t0) {
     @start
         %x =l alloc4 4
@@ -2559,7 +2567,8 @@ func f() {
   n *= 4
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function $f() {
     @start
         %n =l alloc4 4
@@ -2578,7 +2587,8 @@ func f() {
   n /= 4
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function $f() {
     @start
         %n =l alloc4 4
@@ -2600,7 +2610,8 @@ func f() i32 {
   return read_x(p)
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     type :pt = { w, w }
 
     function w $read_x(l %t0) {
@@ -2631,7 +2642,8 @@ func f(x: i32) {
   var y: i32 = x + 1
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     function $f(w %t0) {
     @start
         %x =l alloc4 4

@@ -362,7 +362,8 @@ let%expect_test "parse: crlf newline as statement separator" =
 
 let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
-  [%expect {|
+  [%expect
+    {|
     error: expected expression
       at <test>:1:12
         func f() { ) }
@@ -437,7 +438,8 @@ func f() {
   var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     warning: unused variable: a
       at <test>:4:7
           var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]

@@ -1497,7 +1497,8 @@ type myint = i64
 func f(x: myint) i32 { return 0 }
 func g() { f(true) }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: type mismatch
       at <test>:4:14
         func g() { f(true) }
@@ -1505,7 +1506,8 @@ func g() { f(true) }
     |}]
 
 let%expect_test "typecheck: cstr parameter accepts string literal" =
-  run_src {|
+  run_src
+    {|
 extern func strlen(s: cstr) i64
 func f() i64 { return strlen("hi") }
 |};
@@ -1520,8 +1522,7 @@ func f() { printf("%d %d", 1, 2) }
   [%expect {| ok |}]
 
 let%expect_test "typecheck: pointer equality yields bool" =
-  run_src
-    {|
+  run_src {|
 func f(a: *i32, b: *i32) bool { return a == b }
 |};
   [%expect {| ok |}]
@@ -1536,7 +1537,8 @@ func f() {
   o.i.a = true
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: type mismatch
       at <test>:6:11
           o.i.a = true
@@ -1568,7 +1570,8 @@ let%expect_test "typecheck: void call result cannot be assigned" =
 func g() { }
 func f() { var x: i32 = g() }
 |};
-  [%expect {|
+  [%expect
+    {|
     warning: unused variable: x
       at <test>:3:16
         func f() { var x: i32 = g() }
@@ -1638,7 +1641,8 @@ func f() {
   take(a)
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: type mismatch
       at <test>:5:8
           take(a)
@@ -1646,7 +1650,8 @@ func f() {
     |}]
 
 let%expect_test "typecheck: global var initialized from const" =
-  run_src {|
+  run_src
+    {|
 const base: i32 = 10
 var counter: i32 = base
 func f() i32 { return counter }
@@ -1654,12 +1659,12 @@ func f() i32 { return counter }
   [%expect {| ok |}]
 
 let%expect_test "typecheck: extern variadic requires the fixed args" =
-  run_src
-    {|
+  run_src {|
 extern func printf(fmt: cstr, ...) i32
 func f() { printf() }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: expected at least 1 arguments, found 0
       at <test>:3:12
         func f() { printf() }
@@ -1671,14 +1676,16 @@ let%expect_test "typecheck: continue inside while" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: bool relational comparison rejected" =
-  run_src {|
+  run_src
+    {|
 func f() bool {
   var a: bool = true
   var b: bool = false
   return a < b
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     error: cannot apply `<` to bool
       at <test>:5:10
           return a < b
