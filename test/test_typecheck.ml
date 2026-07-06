@@ -1715,3 +1715,17 @@ func f() bool {
           return a < b
                  ^
     |}]
+
+let%expect_test "typecheck: float modulo rejected" =
+  run_src {|
+func f() f64 {
+  return 5.0 % 2.0
+}
+|};
+  [%expect
+    {|
+    error: cannot apply `%` to f64
+      at <test>:3:10
+          return 5.0 % 2.0
+                 ^~~
+    |}]
