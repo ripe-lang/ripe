@@ -1930,3 +1930,13 @@ func main() i32 {
           var _x: u64 = -1
                         ^~ does not fit in u64
     |}]
+
+let%expect_test "typecheck: non-i32 main rejected" =
+  run_src "func main() f64 { return 0.0 }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:13
+        func main() f64 { return 0.0 }
+                    ^~~ expected i32, found f64
+    |}]
