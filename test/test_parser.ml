@@ -524,3 +524,12 @@ let%expect_test "parse: expression body wrong return type" =
         func f() i32 = true
                        ^~~~ expected i32, found bool
     |}]
+
+let%expect_test "parse: unknown string escape" =
+  run_src {|func f() { const s = "a\qb" }|};
+  [%expect {|
+    error: unknown escape: \q
+      at <test>:1:24
+        func f() { const s = "a\qb" }
+                               ^~
+    |}]
