@@ -253,6 +253,12 @@ let is_lvalue (te : T.texpr) : bool =
 let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
 let is_ordered = is_numeric
 let is_integer = function TInt _ -> true | _ -> false
+
+let rec is_comparable = function
+  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
+  | TNewtype (_, base) -> is_comparable base
+  | _ -> false
+
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
 (* Figure out the type*)
@@ -501,6 +507,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       (* TODO(b5ca): dedicated "cannot chain comparison operators" message by checking if l is a comparison node *)
       let tl = synth env l in
       let t = tl.T.ty in
+      if not (is_comparable t) then
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
   | Lt | Gt | Lte | Gte ->
