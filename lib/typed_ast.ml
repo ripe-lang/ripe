@@ -5,7 +5,7 @@ open Types
 type tinterp_part = TLit of string | TInterp of texpr
 
 and texpr_desc =
-  | TInt of int
+  | TInt of int64
   | TFloat of float
   | TBool of bool
   | TNull

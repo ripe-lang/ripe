@@ -304,7 +304,7 @@ let stride structs elem =
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
-  | T.TInt n -> string_of_int n
+  | T.TInt n -> Int64.to_string n
   | T.TFloat f ->
       let prefix, digits =
         match t with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
@@ -537,7 +537,7 @@ and emit_unop ctx op e t =
   match op with
   (* dereferencing a struct pointer just yields its address, same as any other aggregate lvalue *)
   | Ast.Deref when is_aggregate t -> emit_expr ctx e
-  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref ->
+  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref -> (
       let ev = emit_expr ctx e in
       let qt = qbe_ty t in
       let tmp = fresh ctx in
@@ -552,7 +552,7 @@ and emit_unop ctx op e t =
           raise
             (Diagnostic.Errors
                [ Error.internal ~span:e.T.span "unexpected unary operator" ]));
-      tmp
+      match op with Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t | _ -> tmp)
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
       let tmp = fresh ctx in
@@ -967,7 +967,9 @@ and emit_binop ctx op l r t =
       raise
         (Diagnostic.Errors
            [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
-  tmp
+  match op with
+  | Ast.Add | Ast.Sub | Ast.Mul | Ast.Lshift -> narrow_int_to ctx tmp t
+  | _ -> tmp
 
 (* the extend that masks a narrow
    integer target back down to its width *)
@@ -1333,7 +1335,7 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
 
 let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
-  | T.TInt n -> string_of_int n
+  | T.TInt n -> Int64.to_string n
   | T.TBool b -> if b then "1" else "0"
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
@@ -1361,7 +1363,7 @@ and unsupported_const span =
 
 and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   match te.T.desc with
-  | T.TInt n -> wrap_const te.T.ty (Int64.of_int n)
+  | T.TInt n -> wrap_const te.T.ty n
   | T.TBool b -> const_bool b
   | T.TChar c -> Ni32 (Int32.of_int (Char.code c))
   | T.TFloat f -> Nf f

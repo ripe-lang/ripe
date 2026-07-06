@@ -112,7 +112,7 @@ let rec parse_typ st =
           match st.tok with
           | INT n ->
               advance st;
-              n
+              Int64.to_int n
           | _ -> fail_found st "expected array size"
         in
         expect st RBRACKET;

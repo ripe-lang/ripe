@@ -66,7 +66,12 @@ and read_main st = parse
                               | Some t when can_end_stmt t -> SEMI
                               | _ -> read st lexbuf }
   | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
-  | digit+ as n        { INT (int_of_string n) }
+  | digit+ as n        { match Int64.of_string_opt ("0u" ^ n) with
+                         | Some v -> INT v
+                         | None ->
+                             (* the zero keeps the parser from raising a second error *)
+                             Queue.push (INT 0L) st.token_queue;
+                             ERROR "integer literal out of range" }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t

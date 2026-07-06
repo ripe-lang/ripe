@@ -8,6 +8,7 @@ Compile and run every example. A pipeline regression flips the snapshot.
   [array_search exit=6]
   [array_stats exit=4]
   [arrays exit=34]
+  [big_ints exit=7]
   [bitops exit=1]
   [control_flow exit=55]
   [fn_ptr exit=42]

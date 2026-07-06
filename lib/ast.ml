@@ -76,7 +76,7 @@ type interp_part = Lit of string | Interp of expr
 [@@deriving show { with_path = false }]
 
 and expr_desc =
-  | Int of int
+  | Int of int64
   | Float of float
   | Bool of bool
   | Null

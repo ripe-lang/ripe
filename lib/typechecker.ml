@@ -45,7 +45,7 @@ let make_env () : env =
 
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
-let dummy_texpr = T.mk (TInt I32) (T.TInt 0)
+let dummy_texpr = T.mk (TInt I32) (T.TInt 0L)
 let add_warning (env : env) span msg = Diagnostic.warn_at env.diags span msg
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
@@ -272,10 +272,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
-      if not (int_literal_fits I32 n) then
-        emit env
-          (Error.int_out_of_range e.span ~ty:(show_ty (TInt I32))
-             ~value:(string_of_int n));
+      if Int64.unsigned_compare n (int_kind_pos_limit I32) > 0 then
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt I32)));
       T.mk (TInt I32) (T.TInt n)
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
   | Bool b ->
@@ -344,7 +342,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
               let tlo, thi, lt = check_range_bounds env lo hi in
               let thi =
                 if inclusive then
-                  T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1)))
+                  T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1L)))
                 else thi
               in
               T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
@@ -428,10 +426,8 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   | Int n -> (
       match want with
       | TInt kind ->
-          if not (int_literal_fits kind n) then
-            emit env
-              (Error.int_out_of_range e.span ~ty:(show_ty want)
-                 ~value:(string_of_int n));
+          if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
+            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
           T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
@@ -445,7 +441,13 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
           emit env
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
-  | UnOp (Neg, { desc = Int n; _ }) -> check env { e with desc = Int (-n) } want
+  | UnOp (Neg, { desc = Int n; _ }) -> (
+      match want with
+      | TInt kind ->
+          if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
+            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+          T.mk want (T.TInt (Int64.neg n))
+      | _ -> check env { e with desc = Int (Int64.neg n) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | ArrayLit elems -> (
