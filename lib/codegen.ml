@@ -537,7 +537,7 @@ and emit_unop ctx op e t =
   match op with
   (* dereferencing a struct pointer just yields its address, same as any other aggregate lvalue *)
   | Ast.Deref when is_aggregate t -> emit_expr ctx e
-  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref ->
+  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref -> (
       let ev = emit_expr ctx e in
       let qt = qbe_ty t in
       let tmp = fresh ctx in
@@ -552,7 +552,7 @@ and emit_unop ctx op e t =
           raise
             (Diagnostic.Errors
                [ Error.internal ~span:e.T.span "unexpected unary operator" ]));
-      tmp
+      match op with Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t | _ -> tmp)
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
       let tmp = fresh ctx in
@@ -967,7 +967,9 @@ and emit_binop ctx op l r t =
       raise
         (Diagnostic.Errors
            [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
-  tmp
+  match op with
+  | Ast.Add | Ast.Sub | Ast.Mul | Ast.Lshift -> narrow_int_to ctx tmp t
+  | _ -> tmp
 
 (* the extend that masks a narrow
    integer target back down to its width *)
