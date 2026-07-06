@@ -12,7 +12,7 @@ and texpr_desc =
   | TCStr of string
   | TChar of char
   | TIdent of string
-  | TCall of string * texpr list
+  | TCall of string * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * string
