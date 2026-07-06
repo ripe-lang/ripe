@@ -315,3 +315,14 @@ A bare return in main exits with 0 like falling off the end.
   >   return 1
   > }'
   [bare_return_main exit=0]
+
+A u64 literal in the top half is emitted as an all ones constant, so adding
+one wraps back to zero.
+
+  $ run u64_max_wraps 'func main() i32 {
+  >   var x: u64 = 18446744073709551615
+  >   var y: u64 = x + 1
+  >   if y == 0 { return 7 }
+  >   return 0
+  > }'
+  [u64_max_wraps exit=7]

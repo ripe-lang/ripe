@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 type token =
-  | INT of int
+  | INT of int64
   | FLOAT of float
   | IDENT of string
   | STRING_PART of string
@@ -106,7 +106,7 @@ let keywords =
 let lookup_keyword s = List.assoc_opt s keywords
 
 let show_token = function
-  | INT n -> string_of_int n
+  | INT n -> Int64.to_string n
   | FLOAT f -> string_of_float f
   | IDENT s -> s
   | STRING_PART s -> s

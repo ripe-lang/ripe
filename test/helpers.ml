@@ -105,7 +105,7 @@ let show_unop = function
 
 let rec dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
-  | Int n -> string_of_int n
+  | Int n -> Int64.to_string n
   | Float f -> string_of_float f
   | Bool b -> string_of_bool b
   | Null -> "null"

@@ -304,7 +304,7 @@ let stride structs elem =
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
-  | T.TInt n -> string_of_int n
+  | T.TInt n -> Int64.to_string n
   | T.TFloat f ->
       let prefix, digits =
         match t with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
@@ -1333,7 +1333,7 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
 
 let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
-  | T.TInt n -> string_of_int n
+  | T.TInt n -> Int64.to_string n
   | T.TBool b -> if b then "1" else "0"
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
@@ -1361,7 +1361,7 @@ and unsupported_const span =
 
 and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   match te.T.desc with
-  | T.TInt n -> wrap_const te.T.ty (Int64.of_int n)
+  | T.TInt n -> wrap_const te.T.ty n
   | T.TBool b -> const_bool b
   | T.TChar c -> Ni32 (Int32.of_int (Char.code c))
   | T.TFloat f -> Nf f

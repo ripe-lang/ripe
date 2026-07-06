@@ -1802,7 +1802,7 @@ func main() i32 {
     error: integer literal out of range
       at <test>:3:15
           var x: u8 = 300
-                      ^~~ 300 does not fit in u8
+                      ^~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: negative literal into unsigned rejected" =
@@ -1822,7 +1822,7 @@ func main() i32 {
     error: integer literal out of range
       at <test>:3:15
           var x: u8 = -1
-                      ^~ -1 does not fit in u8
+                      ^~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: int literal at type bound accepted" =
@@ -1861,5 +1861,72 @@ func main() i32 {
     error: integer literal out of range
       at <test>:3:11
           var x = 3000000000
-                  ^~~~~~~~~~ 3000000000 does not fit in i32
+                  ^~~~~~~~~~ does not fit in i32
+    |}]
+
+let%expect_test "typecheck: i64 max accepted" =
+  run_src
+    {|
+func main() i32 {
+  var _x: i64 = 9223372036854775807
+  return 0
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: u64 max accepted" =
+  run_src
+    {|
+func main() i32 {
+  var _x: u64 = 18446744073709551615
+  return 0
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: i64 max plus one rejected" =
+  run_src
+    {|
+func main() i32 {
+  var _x: i64 = 9223372036854775808
+  return 0
+}
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:17
+          var _x: i64 = 9223372036854775808
+                        ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+    |}]
+
+let%expect_test "typecheck: literal above u64 max rejected by lexer" =
+  run_src
+    {|
+func main() i32 {
+  var _x: u64 = 18446744073709551616
+  return 0
+}
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:17
+          var _x: u64 = 18446744073709551616
+                        ^~~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: negative literal into u64 rejected" =
+  run_src {|
+func main() i32 {
+  var _x: u64 = -1
+  return 0
+}
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:17
+          var _x: u64 = -1
+                        ^~ does not fit in u64
     |}]
