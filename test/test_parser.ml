@@ -473,3 +473,54 @@ func f(x: i32) i32 {
 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "parse: expression body desugars to return" =
+  parse_only "func square(x: i32) i32 = x * x";
+  [%expect
+    {|
+    (Func
+       { name = "square";
+         params =
+         [{ name = "x"; typ = { tdesc = (Named "i32"); span = (15,18) };
+            span = (12,18) }
+           ];
+         ret = (Some { tdesc = (Named "i32"); span = (20,23) });
+         body =
+         [{ sdesc =
+            (Return
+               (Some { desc =
+                       (BinOp (Mul, { desc = (Ident "x"); span = (26,27) },
+                          { desc = (Ident "x"); span = (30,31) }));
+                       span = (26,31) }));
+            span = (24,31) }
+           ];
+         modifiers = []; variadic = false; span = (0,31) })
+    |}]
+
+let%expect_test "parse: expression body typechecks" =
+  run_src
+    {|
+func square(x: i32) i32 = x * x
+func main() i32 { return square(7) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: expression body missing expression" =
+  run_src "func f() i32 =";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:15
+        func f() i32 =
+                      ^ found <eof>
+    |}]
+
+let%expect_test "parse: expression body wrong return type" =
+  run_src "func f() i32 = true";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:16
+        func f() i32 = true
+                       ^~~~ expected i32, found bool
+    |}]

@@ -203,7 +203,9 @@ let parse_params st =
 
 (* i32 *)
 let parse_ret_type st =
-  match st.tok with LBRACE | SEMI | EOF -> None | _ -> Some (parse_typ st)
+  match st.tok with
+  | LBRACE | SEMI | EOF | ASSIGN -> None
+  | _ -> Some (parse_typ st)
 
 (* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
 
@@ -597,8 +599,18 @@ let parse_signature st =
 let parse_func st mods =
   let lo = cur_pos st in
   let name, params, ret, variadic = parse_signature st in
-  skip_semi st;
-  let body = parse_block st in
+  let body =
+    if st.tok = ASSIGN then begin
+      let slo = cur_pos st in
+      advance st;
+      let e = parse_expr st 1 in
+      [ mks slo st (Return (Some e)) ]
+    end
+    else begin
+      skip_semi st;
+      parse_block st
+    end
+  in
   let hi = st.prev_end in
   Func
     { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
