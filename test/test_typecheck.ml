@@ -1716,6 +1716,39 @@ func f() bool {
                  ^
     |}]
 
+let%expect_test "typecheck: struct equality rejected" =
+  run_src
+    {|
+struct P { x: i32 }
+func f() bool {
+  var a: P = P { x: 1 }
+  var b: P = P { x: 1 }
+  return a == b
+}
+|};
+  [%expect
+    {|
+    error: cannot apply `==` to P
+      at <test>:6:10
+          return a == b
+                 ^
+    |}]
+
+let%expect_test "typecheck: void equality rejected" =
+  run_src {|
+func g() {}
+func f() bool {
+  return g() == g()
+}
+|};
+  [%expect
+    {|
+    error: cannot apply `==` to void
+      at <test>:4:10
+          return g() == g()
+                 ^~~
+    |}]
+
 let%expect_test "typecheck: float modulo rejected" =
   run_src {|
 func f() f64 {
