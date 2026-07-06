@@ -272,6 +272,10 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
   | Int n ->
       (* Printf.printf "int %d\n" n; *)
+      if not (int_literal_fits I32 n) then
+        emit env
+          (Error.int_out_of_range e.span ~ty:(show_ty (TInt I32))
+             ~value:(string_of_int n));
       T.mk (TInt I32) (T.TInt n)
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
   | Bool b ->
@@ -422,9 +426,13 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   in
   match e.desc with
   | Int n -> (
-      (* TODO(0ab1): Validate n fits within want (e.g. reject 300 into u8). Also, inferred literals still default to I32 large values overflow. *)
       match want with
-      | TInt _ -> T.mk want (T.TInt n)
+      | TInt kind ->
+          if not (int_literal_fits kind n) then
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty want)
+                 ~value:(string_of_int n));
+          T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
           emit env

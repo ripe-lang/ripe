@@ -18,6 +18,11 @@ let named span msg name = error (Printf.sprintf "%s: %s" msg name) |> at span
 let arity span ~expected ~found =
   error (Printf.sprintf "%s, found %d" expected found) |> at span
 
+let int_out_of_range span ~ty ~value =
+  error "integer literal out of range"
+  |> at span
+  |> label (Printf.sprintf "%s does not fit in %s" value ty)
+
 let unsupported span msg = error (msg ^ " is not yet supported") |> at span
 
 let internal ?span msg =

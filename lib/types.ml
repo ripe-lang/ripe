@@ -23,6 +23,22 @@ type ty =
 let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
 let float_kinds = [ F32; F64 ]
 
+let int_kind_bounds = function
+  | I8 -> (Some (-128), Some 127)
+  | I16 -> (Some (-32768), Some 32767)
+  | I32 -> (Some (-2147483648), Some 2147483647)
+  | U8 -> (Some 0, Some 255)
+  | U16 -> (Some 0, Some 65535)
+  | U32 -> (Some 0, Some 4294967295)
+  | I64 | Isize -> (None, None)
+  | U64 | Usize -> (Some 0, None)
+
+let int_literal_fits kind n =
+  let lo, hi = int_kind_bounds kind in
+  let above_lo = match lo with Some lo -> n >= lo | None -> true in
+  let below_hi = match hi with Some hi -> n <= hi | None -> true in
+  above_lo && below_hi
+
 (* single source for builtin type names used by both parsing and printing *)
 let builtin_tys =
   List.map

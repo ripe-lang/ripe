@@ -1784,3 +1784,82 @@ func g() i32 {
           return
           ^~~~~~
     |}]
+
+let%expect_test "typecheck: int literal out of range rejected" =
+  run_src {|
+func main() i32 {
+  var x: u8 = 300
+  return 0
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:3:7
+          var x: u8 = 300
+              ^
+    help: prefix with an underscore: _x
+    error: integer literal out of range
+      at <test>:3:15
+          var x: u8 = 300
+                      ^~~ 300 does not fit in u8
+    |}]
+
+let%expect_test "typecheck: negative literal into unsigned rejected" =
+  run_src {|
+func main() i32 {
+  var x: u8 = -1
+  return 0
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:3:7
+          var x: u8 = -1
+              ^
+    help: prefix with an underscore: _x
+    error: integer literal out of range
+      at <test>:3:15
+          var x: u8 = -1
+                      ^~ -1 does not fit in u8
+    |}]
+
+let%expect_test "typecheck: int literal at type bound accepted" =
+  run_src
+    {|
+func main() i32 {
+  var x: u8 = 255
+  var y: i8 = -128
+  return 0
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:3:7
+          var x: u8 = 255
+              ^
+    help: prefix with an underscore: _x
+    warning: unused variable: y
+      at <test>:4:7
+          var y: i8 = -128
+              ^
+    help: prefix with an underscore: _y
+    ok
+    |}]
+
+let%expect_test "typecheck: inferred literal overflowing i32 rejected" =
+  run_src {|
+func main() i32 {
+  var x = 3000000000
+  return x
+}
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:11
+          var x = 3000000000
+                  ^~~~~~~~~~ 3000000000 does not fit in i32
+    |}]
