@@ -3060,7 +3060,8 @@ let%expect_test "codegen: unsupported float operation in constant" =
     help: constant initializers must fold to a compile-time value
     |}]
 
-let%expect_test "codegen: variadic call emits ... marker between fixed and variadic args" =
+let%expect_test
+    "codegen: variadic call emits ... marker between fixed and variadic args" =
   run_codegen
     {|
 extern func printf(fmt: cstr, ...) i32
@@ -3068,7 +3069,8 @@ func main() {
   printf("pi = %f\n", 3.14)
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     export function w $main() {
     @start
         %t0 =w call $printf(l $str0, ..., d d_3.1400000000000001)
