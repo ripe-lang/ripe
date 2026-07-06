@@ -506,6 +506,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         add_error env l.span
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
+      (* qbe has no float remainder instruction *)
+      if op = Mod && match t with TFloat _ -> true | _ -> false then
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%%` to %s" (show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->

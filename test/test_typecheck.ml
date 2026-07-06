@@ -1749,6 +1749,20 @@ func f() bool {
                  ^~~
     |}]
 
+let%expect_test "typecheck: float modulo rejected" =
+  run_src {|
+func f() f64 {
+  return 5.0 % 2.0
+}
+|};
+  [%expect
+    {|
+    error: cannot apply `%` to f64
+      at <test>:3:10
+          return 5.0 % 2.0
+                 ^~~
+    |}]
+
 let%expect_test "typecheck: bare return in main accepted" =
   run_src {|
 func main() i32 {
