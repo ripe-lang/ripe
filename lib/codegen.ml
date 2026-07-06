@@ -745,9 +745,7 @@ and emit_assign ctx l r _t =
   | T.TIndex (base, idx) ->
       let elem = l.T.ty in
       let addr = emit_index_addr ctx base idx elem in
-      let rv = emit_expr ctx r in
-      emit ctx "    %s %s, %s\n" (qbe_store elem) rv addr;
-      rv
+      emit_store_into ctx elem addr r
   | T.TIdent name when is_aggregate l.T.ty ->
       let t = l.T.ty in
       let base =

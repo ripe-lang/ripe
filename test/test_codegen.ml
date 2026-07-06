@@ -58,6 +58,102 @@ func f() { n = n + 1 }
     }
     |}]
 
+let%expect_test
+    "codegen: array literal assigned into an element copies its cells" =
+  run_codegen
+    {|
+func main() i32 {
+  var m: [2][2]i32 = [[1, 2], [3, 4]]
+  m[0] = [9, 8]
+  return m[0][0] + m[0][1]
+}
+|};
+  [%expect
+    {|
+    export function w $main() {
+    @start
+        %m =l alloc4 16
+        storew 1, %m
+        %t0 =l add %m, 4
+        storew 2, %t0
+        %t1 =l add %m, 8
+        storew 3, %t1
+        %t2 =l add %t1, 4
+        storew 4, %t2
+        %t3 =l extsw 0
+        %t4 =l mul %t3, 8
+        %t5 =l add %m, %t4
+        storew 9, %t5
+        %t6 =l add %t5, 4
+        storew 8, %t6
+        %t7 =l extsw 0
+        %t8 =l mul %t7, 8
+        %t9 =l add %m, %t8
+        %t10 =l extsw 0
+        %t11 =l mul %t10, 4
+        %t12 =l add %t9, %t11
+        %t13 =w loadsw %t12
+        %t14 =l extsw 0
+        %t15 =l mul %t14, 8
+        %t16 =l add %m, %t15
+        %t17 =l extsw 1
+        %t18 =l mul %t17, 4
+        %t19 =l add %t16, %t18
+        %t20 =w loadsw %t19
+        %t21 =w add %t13, %t20
+        ret %t21
+    }
+    |}]
+
+let%expect_test
+    "codegen: aggregate element assigned from another element copies bytes" =
+  run_codegen
+    {|
+func main() i32 {
+  var m: [2][2]i32 = [[1, 2], [3, 4]]
+  m[0] = m[1]
+  return m[0][0] + m[0][1]
+}
+|};
+  [%expect
+    {|
+    export function w $main() {
+    @start
+        %m =l alloc4 16
+        storew 1, %m
+        %t0 =l add %m, 4
+        storew 2, %t0
+        %t1 =l add %m, 8
+        storew 3, %t1
+        %t2 =l add %t1, 4
+        storew 4, %t2
+        %t3 =l extsw 0
+        %t4 =l mul %t3, 8
+        %t5 =l add %m, %t4
+        %t6 =l extsw 1
+        %t7 =l mul %t6, 8
+        %t8 =l add %m, %t7
+        %t9 =l loadl %t8
+        storel %t9, %t5
+        %t10 =l extsw 0
+        %t11 =l mul %t10, 8
+        %t12 =l add %m, %t11
+        %t13 =l extsw 0
+        %t14 =l mul %t13, 4
+        %t15 =l add %t12, %t14
+        %t16 =w loadsw %t15
+        %t17 =l extsw 0
+        %t18 =l mul %t17, 8
+        %t19 =l add %m, %t18
+        %t20 =l extsw 1
+        %t21 =l mul %t20, 4
+        %t22 =l add %t19, %t21
+        %t23 =w loadsw %t22
+        %t24 =w add %t16, %t23
+        ret %t24
+    }
+    |}]
+
 let%expect_test "codegen: address-of local" =
   run_codegen {|
 func f() {
