@@ -296,3 +296,11 @@ A cstr round trips through an extern strlen call.
   >   return strlen(s) as i32
   > }'
   [cstr_strlen exit=5]
+
+A bare return in main exits with 0 like falling off the end.
+
+  $ run bare_return_main 'func main() i32 {
+  >   if true { return }
+  >   return 1
+  > }'
+  [bare_return_main exit=0]

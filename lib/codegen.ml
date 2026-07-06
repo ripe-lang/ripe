@@ -227,6 +227,7 @@ type ctx = {
   const_vals : (string, string) Hashtbl.t;
   const_inits : (string, T.texpr) Hashtbl.t;
   entry : Buffer.t ref;
+  in_main : bool ref;
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -1055,7 +1056,9 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot);
       bind_local ctx name slot
   | T.TReturn None ->
-      if not !(ctx.terminated) then emit ctx "    ret\n";
+      (* a bare return in main exits with 0 like falling off the end *)
+      if not !(ctx.terminated) then
+        if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
       ctx.terminated := true
   | T.TReturn (Some e) ->
       let v = emit_expr ctx e in
@@ -1252,6 +1255,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
 
   (* TODO(6e33): Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
+  ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
   (* TODO(572b): export pub functions *)
@@ -1531,6 +1535,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       const_vals = Hashtbl.create 16;
       const_inits = Hashtbl.create 16;
       entry = ref (Buffer.create 64);
+      in_main = ref false;
     }
   in
 

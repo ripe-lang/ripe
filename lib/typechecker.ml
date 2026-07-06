@@ -25,6 +25,7 @@ type env = {
   newtypes : (string, ty) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
+  in_main : bool;
   diags : Diagnostic.sink;
 }
 
@@ -38,6 +39,7 @@ let make_env () : env =
     newtypes = Hashtbl.create 8;
     ret_ty = TVoid;
     in_loop = false;
+    in_main = false;
     diags = Diagnostic.sink ();
   }
 
@@ -648,7 +650,8 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       in
       (extend_var env nspan name t, T.TVar (name, t, te))
   | Return None ->
-      if env.ret_ty <> TVoid then
+      (* FIXME: revisit once I decide how implicit and explicit returns work *)
+      if env.ret_ty <> TVoid && not env.in_main then
         add_error env s.span "empty return in non-void function";
       (env, T.TReturn None)
   | Return (Some e) ->
@@ -759,7 +762,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   let ret_ty = ret_ty_of env fd in
 
-  let func_env = push_scope { env with ret_ty } in
+  let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
   (* params pre-marked used so they don't warn *)
   let param_env =
     List.fold_left
