@@ -1762,3 +1762,25 @@ func f() f64 {
           return 5.0 % 2.0
                  ^~~
     |}]
+
+let%expect_test "typecheck: bare return in main accepted" =
+  run_src {|
+func main() i32 {
+  return
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: bare return in non-main i32 rejected" =
+  run_src {|
+func g() i32 {
+  return
+}
+|};
+  [%expect
+    {|
+    error: empty return in non-void function
+      at <test>:3:3
+          return
+          ^~~~~~
+    |}]
