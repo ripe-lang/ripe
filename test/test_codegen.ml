@@ -58,15 +58,18 @@ func f() { n = n + 1 }
     }
     |}]
 
-let%expect_test "codegen: array literal assigned into an element copies its cells" =
-  run_codegen {|
+let%expect_test
+    "codegen: array literal assigned into an element copies its cells" =
+  run_codegen
+    {|
 func main() i32 {
   var m: [2][2]i32 = [[1, 2], [3, 4]]
   m[0] = [9, 8]
   return m[0][0] + m[0][1]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     export function w $main() {
     @start
         %m =l alloc4 16
@@ -102,15 +105,18 @@ func main() i32 {
     }
     |}]
 
-let%expect_test "codegen: aggregate element assigned from another element copies bytes" =
-  run_codegen {|
+let%expect_test
+    "codegen: aggregate element assigned from another element copies bytes" =
+  run_codegen
+    {|
 func main() i32 {
   var m: [2][2]i32 = [[1, 2], [3, 4]]
   m[0] = m[1]
   return m[0][0] + m[0][1]
 }
 |};
-  [%expect {|
+  [%expect
+    {|
     export function w $main() {
     @start
         %m =l alloc4 16
