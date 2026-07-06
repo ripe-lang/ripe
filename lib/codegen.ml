@@ -335,7 +335,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       incr ctx.str_ctr;
       ctx.strings := (lbl, s) :: !(ctx.strings);
       lbl
-  | T.TCall (name, args) ->
+  | T.TCall (name, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
         List.rev
@@ -343,6 +343,16 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
              (fun (a : T.texpr) ->
                Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
              args)
+      in
+      (* the ... marker between fixed and variadic args tells QBE to set the
+         vararg register count on amd64 SysV *)
+      let arg_strs =
+        match fixed_count with
+        | Some n ->
+            let fixed = List.filteri (fun i _ -> i < n) arg_strs in
+            let rest = List.filteri (fun i _ -> i >= n) arg_strs in
+            fixed @ ("..." :: rest)
+        | None -> arg_strs
       in
       (* local var holding a fn ptr: load then call indirectly *)
       let callee =

@@ -297,6 +297,17 @@ A cstr round trips through an extern strlen call.
   > }'
   [cstr_strlen exit=5]
 
+A float passed to a variadic printf reads back correctly, which needs the
+... marker so the vararg register count is set.
+
+  $ run printf_float_vararg 'extern func printf(fmt: cstr, ...) i32
+  > func main() i32 {
+  >   printf("%.2f\n", 3.14)
+  >   return 0
+  > }'
+  3.14
+  [printf_float_vararg exit=0]
+
 A bare return in main exits with 0 like falling off the end.
 
   $ run bare_return_main 'func main() i32 {

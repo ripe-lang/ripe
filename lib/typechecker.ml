@@ -295,14 +295,17 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | Some (TFunc (param_tys, ret_ty)) ->
           let sig_ = { param_tys; ret_ty; variadic = false } in
           let targs = check_args env e.span sig_ args in
-          T.mk ret_ty (T.TCall (name, targs))
+          T.mk ret_ty (T.TCall (name, targs, None))
       | Some _ ->
           emit env (Error.named e.span "not callable" name);
           dummy_texpr
       | None ->
           let sig_ = lookup_func env e.span name in
           let targs = check_args env e.span sig_ args in
-          T.mk sig_.ret_ty (T.TCall (name, targs)))
+          let fixed_count =
+            if sig_.variadic then Some (List.length sig_.param_tys) else None
+          in
+          T.mk sig_.ret_ty (T.TCall (name, targs, fixed_count)))
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
