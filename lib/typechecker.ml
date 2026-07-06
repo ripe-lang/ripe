@@ -789,6 +789,13 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   let ret_ty = ret_ty_of env fd in
 
+  if fd.name = "main" && ret_ty <> TInt I32 then begin
+    let span = match fd.ret with Some t -> t.span | None -> fd.span in
+    emit env
+      (Error.type_mismatch span ~expected:(show_ty (TInt I32))
+         ~found:(show_ty ret_ty))
+  end;
+
   let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
   (* params pre-marked used so they don't warn *)
   let param_env =
