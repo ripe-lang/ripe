@@ -70,6 +70,24 @@ A 2D array indexes row major and a write only touches its own cell.
   > }'
   [2d_array_write exit=9]
 
+Assigning an array literal into a row copies its cells, not a pointer.
+
+  $ run 2d_row_assign 'func main() i32 {
+  >   var m: [2][2]i32 = [[1, 2], [3, 4]]
+  >   m[0] = [9, 8]
+  >   return m[0][0] + m[0][1]
+  > }'
+  [2d_row_assign exit=17]
+
+Assigning one row into another copies its bytes through.
+
+  $ run 2d_row_copy 'func main() i32 {
+  >   var m: [2][2]i32 = [[1, 2], [3, 4]]
+  >   m[0] = m[1]
+  >   return m[0][0] + m[0][1]
+  > }'
+  [2d_row_copy exit=7]
+
 A function pointer variable can be reassigned and called through.
 
   $ run funcptr_var 'func f() i32 { return 3 }
