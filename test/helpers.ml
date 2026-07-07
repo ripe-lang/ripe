@@ -5,6 +5,35 @@ let parse src =
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
 
+let tok_str (t : Ripe.Tokens.token) =
+  let open Ripe.Tokens in
+  match t with
+  | IDENT s -> "IDENT " ^ s
+  | INT n -> "INT " ^ Int64.to_string n
+  | FLOAT f -> "FLOAT " ^ string_of_float f
+  | STRING_START -> "STRING_START"
+  | STRING_END -> "STRING_END"
+  | STRING_PART s -> "STRING_PART " ^ String.escaped s
+  | INTERP_START -> "INTERP_START"
+  | INTERP_END -> "INTERP_END"
+  | SEMI -> "SEMI"
+  | EOF -> "EOF"
+  | ERROR s -> "ERROR " ^ s
+  | other ->
+      if List.exists (fun (_, t') -> t' = other) keywords then
+        "KW " ^ show_token other
+      else show_token other
+
+let dump_tokens src =
+  let st = Ripe.Lexer.make_state () in
+  let lexbuf = Lexing.from_string src in
+  let rec go () =
+    let t = Ripe.Lexer.read st lexbuf in
+    print_endline (tok_str t);
+    if t <> Ripe.Tokens.EOF then go ()
+  in
+  go ()
+
 let ctx src =
   {
     Ripe.Diagnostic.sm = Ripe.Source_map.create src;

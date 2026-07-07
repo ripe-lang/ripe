@@ -3131,3 +3131,90 @@ func main() i32 {
 
     data $str.0 = { b "hi", b 0 }
     |}]
+
+let%expect_test "codegen: sizeof struct" =
+  run_codegen
+    {|
+struct S { a: i32, b: i32 }
+func f() i64 { return sizeof(S) as i64 }
+|};
+  [%expect
+    {|
+    type :S = { w, w }
+
+    function l $f() {
+    @start
+        %t0 =l copy 8
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: sizeof array" =
+  run_codegen "func f() i64 { return sizeof([4]i32) as i64 }";
+  [%expect
+    {|
+    function l $f() {
+    @start
+        %t0 =l copy 16
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: newtype local round-trips through its base" =
+  run_codegen
+    {|
+newtype Id = i32
+func main() i32 {
+  var a: Id = 5 as Id
+  return a as i32
+}
+|};
+  [%expect
+    {|
+    export function w $main() {
+    @start
+        %a =l alloc4 4
+        %t0 =w copy 5
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w copy %t1
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: call result through a local fn ptr stored" =
+  run_codegen
+    {|
+func add(a: i32, b: i32) i32 { return a + b }
+func main() i32 {
+  var op = add
+  var r = op(2, 3)
+  return r
+}
+|};
+  [%expect
+    {|
+    function w $add(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w add %t2, %t3
+        ret %t4
+    }
+
+    export function w $main() {
+    @start
+        %op =l alloc8 8
+        storel $add, %op
+        %r =l alloc4 4
+        %t0 =l loadl %op
+        %t1 =w call %t0(w 2, w 3)
+        storew %t1, %r
+        %t2 =w loadsw %r
+        ret %t2
+    }
+    |}]

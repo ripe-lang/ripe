@@ -6,10 +6,12 @@
   (pps ppx_expect ppx_inline_test))
  (modules
   helpers
+  test_lexer
   test_parser
   test_typecheck
   test_codegen
   test_source_map
   test_diagnostic
   test_symbol
-  test_resolve))
+  test_resolve
+  test_error))

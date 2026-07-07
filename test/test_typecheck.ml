@@ -1950,3 +1950,50 @@ let%expect_test "typecheck: non-i32 main rejected" =
         func main() f64 { return 0.0 }
                     ^~~ expected i32, found f64
     |}]
+
+let%expect_test "typecheck: type alias is transparent to its base" =
+  run_src
+    {|
+type Meters = i32
+func f() i32 { var d: Meters = 5  return d + 1 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias of a struct allows field access" =
+  run_src
+    {|
+struct Point { x: i32, y: i32 }
+type Pt = Point
+func f() i32 { var p: Pt = Point { x: 1, y: 2 }  return p.x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias of a function pointer is callable" =
+  run_src
+    {|
+type BinOp = (i32, i32) i32
+func add(a: i32, b: i32) i32 { return a + b }
+func f() i32 { var op: BinOp = add  return op(2, 3) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: newtype value satisfies its own parameter" =
+  run_src
+    {|
+newtype Id = i32
+func take(x: Id) i32 { return 0 }
+func f() i32 { var a: Id = 5 as Id  return take(a) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: sizeof of a struct type" =
+  run_src
+    {|
+struct S { a: i32, b: i32 }
+func f() i64 { return sizeof(S) as i64 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: sizeof of an array type" =
+  run_src "func f() i64 { return sizeof([4]i32) as i64 }";
+  [%expect {| ok |}]
