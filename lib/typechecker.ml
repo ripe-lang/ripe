@@ -6,9 +6,6 @@ open Ast
 open Types
 module T = Typed_ast
 
-(* TODO(0d41): I should be allowed to shadow function name with a variable but not
-with another function in the same scope. (same with structs) *)
-
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
 (* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
 
@@ -27,9 +24,10 @@ type env = {
   in_loop : bool;
   in_main : bool;
   diags : Diagnostic.sink;
+  uses : Resolve.t;
 }
 
-let make_env () : env =
+let make_env (uses : Resolve.t) : env =
   {
     vars = [];
     funcs = Hashtbl.create 16;
@@ -41,8 +39,10 @@ let make_env () : env =
     in_loop = false;
     in_main = false;
     diags = Diagnostic.sink ();
+    uses;
   }
 
+let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
 let dummy_texpr = T.mk (TInt I32) (T.TInt 0L)
@@ -145,7 +145,6 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 (* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
-  (* Printf.printf "Comparing %s with %s\n" (show_ty want) (show_ty got); *)
   match (want, got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
@@ -168,27 +167,8 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
 (* First pass collecting signatures so that the compiler
    can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
-  (* Printf.printf "Signature: %s\n%!" fd.name; *)
-
-  (* Map AST to internal type to define the functions global
-  signature *)
-  let param_tys =
-    List.map
-      (fun (p : param) ->
-        let t = ty_of_ast env p.typ in
-        (* Printf.printf "%s: %s\n%!" p.name (show_ty t); *)
-        t)
-      fd.params
-  in
-
+  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
   let ret_ty = ret_ty_of env fd in
-  (* Printf.printf "returns: %s\n%!" (show_ty ret_ty); *)
-
-  (* FIXME(79e6): Check for duplicate function/extern definitions. Need to fix
-     how extern foo() and a local foo() with the same name *)
-  (* if Hashtbl.mem env.funcs fd.name then
-    raise (TypeError ("function already defined: " ^ fd.name)) *)
-
   Hashtbl.replace env.funcs fd.name
     { param_tys; ret_ty; variadic = fd.variadic }
 
@@ -229,8 +209,6 @@ let collect_newtype (env : env) (td : type_alias_def) : unit =
 let collect_global (env : env) (gd : global_def) : unit =
   if gd.is_const && gd.init = None then
     emit env (Error.named gd.span "const without initializer" gd.name);
-  if Hashtbl.mem env.globals gd.name || Hashtbl.mem env.funcs gd.name then
-    emit env (Error.named gd.span "already defined" gd.name);
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.is_const)
 
@@ -263,7 +241,6 @@ let rec is_comparable = function
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
-(* Figure out the type*)
 (* stamp the source span here so the mk sites underneath stay span free *)
 let rec synth (env : env) (e : expr) : T.texpr =
   { (synth_desc env e) with T.span = e.span }
@@ -271,43 +248,37 @@ let rec synth (env : env) (e : expr) : T.texpr =
 and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
   | Int n ->
-      (* Printf.printf "int %d\n" n; *)
       if Int64.unsigned_compare n (int_kind_pos_limit I32) > 0 then
         emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt I32)));
       T.mk (TInt I32) (T.TInt n)
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
-  | Bool b ->
-      (* Printf.printf "bool %b\n" b; *)
-      T.mk TBool (T.TBool b)
-  | Null ->
-      (* print_endline "null"; *)
-      T.mk TNull T.TNull
-  | String s ->
-      (* Printf.printf "string \"%s\"\n" s; *)
-      T.mk (TPointer (TInt I8)) (T.TCStr s)
-  | Char c ->
-      (* Printf.printf "char: '%c'\n" c; *)
-      T.mk (TInt I32) (T.TChar c)
+  | Bool b -> T.mk TBool (T.TBool b)
+  | Null -> T.mk TNull T.TNull
+  | String s -> T.mk (TPointer (TInt I8)) (T.TCStr s)
+  | Char c -> T.mk (TInt I32) (T.TChar c)
   | Ident name ->
       let t = lookup_var env e.span name in
-      (* Printf.printf "ident: `%s` (found type: %s)\n" name (show_ty t); *)
-      T.mk t (T.TIdent name)
+      T.mk t (T.TIdent (sym env e.span))
   | Call (name, args) -> (
-      match lookup_var_opt env name with
-      | Some (TFunc (param_tys, ret_ty)) ->
-          let sig_ = { param_tys; ret_ty; variadic = false } in
-          let targs = check_args env e.span sig_ args in
-          T.mk ret_ty (T.TCall (name, targs, None))
-      | Some _ ->
-          emit env (Error.named e.span "not callable" name);
-          dummy_texpr
-      | None ->
-          let sig_ = lookup_func env e.span name in
-          let targs = check_args env e.span sig_ args in
-          let fixed_count =
-            if sig_.variadic then Some (List.length sig_.param_tys) else None
-          in
-          T.mk sig_.ret_ty (T.TCall (name, targs, fixed_count)))
+      let callee = sym env e.span in
+      if Symbol.is_func callee.kind then
+        let sig_ = lookup_func env e.span name in
+        let targs = check_args env e.span sig_ args in
+        let fixed_count =
+          if sig_.variadic then Some (List.length sig_.param_tys) else None
+        in
+        T.mk sig_.ret_ty (T.TCall (callee, targs, fixed_count))
+      else
+        (* The callee isn't a function so it has to be a value holding a fn
+           ptr. *)
+        match resolve_ty (lookup_var env e.span name) with
+        | TFunc (param_tys, ret_ty) ->
+            let sig_ = { param_tys; ret_ty; variadic = false } in
+            let targs = check_args env e.span sig_ args in
+            T.mk ret_ty (T.TCall (callee, targs, None))
+        | _ ->
+            emit env (Error.named e.span "not callable" name);
+            dummy_texpr)
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
@@ -400,7 +371,6 @@ and synth_desc (env : env) (e : expr) : T.texpr =
             info.field_tys
         in
         T.mk (TStruct name) (T.TStructLit (name, tfields))
-(* | _ -> failwith ("Expression not yet implemented: " ^ show_expr e) *)
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
@@ -468,13 +438,11 @@ and check_range_bounds (env : env) (lo : expr) (hi : expr) =
   let tlo, thi, t =
     (* lone literal on the left, typed on the right: bend the literal to hi *)
     if is_int_literal lo && not (is_int_literal hi) then
-      (* Printf.eprintf "range: branch 1 (bend literal lo to hi)\n"; *)
       let thi = synth env hi in
       let t = thi.T.ty in
       (check env lo t, thi, t)
-    (* otherwise anchor on lo and check hi against it (also covers two literals) *)
-      else
-      (* Printf.eprintf "range: branch 2 (anchor on lo)\n"; *)
+      (* otherwise anchor on lo and check hi against it (also covers two literals) *)
+    else
       let tlo = synth env lo in
       let t = tlo.T.ty in
       (tlo, check env hi t, t)
@@ -558,15 +526,18 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       if not (is_lvalue tl) then
         add_error env l.span "cannot assign to expression";
-      (* reject assignment to a const global *)
       (match tl.T.desc with
-      | TIdent name when is_const_global env name ->
-          emit env (Error.named l.span "cannot assign to const" name)
+      | TIdent s when Symbol.is_func s.kind ->
+          emit env (Error.named l.span "cannot assign to function" s.name)
+      (* This catches assignment to a const whether it's local or global. *)
+      | TIdent s
+        when s.kind = Const
+             || (Symbol.is_global s.kind && is_const_global env s.name) ->
+          emit env (Error.named l.span "cannot assign to const" s.name)
       | _ -> ());
       let t = tl.T.ty in
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
-(* | _ -> failwith ("Operator not yet implemented: " ^ show_binop op) *)
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
@@ -657,7 +628,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
             let te = synth env e in
             (te.T.ty, te)
       in
-      (extend_var env nspan name t, T.TConst (name, t, te))
+      (extend_var env nspan name t, T.TConst (sym env nspan, t, te))
   | Var (name, nspan, ann, e) ->
       let t, te =
         match (ann, e) with
@@ -675,7 +646,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
             emit env (Error.named nspan "cannot infer type" name);
             (TInt I32, dummy_texpr)
       in
-      (extend_var env nspan name t, T.TVar (name, t, te))
+      (extend_var env nspan name t, T.TVar (sym env nspan, t, te))
   | Return None ->
       (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
       if env.ret_ty <> TVoid && not env.in_main then
@@ -734,7 +705,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       let inner = extend_var inner nspan name elem_ty in
       let final_inner, tbody = check_stmts inner body in
       warn_unused_in_scope final_inner;
-      (env, T.TFor (name, elem_ty, titer, tbody))
+      (env, T.TFor (sym env nspan, elem_ty, titer, tbody))
   | Break ->
       if not env.in_loop then add_error env s.span "break outside loop";
       (env, T.TBreak)
@@ -748,7 +719,6 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (env, T.TBlock tstmts)
 
 (* TODO(0c77): push/pop scope for match arms when match is implemented *)
-(* | _ -> failwith ("Statement not yet implemented: " ^ show_stmt s) *)
 
 (* Performance critical since this pass walks every statement *)
 and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
@@ -785,7 +755,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
       (fun (p : param) -> (p.name, ty_of_ast env p.typ, p.span))
       fd.params
   in
-  let params = List.map (fun (name, t, _) -> (name, t)) params_typed in
+  let params = List.map (fun (_, t, span) -> (sym env span, t)) params_typed in
 
   let ret_ty = ret_ty_of env fd in
 
@@ -827,7 +797,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   match te.T.desc with
   | TInt _ | TFloat _ | TBool _ | TNull | TChar _ | TCStr _ | TSizeOf _ -> true
-  | TIdent name -> is_const_global env name
+  (* A function address is a link time constant. *)
+  | TIdent s -> Symbol.is_func s.kind || is_const_global env s.name
   | TUnOp (_, e) -> is_const_texpr env e
   | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
   | TCast e -> is_const_texpr env e
@@ -874,11 +845,11 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   | Newtype td ->
       let t = Hashtbl.find env.newtypes td.name in
       T.TNewtype (td.name, t)
-(* | _ -> failwith "Declaration not supported yet" *)
 
 (* hands warnings back for the edge to render and blows up on any error *)
-let typecheck (decls : decl list) : T.tdecl list * Diagnostic.t list =
-  let env = make_env () in
+let typecheck (uses : Resolve.t) (decls : decl list) :
+    T.tdecl list * Diagnostic.t list =
+  let env = make_env uses in
   List.iter (collect_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
   let all = Diagnostic.drain env.diags in

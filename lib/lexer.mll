@@ -134,7 +134,6 @@ and read_main st = parse
   | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
 
 
-(* TODO: pass buffer as param instead of global and handle illegal escape *)
 and read_string st = parse
   | '"'  { if Buffer.length st.buf > 0 then begin
              Queue.push (STRING_PART (Buffer.contents st.buf)) st.token_queue;

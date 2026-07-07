@@ -203,18 +203,26 @@ func f() { op(1, 2) }
 |};
   [%expect
     {|
-    error: initializer must be constant: op
-      at <test>:3:26
-        var op: (i32, i32) i32 = add
-                                 ^~~
-    error: undefined function: op
-      at <test>:4:12
-        func f() { op(1, 2) }
-                   ^~~~~~~~
-    error: expected 0 arguments, found 2
-      at <test>:4:12
-        func f() { op(1, 2) }
-                   ^~~~~~~~
+    data $op = align 8 { l $add }
+
+    function w $add(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w add %t2, %t3
+        ret %t4
+    }
+
+    function $f() {
+    @start
+        %t0 =l loadl $op
+        %t1 =w call %t0(w 1, w 2)
+        ret
+    }
     |}]
 
 let%expect_test "codegen: simple add return" =
@@ -599,7 +607,7 @@ func f() cstr { return msg }
 |};
   [%expect
     {|
-    data $msg = align 8 { l $str0 }
+    data $msg = align 8 { l $str.0 }
 
     function l $f() {
     @start
@@ -607,7 +615,7 @@ func f() cstr { return msg }
         ret %t0
     }
 
-    data $str0 = { b "hello", b 0 }
+    data $str.0 = { b "hello", b 0 }
     |}]
 
 let%expect_test "codegen: deref read local ptr" =
@@ -1724,13 +1732,13 @@ func f() i32 {
     @start
         %x =l alloc4 4
         storew 1, %x
-        %x.0 =l alloc4 4
-        storew 2, %x.0
-        %t1 =w loadsw %x.0
-        %t2 =w add %t1, 5
-        storew %t2, %x.0
-        %t3 =w loadsw %x
-        ret %t3
+        %x.2 =l alloc4 4
+        storew 2, %x.2
+        %t0 =w loadsw %x.2
+        %t1 =w add %t0, 5
+        storew %t1, %x.2
+        %t2 =w loadsw %x
+        ret %t2
     }
     |}]
 
@@ -1749,12 +1757,12 @@ func f() i32 {
     @start
         %x =l alloc4 4
         storew 1, %x
-        %x.0 =l alloc4 4
-        %t1 =w loadsw %x
-        %t2 =w add %t1, 4
-        storew %t2, %x.0
-        %t3 =w loadsw %x.0
-        ret %t3
+        %x.2 =l alloc4 4
+        %t0 =w loadsw %x
+        %t1 =w add %t0, 4
+        storew %t1, %x.2
+        %t2 =w loadsw %x.2
+        ret %t2
     }
     |}]
 
@@ -1839,24 +1847,24 @@ func f() i32 {
     @start
         %i =l alloc4 4
         storew 99, %i
-        %i.1 =l alloc4 4
-        storew 0, %i.1
+        %i.2 =l alloc4 4
+        storew 0, %i.2
     @for.cond0
-        %t2 =w loadsw %i.1
-        %t3 =w csltw %t2, 3
-        jnz %t3, @for.body0, @for.end0
+        %t1 =w loadsw %i.2
+        %t2 =w csltw %t1, 3
+        jnz %t2, @for.body0, @for.end0
     @for.body0
         %y =l alloc4 4
-        %t4 =w loadsw %i.1
-        storew %t4, %y
+        %t3 =w loadsw %i.2
+        storew %t3, %y
     @for.cont0
-        %t5 =w loadsw %i.1
-        %t6 =w add %t5, 1
-        storew %t6, %i.1
+        %t4 =w loadsw %i.2
+        %t5 =w add %t4, 1
+        storew %t5, %i.2
         jmp @for.cond0
     @for.end0
-        %t7 =w loadsw %i
-        ret %t7
+        %t6 =w loadsw %i
+        ret %t6
     }
     |}]
 
@@ -1886,15 +1894,15 @@ func f(n: i32) i32 {
         %t4 =w csltw %t2, %t3
         jnz %t4, @while.body1, @while.end1
     @while.body1
-        %x.5 =l alloc4 4
-        storew 100, %x.5
-        %t6 =w loadsw %x.5
-        %t7 =w add %t6, 1
-        storew %t7, %x.5
+        %x.3 =l alloc4 4
+        storew 100, %x.3
+        %t5 =w loadsw %x.3
+        %t6 =w add %t5, 1
+        storew %t6, %x.3
         jmp @while.cond1
     @while.end1
-        %t8 =w loadsw %x
-        ret %t8
+        %t7 =w loadsw %x
+        ret %t7
     }
     |}]
 
@@ -1913,10 +1921,10 @@ func f() i64 {
     @start
         %x =l alloc4 4
         storew 1, %x
-        %x.0 =l alloc8 8
-        storel 2, %x.0
-        %t1 =l loadl %x.0
-        ret %t1
+        %x.2 =l alloc8 8
+        storel 2, %x.2
+        %t0 =l loadl %x.2
+        ret %t0
     }
     |}]
 
@@ -1942,12 +1950,12 @@ func f() i32 {
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
-        %p.1 =l alloc8 8
-        storew 3, %p.1
-        %t2 =l add %p.1, 4
-        storew 4, %t2
-        %t3 =w loadsw %p
-        ret %t3
+        %p.2 =l alloc8 8
+        storew 3, %p.2
+        %t1 =l add %p.2, 4
+        storew 4, %t1
+        %t2 =w loadsw %p
+        ret %t2
     }
     |}]
 
@@ -1973,18 +1981,18 @@ func f() i32 {
     @start
         %x =l alloc4 4
         storew 1, %x
-        %x.0 =l alloc4 4
-        storew 2, %x.0
-        %x.1 =l alloc4 4
-        storew 3, %x.1
-        %t2 =w loadsw %x.1
+        %x.2 =l alloc4 4
+        storew 2, %x.2
+        %x.3 =l alloc4 4
+        storew 3, %x.3
+        %t0 =w loadsw %x.3
+        %t1 =w add %t0, 1
+        storew %t1, %x.3
+        %t2 =w loadsw %x.2
         %t3 =w add %t2, 1
-        storew %t3, %x.1
-        %t4 =w loadsw %x.0
-        %t5 =w add %t4, 1
-        storew %t5, %x.0
-        %t6 =w loadsw %x
-        ret %t6
+        storew %t3, %x.2
+        %t4 =w loadsw %x
+        ret %t4
     }
     |}]
 
@@ -2006,13 +2014,13 @@ func f() i32 {
     @start
         %x =l alloc4 4
         storew 1, %x
-        %x.0 =l alloc4 4
-        storew 10, %x.0
-        %t1 =w loadsw %x.0
-        %t2 =w add %t1, 5
-        storew %t2, %x.0
-        %t3 =w loadsw %x
-        ret %t3
+        %x.2 =l alloc4 4
+        storew 10, %x.2
+        %t0 =w loadsw %x.2
+        %t1 =w add %t0, 5
+        storew %t1, %x.2
+        %t2 =w loadsw %x
+        ret %t2
     }
     |}]
 
@@ -3073,9 +3081,53 @@ func main() {
     {|
     export function w $main() {
     @start
-        %t0 =w call $printf(l $str0, ..., d d_3.1400000000000001)
+        %t0 =w call $printf(l $str.0, ..., d d_3.1400000000000001)
         ret 0
     }
 
-    data $str0 = { b "pi = %f\n", b 0 }
+    data $str.0 = { b "pi = %f\n", b 0 }
+    |}]
+
+let%expect_test "codegen: binder spelled like a temp gets a suffix" =
+  run_codegen {|
+func main() i32 {
+  var t0: i32 = 5
+  t0 = 9
+  return t0
+}
+|};
+  [%expect
+    {|
+    export function w $main() {
+    @start
+        %t0.1 =l alloc4 4
+        storew 5, %t0.1
+        storew 9, %t0.1
+        %t0 =w loadsw %t0.1
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: global sharing a string label name" =
+  run_codegen
+    {|
+var str0: i32 = 7
+func main() i32 {
+  const _s: cstr = "hi"
+  return str0
+}
+|};
+  [%expect
+    {|
+    data $str0 = align 4 { w 7 }
+
+    export function w $main() {
+    @start
+        %_s =l alloc8 8
+        storel $str.0, %_s
+        %t0 =w loadsw $str0
+        ret %t0
+    }
+
+    data $str.0 = { b "hi", b 0 }
     |}]

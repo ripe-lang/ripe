@@ -148,11 +148,9 @@ let parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
     (* TODO(9ee0): parse modifiers *)
-    (* let mods = parse_modifiers st in *)
     let name, nspan = expect_ident_span st in
     expect st COLON;
     let t = parse_typ st in
-    (* Replace modifiers with modifiers = mods *)
     fields :=
       ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
     if st.tok = COMMA then advance st;

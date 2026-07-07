@@ -15,6 +15,10 @@ let undefined_name span kind name =
 (* thing: name, terse fragment, lowercase, no trailing period *)
 let named span msg name = error (Printf.sprintf "%s: %s" msg name) |> at span
 
+(* The prev span marks the original binder so both ends are on screen. *)
+let redefinition span ~prev name =
+  named span "already defined" name |> secondary prev "previous definition here"
+
 let arity span ~expected ~found =
   error (Printf.sprintf "%s, found %d" expected found) |> at span
 

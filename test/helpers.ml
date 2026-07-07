@@ -15,7 +15,8 @@ let ctx src =
 let run_src src =
   try
     let decls = parse src in
-    let _, warns = Ripe.Typechecker.typecheck decls in
+    let uses = Ripe.Resolve.resolve decls in
+    let _, warns = Ripe.Typechecker.typecheck uses decls in
     List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) warns;
     print_endline "ok"
   with Ripe.Diagnostic.Errors diags ->
@@ -65,7 +66,8 @@ let check_qbe il =
 let run_codegen src =
   try
     let decls = parse src in
-    let tdecls, _ = Ripe.Typechecker.typecheck decls in
+    let uses = Ripe.Resolve.resolve decls in
+    let tdecls, _ = Ripe.Typechecker.typecheck uses decls in
     let il = Ripe.Codegen.emit_qbe tdecls in
     print_string il;
     check_qbe il

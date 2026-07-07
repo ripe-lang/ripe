@@ -42,10 +42,6 @@ let%expect_test "parse: hex/binary literals" =
   run_src "func f() i32 { return 0xff + 0b1010 }";
   [%expect
     {|
-    warning: unreachable code
-      at <test>:1:24
-        func f() i32 { return 0xff + 0b1010 }
-                               ^~~~~~~
     error: undefined variable: xff
       at <test>:1:24
         func f() i32 { return 0xff + 0b1010 }
