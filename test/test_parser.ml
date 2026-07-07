@@ -530,3 +530,15 @@ let%expect_test "parse: unknown string escape" =
         func f() { const s = "a\qb" }
                                ^~
     |}]
+
+let%expect_test "parse: call result indexed then field accessed" =
+  parse_expr "f()[0].x";
+  [%expect {| (. (index (call f) 0) x) |}]
+
+let%expect_test "parse: deep field access chain" =
+  parse_expr "a.b.c.d";
+  [%expect {| (. (. (. a b) c) d) |}]
+
+let%expect_test "parse: slice bounds are expressions" =
+  parse_expr "a[i + 1..n]";
+  [%expect {| (index a (.. (+ i 1) n)) |}]
