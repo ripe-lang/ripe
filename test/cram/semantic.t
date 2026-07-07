@@ -326,3 +326,107 @@ one wraps back to zero.
   >   return 0
   > }'
   [u64_max_wraps exit=7]
+
+Unsigned division treats the top bit as magnitude, so the quotient differs
+from the signed reading of the same bits.
+
+  $ run unsigned_div 'func main() i32 {
+  >   var a: u32 = 4294967294
+  >   return (a / 2147483647) as i32
+  > }'
+  [unsigned_div exit=2]
+
+Unsigned modulo likewise reads the dividend as a magnitude.
+
+  $ run unsigned_mod 'func main() i32 {
+  >   var a: u32 = 4294967295
+  >   return (a % 10) as i32
+  > }'
+  [unsigned_mod exit=5]
+
+Bitwise and, or, and xor combine into one value.
+
+  $ run bit_and_or_xor 'func main() i32 {
+  >   return (12 & 10) | (1 ^ 3)
+  > }'
+  [bit_and_or_xor exit=10]
+
+Bitwise not flips every bit.
+
+  $ run bit_not 'func main() i32 {
+  >   return ~5 & 255
+  > }'
+  [bit_not exit=250]
+
+A left shift multiplies by a power of two.
+
+  $ run left_shift 'func main() i32 {
+  >   return 1 << 4
+  > }'
+  [left_shift exit=16]
+
+A u8 sum wraps at its own width instead of promoting to a wider int.
+
+  $ run u8_wrap_add 'func main() i32 {
+  >   var a: u8 = 200
+  >   var b: u8 = 100
+  >   if a + b == 44 { return 1 }
+  >   return 0
+  > }'
+  [u8_wrap_add exit=1]
+
+A u16 sum wraps at sixteen bits.
+
+  $ run u16_wrap_add 'func main() i32 {
+  >   var a: u16 = 60000
+  >   var b: u16 = 10000
+  >   if a + b == 4464 { return 1 }
+  >   return 0
+  > }'
+  [u16_wrap_add exit=1]
+
+A signed compare puts a negative below a small positive.
+
+  $ run signed_neg_compare 'func main() i32 {
+  >   var a: i32 = -5
+  >   if a < 3 { return 7 }
+  >   return 0
+  > }'
+  [signed_neg_compare exit=7]
+
+An inclusive range visits its upper bound.
+
+  $ run inclusive_range_sum 'func main() i32 {
+  >   var s: i32 = 0
+  >   for x in 0..=4 { s += x }
+  >   return s
+  > }'
+  [inclusive_range_sum exit=10]
+
+Struct fields read back the values they were built with.
+
+  $ run struct_field_sum 'struct P { x: i32, y: i32 }
+  > func main() i32 {
+  >   var p: P = P { x: 12, y: 30 }
+  >   return p.x + p.y
+  > }'
+  [struct_field_sum exit=42]
+
+The len of a fixed array bounds a loop over its elements.
+
+  $ run array_len_loop 'func main() i32 {
+  >   var a: [3]i32 = [4, 5, 6]
+  >   var s: i32 = 0
+  >   for i in 0..a.len { s += a[i] }
+  >   return s
+  > }'
+  [array_len_loop exit=15]
+
+A false left operand of && skips the null dereference on the right.
+
+  $ run short_circuit_guard 'func main() i32 {
+  >   var p: *i32 = null
+  >   if p != null && *p > 0 { return 1 }
+  >   return 2
+  > }'
+  [short_circuit_guard exit=2]
