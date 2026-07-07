@@ -542,3 +542,11 @@ let%expect_test "parse: deep field access chain" =
 let%expect_test "parse: slice bounds are expressions" =
   parse_expr "a[i + 1..n]";
   [%expect {| (index a (.. (+ i 1) n)) |}]
+
+let%expect_test "parse: function pointer returning array" =
+  run_src "type t = (i32) [3]i32";
+  [%expect {| ok |}]
+
+let%expect_test "parse: function pointer returning slice" =
+  run_src "type t = (i32) []i32";
+  [%expect {| ok |}]
