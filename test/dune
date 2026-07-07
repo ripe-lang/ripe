@@ -13,4 +13,5 @@
   test_source_map
   test_diagnostic
   test_symbol
-  test_resolve))
+  test_resolve
+  test_error))
