@@ -520,7 +520,13 @@ func f() {
   x = 2
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: cannot assign to const: x
+      at <test>:4:3
+          x = 2
+          ^
+    |}]
 
 let%expect_test "typecheck: redeclare local shadows" =
   run_src {|
@@ -601,11 +607,6 @@ func f() {
       at <test>:3:3
           x
           ^
-    warning: unused variable: x
-      at <test>:4:9
-          const x: i32 = 1
-                ^
-    help: prefix with an underscore: _x
     |}]
 
 let%expect_test "typecheck: deref non-pointer" =
@@ -691,7 +692,16 @@ let%expect_test "typecheck: duplicate function" =
 func f() {}
 func f() {}
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: already defined: f
+      at <test>:3:1
+        func f() {}
+        ^~~~~~~~~~~
+      at <test>:2:1
+        func f() {}
+        ^~~~~~~~~~~ previous definition here
+    |}]
 
 let%expect_test "typecheck: arg type mismatch" =
   run_src {|

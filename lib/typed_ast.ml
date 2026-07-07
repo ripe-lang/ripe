@@ -11,8 +11,8 @@ and texpr_desc =
   | TNull
   | TCStr of string
   | TChar of char
-  | TIdent of string
-  | TCall of string * texpr list * int option
+  | TIdent of Symbol.t
+  | TCall of Symbol.t * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * string
@@ -39,12 +39,12 @@ let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }
 
 type tstmt_desc =
-  | TConst of string * ty * texpr
-  | TVar of string * ty * texpr
+  | TConst of Symbol.t * ty * texpr
+  | TVar of Symbol.t * ty * texpr
   | TReturn of texpr option
   | TIf of (texpr * tstmt list) list * tstmt list
   | TWhile of texpr * tstmt list
-  | TFor of string * ty * texpr * tstmt list
+  | TFor of Symbol.t * ty * texpr * tstmt list
   | TBreak
   | TContinue
   | TExpr of texpr
@@ -55,7 +55,7 @@ and tstmt = { tsdesc : tstmt_desc; span : Ast.span }
 
 type tfunc_def = {
   name : string;
-  params : (string * ty) list;
+  params : (Symbol.t * ty) list;
   ret_ty : ty;
   body : tstmt list;
   modifiers : Ast.modifier list;

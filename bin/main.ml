@@ -7,6 +7,7 @@ let emit_stages =
   [
     ("tokens", Driver.Tokens, "the lexer token stream");
     ("ast", Driver.Ast, "the untyped syntax tree");
+    ("resolve", Driver.Resolve, "the resolved symbol table");
     ("tast", Driver.Tast, "the typed syntax tree");
     ("check", Driver.Check, "the typecheck result");
     ("qbe", Driver.Qbe, "the QBE intermediate representation");

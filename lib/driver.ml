@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type stage = Tokens | Ast | Tast | Check | Qbe | Asm | Bin
+type stage = Tokens | Ast | Resolve | Tast | Check | Qbe | Asm | Bin
 
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
@@ -105,7 +105,9 @@ let compile ~stage ~out ~filename =
     stop_at Tokens (fun () -> output_text (dump_tokens read lexbuf));
     let decls = Parser.parse read lexbuf in
     stop_at Ast (fun () -> output_text (show_decls decls));
-    let tdecls, warns = Typechecker.typecheck decls in
+    let uses = Resolve.resolve decls in
+    stop_at Resolve (fun () -> output_text (Resolve.dump uses));
+    let tdecls, warns = Typechecker.typecheck uses decls in
     render_all ctx warns;
     stop_at Check (fun () -> output_text "typecheck: ok\n");
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));

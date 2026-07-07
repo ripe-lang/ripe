@@ -11,4 +11,5 @@
   test_codegen
   test_source_map
   test_diagnostic
-  test_symbol))
+  test_symbol
+  test_resolve))
