@@ -182,3 +182,105 @@ func f(a: i32, a: i32) i32 { return a }
         func f(a: i32, a: i32) i32 { return a }
                ^~~~~~ previous definition here
     |}]
+
+let%expect_test "resolve: function called before its definition" =
+  run_src {|
+func main() i32 { return g() }
+func g() i32 { return 7 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: shadow inside if body does not leak" =
+  run_src
+    {|
+func main() i32 {
+  var x: i32 = 1
+  if x > 0 { var x: i32 = 2  x = x + 1 }
+  return x
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: shadow inside while body does not leak" =
+  run_src
+    {|
+func main() i32 {
+  var x: i32 = 0
+  while x < 3 { var y: i32 = x  x = y + 1 }
+  return x
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: local inside for body does not leak" =
+  run_src
+    {|
+func main() i32 {
+  var sum: i32 = 0
+  for i in 0..3 { var t: i32 = i  sum = sum + t }
+  return sum
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: loop variable is not visible after the loop" =
+  run_src
+    {|
+func main() i32 {
+  var s: i32 = 0
+  for i in 0..3 { s = s + i }
+  return i
+}
+|};
+  [%expect
+    {|
+    error: undefined variable: i
+      at <test>:5:10
+          return i
+                 ^
+    |}]
+
+let%expect_test "resolve: extern and function names coexist" =
+  run_src {|
+extern func puts(s: cstr) i32
+func main() i32 { return 0 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: same local name in two functions" =
+  run_src
+    {|
+func a() i32 { var x: i32 = 1  return x }
+func b() i32 { var x: i32 = 2  return x }
+func main() i32 { return a() + b() }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: call to an undefined function" =
+  run_src {|
+func main() i32 { return nope() }
+|};
+  [%expect
+    {|
+    error: undefined function: nope
+      at <test>:2:26
+        func main() i32 { return nope() }
+                                 ^~~~~~
+    |}]
+
+let%expect_test "resolve: global const is visible in a function" =
+  run_src {|
+const C: i32 = 5
+func main() i32 { return C }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: nested block reads the enclosing param" =
+  run_src
+    {|
+func f(a: i32) i32 {
+  { var a: i32 = a + 1  return a }
+}
+func main() i32 { return f(1) }
+|};
+  [%expect {| ok |}]
