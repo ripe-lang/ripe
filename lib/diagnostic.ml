@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* Ccompiler diagnostics ported from ceramic's diagnostic.{hpp,cpp} *)
+(* Compiler diagnostics ported from ceramic's diagnostic.{hpp,cpp} *)
 
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
