@@ -123,7 +123,7 @@ let rec parse_typ st =
       expect st RPAREN;
       let ret =
         match st.tok with
-        | IDENT _ | STAR | LPAREN -> Some (parse_typ st)
+        | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
         | _ -> None
       in
       mkt lo st (FuncPtr (params, ret))
