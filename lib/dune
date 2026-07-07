@@ -9,6 +9,7 @@
   lexer
   parser
   types
+  symbol
   typechecker
   typed_ast
   codegen
