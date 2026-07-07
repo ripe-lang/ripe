@@ -122,7 +122,6 @@ and stmt = { sdesc : stmt_desc; span : span }
 
 type modifier = Pub | Inline [@@deriving show { with_path = false }]
 
-(* kept separate for distinction *)
 type param = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]
 
