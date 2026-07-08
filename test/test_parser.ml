@@ -84,6 +84,16 @@ let%expect_test "parse: recover, broken then good" =
                           ^ found +
     |}]
 
+let%expect_test "parse: recover, broken body with local does not cascade" =
+  run_src "func f() { return + var x: i32 = 1 } func g() i32 { return 1 }";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:19
+        func f() { return + var x: i32 = 1 } func g() i32 { return 1 }
+                          ^ found +
+    |}]
+
 let%expect_test "parse: recover, lex error then grammar error" =
   run_src "func f() { @ } func g() { return + }";
   [%expect
