@@ -30,8 +30,11 @@ let rec advance st =
   st.tok <- st.read st.lexbuf;
   match st.tok with
   (* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
-  | ERROR msg ->
-      Diagnostic.error_at st.diags (cur_span st) msg;
+  | ERROR (msg, span_opt) ->
+      let span =
+        match span_opt with Some (lo, hi) -> { lo; hi } | None -> cur_span st
+      in
+      Diagnostic.error_at st.diags span msg;
       advance st
   | _ -> ()
 
