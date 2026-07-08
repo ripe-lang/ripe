@@ -40,17 +40,7 @@ let%expect_test "parse: unterminated string" =
 
 let%expect_test "parse: hex/binary literals" =
   run_src "func f() i32 { return 0xff + 0b1010 }";
-  [%expect
-    {|
-    error: undefined variable: xff
-      at <test>:1:24
-        func f() i32 { return 0xff + 0b1010 }
-                               ^~~
-    error: undefined variable: b1010
-      at <test>:1:31
-        func f() i32 { return 0xff + 0b1010 }
-                                      ^~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: line comments stripped" =
   run_src "func f() i32 {\n  # comment\n  return 1\n}";

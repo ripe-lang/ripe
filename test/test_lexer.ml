@@ -231,6 +231,84 @@ let%expect_test "lexer: float literal" =
     EOF
     |}]
 
+let%expect_test "lexer: hex literal" =
+  dump_tokens "0xff\n";
+  [%expect {|
+    INT 255
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: binary literal" =
+  dump_tokens "0b1010\n";
+  [%expect {|
+    INT 10
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: octal literal" =
+  dump_tokens "0o17\n";
+  [%expect {|
+    INT 15
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: uppercase base prefix" =
+  dump_tokens "0XFF\n";
+  [%expect {|
+    INT 255
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: hex arithmetic" =
+  dump_tokens "0xff + 0b1\n";
+  [%expect {|
+    INT 255
+    +
+    INT 1
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: exponent floats" =
+  dump_tokens "1.5e3 1e3 1.5E3 2.0e-2\n";
+  [%expect
+    {|
+    FLOAT 1500.
+    FLOAT 1000.
+    FLOAT 1500.
+    FLOAT 0.02
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: malformed hex is an error" =
+  dump_tokens "0xg\n";
+  [%expect {|
+    ERROR invalid number literal: 0xg
+    EOF
+    |}]
+
+let%expect_test "lexer: malformed binary is an error" =
+  dump_tokens "0b12\n";
+  [%expect {|
+    ERROR invalid number literal: 0b12
+    EOF
+    |}]
+
+let%expect_test "lexer: hex above u64 is an error" =
+  dump_tokens "0xfffffffffffffffff\n";
+  [%expect
+    {|
+    ERROR integer literal out of range
+    INT 0
+    SEMI
+    EOF
+    |}]
+
 let%expect_test "lexer: CRLF newline inserts one semicolon" =
   dump_tokens "x\r\ny\r\n";
   [%expect {|
