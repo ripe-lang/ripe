@@ -526,9 +526,9 @@ let%expect_test "parse: unknown string escape" =
   [%expect
     {|
     error: unknown escape: \q
-      at <test>:1:27
+      at <test>:1:25
         func f() { const s = "a\qb" }
-                                  ^
+                                ^
     |}]
 
 let%expect_test "parse: call result indexed then field accessed" =

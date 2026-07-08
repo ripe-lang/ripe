@@ -62,7 +62,7 @@ and read_main st = parse
                          | None ->
                              (* the zero keeps the parser from raising a second error *)
                              Queue.push (INT 0L) st.token_queue;
-                             ERROR "integer literal out of range" }
+                             ERROR ("integer literal out of range", None) }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t
@@ -108,9 +108,13 @@ and read_main st = parse
   | ','  { COMMA }
   | '^'  { CARET }
   (* TODO: char literal *)
-  | '"'  { Buffer.clear st.buf; read_string st lexbuf }
+  | '"'  { let str_start = lexbuf.Lexing.lex_start_p in
+           Buffer.clear st.buf;
+           let tok = read_string st lexbuf in
+           lexbuf.Lexing.lex_start_p <- str_start;
+           tok }
   | eof  { EOF }
-  | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
+  | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf, None) }
 
 
 and read_string st = parse
@@ -123,7 +127,9 @@ and read_string st = parse
   | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
   (* skip the bad escape and keep lexing so the string still closes *)
-  | '\\' _        { Queue.push (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf)) st.token_queue;
+  | '\\' _        { let after_backslash = lexbuf.Lexing.lex_start_p.pos_cnum + 1 in
+                    let span = (after_backslash, lexbuf.Lexing.lex_curr_p.pos_cnum) in
+                    Queue.push (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf, Some span)) st.token_queue;
                     read_string st lexbuf }
   (* FIXME allow raw newlines for now, revisit them in the future *)
   | newline { next_line lexbuf; Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
@@ -132,5 +138,5 @@ and read_string st = parse
   | eof  { let s = Buffer.contents st.buf in
            Buffer.clear st.buf;
            Queue.push (STRING s) st.token_queue;
-           Queue.push (ERROR "unterminated string") st.token_queue;
+           Queue.push (ERROR ("unterminated string", None)) st.token_queue;
            Queue.pop st.token_queue }

@@ -14,7 +14,7 @@ let tok_str (t : Ripe.Tokens.token) =
   | STRING s -> "STRING " ^ String.escaped s
   | SEMI -> "SEMI"
   | EOF -> "EOF"
-  | ERROR s -> "ERROR " ^ s
+  | ERROR (s, _) -> "ERROR " ^ s
   | other ->
       if List.exists (fun (_, t') -> t' = other) keywords then
         "KW " ^ show_token other
