@@ -422,6 +422,29 @@ let%expect_test "parse: index after call" =
   parse_expr "f()[0]";
   [%expect {| (index (call f) 0) |}]
 
+let%expect_test "parse: negation binds looser than index" =
+  parse_expr "-arr[0]";
+  [%expect {| (neg (index arr 0)) |}]
+
+let%expect_test "parse: address-of binds looser than field" =
+  parse_expr "&s.x";
+  [%expect {| (addr (. s x)) |}]
+
+let%expect_test "parse: deref binds looser than field" =
+  parse_expr "*p.x";
+  [%expect {| (deref (. p x)) |}]
+
+let%expect_test "parse: postfix on a cast is rejected" =
+  parse_expr "x as i32[0]";
+  [%expect
+    {|
+    error: postfix operator applied to a cast
+      at <test>:1:28
+        func _f() { return x as i32[0] }
+                                   ^
+    help: parenthesize the cast: `(x as T)[...]`
+    |}]
+
 let%expect_test "parse: sizeof array type" =
   parse_expr "sizeof([4]i32)";
   [%expect {| (sizeof [4]i32) |}]

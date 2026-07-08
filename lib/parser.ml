@@ -51,6 +51,8 @@ let fail_found st headline =
          |> at (cur_span st)
          |> label (Printf.sprintf "found %s" (show_token st.tok))))
 
+let is_postfix_tok = function DOT | LBRACKET -> true | _ -> false
+
 (* newlines lex as SEMI *)
 let skip_semi st =
   while st.tok = SEMI do
@@ -259,7 +261,6 @@ let in_brackets st f =
 let rec parse_expr st min_prec =
   let lo = cur_pos st in
   let lhs = ref (parse_prefix st) in
-  lhs := parse_postfix st !lhs;
 
   (* precedence climbing for infix ops *)
   let loop = ref true in
@@ -267,7 +268,7 @@ let rec parse_expr st min_prec =
     match prec_of st.tok with
     | None -> loop := false
     | Some (prec, _) when prec < min_prec -> loop := false
-    | Some (prec, assoc) ->
+    | Some (prec, assoc) -> (
         let op_tok = st.tok in
         advance st;
         let next_min_prec =
@@ -275,7 +276,14 @@ let rec parse_expr st min_prec =
         in
         if op_tok = AS then begin
           let ty = parse_typ st in
-          lhs := mk lo st (Cast (!lhs, ty))
+          lhs := mk lo st (Cast (!lhs, ty));
+          if is_postfix_tok st.tok then
+            raise
+              (ParseError
+                 Diagnostic.(
+                   error "postfix operator applied to a cast"
+                   |> at (cur_span st)
+                   |> help "parenthesize the cast: `(x as T)[...]`"))
         end
         else if op_tok = DOTDOT then begin
           let rhs = parse_expr st next_min_prec in
@@ -292,13 +300,12 @@ let rec parse_expr st min_prec =
         end;
         (* reject a < b < c, 0..5..10, etc *)
         (* TODO(a300): better message, point at both operators *)
-        (match (assoc, prec_of st.tok) with
+        match (assoc, prec_of st.tok) with
         | NonAssoc, Some (p, _) when p = prec ->
             fail st
               (Printf.sprintf "cannot chain non-associative operator %s"
                  (show_token st.tok))
-        | _ -> ());
-        lhs := parse_postfix st !lhs
+        | _ -> ())
   done;
   !lhs
 
@@ -321,10 +328,13 @@ and parse_prefix st =
   | STAR ->
       advance st;
       mk lo st (UnOp (Deref, parse_prefix st))
-  | _ -> parse_primary st
+  (* postfix binds tighter than any prefix operator, so the primary takes its
+     postfix here at the leaf and prefix operators stack around the result:
+     `-arr[0]` is `-(arr[0])` and `&s.x` is `&(s.x)` *)
+  | _ -> parse_postfix st (parse_primary st)
 
 (* x.field, arr[i] *)
-and parse_postfix st lhs =
+and parse_postfix st (lhs : expr) =
   let lo = lhs.span.lo in
   match st.tok with
   | DOT ->

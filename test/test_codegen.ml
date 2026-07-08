@@ -2407,7 +2407,7 @@ struct pt { x: i32, y: i32 }
 func f() i32 {
   var p: pt = pt { x: 34, y: 56 }
   var q: *pt = &p
-  *q.x = 8
+  (*q).x = 8
   return p.x
 }
 |};
