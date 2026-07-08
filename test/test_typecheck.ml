@@ -455,6 +455,40 @@ let%expect_test "typecheck: cast bool to ptr rejected" =
     ok
     |}]
 
+let%expect_test "typecheck: cast cstr to float rejected" =
+  run_src {|func f() { const x: f32 = "hi" as f32 }|};
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:18
+        func f() { const x: f32 = "hi" as f32 }
+                         ^
+    help: prefix with an underscore: _x
+    error: invalid cast
+      at <test>:1:27
+        func f() { const x: f32 = "hi" as f32 }
+                                  ^~~~~~~~~~~ cannot cast *i8 to f32
+    |}]
+
+let%expect_test "typecheck: cast struct to float rejected" =
+  run_src
+    {|
+struct S { x: i32 }
+func f() { var s: S  const y: f64 = s as f64 }
+|};
+  [%expect
+    {|
+    warning: unused variable: y
+      at <test>:3:28
+        func f() { var s: S  const y: f64 = s as f64 }
+                                   ^
+    help: prefix with an underscore: _y
+    error: invalid cast
+      at <test>:3:37
+        func f() { var s: S  const y: f64 = s as f64 }
+                                            ^~~~~~~~ cannot cast S to f64
+    |}]
+
 let%expect_test "typecheck: missing return value" =
   run_src "func f() i32 { return }";
   [%expect

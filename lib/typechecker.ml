@@ -241,6 +241,23 @@ let rec is_comparable = function
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 
+type cast_class = Numeric | Ptr | Aggregate
+
+let cast_class t =
+  match resolve_ty t with
+  | TInt _ | TFloat _ | TBool -> Numeric
+  | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
+  | _ -> Aggregate
+
+(* a pointer bit pattern is not a float and an aggregate only casts to itself *)
+let cast_ok src tgt =
+  let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false in
+  match (cast_class src, cast_class tgt) with
+  | Aggregate, _ | _, Aggregate -> resolve_ty src = resolve_ty tgt
+  | Numeric, Numeric | Ptr, Ptr -> true
+  | (Numeric | Ptr), (Numeric | Ptr) ->
+      (not (is_float src)) && not (is_float tgt)
+
 (* stamp the source span here so the mk sites underneath stay span free *)
 let rec synth (env : env) (e : expr) : T.texpr =
   { (synth_desc env e) with T.span = e.span }
@@ -282,9 +299,16 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  | Cast (e, t) ->
-      let te = synth env e in
+  | Cast (operand, t) ->
+      let te = synth env operand in
       let ty = ty_of_ast env t in
+      if not (cast_ok te.T.ty ty) then
+        emit env
+          (Diagnostic.error "invalid cast"
+          |> Diagnostic.at e.span
+          |> Diagnostic.label
+               (Printf.sprintf "cannot cast %s to %s" (show_ty te.T.ty)
+                  (show_ty ty)));
       T.mk ty (T.TCast te)
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
