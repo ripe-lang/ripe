@@ -72,10 +72,7 @@ let show_binop_sym = function
 type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 
-type interp_part = Lit of string | Interp of expr
-[@@deriving show { with_path = false }]
-
-and expr_desc =
+type expr_desc =
   | Int of int64
   | Float of float
   | Bool of bool
@@ -92,7 +89,6 @@ and expr_desc =
   | FieldAccess of expr * string
   | Cast of expr * typ
   | SizeOf of typ
-  | InterpString of interp_part list
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined

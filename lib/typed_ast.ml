@@ -2,9 +2,7 @@
 
 open Types
 
-type tinterp_part = TLit of string | TInterp of texpr
-
-and texpr_desc =
+type texpr_desc =
   | TInt of int64
   | TFloat of float
   | TBool of bool
@@ -21,7 +19,6 @@ and texpr_desc =
   | TSizeOf of Types.ty
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr
-  | TInterpString of tinterp_part list
   | TArrayLit of texpr list
   | TIndex of texpr * texpr
   | TLen of texpr

@@ -407,10 +407,6 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
         tmp
-  (* TODO(c75e): codegen for string interpolation *)
-  | T.TInterpString _ ->
-      raise
-        (Diagnostic.Errors [ Error.unsupported e.T.span "string interpolation" ])
   | T.TIndex (base, idx) ->
       let elem = t in
       let addr = emit_index_addr ctx base idx elem in

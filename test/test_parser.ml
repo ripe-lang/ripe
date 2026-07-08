@@ -348,9 +348,9 @@ let%expect_test "parse: parenthesized struct literal in condition" =
      func f() i32 { if (pt { x: 1 }).x == 1 { return 1 } return 0 }";
   [%expect {| ok |}]
 
-let%expect_test "parse: stray brace in string" =
-  parse_expr "\"a}b\"";
-  [%expect {| <interp> |}]
+let%expect_test "parse: braces are literal in a string" =
+  parse_expr "\"a{x}b\"";
+  [%expect {| "a{x}b" |}]
 
 let%expect_test "parse: crlf newline as statement separator" =
   run_src "func f() i32 {\r\n  const x: i32 = 1\r\n  return x\r\n}";
@@ -526,9 +526,9 @@ let%expect_test "parse: unknown string escape" =
   [%expect
     {|
     error: unknown escape: \q
-      at <test>:1:24
+      at <test>:1:27
         func f() { const s = "a\qb" }
-                               ^~
+                                  ^
     |}]
 
 let%expect_test "parse: call result indexed then field accessed" =

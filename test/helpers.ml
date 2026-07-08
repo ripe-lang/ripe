@@ -11,11 +11,7 @@ let tok_str (t : Ripe.Tokens.token) =
   | IDENT s -> "IDENT " ^ s
   | INT n -> "INT " ^ Int64.to_string n
   | FLOAT f -> "FLOAT " ^ string_of_float f
-  | STRING_START -> "STRING_START"
-  | STRING_END -> "STRING_END"
-  | STRING_PART s -> "STRING_PART " ^ String.escaped s
-  | INTERP_START -> "INTERP_START"
-  | INTERP_END -> "INTERP_END"
+  | STRING s -> "STRING " ^ String.escaped s
   | SEMI -> "SEMI"
   | EOF -> "EOF"
   | ERROR s -> "ERROR " ^ s
@@ -156,7 +152,6 @@ let rec dump_expr (e : Ripe.Ast.expr) =
   | FieldAccess (e, f) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
   | Cast (e, t) -> "(as " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
-  | InterpString _ -> "<interp>"
   | ArrayLit elems ->
       "(array"
       ^ String.concat "" (List.map (fun e -> " " ^ dump_expr e) elems)
