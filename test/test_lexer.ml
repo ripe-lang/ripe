@@ -57,62 +57,31 @@ let%expect_test "lexer: no semicolon after an operator" =
     EOF
     |}]
 
-let%expect_test "lexer: interpolation token stream" =
-  dump_tokens {|"a{x}b"|};
-  [%expect
-    {|
-    STRING_START
-    STRING_PART a
-    INTERP_START
-    IDENT x
-    INTERP_END
-    STRING_PART b
-    STRING_END
-    EOF
-    |}]
-
-let%expect_test "lexer: plain string has no interpolation" =
+let%expect_test "lexer: string is one token" =
   dump_tokens {|"hello"|};
-  [%expect
-    {|
-    STRING_START
-    STRING_PART hello
-    STRING_END
+  [%expect {|
+    STRING hello
     EOF
     |}]
 
 let%expect_test "lexer: empty string" =
   dump_tokens {|""|};
   [%expect {|
-    STRING_START
-    STRING_END
+    STRING
     EOF
     |}]
 
-let%expect_test "lexer: escaped braces stay literal" =
-  dump_tokens {|"a{{b}}c"|};
-  [%expect
-    {|
-    STRING_START
-    STRING_PART a{b}c
-    STRING_END
+let%expect_test "lexer: braces are literal in a string" =
+  dump_tokens {|"a{x}b"|};
+  [%expect {|
+    STRING a{x}b
     EOF
     |}]
 
-let%expect_test "lexer: nested braces inside interpolation" =
-  dump_tokens {|"a{f(x)}b"|};
-  [%expect
-    {|
-    STRING_START
-    STRING_PART a
-    INTERP_START
-    IDENT f
-    (
-    IDENT x
-    )
-    INTERP_END
-    STRING_PART b
-    STRING_END
+let%expect_test "lexer: escape sequences" =
+  dump_tokens {|"a\nb\tc"|};
+  [%expect {|
+    STRING a\nb\tc
     EOF
     |}]
 
@@ -274,23 +243,17 @@ let%expect_test "lexer: CRLF newline inserts one semicolon" =
 
 let%expect_test "lexer: unterminated string yields an error token" =
   dump_tokens {|"abc|};
-  [%expect
-    {|
-    STRING_START
-    STRING_PART abc
-    STRING_END
+  [%expect {|
+    STRING abc
     ERROR unterminated string
     EOF
     |}]
 
 let%expect_test "lexer: unknown escape is an error" =
   dump_tokens {|"a\qb"|};
-  [%expect
-    {|
+  [%expect {|
     ERROR unknown escape: \q
-    STRING_START
-    STRING_PART ab
-    STRING_END
+    STRING ab
     EOF
     |}]
 

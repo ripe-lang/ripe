@@ -391,26 +391,9 @@ and parse_primary st =
         mk lo st (StructLit (name, nspan, fields))
       end
       else mk lo st (Ident name)
-  (* "hello {name}!" *)
-  | STRING_START ->
+  | STRING s ->
       advance st;
-      let parts = ref [] in
-      while st.tok <> STRING_END do
-        match st.tok with
-        | STRING_PART s ->
-            (* plain text chunk *)
-            advance st;
-            parts := Lit s :: !parts
-        | INTERP_START ->
-            (* {expr} *)
-            advance st;
-            let e = in_brackets st (fun () -> parse_expr st 1) in
-            expect st INTERP_END;
-            parts := Interp e :: !parts
-        | _ -> assert false (* should be unreachable *)
-      done;
-      expect st STRING_END;
-      mk lo st (InterpString (List.rev !parts))
+      mk lo st (String s)
   | UNDEFINED ->
       advance st;
       mk lo st Undefined

@@ -80,14 +80,14 @@ let%expect_test "error: integer literal out of range" =
     |}]
 
 let%expect_test "error: unsupported feature" =
-  let src = "return \"a{x}\"\n" in
-  render src (Error.unsupported (span src "\"a{x}\"") "string interpolation");
+  let src = "return 0..5\n" in
+  render src (Error.unsupported (span src "0..5") "range expressions");
   [%expect
     {|
-    error: string interpolation is not yet supported
+    error: range expressions is not yet supported
       at t.rp:1:8
-        return "a{x}"
-               ^~~~~~
+        return 0..5
+               ^~~~
     |}]
 
 let%expect_test "error: internal compiler error" =

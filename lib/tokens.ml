@@ -4,11 +4,7 @@ type token =
   | INT of int64
   | FLOAT of float
   | IDENT of string
-  | STRING_PART of string
-  | STRING_START
-  | STRING_END
-  | INTERP_START
-  | INTERP_END
+  | STRING of string
   | PLUS
   | MINUS
   | STAR
@@ -109,11 +105,7 @@ let show_token = function
   | INT n -> Int64.to_string n
   | FLOAT f -> string_of_float f
   | IDENT s -> s
-  | STRING_PART s -> s
-  | STRING_START -> "\"{"
-  | STRING_END -> "\"}"
-  | INTERP_START -> "${"
-  | INTERP_END -> "}"
+  | STRING s -> "\"" ^ s ^ "\""
   | PLUS -> "+"
   | MINUS -> "-"
   | STAR -> "*"

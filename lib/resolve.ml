@@ -86,8 +86,6 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | InterpString parts ->
-      List.iter (function Interp e -> resolve_expr st e | Lit _ -> ()) parts
   | StructLit (_, _, fields) ->
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | SizeOf _ | Undefined

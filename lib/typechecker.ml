@@ -325,20 +325,6 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | t ->
           emit env (Error.named e.span "cannot index type" (show_ty t));
           dummy_texpr)
-  | InterpString [] -> T.mk (TPointer (TInt I8)) (T.TCStr "")
-  | InterpString [ Lit s ] -> T.mk (TPointer (TInt I8)) (T.TCStr s)
-  | InterpString parts ->
-      let tparts =
-        List.map
-          (fun (p : interp_part) ->
-            match p with
-            | Lit s -> T.TLit s
-            | Interp e ->
-                let te = synth env e in
-                T.TInterp te)
-          parts
-      in
-      T.mk (TPointer (TInt I8)) (T.TInterpString tparts)
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
@@ -808,8 +794,8 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* never compile-time by design *)
-  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TInterpString _
-  | TIndex _ | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ ->
+  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
+  | TToSlice _ | TSliceExpr _ | TDataPtr _ ->
       false
   | TUndef -> true
 

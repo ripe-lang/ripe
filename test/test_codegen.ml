@@ -2928,21 +2928,6 @@ let%expect_test "codegen: remainder by zero in constant" =
                        ^~~~~
     |}]
 
-let%expect_test "codegen: string interpolation" =
-  run_codegen {|
-func f() {
-  var x: i32 = 1
-  var s: cstr = "a{x}"
-}
-|};
-  [%expect
-    {|
-    error: string interpolation is not yet supported
-      at <test>:4:19
-          var s: cstr = "a{x}"
-                          ^~~~
-    |}]
-
 (* internal invariants: the typechecker keeps these unreachable from source, so
    drive the codegen helpers directly *)
 
