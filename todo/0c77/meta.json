@@ -5,9 +5,9 @@
   "depends": [],
   "id": "0c77",
   "priority": "low",
-  "source": "lib/typechecker.ml:707",
+  "source": "lib/typechecker.ml:731",
   "status": "open",
   "tags": [],
   "title": "push/pop scope for match arms when match is implemented",
-  "updated_at": "2026-07-04 17:07:05.990628"
+  "updated_at": "2026-07-08 14:04:44.392492"
 }

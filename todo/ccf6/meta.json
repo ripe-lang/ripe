@@ -5,9 +5,9 @@
   "depends": [],
   "id": "ccf6",
   "priority": "low",
-  "source": "lib/typechecker.ml:599",
+  "source": "lib/typechecker.ml:622",
   "status": "open",
   "tags": [],
   "title": "Validate that the operand is a numeric type",
-  "updated_at": "2026-07-04 17:07:05.990445"
+  "updated_at": "2026-07-08 14:04:44.392237"
 }

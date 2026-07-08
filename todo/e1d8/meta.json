@@ -5,9 +5,9 @@
   "depends": [],
   "id": "e1d8",
   "priority": "low",
-  "source": "lib/codegen.ml:902",
+  "source": "lib/codegen.ml:1068",
   "status": "open",
   "tags": [],
   "title": "blocks as expressions e.g. let x = { 5 }",
-  "updated_at": "2026-07-04 23:13:07.999212"
+  "updated_at": "2026-07-08 14:04:44.393140"
 }

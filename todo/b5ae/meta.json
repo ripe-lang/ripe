@@ -5,9 +5,9 @@
   "depends": [],
   "id": "b5ae",
   "priority": "low",
-  "source": "lib/typechecker.ml:600",
+  "source": "lib/typechecker.ml:623",
   "status": "open",
   "tags": [],
   "title": "Better error messages",
-  "updated_at": "2026-07-04 17:07:05.990536"
+  "updated_at": "2026-07-08 14:04:44.392314"
 }
