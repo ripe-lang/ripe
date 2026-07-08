@@ -1160,6 +1160,44 @@ func f() i32 {
 |};
   [%expect {| ok |}]
 
+let%expect_test "typecheck: returning a slice of a local rejected" =
+  run_src "func f() []i32 { var a: [3]i32 = [1,2,3] return a[0..2] }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:49
+        func f() []i32 { var a: [3]i32 = [1,2,3] return a[0..2] }
+                                                        ^~~~~~~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning a local array as a slice rejected" =
+  run_src "func f() []i32 { var a: [3]i32 = [1,2,3] return a }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:49
+        func f() []i32 { var a: [3]i32 = [1,2,3] return a }
+                                                        ^ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning a slice of an array param rejected" =
+  run_src "func f(a: [3]i32) []i32 { return a[0..2] }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:34
+        func f(a: [3]i32) []i32 { return a[0..2] }
+                                         ^~~~~~~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning a sub-slice of a slice param ok" =
+  run_src "func f(xs: []i32) []i32 { return xs[0..2] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: returning a slice param ok" =
+  run_src "func f(xs: []i32) []i32 { return xs }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
     "func f() i32 { var a: [3]i32 = [1,2,3] const s: []i32 = a[0..=2] return \
