@@ -1,0 +1,6 @@
+func main() i32 {
+  var x: i32 = 10
+  var q: *i32 = &x
+  *q = 42
+  return x
+}

@@ -1,0 +1,11 @@
+var g: i32 = 0
+
+func bump(c: bool) {
+  if c { var g: i32 = 5 }
+  g = 10
+}
+
+func main() i32 {
+  bump(true)
+  return g
+}

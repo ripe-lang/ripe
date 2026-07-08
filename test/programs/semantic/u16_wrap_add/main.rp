@@ -1,0 +1,6 @@
+func main() i32 {
+  var a: u16 = 60000
+  var b: u16 = 10000
+  if a + b == 4464 { return 1 }
+  return 0
+}

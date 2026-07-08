@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: GPL-2.0-only
+import argparse
+import difflib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def indented(text):
+    return " " + text.rstrip("\n").replace("\n", "\n ") + "\n"
+
+
+def find_ripec(explicit):
+    if explicit:
+        return os.path.abspath(explicit)
+
+    found = shutil.which("ripec")
+    if found:
+        return found
+
+    fallback = os.path.join(
+        TEST_DIR, "..", "..", "_build", "install", "default", "bin", "ripec"
+    )
+    return os.path.abspath(fallback)
+
+
+def tests():
+    found = []
+    for dirpath, _, filenames in os.walk(TEST_DIR):
+        if "main.rp" in filenames:
+            found.append(dirpath)
+    return sorted(found)
+
+
+def diff(want, actual, golden):
+    lines = difflib.unified_diff(
+        want.splitlines(keepends=True),
+        actual.splitlines(keepends=True),
+        fromfile=golden,
+        tofile="actual",
+    )
+    return indented("".join(lines))
+
+
+def check_one(ripec, testdir, workdir):
+    """A short status and a detailed failure log for one test directory."""
+    binary = os.path.join(workdir, "prog")
+    compile = subprocess.run(
+        [ripec, "-o", binary, "main.rp"],
+        cwd=testdir,
+        capture_output=True,
+        text=True,
+    )
+
+    err_golden = os.path.join(testdir, "compilererr.txt")
+    if os.path.isfile(err_golden):
+        with open(err_golden, encoding="utf-8") as f:
+            want = f.read()
+        if compile.returncode == 0:
+            return "compiled clean", "expected a compile error, got none\n"
+        actual = compile.stdout + compile.stderr
+        if actual == want:
+            return "ok", ""
+        return "mismatch", diff(want, actual, "compilererr.txt")
+
+    if compile.returncode != 0:
+        return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
+
+    run = subprocess.run([binary], capture_output=True, text=True)
+    actual = run.stdout + "exit: %d\n" % run.returncode
+
+    out_golden = os.path.join(testdir, "out.txt")
+    if not os.path.isfile(out_golden):
+        return "no golden", "out.txt missing\nActual:\n" + indented(actual)
+
+    with open(out_golden, encoding="utf-8") as f:
+        want = f.read()
+    if actual == want:
+        return "ok", ""
+    return "mismatch", diff(want, actual, "out.txt")
+
+
+def check(ripec):
+    succeeded = []
+    failed = []
+
+    print("[Tests]")
+    with tempfile.TemporaryDirectory() as workdir:
+        for testdir in tests():
+            name = os.path.relpath(testdir, TEST_DIR)
+            status, log = check_one(ripec, testdir, workdir)
+
+            print("%s: %s" % (name, status))
+
+            if status == "ok":
+                succeeded.append(name)
+            else:
+                failed.append((name, status, log))
+
+    if failed:
+        print()
+        print("[Failed]")
+        for name, status, log in failed:
+            print("%s: %s" % (name, status))
+            print(log)
+
+    print()
+    print("[Summary]")
+    print("Passed: %d" % len(succeeded))
+    if failed:
+        print("Failed: %d" % len(failed))
+
+    return len(failed)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run the ripe program tests.")
+    parser.add_argument(
+        "--ripec",
+        default=None,
+        help="ripe compiler to use (defaults to ripec on PATH, then the build dir)",
+    )
+    args = parser.parse_args()
+
+    ripec = find_ripec(args.ripec)
+
+    return check(ripec)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

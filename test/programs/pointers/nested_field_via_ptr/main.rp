@@ -1,0 +1,10 @@
+struct inner { a: i32 }
+
+struct outer { i: inner, b: i32 }
+
+func main() i32 {
+  var o: outer = outer { i: inner { a: 1 }, b: 2 }
+  var po: *outer = &o
+  po.i.a = 99
+  return o.i.a
+}

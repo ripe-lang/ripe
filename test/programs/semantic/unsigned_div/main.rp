@@ -1,0 +1,4 @@
+func main() i32 {
+  var a: u32 = 4294967294
+  return (a / 2147483647) as i32
+}

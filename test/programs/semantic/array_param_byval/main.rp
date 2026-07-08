@@ -1,0 +1,7 @@
+func clobber(a: [3]i32) { a[0] = 99 }
+
+func main() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  clobber(a)
+  return a[0]
+}

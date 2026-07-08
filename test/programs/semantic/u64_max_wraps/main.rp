@@ -1,0 +1,6 @@
+func main() i32 {
+  var x: u64 = 18446744073709551615
+  var y: u64 = x + 1
+  if y == 0 { return 7 }
+  return 0
+}

@@ -1,0 +1,10 @@
+(rule
+ (alias runtest)
+ (deps
+  (package ripe)
+  run.py
+  (glob_files_rec main.rp)
+  (glob_files_rec out.txt)
+  (glob_files_rec compilererr.txt))
+ (action
+  (run python3 %{dep:run.py} --ripec %{bin:ripec})))

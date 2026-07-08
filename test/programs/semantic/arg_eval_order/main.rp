@@ -1,0 +1,12 @@
+extern func printf(fmt: cstr, ...) i32
+
+var log: i32 = 0
+
+func mark(v: i32) i32 { log = log * 10 + v; return v }
+
+func take3(a: i32, b: i32, c: i32) i32 { return 0 }
+
+func main() i32 {
+  take3(mark(1), mark(2), mark(3))
+  return log
+}
