@@ -642,7 +642,7 @@ let rec array_storage_escapes (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent s -> (
       match s.Symbol.kind with
-      | Symbol.Var | Symbol.Param | Symbol.ForVar -> true
+      | Symbol.Var | Symbol.Const | Symbol.Param | Symbol.ForVar -> true
       | _ -> false)
   | T.TArrayLit _ -> true
   | T.TIndex (base, _) -> array_storage_escapes base

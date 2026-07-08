@@ -1170,6 +1170,16 @@ let%expect_test "typecheck: returning a slice of a local rejected" =
                                                         ^~~~~~~ points into freed stack memory
     |}]
 
+let%expect_test "typecheck: returning a slice of a local const rejected" =
+  run_src "func f() []i32 { const a: [3]i32 = [1,2,3] return a[0..2] }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:51
+        func f() []i32 { const a: [3]i32 = [1,2,3] return a[0..2] }
+                                                          ^~~~~~~ points into freed stack memory
+    |}]
+
 let%expect_test "typecheck: returning a local array as a slice rejected" =
   run_src "func f() []i32 { var a: [3]i32 = [1,2,3] return a }";
   [%expect
