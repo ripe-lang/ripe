@@ -8,7 +8,7 @@ USER root
 ENV OPAMROOT=/home/opam/.opam
 ENV OPAMROOTISOK=1
 
-RUN apt-get update -y && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y nodejs python3 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/deps
 COPY ripe.opam ripe.opam
