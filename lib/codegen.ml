@@ -1270,7 +1270,16 @@ let rec qbe_ext_ty (t : ty) : string =
   | TFloat F64 -> "d"
   | TStruct sn -> ":" ^ sn
   (* QBE repeats a field type n times: { w 3 } is three words *)
-  | TArray (e, n) -> Printf.sprintf "%s %d" (qbe_ext_ty e) n
+  | TArray (e, n) ->
+      (* a QBE field cannot nest counts, so every dimension collapses into one *)
+      let rec flatten t reps =
+        match resolve_ty t with
+        | TArray (e, n) -> flatten e (reps * n)
+        | TSlice _ -> ("l", reps * 2)
+        | base -> (qbe_ext_ty base, reps)
+      in
+      let unit_ty, reps = flatten e n in
+      Printf.sprintf "%s %d" unit_ty reps
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
   | TNewtype _ -> assert false (* resolve_ty strips this *)

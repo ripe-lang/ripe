@@ -1514,6 +1514,29 @@ func f() i64 {
     }
     |}]
 
+let%expect_test "codegen: nested array field flattens to one subtype" =
+  run_codegen
+    {|
+struct grid { cells: [2][2]i32 }
+func f() i32 {
+  var g: grid
+  return 0
+}
+|};
+  [%expect
+    {|
+    type :grid = { w 4 }
+
+    function w $f() {
+    @start
+        %g =l alloc8 16
+        storel 0, %g
+        %t0 =l add %g, 8
+        storel 0, %t0
+        ret 0
+    }
+    |}]
+
 let%expect_test "codegen: struct param field read" =
   run_codegen
     {|
