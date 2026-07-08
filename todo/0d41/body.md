@@ -1,1 +1,0 @@
-with another function in the same scope. (same with structs)
