@@ -10,7 +10,7 @@ type texpr_desc =
   | TCStr of string
   | TChar of char
   | TIdent of Symbol.t
-  | TCall of Symbol.t * texpr list * int option
+  | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * string

@@ -139,8 +139,8 @@ let rec dump_expr (e : Ripe.Ast.expr) =
   | Char c -> "'" ^ String.make 1 c ^ "'"
   | String s -> "\"" ^ s ^ "\""
   | Ident s -> s
-  | Call (n, args) ->
-      "(call " ^ n
+  | Call (callee, args) ->
+      "(call " ^ dump_expr callee
       ^ String.concat "" (List.map (fun a -> " " ^ dump_expr a) args)
       ^ ")"
   | BinOp (op, l, r) ->

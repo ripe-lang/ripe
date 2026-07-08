@@ -50,7 +50,7 @@ let fail_found st headline =
          |> at (cur_span st)
          |> label (Printf.sprintf "found %s" (show_token st.tok))))
 
-let is_postfix_tok = function DOT | LBRACKET -> true | _ -> false
+let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
 (* newlines lex as SEMI *)
 let skip_semi st =
@@ -331,7 +331,7 @@ and parse_prefix st =
      `-arr[0]` is `-(arr[0])` and `&s.x` is `&(s.x)` *)
   | _ -> parse_postfix st (parse_primary st)
 
-(* x.field, arr[i] *)
+(* x.field, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =
   let lo = lhs.span.lo in
   match st.tok with
@@ -344,6 +344,11 @@ and parse_postfix st (lhs : expr) =
       let idx = in_brackets st (fun () -> parse_expr st 1) in
       expect st RBRACKET;
       parse_postfix st (mk lo st (Index (lhs, idx)))
+  | LPAREN ->
+      advance st;
+      let args = parse_comma_list st RPAREN in
+      expect st RPAREN;
+      parse_postfix st (mk lo st (Call (lhs, args)))
   | _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
@@ -386,13 +391,7 @@ and parse_primary st =
   | IDENT name ->
       let nspan = st.tok_span in
       advance st;
-      if at st LPAREN then begin
-        advance st;
-        let args = parse_comma_list st RPAREN in
-        expect st RPAREN;
-        mk lo st (Call (name, args))
-      end
-      else if at st LBRACE && not st.no_struct_lit then begin
+      if at st LBRACE && not st.no_struct_lit then begin
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;

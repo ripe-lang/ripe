@@ -365,14 +365,11 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
             fixed @ ("..." :: rest)
         | None -> arg_strs
       in
-      (* The callee here is just a value holding a fn ptr so load it and call
-         through it. *)
+      (* a plain function name calls direct otherwise the callee holds a fn ptr *)
       let callee =
-        if Symbol.is_func callee.kind then "$" ^ callee.name
-        else
-          let tmp = fresh ctx in
-          emit ctx "    %s =l loadl %s\n" tmp (sym_addr ctx callee);
-          tmp
+        match callee.T.desc with
+        | T.TIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
+        | _ -> emit_expr ctx callee
       in
       if ret_ty = TVoid then (
         emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);

@@ -265,7 +265,7 @@ func main() i32 { return nope() }
     error: undefined function: nope
       at <test>:2:26
         func main() i32 { return nope() }
-                                 ^~~~~~
+                                 ^~~~
     |}]
 
 let%expect_test "resolve: global const is visible in a function" =
