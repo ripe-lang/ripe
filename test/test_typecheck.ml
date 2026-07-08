@@ -1378,6 +1378,34 @@ let%expect_test "typecheck: if and else both return ok" =
   run_src "func f(n: i32) i32 { if n > 0 { return 1 } else { return 0 } }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: while true diverges, no return needed" =
+  run_src "func f() i32 { while true { } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: while true with break still needs a return" =
+  run_src "func f() i32 { while true { break } }";
+  [%expect
+    {|
+    error: missing return: f
+      at <test>:1:10
+        func f() i32 { while true { break } }
+                 ^~~
+    |}]
+
+let%expect_test "typecheck: inner loop break does not exit outer" =
+  run_src "func f() i32 { while true { while true { break } } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: break under if still needs a return" =
+  run_src "func f() i32 { var c: bool = true\n while true { if c { break } } }";
+  [%expect
+    {|
+    error: missing return: f
+      at <test>:1:10
+        func f() i32 { var c: bool = true
+                 ^~~
+    |}]
+
 let%expect_test "typecheck: struct literal" =
   run_src
     {|
