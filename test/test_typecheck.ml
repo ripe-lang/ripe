@@ -91,6 +91,16 @@ let%expect_test "typecheck: null assigned to pointer" =
     ok
     |}]
 
+let%expect_test "typecheck: array does not coerce to slice under a pointer" =
+  run_src "func takes(p: *[]i32) { }\nfunc f() { var a: [3]i32\n  takes(&a) }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:9
+          takes(&a) }
+                ^~ expected *[]i32, found *[3]i32
+    |}]
+
 let%expect_test "typecheck: break inside while" =
   run_src "func f() { while true { break } }";
   [%expect {| ok |}]

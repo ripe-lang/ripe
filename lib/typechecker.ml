@@ -148,7 +148,7 @@ let rec compatible (want : ty) (got : ty) : bool =
   match (want, got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible a b
+  | TPointer a, TPointer b -> compatible_under_pointer a b
   (* a fixed array coerces to a slice of the same element type *)
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
@@ -156,6 +156,13 @@ let rec compatible (want : ty) (got : ty) : bool =
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
+  | _ -> want = got
+
+and compatible_under_pointer (want : ty) (got : ty) : bool =
+  match (want, got) with
+  | TPointer _, TNull -> true
+  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
+  | TPointer a, TPointer b -> compatible_under_pointer a b
   | _ -> want = got
 
 (* main implicitly returns i32 for the C runtime and everything else is void *)
