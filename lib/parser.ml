@@ -680,9 +680,7 @@ let parse_decl st =
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
 let rec sync_to_decl st =
   match st.tok with
-  | EOF | FUNC | CONST | VAR | EXTERN | STRUCT | INLINE | PUBLIC | TYPE
-  | NEWTYPE ->
-      ()
+  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE -> ()
   | _ ->
       advance st;
       sync_to_decl st
