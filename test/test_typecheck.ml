@@ -190,10 +190,10 @@ func f() {
 |};
   [%expect
     {|
-    error: not callable: x
+    error: not callable
       at <test>:4:3
           x(1)
-          ^~~~
+          ^ this has type i32
     |}]
 
 let%expect_test "typecheck: fn ptr as parameter" =

@@ -70,8 +70,11 @@ let use (st : state) ~(what : string) name span : unit =
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
   | Ident name -> use st ~what:"variable" name e.span
-  | Call (name, args) ->
-      use st ~what:"function" name e.span;
+  | Call ({ desc = Ident name; span }, args) ->
+      use st ~what:"function" name span;
+      List.iter (resolve_expr st) args
+  | Call (callee, args) ->
+      resolve_expr st callee;
       List.iter (resolve_expr st) args
   | BinOp (_, l, r) ->
       resolve_expr st l;

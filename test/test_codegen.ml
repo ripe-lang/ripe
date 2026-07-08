@@ -3226,3 +3226,151 @@ func main() i32 {
         ret %t2
     }
     |}]
+
+let%expect_test "codegen: call through a struct field fn ptr" =
+  run_codegen
+    {|
+func add(a: i32, b: i32) i32 { return a + b }
+struct Ops { combine: (i32, i32) i32 }
+func main() i32 {
+  var c = Ops { combine: add }
+  return c.combine(6, 7)
+}
+|};
+  [%expect
+    {|
+    type :Ops = { l }
+
+    function w $add(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w add %t2, %t3
+        ret %t4
+    }
+
+    export function w $main() {
+    @start
+        %c =l alloc8 8
+        storel $add, %c
+        %t0 =l loadl %c
+        %t1 =w call %t0(w 6, w 7)
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: call through a fn ptr array element" =
+  run_codegen
+    {|
+func mul(a: i32, b: i32) i32 { return a * b }
+func main() i32 {
+  var h: [1](i32, i32) i32 = undefined
+  h[0] = mul
+  return h[0](4, 5)
+}
+|};
+  [%expect
+    {|
+    function w $mul(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w mul %t2, %t3
+        ret %t4
+    }
+
+    export function w $main() {
+    @start
+        %h =l alloc8 8
+        %t0 =l extsw 0
+        %t1 =l mul %t0, 8
+        %t2 =l add %h, %t1
+        storel $mul, %t2
+        %t3 =l extsw 0
+        %t4 =l mul %t3, 8
+        %t5 =l add %h, %t4
+        %t6 =l loadl %t5
+        %t7 =w call %t6(w 4, w 5)
+        ret %t7
+    }
+    |}]
+
+let%expect_test "codegen: call the result of a call returning a fn ptr" =
+  run_codegen
+    {|
+func mul(a: i32, b: i32) i32 { return a * b }
+func pick() (i32, i32) i32 { return mul }
+func main() i32 { return pick()(5, 6) }
+|};
+  [%expect
+    {|
+    function w $mul(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w mul %t2, %t3
+        ret %t4
+    }
+
+    function l $pick() {
+    @start
+        ret $mul
+    }
+
+    export function w $main() {
+    @start
+        %t0 =l call $pick()
+        %t1 =w call %t0(w 5, w 6)
+        ret %t1
+    }
+    |}]
+
+let%expect_test "codegen: call through a dereferenced fn ptr" =
+  run_codegen
+    {|
+func add(a: i32, b: i32) i32 { return a + b }
+func main() i32 {
+  var op = add
+  var p = &op
+  return (*p)(4, 5)
+}
+|};
+  [%expect
+    {|
+    function w $add(w %t0, w %t1) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %b =l alloc4 4
+        storew %t1, %b
+        %t2 =w loadsw %a
+        %t3 =w loadsw %b
+        %t4 =w add %t2, %t3
+        ret %t4
+    }
+
+    export function w $main() {
+    @start
+        %op =l alloc8 8
+        storel $add, %op
+        %p =l alloc8 8
+        %t0 =l copy %op
+        storel %t0, %p
+        %t1 =l loadl %p
+        %t2 =l loadl %t1
+        %t3 =w call %t2(w 4, w 5)
+        ret %t3
+    }
+    |}]

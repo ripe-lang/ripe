@@ -276,26 +276,35 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Ident name ->
       let t = lookup_var env e.span name in
       T.mk t (T.TIdent (sym env e.span))
-  | Call (name, args) -> (
-      let callee = sym env e.span in
-      if Symbol.is_func callee.kind then
-        let sig_ = lookup_func env e.span name in
-        let targs = check_args env e.span sig_ args in
-        let fixed_count =
-          if sig_.variadic then Some (List.length sig_.param_tys) else None
-        in
-        T.mk sig_.ret_ty (T.TCall (callee, targs, fixed_count))
-      else
-        (* The callee isn't a function so it has to be a value holding a fn
-           ptr. *)
-        match resolve_ty (lookup_var env e.span name) with
-        | TFunc (param_tys, ret_ty) ->
-            let sig_ = { param_tys; ret_ty; variadic = false } in
-            let targs = check_args env e.span sig_ args in
-            T.mk ret_ty (T.TCall (callee, targs, None))
-        | _ ->
-            emit env (Error.named e.span "not callable" name);
-            dummy_texpr)
+  | Call (callee, args) -> (
+      match callee.desc with
+      | Ident name when Symbol.is_func (sym env callee.span).kind ->
+          let fn_sym = sym env callee.span in
+          let sig_ = lookup_func env callee.span name in
+          let targs = check_args env e.span sig_ args in
+          let fixed_count =
+            if sig_.variadic then Some (List.length sig_.param_tys) else None
+          in
+          let callee_texpr =
+            T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
+          in
+          T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
+      | _ -> (
+          (* the callee is a value holding a fn ptr so call through it *)
+          let callee_texpr = synth env callee in
+          match resolve_ty callee_texpr.T.ty with
+          | TFunc (param_tys, ret_ty) ->
+              let sig_ = { param_tys; ret_ty; variadic = false } in
+              let targs = check_args env e.span sig_ args in
+              T.mk ret_ty (T.TCall (callee_texpr, targs, None))
+          | _ ->
+              emit env
+                (Diagnostic.error "not callable"
+                |> Diagnostic.at callee.span
+                |> Diagnostic.label
+                     (Printf.sprintf "this has type %s"
+                        (show_ty callee_texpr.T.ty)));
+              dummy_texpr))
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
