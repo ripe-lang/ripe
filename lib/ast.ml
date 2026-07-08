@@ -1,11 +1,10 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* TODO(825c): Add file id for multi file comp later *)
-type span = { lo : int; hi : int }
+type span = Span.t = { lo : int; hi : int }
 
-let pp_span fmt { lo; hi } = Format.fprintf fmt "(%d,%d)" lo hi
-let show_span s = Format.asprintf "%a" pp_span s
-let dummy_span = { lo = 0; hi = 0 }
+let pp_span = Span.pp
+let show_span = Span.show
+let dummy_span = Span.dummy
 
 type typ_desc =
   | Named of string
