@@ -28,6 +28,14 @@ let start_pos lexbuf = lexbuf.Lexing.lex_start_p.Lexing.pos_cnum
 let end_pos lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
 let lexbuf_span lexbuf = { Span.lo = start_pos lexbuf; hi = end_pos lexbuf }
 
+let int_token st lexbuf text =
+  match Int64.of_string_opt text with
+  | Some v -> INT v
+  | None ->
+      (* the zero keeps the parser from raising a second error *)
+      Queue.push (INT 0L, lexbuf_span lexbuf) st.token_queue;
+      ERROR "integer literal out of range"
+
 let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING _
   | TRUE | FALSE | NULL | UNDEFINED
@@ -37,6 +45,10 @@ let can_end_stmt = function
 }
 
 let digit   = ['0'-'9']
+let hexdig  = ['0'-'9' 'a'-'f' 'A'-'F']
+let bindig  = ['0'-'1']
+let octdig  = ['0'-'7']
+let exp     = ['e' 'E'] ['+' '-']? digit+
 let alpha   = ['a'-'z' 'A'-'Z' '_']
 let alnum   = alpha | digit
 let white   = [' ' '\t']+
@@ -50,13 +62,14 @@ rule read_main st = parse
                          else match st.last_token with
                               | Some t when can_end_stmt t -> SEMI
                               | _ -> read_main st lexbuf }
-  | digit+ '.' digit+  as f { FLOAT (float_of_string f) }
-  | digit+ as n        { match Int64.of_string_opt ("0u" ^ n) with
-                         | Some v -> INT v
-                         | None ->
-                             (* the zero keeps the parser from raising a second error *)
-                             Queue.push (INT 0L, lexbuf_span lexbuf) st.token_queue;
-                             ERROR "integer literal out of range" }
+  | ('0' ['x' 'X'] hexdig+) as n  { int_token st lexbuf n }
+  | ('0' ['b' 'B'] bindig+) as n  { int_token st lexbuf n }
+  | ('0' ['o' 'O'] octdig+) as n  { int_token st lexbuf n }
+  | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum* as n
+      { ERROR ("invalid number literal: " ^ n) }
+  | digit+ '.' digit+ exp? as f { FLOAT (float_of_string f) }
+  | digit+ exp as f    { FLOAT (float_of_string f) }
+  | digit+ as n        { int_token st lexbuf ("0u" ^ n) }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t
