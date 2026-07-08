@@ -1,6 +1,7 @@
 (library
  (name ripe)
  (modules
+  span
   ast
   source_map
   diagnostic

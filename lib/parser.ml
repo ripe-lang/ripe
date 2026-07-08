@@ -9,8 +9,9 @@ exception ParseError of Diagnostic.t
 
 type state = {
   mutable tok : token;
+  mutable tok_span : span;
   lexbuf : Lexing.lexbuf;
-  read : Lexing.lexbuf -> token;
+  read : Lexing.lexbuf -> token * span;
   diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
   mutable prev_end : int;
@@ -19,29 +20,24 @@ type state = {
 type assoc = Left | Right | NonAssoc
 
 (* span of the current lookahead token so the caret lands under it *)
-let cur_span st =
-  {
-    lo = st.lexbuf.Lexing.lex_start_p.pos_cnum;
-    hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum;
-  }
+let cur_span st = st.tok_span
 
 let rec advance st =
-  st.prev_end <- st.lexbuf.Lexing.lex_curr_p.pos_cnum;
-  st.tok <- st.read st.lexbuf;
+  st.prev_end <- st.tok_span.hi;
+  let tok, span = st.read st.lexbuf in
+  st.tok <- tok;
+  st.tok_span <- span;
   match st.tok with
   (* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
-  | ERROR (msg, span_opt) ->
-      let span =
-        match span_opt with Some (lo, hi) -> { lo; hi } | None -> cur_span st
-      in
-      Diagnostic.error_at st.diags span msg;
+  | ERROR msg ->
+      Diagnostic.error_at st.diags st.tok_span msg;
       advance st
   | _ -> ()
 
 let at st t = st.tok = t
 
 (* start of the current lookahead token *)
-let cur_pos st = st.lexbuf.Lexing.lex_start_p.pos_cnum
+let cur_pos st = st.tok_span.lo
 
 let fail st headline =
   raise (ParseError Diagnostic.(error headline |> at (cur_span st)))
@@ -70,10 +66,9 @@ let expect_ident st =
   | _ -> fail_found st "expected identifier"
 
 let expect_ident_span st =
-  let lo = st.lexbuf.Lexing.lex_start_p.pos_cnum in
-  let hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum in
+  let span = st.tok_span in
   let name = expect_ident st in
-  (name, { lo; hi })
+  (name, span)
 
 let expect st t =
   if st.tok <> t then
@@ -389,7 +384,7 @@ and parse_primary st =
       expect st RPAREN;
       mk lo st (SizeOf t)
   | IDENT name ->
-      let nspan = { lo; hi = st.lexbuf.Lexing.lex_curr_p.pos_cnum } in
+      let nspan = st.tok_span in
       advance st;
       if at st LPAREN then begin
         advance st;
@@ -705,11 +700,12 @@ let parse_program st =
   done;
   List.rev !decls
 
-let parse (read : Lexing.lexbuf -> Tokens.token) (lexbuf : Lexing.lexbuf) :
-    Ast.decl list =
+let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
+    (lexbuf : Lexing.lexbuf) : Ast.decl list =
   let st =
     {
       tok = EOF;
+      tok_span = dummy_span;
       lexbuf;
       read;
       diags = Diagnostic.sink ();
