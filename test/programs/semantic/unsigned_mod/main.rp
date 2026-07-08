@@ -1,0 +1,4 @@
+func main() i32 {
+  var a: u32 = 4294967295
+  return (a % 10) as i32
+}

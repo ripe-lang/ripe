@@ -1,0 +1,5 @@
+func main() i32 {
+  var i: i32 = 99
+  for i in 0..3 { }
+  return i
+}

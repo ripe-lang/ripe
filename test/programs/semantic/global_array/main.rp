@@ -1,0 +1,3 @@
+var table: [3]i32 = [10, 20, 30]
+
+func main() i32 { return table[1] }

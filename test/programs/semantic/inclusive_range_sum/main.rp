@@ -1,0 +1,5 @@
+func main() i32 {
+  var s: i32 = 0
+  for x in 0..=4 { s += x }
+  return s
+}

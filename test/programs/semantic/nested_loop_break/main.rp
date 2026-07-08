@@ -1,0 +1,10 @@
+func main() i32 {
+  var s: i32 = 0
+  for i in 0..3 {
+    for j in 0..10 {
+      if j == 2 { break }
+      s += 1
+    }
+  }
+  return s
+}

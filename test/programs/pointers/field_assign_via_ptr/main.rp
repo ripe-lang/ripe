@@ -1,0 +1,8 @@
+struct point { x: i32, y: i32 }
+
+func main() i32 {
+  var p: point = point { x: 34, y: 56 }
+  var pt: *point = &p
+  pt.x = 8
+  return p.x
+}

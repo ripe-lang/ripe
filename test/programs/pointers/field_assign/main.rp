@@ -1,0 +1,7 @@
+struct point { x: i32, y: i32 }
+
+func main() i32 {
+  var p: point = point { x: 1, y: 2 }
+  p.x = 7
+  return p.x
+}

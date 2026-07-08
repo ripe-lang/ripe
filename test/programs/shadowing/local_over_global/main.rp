@@ -1,0 +1,7 @@
+var g: i32 = 3
+
+func main() i32 {
+  var g: i32 = 7
+  g = g + 1
+  return g
+}

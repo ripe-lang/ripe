@@ -1,0 +1,5 @@
+func main() i32 {
+  var a: i32 = -5
+  if a < 3 { return 7 }
+  return 0
+}

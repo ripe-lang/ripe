@@ -1,0 +1,5 @@
+func main() i32 {
+  var a: isize = 40
+  var b: usize = 2
+  return (a as i32) + (b as i32)
+}

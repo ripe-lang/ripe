@@ -1,0 +1,4 @@
+func main() i32 {
+  if true { return }
+  return 1
+}
