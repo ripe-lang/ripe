@@ -65,7 +65,7 @@ type token =
   | DOT
   | SEMI
   | EOF
-  | ERROR of string * (int * int) option
+  | ERROR of string
   | TYPE
   | NEWTYPE
   | UNDEFINED
@@ -145,7 +145,7 @@ let show_token = function
   | DOT -> "."
   | SEMI -> ";"
   | EOF -> "<eof>"
-  | ERROR (s, _) -> "<error: " ^ s ^ ">"
+  | ERROR s -> "<error: " ^ s ^ ">"
   | ( CONST | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN | TRUE
     | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
     | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED ) as t ->

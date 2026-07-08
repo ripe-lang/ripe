@@ -252,8 +252,8 @@ let%expect_test "lexer: unterminated string yields an error token" =
 let%expect_test "lexer: unknown escape is an error" =
   dump_tokens {|"a\qb"|};
   [%expect {|
-    ERROR unknown escape: \q
     STRING ab
+    ERROR unknown escape: \q
     EOF
     |}]
 

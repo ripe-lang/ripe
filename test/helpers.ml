@@ -14,7 +14,7 @@ let tok_str (t : Ripe.Tokens.token) =
   | STRING s -> "STRING " ^ String.escaped s
   | SEMI -> "SEMI"
   | EOF -> "EOF"
-  | ERROR (s, _) -> "ERROR " ^ s
+  | ERROR s -> "ERROR " ^ s
   | other ->
       if List.exists (fun (_, t') -> t' = other) keywords then
         "KW " ^ show_token other
@@ -24,7 +24,7 @@ let dump_tokens src =
   let st = Ripe.Lexer.make_state () in
   let lexbuf = Lexing.from_string src in
   let rec go () =
-    let t = Ripe.Lexer.read st lexbuf in
+    let t, _ = Ripe.Lexer.read st lexbuf in
     print_endline (tok_str t);
     if t <> Ripe.Tokens.EOF then go ()
   in
