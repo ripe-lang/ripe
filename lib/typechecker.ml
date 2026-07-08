@@ -637,6 +637,28 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
+(* a param array is copied into this frame so a slice of it dangles too *)
+let rec array_storage_escapes (te : T.texpr) : bool =
+  match te.T.desc with
+  | T.TIdent s -> (
+      match s.Symbol.kind with
+      | Symbol.Var | Symbol.Param | Symbol.ForVar -> true
+      | _ -> false)
+  | T.TArrayLit _ -> true
+  | T.TIndex (base, _) -> array_storage_escapes base
+  | T.TFieldAccess (base, _) -> array_storage_escapes base
+  | _ -> false
+
+(* only these two forms build a slice out of storage that could be local *)
+let rec slice_return_escapes (te : T.texpr) : bool =
+  match te.T.desc with
+  | T.TToSlice arr -> array_storage_escapes arr
+  | T.TSliceExpr (base, _, _) -> (
+      match base.T.ty with
+      | TSlice _ -> slice_return_escapes base
+      | _ -> array_storage_escapes base)
+  | _ -> false
+
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
   let env', tsdesc = check_stmt_desc env s in
   (env', { T.tsdesc; span = s.span })
@@ -680,6 +702,11 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (env, T.TReturn None)
   | Return (Some e) ->
       let te = check env e env.ret_ty in
+      if slice_return_escapes te then
+        emit env
+          (Diagnostic.error "slice of a local escapes"
+          |> Diagnostic.at e.span
+          |> Diagnostic.label "points into freed stack memory");
       (env, T.TReturn (Some te))
   | Expr e ->
       let te = synth env e in
