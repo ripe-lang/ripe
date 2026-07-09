@@ -2139,6 +2139,157 @@ func f() i32 { var a: [3]Meters = [1, 2, 3]  var b: [3]i32 = a as [3]i32  return
 |};
   [%expect {| ok |}]
 
+let%expect_test "typecheck: alias is transparent under a slice and a pointer" =
+  run_src
+    {|
+type Meters = i32
+func take_slice(s: []i32) i32 { return s[0] }
+func take_ptr(p: *i32) i32 { return *p }
+func f() i32 {
+  var a: [3]Meters = [1, 2, 3]
+  var s: []Meters = a
+  var m: Meters = 7
+  return take_slice(s) + take_ptr(&m)
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: alias and base compare with each other" =
+  run_src
+    {|
+type Meters = i32
+func f() bool { var m: Meters = 5  var b: i32 = 5  return m == b }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: alias of a newtype keeps the newtype opaque" =
+  run_src
+    {|
+newtype Id = i32
+type Handle = Id
+func take(x: i32) i32 { return x }
+func f() i32 { var h: Handle = 5 as Id  return take(h) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:5:53
+        func f() i32 { var h: Handle = 5 as Id  return take(h) }
+                                                            ^ expected i32, found Handle
+    |}]
+
+let%expect_test "typecheck: two newtypes with the same base do not mix" =
+  run_src
+    {|
+newtype Id = i32
+newtype Age = i32
+func take(x: Id) i32 { return 0 }
+func f() i32 { var a: Age = 5 as Age  return take(a) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:5:51
+        func f() i32 { var a: Age = 5 as Age  return take(a) }
+                                                          ^ expected Id, found Age
+    |}]
+
+let%expect_test "typecheck: newtype stays opaque inside an array" =
+  run_src
+    {|
+newtype Id = i32
+func take(x: [3]i32) i32 { return x[0] }
+func f() i32 { var a: [3]Id  return take(a) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:42
+        func f() i32 { var a: [3]Id  return take(a) }
+                                                 ^ expected [3]i32, found [3]Id
+    |}]
+
+let%expect_test "typecheck: newtype stays opaque under a pointer" =
+  run_src
+    {|
+newtype Id = i32
+func take(p: *i32) i32 { return *p }
+func f() i32 { var a: Id = 5 as Id  return take(&a) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:49
+        func f() i32 { var a: Id = 5 as Id  return take(&a) }
+                                                        ^~ expected *i32, found *Id
+    |}]
+
+let%expect_test "typecheck: newtype of an array does not coerce to a slice" =
+  run_src
+    {|
+newtype Row = [3]i32
+func take(s: []i32) i32 { return s[0] }
+func f() i32 { var r: Row  return take(r) }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:40
+        func f() i32 { var r: Row  return take(r) }
+                                               ^ expected []i32, found Row
+    |}]
+
+let%expect_test "typecheck: newtype compares with itself but not its base" =
+  run_src
+    {|
+newtype Id = i32
+func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return a == b }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: newtype does not compare with its base" =
+  run_src
+    {|
+newtype Id = i32
+func f() bool { var a: Id = 5 as Id  return a == 5 }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:50
+        func f() bool { var a: Id = 5 as Id  return a == 5 }
+                                                         ^ expected Id, found i32
+    |}]
+
+let%expect_test "typecheck: newtype has no arithmetic without a cast" =
+  run_src
+    {|
+newtype Id = i32
+func f() i32 { var a: Id = 5 as Id  var b: Id = a + a  return b as i32 }
+|};
+  [%expect
+    {|
+    error: cannot apply `+` to Id
+      at <test>:3:49
+        func f() i32 { var a: Id = 5 as Id  var b: Id = a + a  return b as i32 }
+                                                        ^
+    |}]
+
+let%expect_test "typecheck: newtype of a struct hides its fields" =
+  run_src
+    {|
+struct P { x: i32 }
+newtype Q = P
+func f() i32 { var q: Q = P { x: 3 } as Q  return q.x }
+|};
+  [%expect
+    {|
+    error: type has no fields: Q
+      at <test>:4:51
+        func f() i32 { var q: Q = P { x: 3 } as Q  return q.x }
+                                                          ^~~
+    |}]
+
 let%expect_test "typecheck: a type alias name collides with a struct" =
   run_src {|
 type Foo = i32
