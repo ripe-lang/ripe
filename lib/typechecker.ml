@@ -123,13 +123,13 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
       | None -> (
-          if Hashtbl.mem env.structs name then TStruct name
+          if Hashtbl.mem env.structs name then TStruct (name, [])
           else
             match Hashtbl.find_opt env.newtypes name with
             | Some base -> TNewtype (name, base)
             | None -> (
                 match Hashtbl.find_opt env.aliases name with
-                | Some aliased -> aliased
+                | Some aliased -> TAlias (name, aliased)
                 | None ->
                     emit env (Error.undefined_name t.span "type" name);
                     TInt I32)))
@@ -141,11 +141,14 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
       TFunc (pts, rt)
 
+(* an alias is transparent and compares as its underlying type *)
+let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
+
 (* Exact equality but NULL is compatible with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 (* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
-  match (want, got) with
+  match (strip_alias want, strip_alias got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
@@ -156,14 +159,21 @@ let rec compatible (want : ty) (got : ty) : bool =
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
-  | _ -> want = got
+  (* a struct matches nominally by name and by its type arguments *)
+  | TStruct (n1, a1), TStruct (n2, a2) ->
+      n1 = n2
+      && List.length a1 = List.length a2
+      && List.for_all2 compatible a1 a2
+  (* a newtype is its own type and never matches its base *)
+  | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
+  | s_want, s_got -> s_want = s_got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
-  match (want, got) with
+  match (strip_alias want, strip_alias got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
-  | _ -> want = got
+  | s_want, s_got -> s_want = s_got
 
 (* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
@@ -179,11 +189,18 @@ let collect_func (env : env) (fd : func_def) : unit =
   Hashtbl.replace env.funcs fd.name
     { param_tys; ret_ty; variadic = fd.variadic }
 
+(* every kind of type name shares one namespace *)
+let type_name_taken (env : env) (name : string) : bool =
+  List.mem_assoc name builtin_tys
+  || Hashtbl.mem env.structs name
+  || Hashtbl.mem env.newtypes name
+  || Hashtbl.mem env.aliases name
+
 (* TODO(d1ec): Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
 (* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
-  if Hashtbl.mem env.structs sd.name then
+  if type_name_taken env sd.name then
     emit env (Error.named sd.span "already defined" sd.name)
   else
     (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
@@ -200,14 +217,14 @@ let collect_struct (env : env) (sd : struct_def) : unit =
     Hashtbl.replace env.structs sd.name { field_tys }
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  if Hashtbl.mem env.aliases td.name then
+  if type_name_taken env td.name then
     emit env (Error.named td.span "already defined" td.name)
   else
     let t = ty_of_ast env td.typ in
     Hashtbl.replace env.aliases td.name t
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  if Hashtbl.mem env.newtypes td.name then
+  if type_name_taken env td.name then
     emit env (Error.named td.span "already defined" td.name)
   else
     let t = ty_of_ast env td.typ in
@@ -237,13 +254,15 @@ let is_lvalue (te : T.texpr) : bool =
   | TIndex _ -> true
   | _ -> false
 
-let is_numeric = function TInt _ | TFloat _ -> true | _ -> false
+let is_numeric t =
+  match strip_alias t with TInt _ | TFloat _ -> true | _ -> false
+
 let is_ordered = is_numeric
-let is_integer = function TInt _ -> true | _ -> false
+let is_integer t = match strip_alias t with TInt _ -> true | _ -> false
 
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
-  | TNewtype (_, base) -> is_comparable base
+  | TNewtype (_, base) | TAlias (_, base) -> is_comparable base
   | _ -> false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
@@ -341,7 +360,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
   | Index (base, idx) -> (
       let tbase = synth env base in
-      match tbase.T.ty with
+      match strip_alias tbase.T.ty with
       | TArray (elem, _) | TSlice elem -> (
           match idx.desc with
           (* arr[lo..hi] produces a slice that borrows into the same storage;
@@ -396,7 +415,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
               | None -> (fname, T.mk ft T.TZero))
             info.field_tys
         in
-        T.mk (TStruct name) (T.TStructLit (name, tfields))
+        T.mk (TStruct (name, [])) (T.TStructLit (name, tfields))
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
@@ -413,14 +432,14 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
            ~found:(show_ty got));
       te)
     else
-      match (want, got) with
+      match (strip_alias want, got) with
       (* materialize the fat pointer when a fixed array coerces to a slice *)
       | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
       | _ -> te
   in
   match e.desc with
   | Int n -> (
-      match want with
+      match strip_alias want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
             emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
@@ -431,14 +450,14 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
-      match want with
+      match strip_alias want with
       | TFloat _ -> T.mk want (T.TFloat f)
       | _ ->
           emit env
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int n; _ }) -> (
-      match want with
+      match strip_alias want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
             emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
@@ -447,7 +466,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | ArrayLit elems -> (
-      match want with
+      match strip_alias want with
       | TArray (elem, n) ->
           if List.length elems <> n then
             emit env
@@ -511,7 +530,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       (* qbe has no float remainder instruction *)
-      if op = Mod && match t with TFloat _ -> true | _ -> false then
+      if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
+      then
         add_error env l.span
           (Printf.sprintf "cannot apply `%%` to %s" (show_ty t));
       let tr = check env r t in
@@ -586,7 +606,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
-      match te.T.ty with
+      match strip_alias te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | t ->
           emit env (Error.named e.span "cannot dereference type" (show_ty t));
@@ -602,7 +622,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
     T.texpr =
   let te = synth env e in
   let ty = te.T.ty in
-  match ty with
+  match strip_alias ty with
   | TArray (elem, _) | TSlice elem -> (
       match fname with
       | "len" -> T.mk (TInt Usize) (T.TLen te)
@@ -617,7 +637,8 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
     (fname : string) : T.texpr =
   let rec peel = function
-    | TStruct sname -> Some sname
+    | TStruct (sname, _) -> Some sname
+    | TAlias (_, base) -> peel base
     | TPointer t -> peel t
     | _ -> None
   in
@@ -654,7 +675,7 @@ let rec slice_return_escapes (te : T.texpr) : bool =
   match te.T.desc with
   | T.TToSlice arr -> array_storage_escapes arr
   | T.TSliceExpr (base, _, _) -> (
-      match base.T.ty with
+      match strip_alias base.T.ty with
       | TSlice _ -> slice_return_escapes base
       | _ -> array_storage_escapes base)
   | _ -> false
@@ -747,7 +768,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
             (node, t)
         | _ -> (
             let ti = synth env iter in
-            match ti.T.ty with
+            match strip_alias ti.T.ty with
             | TArray (elem, _) | TSlice elem -> (ti, elem)
             | t ->
                 emit env
@@ -903,14 +924,31 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       let tfd = check_func ~is_extern:true env fd in
       T.TExtern tfd
   | Struct sd ->
-      let info = lookup_struct env sd.span sd.name in
-      T.TStruct (sd.name, info.field_tys, sd.modifiers)
+      (* a rejected duplicate never landed in the table and its fields are read directly *)
+      let field_tys =
+        match Hashtbl.find_opt env.structs sd.name with
+        | Some info -> info.field_tys
+        | None ->
+            List.map
+              (fun (f : field) -> (f.name, ty_of_ast env f.typ))
+              sd.fields
+      in
+      T.TStruct (sd.name, field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
+  (* a rejected duplicate never landed in its table and falls back to the written type *)
   | TypeAlias td ->
-      let t = Hashtbl.find env.aliases td.name in
+      let t =
+        match Hashtbl.find_opt env.aliases td.name with
+        | Some t -> t
+        | None -> ty_of_ast env td.typ
+      in
       T.TTypeAlias (td.name, t)
   | Newtype td ->
-      let t = Hashtbl.find env.newtypes td.name in
+      let t =
+        match Hashtbl.find_opt env.newtypes td.name with
+        | Some t -> t
+        | None -> ty_of_ast env td.typ
+      in
       T.TNewtype (td.name, t)
 
 (* hands warnings back for the edge to render and blows up on any error *)

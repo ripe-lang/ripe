@@ -1622,7 +1622,7 @@ func g() { f(true) }
     error: type mismatch
       at <test>:4:14
         func g() { f(true) }
-                     ^~~~ expected i64, found bool
+                     ^~~~ expected myint, found bool
     |}]
 
 let%expect_test "typecheck: newtype does not mix with its base type" =
@@ -2095,6 +2095,55 @@ func take(x: Id) i32 { return 0 }
 func f() i32 { var a: Id = 5 as Id  return take(a) }
 |};
   [%expect {| ok |}]
+
+let%expect_test
+    "typecheck: type alias is interchangeable with its base both ways" =
+  run_src
+    {|
+type Meters = i32
+func take_base(x: i32) i32 { return x }
+func take_alias(x: Meters) i32 { return x }
+func f() i32 { var m: Meters = 5  var b: i32 = 7  return take_base(m) + take_alias(b) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a type alias name collides with a struct" =
+  run_src {|
+type Foo = i32
+struct Foo { x: i32 }
+|};
+  [%expect
+    {|
+    error: already defined: Foo
+      at <test>:3:1
+        struct Foo { x: i32 }
+        ^~~~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: a type alias name collides with a newtype" =
+  run_src {|
+newtype Foo = i32
+type Foo = i64
+|};
+  [%expect
+    {|
+    error: already defined: Foo
+      at <test>:3:1
+        type Foo = i64
+        ^~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: a type name cannot shadow a builtin" =
+  run_src {|
+type i32 = i64
+|};
+  [%expect
+    {|
+    error: already defined: i32
+      at <test>:2:1
+        type i32 = i64
+        ^~~~~~~~~~~~~~
+    |}]
 
 let%expect_test "typecheck: sizeof of a struct type" =
   run_src

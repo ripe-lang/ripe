@@ -1,0 +1,7 @@
+type IntPtr = *i32
+
+func main() i32 {
+  var x: i32 = 7
+  var p: IntPtr = &x
+  return *p
+}

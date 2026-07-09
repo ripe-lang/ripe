@@ -1,0 +1,8 @@
+struct Point { x: i32, y: i32 }
+
+type Pt = Point
+
+func main() i32 {
+  var p: Pt = Point { x: 2, y: 3 }
+  return p.x + p.y
+}

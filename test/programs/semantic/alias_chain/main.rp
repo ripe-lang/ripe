@@ -1,0 +1,8 @@
+type A = i32
+type B = A
+
+func main() i32 {
+  var x: B = 4
+  var y: A = x
+  return y + 1
+}
