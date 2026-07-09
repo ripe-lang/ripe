@@ -11,15 +11,16 @@ module T = Typed_ast
 
 type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
 type struct_info = { field_tys : (string * ty) list }
+
+(* structs newtypes and aliases share one namespace of type names *)
+type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
 type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
-  structs : (string, struct_info) Hashtbl.t;
+  types : (string, type_def) Hashtbl.t;
   globals : (string, ty * bool) Hashtbl.t;
-  aliases : (string, ty) Hashtbl.t;
-  newtypes : (string, ty) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   in_main : bool;
@@ -31,10 +32,8 @@ let make_env (uses : Resolve.t) : env =
   {
     vars = [];
     funcs = Hashtbl.create 16;
-    structs = Hashtbl.create 16;
+    types = Hashtbl.create 16;
     globals = Hashtbl.create 16;
-    aliases = Hashtbl.create 8;
-    newtypes = Hashtbl.create 8;
     ret_ty = TVoid;
     in_loop = false;
     in_main = false;
@@ -111,9 +110,9 @@ let is_const_global (env : env) (name : string) : bool =
   | _ -> false
 
 let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
-  match Hashtbl.find_opt env.structs name with
-  | Some s -> s
-  | None ->
+  match Hashtbl.find_opt env.types name with
+  | Some (DStruct s) -> s
+  | _ ->
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
@@ -123,16 +122,13 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
       | None -> (
-          if Hashtbl.mem env.structs name then TStruct (name, [])
-          else
-            match Hashtbl.find_opt env.newtypes name with
-            | Some base -> TNewtype (name, base)
-            | None -> (
-                match Hashtbl.find_opt env.aliases name with
-                | Some aliased -> TAlias (name, aliased)
-                | None ->
-                    emit env (Error.undefined_name t.span "type" name);
-                    TInt I32)))
+          match Hashtbl.find_opt env.types name with
+          | Some (DStruct _) -> TStruct (name, [])
+          | Some (DNewtype base) -> TNewtype (name, base)
+          | Some (DAlias aliased) -> TAlias (name, aliased)
+          | None ->
+              emit env (Error.undefined_name t.span "type" name);
+              TInt I32))
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (n, t) -> TArray (ty_of_ast env t, n)
   | Slice t -> TSlice (ty_of_ast env t)
@@ -188,19 +184,28 @@ let collect_func (env : env) (fd : func_def) : unit =
     { param_tys; ret_ty; variadic = fd.variadic }
 
 (* every kind of type name shares one namespace *)
-let type_name_taken (env : env) (name : string) : bool =
-  List.mem_assoc name builtin_tys
-  || Hashtbl.mem env.structs name
-  || Hashtbl.mem env.newtypes name
-  || Hashtbl.mem env.aliases name
+let existing_type_kind (env : env) (name : string) : string option =
+  if List.mem_assoc name builtin_tys then Some "a builtin type"
+  else
+    match Hashtbl.find_opt env.types name with
+    | Some (DStruct _) -> Some "a struct"
+    | Some (DNewtype _) -> Some "a newtype"
+    | Some (DAlias _) -> Some "an alias"
+    | None -> None
+
+let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
+    =
+  match existing_type_kind env name with
+  | Some kind ->
+      emit env (Error.named span ("already defined as " ^ kind) name);
+      true
+  | None -> false
 
 (* TODO(d1ec): Support forward reference between structs *)
 (* This will fail if Struct A has a field of type Struct B and B is defined after A *)
 (* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
 let collect_struct (env : env) (sd : struct_def) : unit =
-  if type_name_taken env sd.name then
-    emit env (Error.named sd.span "already defined" sd.name)
-  else
+  if not (reject_taken_type_name env sd.span sd.name) then (
     (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
     let field_tys =
       List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
@@ -212,21 +217,17 @@ let collect_struct (env : env) (sd : struct_def) : unit =
           emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
-    Hashtbl.replace env.structs sd.name { field_tys }
+    Hashtbl.replace env.types sd.name (DStruct { field_tys }))
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  if type_name_taken env td.name then
-    emit env (Error.named td.span "already defined" td.name)
-  else
+  if not (reject_taken_type_name env td.span td.name) then
     let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.aliases td.name t
+    Hashtbl.replace env.types td.name (DAlias t)
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  if type_name_taken env td.name then
-    emit env (Error.named td.span "already defined" td.name)
-  else
+  if not (reject_taken_type_name env td.span td.name) then
     let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.newtypes td.name t
+    Hashtbl.replace env.types td.name (DNewtype t)
 
 let collect_global (env : env) (gd : global_def) : unit =
   if gd.is_const && gd.init = None then
@@ -385,35 +386,35 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
-  | StructLit (name, name_span, inits) ->
-      if not (Hashtbl.mem env.structs name) then (
-        emit env (Error.undefined_name name_span "struct" name);
-        dummy_texpr)
-      else
-        let info = lookup_struct env name_span name in
-        let seen = Hashtbl.create 4 in
-        List.iter
-          (fun (fname, fspan, _) ->
-            if not (List.mem_assoc fname info.field_tys) then
-              emit env (Error.named fspan "no field" fname)
-            else if Hashtbl.mem seen fname then
-              emit env (Error.named fspan "duplicate field" fname)
-            else Hashtbl.replace seen fname ())
-          inits;
-        (* omitted fields are zero-initialized *)
-        let tfields =
-          List.map
-            (fun (fname, ft) ->
-              match
-                List.find_map
-                  (fun (n, _, e) -> if n = fname then Some e else None)
-                  inits
-              with
-              | Some e -> (fname, check env e ft)
-              | None -> (fname, T.mk ft T.TZero))
-            info.field_tys
-        in
-        T.mk (TStruct (name, [])) (T.TStructLit (name, tfields))
+  | StructLit (name, name_span, inits) -> (
+      match Hashtbl.find_opt env.types name with
+      | Some (DStruct info) ->
+          let seen = Hashtbl.create 4 in
+          List.iter
+            (fun (fname, fspan, _) ->
+              if not (List.mem_assoc fname info.field_tys) then
+                emit env (Error.named fspan "no field" fname)
+              else if Hashtbl.mem seen fname then
+                emit env (Error.named fspan "duplicate field" fname)
+              else Hashtbl.replace seen fname ())
+            inits;
+          (* omitted fields are zero-initialized *)
+          let tfields =
+            List.map
+              (fun (fname, ft) ->
+                match
+                  List.find_map
+                    (fun (n, _, e) -> if n = fname then Some e else None)
+                    inits
+                with
+                | Some e -> (fname, check env e ft)
+                | None -> (fname, T.mk ft T.TZero))
+              info.field_tys
+          in
+          T.mk (TStruct (name, [])) (T.TStructLit (name, tfields))
+      | _ ->
+          emit env (Error.undefined_name name_span "struct" name);
+          dummy_texpr)
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
@@ -924,28 +925,28 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   | Struct sd ->
       (* a rejected duplicate never landed in the table and its fields are read directly *)
       let field_tys =
-        match Hashtbl.find_opt env.structs sd.name with
-        | Some info -> info.field_tys
-        | None ->
+        match Hashtbl.find_opt env.types sd.name with
+        | Some (DStruct info) -> info.field_tys
+        | _ ->
             List.map
               (fun (f : field) -> (f.name, ty_of_ast env f.typ))
               sd.fields
       in
       T.TStruct (sd.name, field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
-  (* a rejected duplicate never landed in its table and falls back to the written type *)
+  (* a rejected duplicate never landed in the table and falls back to the written type *)
   | TypeAlias td ->
       let t =
-        match Hashtbl.find_opt env.aliases td.name with
-        | Some t -> t
-        | None -> ty_of_ast env td.typ
+        match Hashtbl.find_opt env.types td.name with
+        | Some (DAlias t) -> t
+        | _ -> ty_of_ast env td.typ
       in
       T.TTypeAlias (td.name, t)
   | Newtype td ->
       let t =
-        match Hashtbl.find_opt env.newtypes td.name with
-        | Some t -> t
-        | None -> ty_of_ast env td.typ
+        match Hashtbl.find_opt env.types td.name with
+        | Some (DNewtype t) -> t
+        | _ -> ty_of_ast env td.typ
       in
       T.TNewtype (td.name, t)
 

@@ -2146,7 +2146,7 @@ struct Foo { x: i32 }
 |};
   [%expect
     {|
-    error: already defined: Foo
+    error: already defined as an alias: Foo
       at <test>:3:1
         struct Foo { x: i32 }
         ^~~~~~~~~~~~~~~~~~~~~
@@ -2159,7 +2159,7 @@ type Foo = i64
 |};
   [%expect
     {|
-    error: already defined: Foo
+    error: already defined as a newtype: Foo
       at <test>:3:1
         type Foo = i64
         ^~~~~~~~~~~~~~
@@ -2171,7 +2171,7 @@ type i32 = i64
 |};
   [%expect
     {|
-    error: already defined: i32
+    error: already defined as a builtin type: i32
       at <test>:2:1
         type i32 = i64
         ^~~~~~~~~~~~~~
