@@ -159,21 +159,19 @@ let rec compatible (want : ty) (got : ty) : bool =
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
-  (* a struct matches nominally by name and by its type arguments *)
+  (* a struct matches nominally by name and its type arguments must match exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
-      n1 = n2
-      && List.length a1 = List.length a2
-      && List.for_all2 compatible a1 a2
+      n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
   (* a newtype is its own type and never matches its base *)
   | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
-  | s_want, s_got -> s_want = s_got
+  | s_want, s_got -> ty_equal s_want s_got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
-  | s_want, s_got -> s_want = s_got
+  | s_want, s_got -> ty_equal s_want s_got
 
 (* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
@@ -279,7 +277,7 @@ let cast_class t =
 let cast_ok src tgt =
   let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false in
   match (cast_class src, cast_class tgt) with
-  | Aggregate, _ | _, Aggregate -> resolve_ty src = resolve_ty tgt
+  | Aggregate, _ | _, Aggregate -> ty_equal (resolve_ty src) (resolve_ty tgt)
   | Numeric, Numeric | Ptr, Ptr -> true
   | (Numeric | Ptr), (Numeric | Ptr) ->
       (not (is_float src)) && not (is_float tgt)
@@ -432,7 +430,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
            ~found:(show_ty got));
       te)
     else
-      match (strip_alias want, got) with
+      match (strip_alias want, strip_alias got) with
       (* materialize the fat pointer when a fixed array coerces to a slice *)
       | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
       | _ -> te

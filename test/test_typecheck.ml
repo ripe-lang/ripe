@@ -2107,6 +2107,38 @@ func f() i32 { var m: Meters = 5  var b: i32 = 7  return take_base(m) + take_ali
 |};
   [%expect {| ok |}]
 
+let%expect_test
+    "typecheck: alias element inside an array is transparent both ways" =
+  run_src
+    {|
+type Meters = i32
+func take_base(x: [3]i32) i32 { return x[0] }
+func take_alias(x: [3]Meters) i32 { return x[0] }
+func f() i32 {
+  var m: [3]Meters = [1, 2, 3]
+  var b: [3]i32 = [4, 5, 6]
+  return take_base(m) + take_alias(b)
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: alias of an array coerces to a slice" =
+  run_src
+    {|
+type Row = [3]i32
+func take(s: []i32) i32 { return s[0] }
+func f() i32 { var r: Row = [1, 2, 3]  return take(r) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: aggregate cast sees through an alias element" =
+  run_src
+    {|
+type Meters = i32
+func f() i32 { var a: [3]Meters = [1, 2, 3]  var b: [3]i32 = a as [3]i32  return b[1] }
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: a type alias name collides with a struct" =
   run_src {|
 type Foo = i32

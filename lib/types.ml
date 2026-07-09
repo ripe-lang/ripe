@@ -75,3 +75,16 @@ let rec show_ty = function
 let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
   | t -> t
+
+(* an alias is just another name for its base type so it never makes two types different *)
+let rec erase_aliases = function
+  | TAlias (_, base) -> erase_aliases base
+  | TPointer t -> TPointer (erase_aliases t)
+  | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
+  | TFunc (ps, r) -> TFunc (List.map erase_aliases ps, erase_aliases r)
+  | TArray (t, n) -> TArray (erase_aliases t, n)
+  | TSlice t -> TSlice (erase_aliases t)
+  | TNewtype (name, base) -> TNewtype (name, erase_aliases base)
+  | t -> t
+
+let ty_equal a b = erase_aliases a = erase_aliases b
