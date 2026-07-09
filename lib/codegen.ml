@@ -16,7 +16,7 @@ let qbe_base (t : ty) : qbe_base =
   | TFloat F32 -> S
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
 
@@ -113,7 +113,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no alignment" ])
-  | TStruct name -> (
+  | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
           List.fold_left
@@ -128,7 +128,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
                ]))
   | TArray (e, _) -> ty_align structs e
   | TSlice _ -> 8
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* n and a must be non-negative *)
 let align_to n a = (n + a - 1) / a * a
@@ -141,7 +141,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
   | TVoid -> raise (Diagnostic.Errors [ Error.internal "TVoid has no size" ])
-  | TStruct name -> (
+  | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
           let struct_align = ty_align structs t in
@@ -164,7 +164,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* fat pointer: { ptr, len } *)
   | TSlice _ -> 16
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =
@@ -176,7 +176,7 @@ let rec alloc_instr (t : ty) : string =
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no alloc instruction" ])
@@ -194,7 +194,7 @@ let qbe_load (t : ty) : string =
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no load instruction" ])
@@ -209,7 +209,7 @@ let qbe_store (t : ty) : string =
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid ->
       raise
         (Diagnostic.Errors [ Error.internal "TVoid has no store instruction" ])
@@ -414,7 +414,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty elem) (qbe_load elem) addr;
         tmp
   | T.TLen e -> (
-      match e.T.ty with
+      match resolve_ty e.T.ty with
       | TArray (_, n) -> string_of_int n
       | TSlice _ ->
           (* len lives at offset 8 in the fat pointer *)
@@ -432,7 +432,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
                    (Printf.sprintf "TLen on non-array type: %s" (show_ty t));
                ]))
   | T.TDataPtr e -> (
-      match e.T.ty with
+      match resolve_ty e.T.ty with
       | TSlice _ ->
           (* ptr lives at offset 0 in the fat pointer *)
           let addr = emit_expr ctx e in
@@ -451,7 +451,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TToSlice arr ->
       let arr_addr = emit_expr ctx arr in
       let n =
-        match arr.T.ty with
+        match resolve_ty arr.T.ty with
         | TArray (_, n) -> n
         | t ->
             raise
@@ -573,7 +573,7 @@ and widen_to_l ctx v ty =
 (* pointer to the first element: an array's own address, or a slice's ptr field *)
 and data_ptr ctx base =
   let addr = emit_expr ctx base in
-  match base.T.ty with
+  match resolve_ty base.T.ty with
   | TSlice _ ->
       let p = fresh ctx in
       emit ctx "    %s =l loadl %s\n" p addr;
@@ -609,7 +609,8 @@ and emit_lvalue_addr ctx (e : T.texpr) =
 and emit_field_addr ctx base field =
   let addr = emit_expr ctx base in
   let rec peel = function
-    | TStruct n -> n
+    | TStruct (n, _) -> n
+    | TAlias (_, inner) -> peel inner
     | TPointer t -> peel t
     | _ ->
         raise
@@ -630,7 +631,7 @@ and emit_field_addr ctx base field =
 
 (* write a zero value of type t into the slot at dest *)
 and emit_zero_into ctx dest t =
-  match t with
+  match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ ->
       let size = ty_size ctx.structs t in
       let off = ref 0 in
@@ -1132,7 +1133,7 @@ and emit_for ctx name elem_ty iter body =
          storage is the element pointer, len is a constant (array) or loaded (slice) *)
       let storage, len =
         let base = emit_expr ctx iter in
-        match iter.T.ty with
+        match resolve_ty iter.T.ty with
         | TArray (_, n) -> (base, string_of_int n)
         | TSlice _ ->
             let p = fresh ctx in
@@ -1265,7 +1266,7 @@ let rec qbe_ext_ty (t : ty) : string =
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
-  | TStruct sn -> ":" ^ sn
+  | TStruct (sn, _) -> ":" ^ sn
   (* QBE repeats a field type n times: { w 3 } is three words *)
   | TArray (e, n) ->
       (* a QBE field cannot nest counts, so every dimension collapses into one *)
@@ -1279,7 +1280,7 @@ let rec qbe_ext_ty (t : ty) : string =
       Printf.sprintf "%s %d" unit_ty reps
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
-  | TNewtype _ -> assert false (* resolve_ty strips this *)
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid ->
       raise (Diagnostic.Errors [ Error.internal "TVoid has no extended type" ])
 

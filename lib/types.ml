@@ -13,11 +13,12 @@ type ty =
   | TVoid
   | TNull
   | TPointer of ty
-  | TStruct of string
+  | TStruct of string * ty list
   | TFunc of ty list * ty
   | TArray of ty * int
   | TSlice of ty
   | TNewtype of string * ty
+  | TAlias of string * ty
 [@@deriving show { with_path = false }]
 
 let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
@@ -58,14 +59,32 @@ let rec show_ty = function
   | TVoid -> "void"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
-  | TStruct name -> name
+  | TStruct (name, []) -> name
+  | TStruct (name, args) ->
+      Printf.sprintf "%s[%s]" name (String.concat ", " (List.map show_ty args))
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
   | TNewtype (name, _) -> name
+  | TAlias (name, _) -> name
   | TFunc (ps, r) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
       Printf.sprintf "(%s)%s" p_str r_str
 
-(* sees through a newtype to the concrete representation codegen must use *)
-let rec resolve_ty = function TNewtype (_, base) -> resolve_ty base | t -> t
+(* sees through a newtype or alias to the concrete representation codegen must use *)
+let rec resolve_ty = function
+  | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
+  | t -> t
+
+(* an alias is just another name for its base type so it never makes two types different *)
+let rec erase_aliases = function
+  | TAlias (_, base) -> erase_aliases base
+  | TPointer t -> TPointer (erase_aliases t)
+  | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
+  | TFunc (ps, r) -> TFunc (List.map erase_aliases ps, erase_aliases r)
+  | TArray (t, n) -> TArray (erase_aliases t, n)
+  | TSlice t -> TSlice (erase_aliases t)
+  | TNewtype (name, base) -> TNewtype (name, erase_aliases base)
+  | t -> t
+
+let ty_equal a b = erase_aliases a = erase_aliases b

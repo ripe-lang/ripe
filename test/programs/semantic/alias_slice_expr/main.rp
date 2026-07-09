@@ -1,0 +1,9 @@
+type Ints = []i32
+
+func main() i32 {
+  var a: [5]i32 = [1, 2, 3, 4, 5]
+  var s: Ints = a[1..4]
+  var total: i32 = 0
+  for v in s { total = total + v }
+  return total
+}

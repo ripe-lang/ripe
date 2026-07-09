@@ -1,0 +1,9 @@
+type Meters = i32
+newtype Feet = i32
+
+func main() i32 {
+  var m: Meters = 5
+  var plain: i32 = m
+  var f: Feet = 3 as Feet
+  return plain + (f as i32)
+}

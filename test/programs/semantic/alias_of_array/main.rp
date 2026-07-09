@@ -1,0 +1,8 @@
+type Row = [3]i32
+
+func main() i32 {
+  var r: Row = [1, 2, 3]
+  var total: i32 = 0
+  for v in r { total = total + v }
+  return total + r[0]
+}
