@@ -5,9 +5,9 @@
   "depends": [],
   "id": "f0b0",
   "priority": "low",
-  "source": "lib/ast.ml:111",
+  "source": "lib/ast.ml:110",
   "status": "open",
   "tags": [],
   "title": "blocks are statement only right now, make them usable as expressions like var p = { ... }",
-  "updated_at": "2026-07-08 14:04:44.391093"
+  "updated_at": "2026-07-09 20:18:11.614012"
 }

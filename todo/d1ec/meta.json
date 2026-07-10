@@ -5,9 +5,9 @@
   "depends": [],
   "id": "d1ec",
   "priority": "low",
-  "source": "lib/typechecker.ml:175",
+  "source": "lib/typechecker.ml:204",
   "status": "open",
   "tags": [],
   "title": "Support forward reference between structs",
-  "updated_at": "2026-07-08 14:04:44.391924"
+  "updated_at": "2026-07-09 20:18:11.616729"
 }

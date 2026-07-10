@@ -5,9 +5,9 @@
   "depends": [],
   "id": "fa20",
   "priority": "low",
-  "source": "lib/parser.ml:680",
+  "source": "lib/parser.ml:679",
   "status": "open",
   "tags": [],
   "title": "finer recovery inside blocks, sync to next stmt boundary",
-  "updated_at": "2026-07-08 14:04:44.391674"
+  "updated_at": "2026-07-09 20:18:11.616199"
 }
