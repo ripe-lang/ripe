@@ -5,9 +5,9 @@
   "depends": [],
   "id": "8969",
   "priority": "low",
-  "source": "lib/codegen.ml:105",
+  "source": "lib/codegen.ml:107",
   "status": "open",
   "tags": [],
   "title": "Add a packed attr to strip padding for exact memory layout",
-  "updated_at": "2026-07-08 14:04:44.392751"
+  "updated_at": "2026-07-12 08:10:50.127003"
 }

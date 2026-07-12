@@ -5,9 +5,9 @@
   "depends": [],
   "id": "2cc1",
   "priority": "low",
-  "source": "lib/codegen.ml:878",
+  "source": "lib/codegen.ml:797",
   "status": "open",
   "tags": [],
   "title": "the local arithmetic always emits instructions instead of",
-  "updated_at": "2026-07-11 22:47:27.908172"
+  "updated_at": "2026-07-12 08:10:50.127200"
 }
