@@ -1,0 +1,5 @@
+func main() i32 {
+  var a: i32 = 20
+  var b: i32 = 0
+  return a / b
+}
