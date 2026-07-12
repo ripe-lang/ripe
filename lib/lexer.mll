@@ -56,7 +56,8 @@ let newline = '\r' | '\n' | "\r\n"
 
 rule read_main st = parse
   | white              { read_main st lexbuf }
-  | '#' [^ '\n' '\r']* { read_main st lexbuf }
+  | "//" [^ '\n' '\r']* { read_main st lexbuf }
+  | "/*"               { read_block_comment st lexbuf }
   | newline            { next_line lexbuf;
                          if st.paren_depth > 0 then read_main st lexbuf
                          else match st.last_token with
@@ -150,6 +151,12 @@ and read_string st = parse
              (ERROR "unterminated string", { Span.lo = here; hi = here })
              st.token_queue;
            STRING s }
+
+and read_block_comment st = parse
+  | "*/"    { read_main st lexbuf }
+  | newline { next_line lexbuf; read_block_comment st lexbuf }
+  | eof     { ERROR "unterminated block comment" }
+  | _       { read_block_comment st lexbuf }
 
 {
 let read st lexbuf =

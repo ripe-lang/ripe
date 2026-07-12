@@ -1,5 +1,5 @@
-# Linear search over a slice: returns the index of `target`, or -1 if absent.
-# Works on any array length because slices are fat pointers (ptr + len).
+// Linear search over a slice: returns the index of `target`, or -1 if absent.
+// Works on any array length because slices are fat pointers (ptr + len).
 func index_of(xs: []i32, target: i32) i32 {
   for i in 0..xs.len {
     if xs[i] == target {
@@ -12,12 +12,12 @@ func index_of(xs: []i32, target: i32) i32 {
 func main() i32 {
   var data: [6]i32 = [4, 8, 15, 16, 23, 42]
 
-  # [6]i32 coerces to []i32 at the call.
-  const at: i32 = index_of(data, 16)     # 3
-  const missing: i32 = index_of(data, 99) # -1
+  // [6]i32 coerces to []i32 at the call.
+  const at: i32 = index_of(data, 16)     // 3
+  const missing: i32 = index_of(data, 99) // -1
 
-  # Search only a sub-slice (the last three elements).
-  const in_tail: i32 = index_of(data[3..6], 42) # 2
+  // Search only a sub-slice (the last three elements).
+  const in_tail: i32 = index_of(data[3..6], 42) // 2
 
-  return at + in_tail - missing   # 3 + 2 - (-1) = 6
+  return at + in_tail - missing   // 3 + 2 - (-1) = 6
 }

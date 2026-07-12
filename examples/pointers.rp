@@ -1,4 +1,4 @@
-# Pointers: address-of, deref, and writing through a pointer to a struct field.
+// Pointers: address-of, deref, and writing through a pointer to a struct field.
 
 struct point { x: i32, y: i32 }
 
@@ -24,6 +24,6 @@ func main() i32 {
   bump(&p)
   bump(&p)
 
-  # sum(42) + neg(-10) + p.x(2) = 34
+  // sum(42) + neg(-10) + p.x(2) = 34
   return sum + neg + p.x
 }
