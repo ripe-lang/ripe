@@ -25,3 +25,8 @@ void ripe_panic_slice_bounds(long lo, long hi, long len) {
             panic_prefix(), lo, hi, len);
     abort();
 }
+
+void ripe_panic_divzero(void) {
+    fprintf(stderr, "%s integer divide by zero\n", panic_prefix());
+    abort();
+}

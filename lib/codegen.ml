@@ -614,6 +614,19 @@ and emit_slice_bounds_check ctx lo hi len =
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
+and emit_divzero_check ctx divisor op_qt =
+  let id = fresh_id ctx in
+  let fail_lbl = Printf.sprintf "@divzero.fail.%d" id in
+  let ok_lbl = Printf.sprintf "@divzero.ok.%d" id in
+  let zero = fresh ctx in
+  emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
+  emit_jnz ctx zero fail_lbl ok_lbl;
+  emit_label ctx fail_lbl;
+  emit ctx "    call $ripe_panic_divzero()\n";
+  emit ctx "    hlt\n";
+  ctx.terminated := true;
+  emit_label ctx ok_lbl
+
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.texpr) =
   match e.T.desc with
@@ -788,6 +801,9 @@ and emit_compound_via_addr ctx op elem addr r =
   let cur = fresh ctx in
   emit ctx "    %s =%s %s %s\n" cur qt (qbe_load elem) addr;
   let rv = emit_expr ctx r in
+  (match op with
+  | Ast.DivAssign when not (is_float elem) -> emit_divzero_check ctx rv qt
+  | _ -> ());
   let new_val = fresh ctx in
   emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur rv;
   emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
@@ -847,9 +863,11 @@ and emit_binop ctx op l r t =
       let instr =
         if is_float lty then "div" else if unsigned then "udiv" else "div"
       in
+      if not (is_float lty) then emit_divzero_check ctx rv op_qt;
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Mod ->
       let instr = if unsigned then "urem" else "rem" in
+      emit_divzero_check ctx rv op_qt;
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   (* floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv

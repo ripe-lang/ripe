@@ -3055,8 +3055,14 @@ func f() {
         %n =l alloc4 4
         storew 12, %n
         %t0 =w loadsw %n
-        %t1 =w div %t0, 4
-        storew %t1, %n
+        %t2 =w ceqw 4, 0
+        jnz %t2, @divzero.fail.1, @divzero.ok.1
+    @divzero.fail.1
+        call $ripe_panic_divzero()
+        hlt
+    @divzero.ok.1
+        %t3 =w div %t0, 4
+        storew %t3, %n
         ret
     }
     |}]
