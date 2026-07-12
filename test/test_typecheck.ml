@@ -2366,6 +2366,19 @@ func f() bool { var a: Flag = true as Flag  var b: Flag = false as Flag  return 
                                                                                         ^
     |}]
 
+let%expect_test "typecheck: newtype has no compound assignment" =
+  run_src {|
+newtype Id = i32
+func f() { var a: Id = 5 as Id  a += 6 as Id }
+|};
+  [%expect
+    {|
+    error: cannot apply `+=` to Id
+      at <test>:3:33
+        func f() { var a: Id = 5 as Id  a += 6 as Id }
+                                        ^
+    |}]
+
 let%expect_test "typecheck: newtype has no unary negation" =
   run_src
     {|

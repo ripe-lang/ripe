@@ -582,6 +582,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           emit env (Error.named l.span "cannot assign to const" s.name)
       | _ -> ());
       let t = tl.T.ty in
+      if op <> Assign && not (is_numeric t) then
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
 
