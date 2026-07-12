@@ -308,6 +308,13 @@ let is_aggregate t =
 let stride structs elem =
   align_to (ty_size structs elem) (ty_align structs elem)
 
+let offset_addr ctx base off =
+  if off = 0 then base
+  else
+    let a = fresh ctx in
+    emit ctx "    %s =l add %s, %d\n" a base off;
+    a
+
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
@@ -571,11 +578,7 @@ and emit_field_addr ctx base field =
   let struct_name = peel base.T.ty in
   let fields = Hashtbl.find ctx.structs struct_name in
   let offset = field_offset ctx.structs fields field in
-  if offset = 0 then addr
-  else
-    let p = fresh ctx in
-    emit ctx "    %s =l add %s, %d\n" p addr offset;
-    p
+  offset_addr ctx addr offset
 
 (* write a zero value of type t into the slot at dest *)
 and emit_zero_into ctx dest t =
@@ -585,14 +588,7 @@ and emit_zero_into ctx dest t =
       let off = ref 0 in
       let step w store =
         while !off + w <= size do
-          let dp =
-            if !off = 0 then dest
-            else
-              let a = fresh ctx in
-              emit ctx "    %s =l add %s, %d\n" a dest !off;
-              a
-          in
-          emit ctx "    %s 0, %s\n" store dp;
+          emit ctx "    %s 0, %s\n" store (offset_addr ctx dest !off);
           off := !off + w
         done
       in
@@ -607,13 +603,7 @@ and emit_aggregate_copy ctx dest src size =
   let off = ref 0 in
   let step w letter load store =
     while !off + w <= size do
-      let at base =
-        if !off = 0 then base
-        else
-          let a = fresh ctx in
-          emit ctx "    %s =l add %s, %d\n" a base !off;
-          a
-      in
+      let at base = offset_addr ctx base !off in
       let v = fresh ctx in
       emit ctx "    %s =%s %s %s\n" v letter load (at src);
       emit ctx "    %s %s, %s\n" store v (at dest);
@@ -630,13 +620,7 @@ and emit_array_lit_into ctx base elems elem =
   let strd = stride ctx.structs elem in
   List.iteri
     (fun i el ->
-      let addr =
-        if i = 0 then base
-        else
-          let a = fresh ctx in
-          emit ctx "    %s =l add %s, %d\n" a base (i * strd);
-          a
-      in
+      let addr = offset_addr ctx base (i * strd) in
       match el.T.desc with
       (* nested literal (multi-dimensional array): recurse into the sub-array *)
       | T.TArrayLit sub ->
@@ -663,13 +647,7 @@ and emit_struct_lit_into ctx base sname tfields =
     (fun (fname, (fe : T.texpr)) ->
       let ft = fe.T.ty in
       let offset = field_offset ctx.structs fields fname in
-      let addr =
-        if offset = 0 then base
-        else
-          let a = fresh ctx in
-          emit ctx "    %s =l add %s, %d\n" a base offset;
-          a
-      in
+      let addr = offset_addr ctx base offset in
       match fe.T.desc with
       | T.TStructLit (sub, subfields) ->
           emit_struct_lit_into ctx addr sub subfields
