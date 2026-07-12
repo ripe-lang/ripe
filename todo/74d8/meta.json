@@ -5,9 +5,9 @@
   "depends": [],
   "id": "74d8",
   "priority": "low",
-  "source": "lib/parser.ml:138",
+  "source": "lib/parser.ml:137",
   "status": "open",
   "tags": [],
   "title": "not entirely sure yet. static? public?",
-  "updated_at": "2026-07-04 17:07:05.989206"
+  "updated_at": "2026-07-11 14:59:34.546158"
 }
