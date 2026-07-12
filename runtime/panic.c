@@ -1,12 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+#define PANIC_RED "\033[1;31m"
+#define PANIC_RESET "\033[0m"
+
+static const char *panic_prefix(void) {
+    return isatty(fileno(stderr)) ? PANIC_RED "panic:" PANIC_RESET : "panic:";
+}
 
 void ripe_panic(const char *msg) {
-    fprintf(stderr, "panic: %s\n", msg);
+    fprintf(stderr, "%s %s\n", panic_prefix(), msg);
     abort();
 }
 
 void ripe_panic_bounds(long idx, long len) {
-    fprintf(stderr, "panic: index %ld is out of range for length %ld\n", idx, len);
+    fprintf(stderr, "%s index %ld is out of range for length %ld\n",
+            panic_prefix(), idx, len);
     abort();
 }
