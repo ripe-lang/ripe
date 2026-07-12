@@ -5,9 +5,9 @@
   "depends": [],
   "id": "d6df",
   "priority": "low",
-  "source": "lib/codegen.ml:1040",
+  "source": "lib/codegen.ml:941",
   "status": "open",
   "tags": [],
   "title": "emit_expr in statement position emits dead loads for idents",
-  "updated_at": "2026-07-11 22:47:27.908528"
+  "updated_at": "2026-07-12 08:10:50.127398"
 }

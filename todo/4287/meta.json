@@ -5,9 +5,9 @@
   "depends": [],
   "id": "4287",
   "priority": "low",
-  "source": "lib/codegen.ml:104",
+  "source": "lib/codegen.ml:106",
   "status": "open",
   "tags": [],
   "title": "Reordering struct fields by alignment to minimize padding",
-  "updated_at": "2026-07-08 14:04:44.392673"
+  "updated_at": "2026-07-12 08:10:50.126854"
 }

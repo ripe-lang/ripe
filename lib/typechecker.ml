@@ -260,7 +260,7 @@ let is_ordered = is_numeric
 let is_integer t = match strip_alias t with TInt _ -> true | _ -> false
 
 (* a newtype hides every operation of its base *)
-(* TODO: let a newtype opt back into operators like haskell deriving *)
+(* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
   | TAlias (_, base) -> is_comparable base

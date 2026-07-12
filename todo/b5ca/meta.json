@@ -5,9 +5,9 @@
   "depends": [],
   "id": "b5ca",
   "priority": "low",
-  "source": "lib/typechecker.ml:539",
+  "source": "lib/typechecker.ml:540",
   "status": "open",
   "tags": [],
   "title": "dedicated \"cannot chain comparison operators\" message by checking if l is a comparison node",
-  "updated_at": "2026-07-09 20:18:11.617159"
+  "updated_at": "2026-07-12 08:10:50.126192"
 }
