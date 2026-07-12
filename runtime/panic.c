@@ -19,3 +19,9 @@ void ripe_panic_bounds(long idx, long len) {
             panic_prefix(), idx, len);
     abort();
 }
+
+void ripe_panic_slice_bounds(long lo, long hi, long len) {
+    fprintf(stderr, "%s slice bounds [%ld:%ld] out of range for length %ld\n",
+            panic_prefix(), lo, hi, len);
+    abort();
+}
