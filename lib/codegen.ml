@@ -1328,7 +1328,7 @@ let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
       let size = ty_size ctx.structs gd.ty in
       emit ctx "data $%s = align %d { z %d }\n" gd.name align size
   | Some te -> (
-      match gd.ty with
+      match resolve_ty gd.ty with
       | TArray _ | TStruct _ ->
           emit ctx "data $%s = align %d { %s }\n" gd.name align
             (const_array_fields ctx te)

@@ -1,0 +1,9 @@
+struct Point { x: i32, y: i32 }
+
+type Pt = Point
+
+var g: Pt = Point { x: 2, y: 3 }
+
+func main() i32 {
+  return g.x + g.y
+}
