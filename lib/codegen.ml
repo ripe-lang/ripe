@@ -78,15 +78,18 @@ let wrap_const (ty : ty) (n : Int64.t) : const_num =
       Ni32 (Int64.to_int32 fitted)
   | _ -> if qbe_base ty = L then Ni64 n else Ni32 (Int64.to_int32 n)
 
+(* s_ for single, d_ for double *)
+let float_lit (ty : ty) (f : float) : string =
+  let prefix, digits =
+    match resolve_ty ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+  in
+  prefix ^ Printf.sprintf "%.*g" digits f
+
 let format_const_num (ty : ty) (n : const_num) : string =
   match n with
   | Ni32 n -> Int32.to_string n
   | Ni64 n -> Int64.to_string n
-  | Nf f ->
-      let prefix, digits =
-        match resolve_ty ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
-      in
-      prefix ^ Printf.sprintf "%.*g" digits f
+  | Nf f -> float_lit ty f
 
 (* undoes the s_/d_ tag format_const_num stamps on floats *)
 let parse_const_num (ty : ty) (s : string) : const_num =
@@ -327,11 +330,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
   | T.TInt n -> Int64.to_string n
-  | T.TFloat f ->
-      let prefix, digits =
-        match t with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
-      in
-      prefix ^ Printf.sprintf "%.*g" digits f
+  | T.TFloat f -> float_lit t f
   | T.TBool b -> if b then "1" else "0"
   | T.TNull -> "0"
   | T.TChar c -> string_of_int (Char.code c)
@@ -703,7 +702,7 @@ and compound_arith op lt =
   | Ast.SubAssign -> "sub"
   | Ast.MulAssign -> "mul"
   | Ast.DivAssign ->
-      if is_float_ty lt then "div" else if is_unsigned lt then "udiv" else "div"
+      if is_float lt then "div" else if is_unsigned lt then "udiv" else "div"
   | _ -> Error.ice "unexpected compound assignment operator"
 
 and emit_compound_assign ctx op l r =
@@ -733,8 +732,6 @@ and emit_compound_via_addr ctx op elem addr r =
   emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur rv;
   emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
   new_val
-
-and is_float_ty = function TFloat _ -> true | _ -> false
 
 (* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
 and emit_branch ctx e true_lbl false_lbl =
@@ -788,7 +785,7 @@ and emit_binop ctx op l r t =
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div ->
       let instr =
-        if is_float_ty lty then "div" else if unsigned then "udiv" else "div"
+        if is_float lty then "div" else if unsigned then "udiv" else "div"
       in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
   | Ast.Mod ->
@@ -799,20 +796,16 @@ and emit_binop ctx op l r t =
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
   (* floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
   | Ast.Lt ->
-      if is_float_ty lty then
-        emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
+      if is_float lty then emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.Gt ->
-      if is_float_ty lty then
-        emit ctx "    %s =w cgt%s %s, %s\n" tmp op_qt lv rv
+      if is_float lty then emit ctx "    %s =w cgt%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.Lte ->
-      if is_float_ty lty then
-        emit ctx "    %s =w cle%s %s, %s\n" tmp op_qt lv rv
+      if is_float lty then emit ctx "    %s =w cle%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.Gte ->
-      if is_float_ty lty then
-        emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
+      if is_float lty then emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
   | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
   | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv

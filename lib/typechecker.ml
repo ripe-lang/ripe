@@ -276,7 +276,6 @@ let cast_class t =
 
 (* a pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
-  let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false in
   match (cast_class src, cast_class tgt) with
   | Aggregate, _ | _, Aggregate -> ty_equal (resolve_ty src) (resolve_ty tgt)
   | Numeric, Numeric | Ptr, Ptr -> true

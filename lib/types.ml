@@ -76,6 +76,8 @@ let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
   | t -> t
 
+let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
+
 (* an alias is just another name for its base type so it never makes two types different *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
