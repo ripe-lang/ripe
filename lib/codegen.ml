@@ -461,9 +461,25 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         | TSlice e -> e
         | _ -> Error.ice ~span:e.T.span "slice expression on non-slice type"
       in
-      let storage = data_ptr ctx base in
+      let base_addr = emit_expr ctx base in
+      let storage, blen =
+        match resolve_ty base.T.ty with
+        | TArray (_, n) -> (base_addr, string_of_int n)
+        | TSlice _ ->
+            let p = fresh ctx in
+            emit ctx "    %s =l loadl %s\n" p base_addr;
+            let lenp = fresh ctx in
+            emit ctx "    %s =l add %s, 8\n" lenp base_addr;
+            let l = fresh ctx in
+            emit ctx "    %s =l loadl %s\n" l lenp;
+            (p, l)
+        | t ->
+            Error.ice ~span:base.T.span
+              (Printf.sprintf "cannot slice: %s" (show_ty t))
+      in
       let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
       let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
+      emit_slice_bounds_check ctx lo_l hi_l blen;
       let off = fresh ctx in
       emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
       let ptr = fresh ctx in
@@ -577,6 +593,23 @@ and emit_bounds_check ctx idx len =
   emit_jnz ctx cond fail_lbl ok_lbl;
   emit_label ctx fail_lbl;
   emit ctx "    call $ripe_panic_bounds(l %s, l %s)\n" idx len;
+  emit ctx "    hlt\n";
+  ctx.terminated := true;
+  emit_label ctx ok_lbl
+
+and emit_slice_bounds_check ctx lo hi len =
+  let id = fresh_id ctx in
+  let fail_lbl = Printf.sprintf "@slice.fail.%d" id in
+  let ok_lbl = Printf.sprintf "@slice.ok.%d" id in
+  let hi_bad = fresh ctx in
+  emit ctx "    %s =w cugtl %s, %s\n" hi_bad hi len;
+  let lo_bad = fresh ctx in
+  emit ctx "    %s =w cugtl %s, %s\n" lo_bad lo hi;
+  let bad = fresh ctx in
+  emit ctx "    %s =w or %s, %s\n" bad hi_bad lo_bad;
+  emit_jnz ctx bad fail_lbl ok_lbl;
+  emit_label ctx fail_lbl;
+  emit ctx "    call $ripe_panic_slice_bounds(l %s, l %s, l %s)\n" lo hi len;
   emit ctx "    hlt\n";
   ctx.terminated := true;
   emit_label ctx ok_lbl

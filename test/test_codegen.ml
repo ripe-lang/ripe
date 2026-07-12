@@ -1094,7 +1094,7 @@ func f() i32 {
     {|
     function w $f() {
     @start
-        %t8 =l alloc8 16
+        %t12 =l alloc8 16
         %a =l alloc4 16
         storew 1, %a
         %t0 =l add %a, 4
@@ -1106,32 +1106,40 @@ func f() i32 {
         %s =l alloc8 16
         %t3 =l extsw 1
         %t4 =l extsw 3
-        %t5 =l mul %t3, 4
-        %t6 =l add %a, %t5
-        %t7 =l sub %t4, %t3
-        storel %t6, %t8
-        %t9 =l add %t8, 8
-        storel %t7, %t9
-        %t10 =l loadl %t8
-        storel %t10, %s
-        %t12 =l add %t8, 8
-        %t11 =l loadl %t12
-        %t13 =l add %s, 8
-        storel %t11, %t13
-        %t14 =l loadl %s
-        %t15 =l add %s, 8
-        %t16 =l loadl %t15
-        %t17 =l extsw 0
-        %t19 =w cugel %t17, %t16
-        jnz %t19, @bounds.fail.18, @bounds.ok.18
-    @bounds.fail.18
-        call $ripe_panic_bounds(l %t17, l %t16)
+        %t6 =w cugtl %t4, 4
+        %t7 =w cugtl %t3, %t4
+        %t8 =w or %t6, %t7
+        jnz %t8, @slice.fail.5, @slice.ok.5
+    @slice.fail.5
+        call $ripe_panic_slice_bounds(l %t3, l %t4, l 4)
         hlt
-    @bounds.ok.18
-        %t20 =l mul %t17, 4
-        %t21 =l add %t14, %t20
-        %t22 =w loadsw %t21
-        ret %t22
+    @slice.ok.5
+        %t9 =l mul %t3, 4
+        %t10 =l add %a, %t9
+        %t11 =l sub %t4, %t3
+        storel %t10, %t12
+        %t13 =l add %t12, 8
+        storel %t11, %t13
+        %t14 =l loadl %t12
+        storel %t14, %s
+        %t16 =l add %t12, 8
+        %t15 =l loadl %t16
+        %t17 =l add %s, 8
+        storel %t15, %t17
+        %t18 =l loadl %s
+        %t19 =l add %s, 8
+        %t20 =l loadl %t19
+        %t21 =l extsw 0
+        %t23 =w cugel %t21, %t20
+        jnz %t23, @bounds.fail.22, @bounds.ok.22
+    @bounds.fail.22
+        call $ripe_panic_bounds(l %t21, l %t20)
+        hlt
+    @bounds.ok.22
+        %t24 =l mul %t21, 4
+        %t25 =l add %t18, %t24
+        %t26 =w loadsw %t25
+        ret %t26
     }
     |}]
 
@@ -1148,7 +1156,7 @@ func f() i32 {
     {|
     function w $f() {
     @start
-        %t9 =l alloc8 16
+        %t13 =l alloc8 16
         %a =l alloc4 16
         storew 1, %a
         %t0 =l add %a, 4
@@ -1161,32 +1169,40 @@ func f() i32 {
         %t3 =l extsw 1
         %t4 =w add 3, 1
         %t5 =l extsw %t4
-        %t6 =l mul %t3, 4
-        %t7 =l add %a, %t6
-        %t8 =l sub %t5, %t3
-        storel %t7, %t9
-        %t10 =l add %t9, 8
-        storel %t8, %t10
-        %t11 =l loadl %t9
-        storel %t11, %s
-        %t13 =l add %t9, 8
-        %t12 =l loadl %t13
-        %t14 =l add %s, 8
-        storel %t12, %t14
-        %t15 =l loadl %s
-        %t16 =l add %s, 8
-        %t17 =l loadl %t16
-        %t18 =l extsw 0
-        %t20 =w cugel %t18, %t17
-        jnz %t20, @bounds.fail.19, @bounds.ok.19
-    @bounds.fail.19
-        call $ripe_panic_bounds(l %t18, l %t17)
+        %t7 =w cugtl %t5, 4
+        %t8 =w cugtl %t3, %t5
+        %t9 =w or %t7, %t8
+        jnz %t9, @slice.fail.6, @slice.ok.6
+    @slice.fail.6
+        call $ripe_panic_slice_bounds(l %t3, l %t5, l 4)
         hlt
-    @bounds.ok.19
-        %t21 =l mul %t18, 4
-        %t22 =l add %t15, %t21
-        %t23 =w loadsw %t22
-        ret %t23
+    @slice.ok.6
+        %t10 =l mul %t3, 4
+        %t11 =l add %a, %t10
+        %t12 =l sub %t5, %t3
+        storel %t11, %t13
+        %t14 =l add %t13, 8
+        storel %t12, %t14
+        %t15 =l loadl %t13
+        storel %t15, %s
+        %t17 =l add %t13, 8
+        %t16 =l loadl %t17
+        %t18 =l add %s, 8
+        storel %t16, %t18
+        %t19 =l loadl %s
+        %t20 =l add %s, 8
+        %t21 =l loadl %t20
+        %t22 =l extsw 0
+        %t24 =w cugel %t22, %t21
+        jnz %t24, @bounds.fail.23, @bounds.ok.23
+    @bounds.fail.23
+        call $ripe_panic_bounds(l %t22, l %t21)
+        hlt
+    @bounds.ok.23
+        %t25 =l mul %t22, 4
+        %t26 =l add %t19, %t25
+        %t27 =w loadsw %t26
+        ret %t27
     }
     |}]
 
@@ -1203,7 +1219,7 @@ func f() usize {
     {|
     function l $f() {
     @start
-        %t7 =l alloc8 16
+        %t11 =l alloc8 16
         %a =l alloc4 12
         storew 1, %a
         %t0 =l add %a, 4
@@ -1213,21 +1229,29 @@ func f() usize {
         %s =l alloc8 16
         %t2 =l extsw 0
         %t3 =l extsw 3
-        %t4 =l mul %t2, 4
-        %t5 =l add %a, %t4
-        %t6 =l sub %t3, %t2
-        storel %t5, %t7
-        %t8 =l add %t7, 8
-        storel %t6, %t8
-        %t9 =l loadl %t7
-        storel %t9, %s
-        %t11 =l add %t7, 8
-        %t10 =l loadl %t11
-        %t12 =l add %s, 8
+        %t5 =w cugtl %t3, 3
+        %t6 =w cugtl %t2, %t3
+        %t7 =w or %t5, %t6
+        jnz %t7, @slice.fail.4, @slice.ok.4
+    @slice.fail.4
+        call $ripe_panic_slice_bounds(l %t2, l %t3, l 3)
+        hlt
+    @slice.ok.4
+        %t8 =l mul %t2, 4
+        %t9 =l add %a, %t8
+        %t10 =l sub %t3, %t2
+        storel %t9, %t11
+        %t12 =l add %t11, 8
         storel %t10, %t12
-        %t13 =l add %s, 8
-        %t14 =l loadl %t13
-        ret %t14
+        %t13 =l loadl %t11
+        storel %t13, %s
+        %t15 =l add %t11, 8
+        %t14 =l loadl %t15
+        %t16 =l add %s, 8
+        storel %t14, %t16
+        %t17 =l add %s, 8
+        %t18 =l loadl %t17
+        ret %t18
     }
     |}]
 
@@ -1296,7 +1320,7 @@ func f() {
     {|
     function $f() {
     @start
-        %t7 =l alloc8 16
+        %t11 =l alloc8 16
         %a =l alloc4 12
         storew 1, %a
         %t0 =l add %a, 4
@@ -1306,31 +1330,39 @@ func f() {
         %s =l alloc8 16
         %t2 =l extsw 0
         %t3 =l extsw 3
-        %t4 =l mul %t2, 4
-        %t5 =l add %a, %t4
-        %t6 =l sub %t3, %t2
-        storel %t5, %t7
-        %t8 =l add %t7, 8
-        storel %t6, %t8
-        %t9 =l loadl %t7
-        storel %t9, %s
-        %t11 =l add %t7, 8
-        %t10 =l loadl %t11
-        %t12 =l add %s, 8
-        storel %t10, %t12
-        %t13 =l loadl %s
-        %t14 =l add %s, 8
-        %t15 =l loadl %t14
-        %t16 =l extsw 1
-        %t18 =w cugel %t16, %t15
-        jnz %t18, @bounds.fail.17, @bounds.ok.17
-    @bounds.fail.17
-        call $ripe_panic_bounds(l %t16, l %t15)
+        %t5 =w cugtl %t3, 3
+        %t6 =w cugtl %t2, %t3
+        %t7 =w or %t5, %t6
+        jnz %t7, @slice.fail.4, @slice.ok.4
+    @slice.fail.4
+        call $ripe_panic_slice_bounds(l %t2, l %t3, l 3)
         hlt
-    @bounds.ok.17
-        %t19 =l mul %t16, 4
-        %t20 =l add %t13, %t19
-        storew 9, %t20
+    @slice.ok.4
+        %t8 =l mul %t2, 4
+        %t9 =l add %a, %t8
+        %t10 =l sub %t3, %t2
+        storel %t9, %t11
+        %t12 =l add %t11, 8
+        storel %t10, %t12
+        %t13 =l loadl %t11
+        storel %t13, %s
+        %t15 =l add %t11, 8
+        %t14 =l loadl %t15
+        %t16 =l add %s, 8
+        storel %t14, %t16
+        %t17 =l loadl %s
+        %t18 =l add %s, 8
+        %t19 =l loadl %t18
+        %t20 =l extsw 1
+        %t22 =w cugel %t20, %t19
+        jnz %t22, @bounds.fail.21, @bounds.ok.21
+    @bounds.fail.21
+        call $ripe_panic_bounds(l %t20, l %t19)
+        hlt
+    @bounds.ok.21
+        %t23 =l mul %t20, 4
+        %t24 =l add %t17, %t23
+        storew 9, %t24
         ret
     }
     |}]
