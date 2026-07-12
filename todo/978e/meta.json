@@ -5,9 +5,9 @@
   "depends": [],
   "id": "978e",
   "priority": "low",
-  "source": "lib/codegen.ml:1250",
+  "source": "lib/codegen.ml:1258",
   "status": "open",
   "tags": [],
   "title": "Emit implicit return for non-void functions where the last expression is the return value.",
-  "updated_at": "2026-07-09 20:18:11.615522"
+  "updated_at": "2026-07-11 22:47:27.909148"
 }

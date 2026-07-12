@@ -7,7 +7,6 @@ type t = {
   line_starts : int array; (* sorted byte offsets where each line begins *)
 }
 
-(* TODO(c351): Wire up in main.ml once parser is done *)
 (* Only scan source text once to save the line start *)
 let create src =
   let len = String.length src in

@@ -1,6 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 (* errors: "expected X but found Y" *)
-(* TODO(97b3): accumulate multiple parse errors instead of failing on the first *)
 
 open Tokens
 open Ast

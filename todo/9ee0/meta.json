@@ -5,9 +5,9 @@
   "depends": [],
   "id": "9ee0",
   "priority": "low",
-  "source": "lib/parser.ml:150",
+  "source": "lib/parser.ml:149",
   "status": "open",
   "tags": [],
   "title": "parse modifiers",
-  "updated_at": "2026-07-04 17:07:05.989321"
+  "updated_at": "2026-07-11 14:59:34.546272"
 }

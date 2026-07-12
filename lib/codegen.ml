@@ -276,6 +276,18 @@ let sym_addr ctx (s : Symbol.t) : string =
 let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
 let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
 
+let intern_string ctx s =
+  let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
+  incr ctx.str_ctr;
+  ctx.strings := (lbl, s) :: !(ctx.strings);
+  lbl
+
+let emit_panic ctx msg =
+  let lbl = intern_string ctx msg in
+  emit ctx "    call $ripe_panic(l %s)\n" lbl;
+  emit ctx "    hlt\n";
+  ctx.terminated := true
+
 (* start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
   emit ctx "%s\n" lbl;
@@ -341,11 +353,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty t) (qbe_load t)
           (sym_addr ctx s);
         tmp
-  | T.TCStr s ->
-      let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
-      incr ctx.str_ctr;
-      ctx.strings := (lbl, s) :: !(ctx.strings);
-      lbl
+  | T.TCStr s -> intern_string ctx s
   | T.TCall (callee, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
@@ -1303,11 +1311,7 @@ let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
       | _ -> fold_const_value ctx e)
   | T.TIdent s when Symbol.is_func s.kind -> "$" ^ s.name
   | T.TIdent s -> resolve_const ctx s.name te.T.span
-  | T.TCStr s ->
-      let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
-      incr ctx.str_ctr;
-      ctx.strings := (lbl, s) :: !(ctx.strings);
-      lbl
+  | T.TCStr s -> intern_string ctx s
   | T.TBinOp _ | T.TUnOp _ -> format_const_num te.T.ty (fold_const_num ctx te)
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
