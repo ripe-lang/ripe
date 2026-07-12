@@ -10,6 +10,9 @@
 
 A systems programming language.
 
+> [!WARNING]
+> Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
+
 ## Installation
 
 ### Debian
