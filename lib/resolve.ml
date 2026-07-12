@@ -26,9 +26,7 @@ let dump (r : t) : string =
 let sym_at (r : t) (span : Ast.span) : Symbol.t =
   match Hashtbl.find_opt r.syms span with
   | Some s -> s
-  | None ->
-      raise
-        (Diagnostic.Errors [ Error.internal ~span "no symbol resolved here" ])
+  | None -> Error.ice ~span "no symbol resolved here"
 
 let mint (st : state) (kind : Symbol.kind) (name : string) (span : Ast.span) :
     Symbol.t =

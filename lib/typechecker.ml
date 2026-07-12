@@ -259,9 +259,11 @@ let is_numeric t =
 let is_ordered = is_numeric
 let is_integer t = match strip_alias t with TInt _ -> true | _ -> false
 
+(* a newtype hides every operation of its base *)
+(* TODO: let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
-  | TNewtype (_, base) | TAlias (_, base) -> is_comparable base
+  | TAlias (_, base) -> is_comparable base
   | _ -> false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
@@ -276,7 +278,6 @@ let cast_class t =
 
 (* a pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
-  let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false in
   match (cast_class src, cast_class tgt) with
   | Aggregate, _ | _, Aggregate -> ty_equal (resolve_ty src) (resolve_ty tgt)
   | Numeric, Numeric | Ptr, Ptr -> true
@@ -581,6 +582,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           emit env (Error.named l.span "cannot assign to const" s.name)
       | _ -> ());
       let t = tl.T.ty in
+      if op <> Assign && not (is_numeric t) then
+        add_error env l.span
+          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
+             (show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
 

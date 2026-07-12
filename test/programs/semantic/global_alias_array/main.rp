@@ -1,0 +1,7 @@
+type Row = [3]i32
+
+var g: Row = [1, 2, 3]
+
+func main() i32 {
+  return g[0] + g[1] + g[2]
+}

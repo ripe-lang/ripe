@@ -38,3 +38,5 @@ let internal ?span msg =
           https://github.com/ripe-lang/ripe/issues"
   in
   match span with Some sp -> at sp d | None -> d
+
+let ice ?span msg = raise (Errors [ internal ?span msg ])

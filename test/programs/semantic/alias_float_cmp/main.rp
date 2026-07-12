@@ -1,0 +1,12 @@
+type Temp = f32
+
+func main() i32 {
+  var a: Temp = 3.0
+  var b: Temp = 10.0
+  var n: i32 = 0
+  if a < b { n = n + 1 }
+  if b > a { n = n + 1 }
+  if a <= a { n = n + 1 }
+  if b >= b { n = n + 1 }
+  return n
+}
