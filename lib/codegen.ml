@@ -590,14 +590,41 @@ and data_ptr ctx base =
 
 (* address of arr[idx]: storage + idx * stride(elem) *)
 and emit_index_addr ctx base idx elem =
-  let storage = data_ptr ctx base in
+  let base_addr = emit_expr ctx base in
+  let storage, len =
+    match resolve_ty base.T.ty with
+    | TArray (_, n) -> (base_addr, Some (string_of_int n))
+    | TSlice _ ->
+        let p = fresh ctx in
+        emit ctx "    %s =l loadl %s\n" p base_addr;
+        let lenp = fresh ctx in
+        emit ctx "    %s =l add %s, 8\n" lenp base_addr;
+        let l = fresh ctx in
+        emit ctx "    %s =l loadl %s\n" l lenp;
+        (p, Some l)
+    | _ -> (base_addr, None)
+  in
   let iv = emit_expr ctx idx in
   let iw = widen_to_l ctx iv idx.T.ty in
+  (match len with Some len -> emit_bounds_check ctx iw len | None -> ());
   let off = fresh ctx in
   emit ctx "    %s =l mul %s, %d\n" off iw (stride ctx.structs elem);
   let addr = fresh ctx in
   emit ctx "    %s =l add %s, %s\n" addr storage off;
   addr
+
+and emit_bounds_check ctx idx len =
+  let id = fresh_id ctx in
+  let fail_lbl = Printf.sprintf "@bounds.fail.%d" id in
+  let ok_lbl = Printf.sprintf "@bounds.ok.%d" id in
+  let cond = fresh ctx in
+  emit ctx "    %s =w cugel %s, %s\n" cond idx len;
+  emit_jnz ctx cond fail_lbl ok_lbl;
+  emit_label ctx fail_lbl;
+  emit ctx "    call $ripe_panic_bounds(l %s, l %s)\n" idx len;
+  emit ctx "    hlt\n";
+  ctx.terminated := true;
+  emit_label ctx ok_lbl
 
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.texpr) =
