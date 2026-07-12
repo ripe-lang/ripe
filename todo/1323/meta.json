@@ -5,9 +5,9 @@
   "depends": [],
   "id": "1323",
   "priority": "low",
-  "source": "lib/symbol.ml:3",
+  "source": "lib/symbol.ml",
   "status": "open",
   "tags": [],
   "title": "A counter is fine since I only compile one file but when I add",
-  "updated_at": "2026-07-08 14:04:44.357534"
+  "updated_at": "2026-07-12 08:23:02.153404"
 }

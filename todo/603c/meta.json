@@ -5,9 +5,9 @@
   "depends": [],
   "id": "603c",
   "priority": "low",
-  "source": "lib/typechecker.ml:724",
+  "source": "lib/typechecker.ml",
   "status": "open",
   "tags": [],
   "title": "revisit once I decide how implicit and explicit returns work",
-  "updated_at": "2026-07-12 08:10:50.126577"
+  "updated_at": "2026-07-12 08:23:02.156733"
 }

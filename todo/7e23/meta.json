@@ -1,1 +1,13 @@
-{"id": "7e23", "title": "I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1.", "status": "open", "priority": "low", "tags": [], "created_at": "2026-03-13 13:35:35.525843", "updated_at": "2026-07-01 02:38:08.307451", "source": "lib/codegen.ml:7", "depends": [], "blocks": [], "assignee": "ramonasuncion"}
+{
+  "assignee": "ramonasuncion",
+  "blocks": [],
+  "created_at": "2026-03-13 13:35:35.525843",
+  "depends": [],
+  "id": "7e23",
+  "priority": "low",
+  "source": "lib/codegen.ml",
+  "status": "open",
+  "tags": [],
+  "title": "I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1.",
+  "updated_at": "2026-07-12 08:23:02.154740"
+}

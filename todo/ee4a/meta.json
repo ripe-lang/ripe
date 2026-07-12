@@ -5,9 +5,9 @@
   "depends": [],
   "id": "ee4a",
   "priority": "low",
-  "source": "lib/tokens.ml:93",
+  "source": "lib/tokens.ml",
   "status": "open",
   "tags": [],
   "title": "I don't know if I like \"inline\" something feels weird",
-  "updated_at": "2026-07-08 14:04:44.391365"
+  "updated_at": "2026-07-12 08:23:02.153771"
 }
