@@ -318,6 +318,11 @@ let offset_addr ctx base off =
 let alloc_slot ctx t =
   Printf.sprintf "%s %d" (alloc_instr t) (ty_size ctx.structs t)
 
+let array_elem_ty ~span t =
+  match t with
+  | TArray (el, _) -> el
+  | _ -> Error.ice ~span "expected an array type"
+
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
@@ -475,11 +480,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       slot
   | T.TArrayLit elems ->
       (* as a value: materialize into a fresh stack slot and yield its address *)
-      let elem =
-        match t with
-        | TArray (el, _) -> el
-        | _ -> Error.ice ~span:e.T.span "array literal on non-array type"
-      in
+      let elem = array_elem_ty ~span:e.T.span t in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_array_lit_into ctx slot elems elem;
@@ -623,13 +624,7 @@ and emit_array_lit_into ctx base elems elem =
       match el.T.desc with
       (* nested literal (multi-dimensional array): recurse into the sub-array *)
       | T.TArrayLit sub ->
-          let subelem =
-            match el.T.ty with
-            | TArray (e, _) -> e
-            | _ ->
-                Error.ice ~span:el.T.span
-                  "nested array literal on non-array type"
-          in
+          let subelem = array_elem_ty ~span:el.T.span el.T.ty in
           emit_array_lit_into ctx addr sub subelem
       | _ when is_aggregate elem ->
           (* element is an aggregate value: copy its bytes into place *)
@@ -651,13 +646,7 @@ and emit_struct_lit_into ctx base sname tfields =
       | T.TStructLit (sub, subfields) ->
           emit_struct_lit_into ctx addr sub subfields
       | T.TArrayLit sub ->
-          let subelem =
-            match ft with
-            | TArray (e, _) -> e
-            | _ ->
-                Error.ice ~span:fe.T.span
-                  "array literal field on non-array type"
-          in
+          let subelem = array_elem_ty ~span:fe.T.span ft in
           emit_array_lit_into ctx addr sub subelem
       | T.TZero -> emit_zero_into ctx addr ft
       | T.TUndef -> ()
@@ -910,11 +899,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | T.TZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
       | T.TUndef -> ()
       | T.TArrayLit elems ->
-          let elem =
-            match e.T.ty with
-            | TArray (el, _) -> el
-            | _ -> Error.ice ~span:e.T.span "array literal on non-array type"
-          in
+          let elem = array_elem_ty ~span:e.T.span e.T.ty in
           emit_array_lit_into ctx ("%" ^ slot) elems elem
       | T.TStructLit (sname, tfields) ->
           emit_struct_lit_into ctx ("%" ^ slot) sname tfields
