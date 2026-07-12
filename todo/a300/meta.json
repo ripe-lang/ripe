@@ -5,9 +5,9 @@
   "depends": [],
   "id": "a300",
   "priority": "low",
-  "source": "lib/parser.ml:299",
+  "source": "lib/parser.ml",
   "status": "open",
   "tags": [],
   "title": "better message, point at both operators",
-  "updated_at": "2026-07-11 14:59:34.546380"
+  "updated_at": "2026-07-12 08:23:02.154573"
 }

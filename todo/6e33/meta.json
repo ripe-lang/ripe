@@ -5,9 +5,9 @@
   "depends": [],
   "id": "6e33",
   "priority": "low",
-  "source": "lib/codegen.ml:1117",
+  "source": "lib/codegen.ml",
   "status": "open",
   "tags": [],
   "title": "Create a custom _start.",
-  "updated_at": "2026-07-12 08:10:50.127598"
+  "updated_at": "2026-07-12 08:23:02.155503"
 }

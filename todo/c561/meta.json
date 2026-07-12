@@ -5,9 +5,9 @@
   "depends": [],
   "id": "c561",
   "priority": "low",
-  "source": "lib/codegen.ml:1123",
+  "source": "lib/codegen.ml",
   "status": "open",
   "tags": [],
   "title": "emit inline functions at call site",
-  "updated_at": "2026-07-12 08:10:50.127773"
+  "updated_at": "2026-07-12 08:23:02.155667"
 }

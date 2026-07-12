@@ -5,9 +5,9 @@
   "depends": [],
   "id": "f0b2",
   "priority": "low",
-  "source": "lib/ast.ml:13",
+  "source": "lib/ast.ml",
   "status": "open",
   "tags": [],
   "title": "allow const-expr sizes, not just an int literal",
-  "updated_at": "2026-07-08 14:04:44.390844"
+  "updated_at": "2026-07-12 08:23:02.153889"
 }

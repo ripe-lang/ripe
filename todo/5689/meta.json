@@ -5,9 +5,9 @@
   "depends": [],
   "id": "5689",
   "priority": "low",
-  "source": "lib/parser.ml:30",
+  "source": "lib/parser.ml",
   "status": "open",
   "tags": [],
   "title": "cap at 20 errors then bail, with a flag to list the rest",
-  "updated_at": "2026-07-11 14:59:34.546017"
+  "updated_at": "2026-07-12 08:23:02.154313"
 }

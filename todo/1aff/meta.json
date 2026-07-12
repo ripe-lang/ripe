@@ -5,9 +5,9 @@
   "depends": [],
   "id": "1aff",
   "priority": "low",
-  "source": "lib/codegen.ml:160",
+  "source": "lib/codegen.ml",
   "status": "open",
   "tags": [],
   "title": "maybe look into escape analysis",
-  "updated_at": "2026-07-12 08:10:50.127101"
+  "updated_at": "2026-07-12 08:23:02.155091"
 }
