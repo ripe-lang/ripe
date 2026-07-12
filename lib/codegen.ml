@@ -17,8 +17,7 @@ let qbe_base (t : ty) : qbe_base =
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid ->
-      raise (Diagnostic.Errors [ Error.internal "TVoid has no QBE base type" ])
+  | TVoid -> Error.ice "TVoid has no QBE base type"
 
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
@@ -111,8 +110,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid ->
-      raise (Diagnostic.Errors [ Error.internal "TVoid has no alignment" ])
+  | TVoid -> Error.ice "TVoid has no alignment"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
@@ -120,12 +118,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
             (fun acc (_, ft) -> max acc (ty_align structs ft))
             1 fields
       | None ->
-          raise
-            (Diagnostic.Errors
-               [
-                 Error.internal
-                   (Printf.sprintf "no layout recorded for struct %s" name);
-               ]))
+          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
   | TArray (e, _) -> ty_align structs e
   | TSlice _ -> 8
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
@@ -140,7 +133,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TFloat k -> float_kind_size k
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> raise (Diagnostic.Errors [ Error.internal "TVoid has no size" ])
+  | TVoid -> Error.ice "TVoid has no size"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
       | Some fields ->
@@ -155,12 +148,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
           in
           align_to offset struct_align
       | None ->
-          raise
-            (Diagnostic.Errors
-               [
-                 Error.internal
-                   (Printf.sprintf "no layout recorded for struct %s" name);
-               ]))
+          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* fat pointer: { ptr, len } *)
   | TSlice _ -> 16
@@ -177,9 +165,7 @@ let rec alloc_instr (t : ty) : string =
   | TSlice _ -> "alloc8"
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid ->
-      raise
-        (Diagnostic.Errors [ Error.internal "TVoid has no alloc instruction" ])
+  | TVoid -> Error.ice "TVoid has no alloc instruction"
 
 let qbe_load (t : ty) : string =
   match resolve_ty t with
@@ -195,9 +181,7 @@ let qbe_load (t : ty) : string =
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid ->
-      raise
-        (Diagnostic.Errors [ Error.internal "TVoid has no load instruction" ])
+  | TVoid -> Error.ice "TVoid has no load instruction"
 
 let qbe_store (t : ty) : string =
   match resolve_ty t with
@@ -210,9 +194,7 @@ let qbe_store (t : ty) : string =
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid ->
-      raise
-        (Diagnostic.Errors [ Error.internal "TVoid has no store instruction" ])
+  | TVoid -> Error.ice "TVoid has no store instruction"
 
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
@@ -305,10 +287,7 @@ let emit_jnz ctx v then_lbl else_lbl =
 
 let field_offset structs fields fname =
   let rec go off = function
-    | [] ->
-        raise
-          (Diagnostic.Errors
-             [ Error.internal (Printf.sprintf "unknown field %s" fname) ])
+    | [] -> Error.ice (Printf.sprintf "unknown field %s" fname)
     | (n, ft) :: rest ->
         let a = ty_align structs ft in
         let off = align_to off a in
@@ -319,10 +298,7 @@ let field_offset structs fields fname =
 let lvalue_sym (e : T.texpr) : Symbol.t =
   match e.T.desc with
   | T.TIdent s -> s
-  | _ ->
-      raise
-        (Diagnostic.Errors
-           [ Error.internal ~span:e.T.span "expected an lvalue" ])
+  | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
 (* aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
@@ -433,12 +409,8 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           emit ctx "    %s =l loadl %s\n" l lenp;
           l
       | t ->
-          raise
-            (Diagnostic.Errors
-               [
-                 Error.internal ~span:e.T.span
-                   (Printf.sprintf "TLen on non-array type: %s" (show_ty t));
-               ]))
+          Error.ice ~span:e.T.span
+            (Printf.sprintf "TLen on non-array type: %s" (show_ty t)))
   | T.TDataPtr e -> (
       match resolve_ty e.T.ty with
       | TSlice _ ->
@@ -450,24 +422,16 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       (* an array's base address is already the pointer to its first element *)
       | TArray _ -> emit_expr ctx e
       | t ->
-          raise
-            (Diagnostic.Errors
-               [
-                 Error.internal ~span:e.T.span
-                   (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t));
-               ]))
+          Error.ice ~span:e.T.span
+            (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t)))
   | T.TToSlice arr ->
       let arr_addr = emit_expr ctx arr in
       let n =
         match resolve_ty arr.T.ty with
         | TArray (_, n) -> n
         | t ->
-            raise
-              (Diagnostic.Errors
-                 [
-                   Error.internal ~span:arr.T.span
-                     (Printf.sprintf "cannot coerce to slice: %s" (show_ty t));
-                 ])
+            Error.ice ~span:arr.T.span
+              (Printf.sprintf "cannot coerce to slice: %s" (show_ty t))
       in
       (* build a { ptr = &arr[0], len = n } fat pointer on the stack *)
       let slot = fresh ctx in
@@ -481,13 +445,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let elem =
         match t with
         | TSlice e -> e
-        | _ ->
-            raise
-              (Diagnostic.Errors
-                 [
-                   Error.internal ~span:e.T.span
-                     "slice expression on non-slice type";
-                 ])
+        | _ -> Error.ice ~span:e.T.span "slice expression on non-slice type"
       in
       let storage = data_ptr ctx base in
       let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
@@ -510,13 +468,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let elem =
         match t with
         | TArray (el, _) -> el
-        | _ ->
-            raise
-              (Diagnostic.Errors
-                 [
-                   Error.internal ~span:e.T.span
-                     "array literal on non-array type";
-                 ])
+        | _ -> Error.ice ~span:e.T.span "array literal on non-array type"
       in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
@@ -558,10 +510,7 @@ and emit_unop ctx op e t =
           emit ctx "    %s =w ceqw %s, 0\n" tmp ev
       | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
       | Ast.Deref -> emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
-      | _ ->
-          raise
-            (Diagnostic.Errors
-               [ Error.internal ~span:e.T.span "unexpected unary operator" ]));
+      | _ -> Error.ice ~span:e.T.span "unexpected unary operator");
       match op with Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t | _ -> tmp)
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
@@ -608,10 +557,7 @@ and emit_lvalue_addr ctx (e : T.texpr) =
   | T.TIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
   | T.TFieldAccess (base, field) -> emit_field_addr ctx base field
   | T.TUnOp (Ast.Deref, inner) -> emit_expr ctx inner
-  | _ ->
-      raise
-        (Diagnostic.Errors
-           [ Error.internal ~span:e.T.span "expected an lvalue" ])
+  | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
 (* address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
 and emit_field_addr ctx base field =
@@ -620,13 +566,7 @@ and emit_field_addr ctx base field =
     | TStruct (n, _) -> n
     | TAlias (_, inner) -> peel inner
     | TPointer t -> peel t
-    | _ ->
-        raise
-          (Diagnostic.Errors
-             [
-               Error.internal ~span:base.T.span
-                 "field access on non-struct type";
-             ])
+    | _ -> Error.ice ~span:base.T.span "field access on non-struct type"
   in
   let struct_name = peel base.T.ty in
   let fields = Hashtbl.find ctx.structs struct_name in
@@ -704,12 +644,8 @@ and emit_array_lit_into ctx base elems elem =
             match el.T.ty with
             | TArray (e, _) -> e
             | _ ->
-                raise
-                  (Diagnostic.Errors
-                     [
-                       Error.internal ~span:el.T.span
-                         "nested array literal on non-array type";
-                     ])
+                Error.ice ~span:el.T.span
+                  "nested array literal on non-array type"
           in
           emit_array_lit_into ctx addr sub subelem
       | _ when is_aggregate elem ->
@@ -742,12 +678,8 @@ and emit_struct_lit_into ctx base sname tfields =
             match ft with
             | TArray (e, _) -> e
             | _ ->
-                raise
-                  (Diagnostic.Errors
-                     [
-                       Error.internal ~span:fe.T.span
-                         "array literal field on non-array type";
-                     ])
+                Error.ice ~span:fe.T.span
+                  "array literal field on non-array type"
           in
           emit_array_lit_into ctx addr sub subelem
       | T.TZero -> emit_zero_into ctx addr ft
@@ -806,10 +738,7 @@ and compound_arith op lt =
   | Ast.MulAssign -> "mul"
   | Ast.DivAssign ->
       if is_float_ty lt then "div" else if is_unsigned lt then "udiv" else "div"
-  | _ ->
-      raise
-        (Diagnostic.Errors
-           [ Error.internal "unexpected compound assignment operator" ])
+  | _ -> Error.ice "unexpected compound assignment operator"
 
 and emit_compound_assign ctx op l r =
   match l.T.desc with
@@ -926,10 +855,7 @@ and emit_binop ctx op l r t =
   | Ast.Rshift ->
       let instr = if unsigned then "shr" else "sar" in
       emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
-  | _ ->
-      raise
-        (Diagnostic.Errors
-           [ Error.internal ~span:l.T.span "unexpected binary operator" ]));
+  | _ -> Error.ice ~span:l.T.span "unexpected binary operator");
   match op with
   | Ast.Add | Ast.Sub | Ast.Mul | Ast.Lshift -> narrow_int_to ctx tmp t
   | _ -> tmp
@@ -1011,13 +937,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           let elem =
             match e.T.ty with
             | TArray (el, _) -> el
-            | _ ->
-                raise
-                  (Diagnostic.Errors
-                     [
-                       Error.internal ~span:e.T.span
-                         "array literal on non-array type";
-                     ])
+            | _ -> Error.ice ~span:e.T.span "array literal on non-array type"
           in
           emit_array_lit_into ctx ("%" ^ slot) elems elem
       | T.TStructLit (sname, tfields) ->
@@ -1152,12 +1072,8 @@ and emit_for ctx name elem_ty iter body =
             emit ctx "    %s =l loadl %s\n" l lenp;
             (p, l)
         | t ->
-            raise
-              (Diagnostic.Errors
-                 [
-                   Error.internal ~span:iter.T.span
-                     (Printf.sprintf "cannot iterate over type: %s" (show_ty t));
-                 ])
+            Error.ice ~span:iter.T.span
+              (Printf.sprintf "cannot iterate over type: %s" (show_ty t))
       in
       let idx = Printf.sprintf "%%for.i%d" id in
       emit ctx "    %s =l alloc8 8\n" idx;
@@ -1289,8 +1205,7 @@ let rec qbe_ext_ty (t : ty) : string =
   (* fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid ->
-      raise (Diagnostic.Errors [ Error.internal "TVoid has no extended type" ])
+  | TVoid -> Error.ice "TVoid has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
