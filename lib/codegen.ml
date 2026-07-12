@@ -315,6 +315,9 @@ let offset_addr ctx base off =
     emit ctx "    %s =l add %s, %d\n" a base off;
     a
 
+let alloc_slot ctx t =
+  Printf.sprintf "%s %d" (alloc_instr t) (ty_size ctx.structs t)
+
 let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   let t = e.T.ty in
   match e.T.desc with
@@ -478,27 +481,23 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         | _ -> Error.ice ~span:e.T.span "array literal on non-array type"
       in
       let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_array_lit_into ctx slot elems elem;
       slot
   | T.TZero when is_aggregate t ->
       let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_zero_into ctx slot t;
       slot
   | T.TZero -> "0"
   | T.TUndef when is_aggregate t ->
       let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       slot
   | T.TUndef -> "0"
   | T.TStructLit (sname, tfields) ->
       let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_struct_lit_into ctx slot sname tfields;
       slot
 
@@ -906,8 +905,7 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   | T.TConst (s, t, e) | T.TVar (s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
-      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       match e.T.desc with
       | T.TZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
       | T.TUndef -> ()
@@ -1011,8 +1009,7 @@ and emit_for ctx name elem_ty iter body =
         match iter.T.desc with T.TRangeInclusive _ -> true | _ -> false
       in
       (* loop var lives in a stack slot so the body can read and increment it *)
-      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr elem_ty)
-        (ty_size ctx.structs elem_ty);
+      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx elem_ty);
       let lov = emit_expr ctx lo in
       emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov slot;
       (* upper bound is evaluated once before the loop *)
@@ -1057,8 +1054,7 @@ and emit_for ctx name elem_ty iter body =
       emit ctx "    %s =l alloc8 8\n" idx;
       emit ctx "    storel 0, %s\n" idx;
       (* element binding slot, refreshed each iteration *)
-      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr elem_ty)
-        (ty_size ctx.structs elem_ty);
+      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx elem_ty);
       emit_label ctx cond_lbl;
       let i = fresh ctx in
       emit ctx "    %s =l loadl %s\n" i idx;
@@ -1134,8 +1130,7 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   List.iter
     (fun (s, t, tmp) ->
       let slot = bind_local ctx s in
-      emit ctx "    %%%s =l %s %d\n" slot (alloc_instr t)
-        (ty_size ctx.structs t);
+      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       (* aggregates arrive as a pointer so copy the value into the local slot *)
       if is_aggregate t then
         emit_aggregate_copy ctx ("%" ^ slot) tmp (ty_size ctx.structs t)
