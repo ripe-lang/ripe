@@ -1,15 +1,15 @@
-# Zero init by default or opt out with undefined
+// Zero init by default or opt out with undefined
 
 func main() i32 {
-  # Zero initialized
+  // Zero initialized
   var counter: i32
   counter += 1
 
-  # Skip the zero init
+  // Skip the zero init
   var buf: [4]u8 = undefined
   for i in 0..buf.len {
     buf[i] = i as u8
   }
 
-  return counter + buf[3] as i32   # 1 + 3 = 4
+  return counter + buf[3] as i32   // 1 + 3 = 4
 }

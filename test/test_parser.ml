@@ -43,7 +43,7 @@ let%expect_test "parse: hex/binary literals" =
   [%expect {| ok |}]
 
 let%expect_test "parse: line comments stripped" =
-  run_src "func f() i32 {\n  # comment\n  return 1\n}";
+  run_src "func f() i32 {\n  // comment\n  return 1\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: semicolon-free newline-terminated" =
@@ -367,7 +367,7 @@ let%expect_test "parse: stray closing paren" =
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
-  run_src "func f() i32 { return 1 }\n# trailing comment";
+  run_src "func f() i32 { return 1 }\n// trailing comment";
   [%expect {| ok |}]
 
 let%expect_test "parse: bitand binds tighter than comparison" =

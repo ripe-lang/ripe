@@ -86,7 +86,7 @@ let%expect_test "lexer: escape sequences" =
     |}]
 
 let%expect_test "lexer: line comment stripped to end of line" =
-  dump_tokens "x # trailing comment\ny\n";
+  dump_tokens "x // trailing comment\ny\n";
   [%expect {|
     IDENT x
     SEMI
@@ -96,10 +96,36 @@ let%expect_test "lexer: line comment stripped to end of line" =
     |}]
 
 let%expect_test "lexer: comment only line" =
-  dump_tokens "# just a comment\nx\n";
+  dump_tokens "// just a comment\nx\n";
   [%expect {|
     IDENT x
     SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: block comment stripped" =
+  dump_tokens "x /* inline */ y\n";
+  [%expect {|
+    IDENT x
+    IDENT y
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: multiline block comment stripped" =
+  dump_tokens "x /* one\ntwo */ y\n";
+  [%expect {|
+    IDENT x
+    IDENT y
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: unterminated block comment errors" =
+  dump_tokens "x /* never closes\n";
+  [%expect {|
+    IDENT x
+    ERROR unterminated block comment
     EOF
     |}]
 
