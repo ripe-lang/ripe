@@ -259,9 +259,11 @@ let is_numeric t =
 let is_ordered = is_numeric
 let is_integer t = match strip_alias t with TInt _ -> true | _ -> false
 
+(* a newtype hides every operation of its base *)
+(* TODO: let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
-  | TNewtype (_, base) | TAlias (_, base) -> is_comparable base
+  | TAlias (_, base) -> is_comparable base
   | _ -> false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false

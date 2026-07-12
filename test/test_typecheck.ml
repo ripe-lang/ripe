@@ -2249,13 +2249,19 @@ func f() i32 { var r: Row  return take(r) }
                                                ^ expected []i32, found Row
     |}]
 
-let%expect_test "typecheck: newtype compares with itself but not its base" =
+let%expect_test "typecheck: newtype does not compare even with itself" =
   run_src
     {|
 newtype Id = i32
 func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return a == b }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: cannot apply `==` to Id
+      at <test>:3:66
+        func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return a == b }
+                                                                         ^
+    |}]
 
 let%expect_test "typecheck: newtype does not compare with its base" =
   run_src
@@ -2265,6 +2271,10 @@ func f() bool { var a: Id = 5 as Id  return a == 5 }
 |};
   [%expect
     {|
+    error: cannot apply `==` to Id
+      at <test>:3:45
+        func f() bool { var a: Id = 5 as Id  return a == 5 }
+                                                    ^
     error: type mismatch
       at <test>:3:50
         func f() bool { var a: Id = 5 as Id  return a == 5 }
@@ -2298,6 +2308,172 @@ func f() i32 { var q: Q = P { x: 3 } as Q  return q.x }
       at <test>:4:51
         func f() i32 { var q: Q = P { x: 3 } as Q  return q.x }
                                                           ^~~
+    |}]
+
+let%expect_test "typecheck: newtype has no ordering without a cast" =
+  run_src
+    {|
+newtype Id = i32
+func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return a < b }
+|};
+  [%expect
+    {|
+    error: cannot apply `<` to Id
+      at <test>:3:66
+        func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return a < b }
+                                                                         ^
+    |}]
+
+let%expect_test "typecheck: newtype of a float has no comparisons" =
+  run_src
+    {|
+newtype Temp = f32
+func f() bool { var a: Temp = 1.5 as Temp  var b: Temp = 2.5 as Temp  return a == b }
+|};
+  [%expect
+    {|
+    error: cannot apply `==` to Temp
+      at <test>:3:78
+        func f() bool { var a: Temp = 1.5 as Temp  var b: Temp = 2.5 as Temp  return a == b }
+                                                                                     ^
+    |}]
+
+let%expect_test "typecheck: newtype of a float has no ordering" =
+  run_src
+    {|
+newtype Temp = f32
+func f() bool { var a: Temp = 1.5 as Temp  var b: Temp = 2.5 as Temp  return a <= b }
+|};
+  [%expect
+    {|
+    error: cannot apply `<=` to Temp
+      at <test>:3:78
+        func f() bool { var a: Temp = 1.5 as Temp  var b: Temp = 2.5 as Temp  return a <= b }
+                                                                                     ^
+    |}]
+
+let%expect_test "typecheck: newtype of a bool has no equality" =
+  run_src
+    {|
+newtype Flag = bool
+func f() bool { var a: Flag = true as Flag  var b: Flag = false as Flag  return a != b }
+|};
+  [%expect
+    {|
+    error: cannot apply `!=` to Flag
+      at <test>:3:81
+        func f() bool { var a: Flag = true as Flag  var b: Flag = false as Flag  return a != b }
+                                                                                        ^
+    |}]
+
+let%expect_test "typecheck: newtype has no unary negation" =
+  run_src
+    {|
+newtype Id = i32
+func f() i32 { var a: Id = 5 as Id  return (-a) as i32 }
+|};
+  [%expect
+    {|
+    error: cannot apply `-` to Id
+      at <test>:3:46
+        func f() i32 { var a: Id = 5 as Id  return (-a) as i32 }
+                                                     ^
+    |}]
+
+let%expect_test "typecheck: newtype has no remainder" =
+  run_src
+    {|
+newtype Id = i32
+func f() i32 { var a: Id = 5 as Id  return (a % a) as i32 }
+|};
+  [%expect
+    {|
+    error: cannot apply `%` to Id
+      at <test>:3:45
+        func f() i32 { var a: Id = 5 as Id  return (a % a) as i32 }
+                                                    ^
+    |}]
+
+let%expect_test "typecheck: newtype compares after casting both sides" =
+  run_src
+    {|
+newtype Id = i32
+func f() bool { var a: Id = 5 as Id  var b: Id = 6 as Id  return (a as i32) < (b as i32) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias keeps every comparison of its base" =
+  run_src
+    {|
+type Meters = i32
+func f() bool {
+  var a: Meters = 5
+  var b: Meters = 6
+  return a == b || a != b || a < b || a > b || a <= b || a >= b
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias keeps arithmetic and bitwise operators" =
+  run_src
+    {|
+type Meters = i32
+func f() i32 {
+  var a: Meters = 12
+  var b: Meters = 5
+  return a + b - a * b / (a % b) + (a & b) + (a | b) + (a ^ b) + (a << 1) + (a >> 1)
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias of a float keeps its operators" =
+  run_src
+    {|
+type Temp = f32
+func f() bool {
+  var a: Temp = 1.5
+  var b: Temp = 2.5
+  var c: Temp = a + b - a * b / a
+  c += 1.0
+  return -c < b && a <= b && a == a && b >= a
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: type alias of a float still has no remainder" =
+  run_src {|
+type Temp = f32
+func f() f32 { var a: Temp = 5.0  return a % a }
+|};
+  [%expect
+    {|
+    error: cannot apply `%` to Temp
+      at <test>:3:42
+        func f() f32 { var a: Temp = 5.0  return a % a }
+                                                 ^
+    |}]
+
+let%expect_test "typecheck: type alias mixes with its base in comparisons" =
+  run_src
+    {|
+type Meters = i32
+func f() bool { var a: Meters = 5  var raw: i32 = 6  return a < raw && raw > a }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: alias of a newtype still has no operators" =
+  run_src
+    {|
+newtype Id = i32
+type Handle = Id
+func f() bool { var a: Handle = 5 as Id  var b: Handle = 6 as Id  return a == b }
+|};
+  [%expect
+    {|
+    error: cannot apply `==` to Handle
+      at <test>:4:74
+        func f() bool { var a: Handle = 5 as Id  var b: Handle = 6 as Id  return a == b }
+                                                                                 ^
     |}]
 
 let%expect_test "typecheck: a type alias name collides with a struct" =
