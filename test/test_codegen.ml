@@ -3588,3 +3588,169 @@ func main() i32 {
         ret %t3
     }
     |}]
+
+let%expect_test "codegen: inline func is pasted at the call site" =
+  run_codegen
+    {|
+inline func square(x: i32) i32 { return x * x }
+func main() i32 { return square(3) + square(4) }
+|};
+  [%expect
+    {|
+    function w $square(w %t0) {
+    @start
+        %x =l alloc4 4
+        storew %t0, %x
+        %t1 =w loadsw %x
+        %t2 =w loadsw %x
+        %t3 =w mul %t1, %t2
+        ret %t3
+    }
+
+    export function w $main() {
+    @start
+        %inl.res0 =l alloc8 4
+        %inl.res5 =l alloc8 4
+        %x.2.inl0 =l alloc4 4
+        storew 3, %x.2.inl0
+        %t1 =w loadsw %x.2.inl0
+        %t2 =w loadsw %x.2.inl0
+        %t3 =w mul %t1, %t2
+        storew %t3, %inl.res0
+        jmp @inline.end0
+    @inline.end0
+        %t4 =w loadsw %inl.res0
+        %x.2.inl5 =l alloc4 4
+        storew 4, %x.2.inl5
+        %t6 =w loadsw %x.2.inl5
+        %t7 =w loadsw %x.2.inl5
+        %t8 =w mul %t6, %t7
+        storew %t8, %inl.res5
+        jmp @inline.end5
+    @inline.end5
+        %t9 =w loadsw %inl.res5
+        %t10 =w add %t4, %t9
+        ret %t10
+    }
+    |}]
+
+let%expect_test "codegen: recursive inline call falls back to a real call" =
+  run_codegen
+    {|
+inline func rec_sum(n: i32) i32 {
+  if n <= 0 { return 0 }
+  return n + rec_sum(n - 1)
+}
+func main() i32 { return rec_sum(3) }
+|};
+  [%expect
+    {|
+    function w $rec_sum(w %t0) {
+    @start
+        %inl.res5 =l alloc8 4
+        %n =l alloc4 4
+        storew %t0, %n
+    @if.cond1_0
+        %t2 =w loadsw %n
+        %t3 =w cslew %t2, 0
+        jnz %t3, @if.then1_0, @if.else1
+    @if.then1_0
+        ret 0
+    @if.else1
+    @if.end1
+        %t4 =w loadsw %n
+        %t6 =w loadsw %n
+        %t7 =w sub %t6, 1
+        %n.2.inl5 =l alloc4 4
+        storew %t7, %n.2.inl5
+    @if.cond8_0
+        %t9 =w loadsw %n.2.inl5
+        %t10 =w cslew %t9, 0
+        jnz %t10, @if.then8_0, @if.else8
+    @if.then8_0
+        storew 0, %inl.res5
+        jmp @inline.end5
+    @if.else8
+    @if.end8
+        %t11 =w loadsw %n.2.inl5
+        %t12 =w loadsw %n.2.inl5
+        %t13 =w sub %t12, 1
+        %t14 =w call $rec_sum(w %t13)
+        %t15 =w add %t11, %t14
+        storew %t15, %inl.res5
+        jmp @inline.end5
+    @inline.end5
+        %t16 =w loadsw %inl.res5
+        %t17 =w add %t4, %t16
+        ret %t17
+    }
+
+    export function w $main() {
+    @start
+        %inl.res0 =l alloc8 4
+        %n.2.inl0 =l alloc4 4
+        storew 3, %n.2.inl0
+    @if.cond1_0
+        %t2 =w loadsw %n.2.inl0
+        %t3 =w cslew %t2, 0
+        jnz %t3, @if.then1_0, @if.else1
+    @if.then1_0
+        storew 0, %inl.res0
+        jmp @inline.end0
+    @if.else1
+    @if.end1
+        %t4 =w loadsw %n.2.inl0
+        %t5 =w loadsw %n.2.inl0
+        %t6 =w sub %t5, 1
+        %t7 =w call $rec_sum(w %t6)
+        %t8 =w add %t4, %t7
+        storew %t8, %inl.res0
+        jmp @inline.end0
+    @inline.end0
+        %t9 =w loadsw %inl.res0
+        ret %t9
+    }
+    |}]
+
+let%expect_test "codegen: void inline func pastes with no result slot" =
+  run_codegen
+    {|
+inline func bump(p: *i32) { *p = *p + 1 }
+func main() i32 {
+  var n: i32 = 0
+  bump(&n)
+  return n
+}
+|};
+  [%expect
+    {|
+    function $bump(l %t0) {
+    @start
+        %p =l alloc8 8
+        storel %t0, %p
+        %t1 =l loadl %p
+        %t2 =l loadl %p
+        %t3 =w loadsw %t2
+        %t4 =w add %t3, 1
+        storew %t4, %t1
+        ret
+    }
+
+    export function w $main() {
+    @start
+        %n =l alloc4 4
+        storew 0, %n
+        %t1 =l copy %n
+        %p.2.inl0 =l alloc8 8
+        storel %t1, %p.2.inl0
+        %t2 =l loadl %p.2.inl0
+        %t3 =l loadl %p.2.inl0
+        %t4 =w loadsw %t3
+        %t5 =w add %t4, 1
+        storew %t5, %t2
+        jmp @inline.end0
+    @inline.end0
+        %t6 =w loadsw %n
+        ret %t6
+    }
+    |}]

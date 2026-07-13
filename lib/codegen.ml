@@ -199,6 +199,14 @@ let qbe_store (t : ty) : string =
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no store instruction"
 
+type inline_frame = {
+  name : string;
+  tag : int;
+  res_slot : string option;
+  ret_ty : ty;
+  end_lbl : string;
+}
+
 type ctx = {
   structs : (string, (string * ty) list) Hashtbl.t;
   locals : (Symbol.id, string) Hashtbl.t;
@@ -214,6 +222,8 @@ type ctx = {
   const_inits : (string, T.texpr) Hashtbl.t;
   entry : Buffer.t ref;
   in_main : bool ref;
+  inline_funcs : (string, T.tfunc_def) Hashtbl.t;
+  inline_stack : inline_frame list ref; (* the pastes we are currently inside *)
 }
 
 (* Get fresh temporaries: %t0, %t1, ... *)
@@ -240,9 +250,13 @@ let spelled_like_temp name =
    anyway so only a second binder with the same name needs a suffix. *)
 let bind_local ctx (s : Symbol.t) : string =
   let slot =
-    if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
-      Printf.sprintf "%s.%d" s.name s.id
-    else s.name
+    match !(ctx.inline_stack) with
+    (* the same binder id lands at every call site so the tag is what keeps their slots apart *)
+    | f :: _ -> Printf.sprintf "%s.%d.inl%d" s.name s.id f.tag
+    | [] ->
+        if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
+          Printf.sprintf "%s.%d" s.name s.id
+        else s.name
   in
   Hashtbl.replace ctx.used_slots slot ();
   Hashtbl.replace ctx.locals s.id slot;
@@ -344,6 +358,13 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
           (sym_addr ctx s);
         tmp
   | T.TCStr s -> intern_string ctx s
+  | T.TCall ({ desc = T.TIdent sym; _ }, args, _)
+    when Symbol.is_func sym.kind
+         && Hashtbl.mem ctx.inline_funcs sym.name
+         (* a call to itself would paste forever so the recursive case stays a normal call *)
+         && not (List.exists (fun f -> f.name = sym.name) !(ctx.inline_stack))
+    ->
+      emit_inline_call ctx (Hashtbl.find ctx.inline_funcs sym.name) args
   | T.TCall (callee, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
@@ -960,7 +981,7 @@ and emit_cast ctx v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
+and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s.T.tsdesc with
   | T.TConst (s, t, e) | T.TVar (s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
@@ -980,6 +1001,17 @@ let rec emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | _ ->
           let v = emit_expr ctx e in
           emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot)
+  (* a return here should leave the pasted body, not the function it was pasted into *)
+  | T.TReturn e_opt when !(ctx.inline_stack) <> [] ->
+      let frame = List.hd !(ctx.inline_stack) in
+      (match (e_opt, frame.res_slot) with
+      | Some e, Some slot ->
+          let v = emit_expr ctx e in
+          if not !(ctx.terminated) then
+            emit ctx "    %s %s, %s\n" (qbe_store frame.ret_ty) v slot
+      | Some e, None -> ignore (emit_expr ctx e)
+      | None, _ -> ());
+      emit_jmp ctx frame.end_lbl
   | T.TReturn None ->
       (* a bare return in main exits with 0 like falling off the end *)
       if not !(ctx.terminated) then
@@ -1145,6 +1177,47 @@ and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
    and restore. *)
 and emit_scoped ctx stmts = emit_stmts ctx stmts
 
+(* the callee body takes the place of the call and its returns write into a slot the join block reads back *)
+and emit_inline_call ctx (tfd : T.tfunc_def) (args : T.texpr list) : string =
+  let ret_ty = tfd.ret_ty in
+  let id = fresh_id ctx in
+  let end_lbl = Printf.sprintf "@inline.end%d" id in
+  (* the arguments still belong to the caller so they get read before any param slot exists *)
+  let arg_vals =
+    List.map (fun (a : T.texpr) -> (emit_expr ctx a, a.T.ty)) args
+  in
+  let res_slot =
+    if ret_ty = TVoid then None
+    else
+      let slot = Printf.sprintf "%%inl.res%d" id in
+      let sz = if is_aggregate ret_ty then 8 else ty_size ctx.structs ret_ty in
+      emit_entry ctx "    %s =l alloc8 %d\n" slot sz;
+      Some slot
+  in
+  ctx.inline_stack :=
+    { name = tfd.name; tag = id; res_slot; ret_ty; end_lbl }
+    :: !(ctx.inline_stack);
+  (* each argument gets copied into its param slot the way a real prologue would *)
+  List.iter2
+    (fun (ps, pt) (v, _) ->
+      let slot = bind_local ctx ps in
+      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx pt);
+      if is_aggregate pt then
+        emit_aggregate_copy ctx ("%" ^ slot) v (ty_size ctx.structs pt)
+      else emit ctx "    %s %s, %%%s\n" (qbe_store pt) v slot)
+    tfd.params arg_vals;
+  emit_stmts ctx tfd.body;
+  (* a body that just runs off the end still has to land on the join *)
+  emit_jmp ctx end_lbl;
+  emit_label ctx end_lbl;
+  ctx.inline_stack := List.tl !(ctx.inline_stack);
+  match res_slot with
+  | None -> ""
+  | Some slot ->
+      let r = fresh ctx in
+      emit ctx "    %s =%s %s %s\n" r (qbe_ty ret_ty) (qbe_load ret_ty) slot;
+      r
+
 let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   (* temporaries and locals are function scoped *)
   ctx.tmp := 0;
@@ -1171,7 +1244,6 @@ let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
   let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
   (* TODO(572b): export pub functions *)
-  (* TODO(c561): emit inline functions at call site *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
   emit_label ctx "@start";
@@ -1453,6 +1525,8 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       const_inits = Hashtbl.create 16;
       entry = ref (Buffer.create 64);
       in_main = ref false;
+      inline_funcs = Hashtbl.create 16;
+      inline_stack = ref [];
     }
   in
 
@@ -1464,6 +1538,10 @@ let emit_qbe (tdecls : T.tdecl list) : string =
           | Some te when gd.is_const ->
               Hashtbl.replace ctx.const_inits gd.name te
           | _ -> ())
+      (* a variadic body cannot be pasted so those keep using an ordinary call *)
+      | T.TFunc tfd when List.mem Ast.Inline tfd.modifiers && not tfd.variadic
+        ->
+          Hashtbl.replace ctx.inline_funcs tfd.name tfd
       | _ -> ())
     tdecls;
 
