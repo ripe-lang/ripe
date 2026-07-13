@@ -6,8 +6,8 @@
   "id": "c561",
   "priority": "low",
   "source": "lib/codegen.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "emit inline functions at call site",
-  "updated_at": "2026-07-12 08:23:02.155667"
+  "updated_at": "2026-07-13 01:52:01.964407"
 }
