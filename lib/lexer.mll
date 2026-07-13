@@ -28,12 +28,12 @@ let start_pos lexbuf = lexbuf.Lexing.lex_start_p.Lexing.pos_cnum
 let end_pos lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
 let lexbuf_span lexbuf = { Span.lo = start_pos lexbuf; hi = end_pos lexbuf }
 
-let int_token st lexbuf text =
+let int_token st lexbuf ?suf text =
   match Int64.of_string_opt text with
-  | Some v -> INT v
+  | Some v -> INT (v, suf)
   | None ->
       (* the zero keeps the parser from raising a second error *)
-      Queue.push (INT 0L, lexbuf_span lexbuf) st.token_queue;
+      Queue.push (INT (0L, suf), lexbuf_span lexbuf) st.token_queue;
       ERROR "integer literal out of range"
 
 let can_end_stmt = function
@@ -51,6 +51,7 @@ let octdig  = ['0'-'7']
 let exp     = ['e' 'E'] ['+' '-']? digit+
 let alpha   = ['a'-'z' 'A'-'Z' '_']
 let alnum   = alpha | digit
+let intsuf  = ('i' | 'u') ("8" | "16" | "32" | "64" | "size")
 let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
@@ -63,6 +64,10 @@ rule read_main st = parse
                          else match st.last_token with
                               | Some t when can_end_stmt t -> SEMI
                               | _ -> read_main st lexbuf }
+  | ('0' ['x' 'X'] hexdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | ('0' ['b' 'B'] bindig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | ('0' ['o' 'O'] octdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | (digit+ as n) (intsuf as suf)  { int_token st lexbuf ~suf ("0u" ^ n) }
   | ('0' ['x' 'X'] hexdig+) as n  { int_token st lexbuf n }
   | ('0' ['b' 'B'] bindig+) as n  { int_token st lexbuf n }
   | ('0' ['o' 'O'] octdig+) as n  { int_token st lexbuf n }
