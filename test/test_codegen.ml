@@ -354,8 +354,11 @@ let%expect_test "codegen: bitwise and shift" =
         storew %t0, %a
         %t1 =w loadsw %a
         %t2 =w and %t1, 15
-        %t3 =w shl %t2, 2
-        ret %t3
+        %t3 =w cultw 2, 32
+        %t4 =w shl %t2, 2
+        %t6 =w sub 0, %t3
+        %t5 =w and %t4, %t6
+        ret %t5
     }
     |}]
 
@@ -2898,8 +2901,11 @@ let%expect_test "codegen: right shift on signed int" =
         storew %t1, %b
         %t2 =w loadsw %a
         %t3 =w loadsw %b
-        %t4 =w sar %t2, %t3
-        ret %t4
+        %t4 =w cultw %t3, 32
+        %t5 =w sub %t4, 1
+        %t6 =w or %t3, %t5
+        %t7 =w sar %t2, %t6
+        ret %t7
     }
     |}]
 
@@ -2915,8 +2921,11 @@ let%expect_test "codegen: right shift on unsigned int" =
         storew %t1, %b
         %t2 =w loaduw %a
         %t3 =w loaduw %b
-        %t4 =w shr %t2, %t3
-        ret %t4
+        %t4 =w cultw %t3, 32
+        %t5 =w shr %t2, %t3
+        %t7 =w sub 0, %t4
+        %t6 =w and %t5, %t7
+        ret %t6
     }
     |}]
 

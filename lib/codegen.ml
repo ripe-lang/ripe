@@ -873,7 +873,8 @@ and emit_binop ctx op l r t =
   match op with
   | Ast.Lshift | Ast.Rshift ->
       emit_shift ctx op ~ty:t ~count_ty:r.T.ty ~unsigned:(is_unsigned lty) lv rv
-  | _ -> emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
+  | _ ->
+      emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
 
 and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   let qt = qbe_ty t in
@@ -1466,10 +1467,10 @@ and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
       | Ast.BitOr -> wrap (Int64.logor x y)
       | Ast.BitXor -> wrap (Int64.logxor x y)
       (* the count is capped since ocaml leaves a shift past 64 bits undefined while go shifts every bit out *)
-      | Ast.Lshift | Ast.Rshift ->
+      | Ast.Lshift | Ast.Rshift -> (
           let oversized = Int64.unsigned_compare y 64L >= 0 in
           let n = Int64.to_int y in
-          (match op with
+          match op with
           | Ast.Lshift -> wrap (if oversized then 0L else Int64.shift_left x n)
           | _ when unsigned ->
               wrap (if oversized then 0L else Int64.shift_right_logical x n)
