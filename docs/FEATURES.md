@@ -294,3 +294,12 @@ extern func printf(fmt: cstr, ...) i32
 extern func strlen(s: cstr) i64
 ```
 
+### Integer literal suffixes
+
+```ripe
+func main() i32 {
+  var a: u8 = 255u8
+  var b: i64 = 9000000000i64
+  return (a as i32) + (b as i32)
+}
+```
