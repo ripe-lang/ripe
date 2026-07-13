@@ -869,8 +869,15 @@ and emit_bool_value ctx e =
 and emit_binop ctx op l r t =
   let lv = emit_expr ctx l in
   let rv = emit_expr ctx r in
-  let qt = qbe_ty t in
   let lty = l.T.ty in
+  match op with
+  | Ast.Lshift | Ast.Rshift ->
+      emit_shift ctx op ~ty:t ~count_ty:r.T.ty ~unsigned:(is_unsigned lty) lv rv
+  | _ ->
+      emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
+
+and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
+  let qt = qbe_ty t in
   let op_qt = qbe_ty lty in
   let sign = signedness lty in
   let unsigned = is_unsigned lty in
@@ -909,14 +916,59 @@ and emit_binop ctx op l r t =
   | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
   | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
-  | Ast.Lshift -> emit ctx "    %s =%s shl %s, %s\n" tmp qt lv rv
-  | Ast.Rshift ->
-      let instr = if unsigned then "shr" else "sar" in
-      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
-  | _ -> Error.ice ~span:l.T.span "unexpected binary operator");
+  | _ -> Error.ice ~span "unexpected binary operator");
   match op with
-  | Ast.Add | Ast.Sub | Ast.Mul | Ast.Lshift -> narrow_int_to ctx tmp t
+  | Ast.Add | Ast.Sub | Ast.Mul -> narrow_int_to ctx tmp t
   | _ -> tmp
+
+(* this rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
+and emit_shift ctx op ~ty ~count_ty ~unsigned lv rv =
+  let qt = qbe_ty ty in
+  let bits = match qbe_base ty with L -> 64 | _ -> 32 in
+  (* the range check runs in the count width so a huge count is caught before the truncation *)
+  let in_range = fresh ctx in
+  emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
+  let count = word_count ctx count_ty rv in
+  match op with
+  | Ast.Rshift when not unsigned ->
+      (* an out of range count is forced to all ones so sar keeps filling with the sign bit *)
+      let spill = fresh ctx in
+      emit ctx "    %s =w sub %s, 1\n" spill in_range;
+      let capped = fresh ctx in
+      emit ctx "    %s =w or %s, %s\n" capped count spill;
+      let res = fresh ctx in
+      emit ctx "    %s =%s sar %s, %s\n" res qt lv capped;
+      res
+  | Ast.Lshift | Ast.Rshift ->
+      let is_lshift = op = Ast.Lshift in
+      let instr = if is_lshift then "shl" else "shr" in
+      let raw = fresh ctx in
+      emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
+      (* an out of range count makes the mask all zeros so the result drops to 0 *)
+      let res = fresh ctx in
+      emit ctx "    %s =%s and %s, %s\n" res qt raw (shift_mask ctx ty in_range);
+      if is_lshift then narrow_int_to ctx res ty else res
+  | _ -> Error.ice "emit_shift on non-shift op"
+
+(* the shift wants a word count so a long one drops to its low word *)
+and word_count ctx count_ty rv =
+  match qbe_base count_ty with
+  | L ->
+      let w = fresh ctx in
+      emit ctx "    %s =w copy %s\n" w rv;
+      w
+  | _ -> rv
+
+(* the in range flag spreads across the whole type so 1 becomes all ones and 0 becomes all zeros *)
+and shift_mask ctx ty flag =
+  let neg = fresh ctx in
+  emit ctx "    %s =w sub 0, %s\n" neg flag;
+  match qbe_base ty with
+  | L ->
+      let wide = fresh ctx in
+      emit ctx "    %s =l extsw %s\n" wide neg;
+      wide
+  | _ -> neg
 
 (* the extend that masks a narrow
    integer target back down to its width *)
@@ -1414,11 +1466,15 @@ and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
       | Ast.BitAnd -> wrap (Int64.logand x y)
       | Ast.BitOr -> wrap (Int64.logor x y)
       | Ast.BitXor -> wrap (Int64.logxor x y)
-      | Ast.Lshift -> wrap (Int64.shift_left x (Int64.to_int y))
-      | Ast.Rshift ->
-          wrap
-            (if unsigned then Int64.shift_right_logical x (Int64.to_int y)
-             else Int64.shift_right x (Int64.to_int y))
+      (* the count is capped since ocaml leaves a shift past 64 bits undefined while go shifts every bit out *)
+      | Ast.Lshift | Ast.Rshift -> (
+          let oversized = Int64.unsigned_compare y 64L >= 0 in
+          let n = Int64.to_int y in
+          match op with
+          | Ast.Lshift -> wrap (if oversized then 0L else Int64.shift_left x n)
+          | _ when unsigned ->
+              wrap (if oversized then 0L else Int64.shift_right_logical x n)
+          | _ -> wrap (Int64.shift_right x (if oversized then 63 else n)))
       | Ast.Eq -> const_bool (x = y)
       | Ast.Neq -> const_bool (x <> y)
       | Ast.Lt -> const_bool (cmp < 0)

@@ -1,0 +1,17 @@
+func main() i32 {
+  var one: u8 = 1
+  var over: u8 = 33
+  if one << over != 0 { return 10 }
+
+  var neg: i8 = -1
+  var wide: u8 = 40
+  if neg >> wide != -1 { return 11 }
+
+  var pos: i8 = 64
+  if pos >> wide != 0 { return 12 }
+
+  var far: u64 = 4294967304
+  if one << far != 0 { return 13 }
+
+  return 1
+}
