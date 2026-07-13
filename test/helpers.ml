@@ -9,7 +9,7 @@ let tok_str (t : Ripe.Tokens.token) =
   let open Ripe.Tokens in
   match t with
   | IDENT s -> "IDENT " ^ s
-  | INT n -> "INT " ^ Int64.to_string n
+  | INT (n, suf) -> "INT " ^ Int64.to_string n ^ Option.value ~default:"" suf
   | FLOAT f -> "FLOAT " ^ string_of_float f
   | STRING s -> "STRING " ^ String.escaped s
   | SEMI -> "SEMI"
@@ -132,7 +132,7 @@ let show_unop = function
 
 let rec dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
-  | Int n -> Int64.to_string n
+  | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float f -> string_of_float f
   | Bool b -> string_of_bool b
   | Null -> "null"

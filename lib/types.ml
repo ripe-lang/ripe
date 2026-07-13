@@ -51,6 +51,11 @@ let builtin_tys =
       float_kinds
   @ [ ("bool", TBool); ("cstr", TCStr) ]
 
+let int_kind_of_string s =
+  List.find_opt
+    (fun k -> String.lowercase_ascii (show_int_kind k) = s)
+    int_kinds
+
 let rec show_ty = function
   | TInt k -> String.lowercase_ascii (show_int_kind k)
   | TFloat k -> String.lowercase_ascii (show_float_kind k)

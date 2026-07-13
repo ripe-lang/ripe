@@ -267,6 +267,7 @@ let rec is_comparable = function
   | _ -> false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
+let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
 
 type cast_class = Numeric | Ptr | Aggregate
 
@@ -290,10 +291,16 @@ let rec synth (env : env) (e : expr) : T.texpr =
 
 and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
-  | Int n ->
-      if Int64.unsigned_compare n (int_kind_pos_limit I32) > 0 then
-        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt I32)));
-      T.mk (TInt I32) (T.TInt n)
+  | Int (n, suf) ->
+      let kind = match suf with Some s -> suffix_kind s | None -> I32 in
+      if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+      T.mk (TInt kind) (T.TInt n)
+  | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
+      let kind = suffix_kind s in
+      if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+      T.mk (TInt kind) (T.TInt (Int64.neg n))
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
   | Bool b -> T.mk TBool (T.TBool b)
   | Null -> T.mk TNull T.TNull
@@ -438,7 +445,15 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
       | _ -> te
   in
   match e.desc with
-  | Int n -> (
+  | Int (_, Some s) ->
+      (* the suffix already picked the type so a wrong target is an error not a quiet coercion *)
+      let te = synth_desc env e in
+      if strip_alias want <> te.T.ty then
+        emit env
+          (Error.type_mismatch e.span ~expected:(show_ty want)
+             ~found:(show_ty te.T.ty));
+      te
+  | Int (n, None) -> (
       match strip_alias want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
@@ -456,13 +471,13 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
           emit env
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
-  | UnOp (Neg, { desc = Int n; _ }) -> (
+  | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match strip_alias want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
             emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
           T.mk want (T.TInt (Int64.neg n))
-      | _ -> check env { e with desc = Int (Int64.neg n) } want)
+      | _ -> check env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | ArrayLit elems -> (

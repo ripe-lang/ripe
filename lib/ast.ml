@@ -72,7 +72,7 @@ type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 
 type expr_desc =
-  | Int of int64
+  | Int of int64 * string option
   | Float of float
   | Bool of bool
   | Null

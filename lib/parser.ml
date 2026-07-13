@@ -109,7 +109,7 @@ let rec parse_typ st =
       else
         let n =
           match st.tok with
-          | INT n ->
+          | INT (n, _) ->
               advance st;
               Int64.to_int n
           | _ -> fail_found st "expected array size"
@@ -354,9 +354,9 @@ and parse_postfix st (lhs : expr) =
 and parse_primary st =
   let lo = cur_pos st in
   match st.tok with
-  | INT n ->
+  | INT (n, suf) ->
       advance st;
-      mk lo st (Int n)
+      mk lo st (Int (n, suf))
   | FLOAT f ->
       advance st;
       mk lo st (Float f)
