@@ -1,0 +1,11 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var a: u8 = 255u8
+  var b: i64 = 9000000000i64
+  var c: i8 = -128i8
+  var h: u16 = 0xffu16
+  var o: u8 = 0o17u8
+  printf("%d %lld %d %d %d\n", a as i32, b, c as i32, h as i32, o as i32)
+  return 0
+}

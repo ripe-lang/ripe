@@ -2538,3 +2538,46 @@ func f() i64 { return sizeof(S) as i64 }
 let%expect_test "typecheck: sizeof of an array type" =
   run_src "func f() i64 { return sizeof([4]i32) as i64 }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: int literal suffix pins the type" =
+  run_src "func f() u8 { return 200u8 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: int literal suffix that mismatches the target" =
+  run_src "func f() { var x: u8 = 5u16 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: u8 = 5u16 }
+                       ^
+    help: prefix with an underscore: _x
+    error: type mismatch
+      at <test>:1:24
+        func f() { var x: u8 = 5u16 }
+                               ^~~~ expected u8, found u16
+    |}]
+
+let%expect_test "typecheck: int literal suffix out of range" =
+  run_src "func f() u8 { return 256u8 }";
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:22
+        func f() u8 { return 256u8 }
+                             ^~~~~ does not fit in u8
+    |}]
+
+let%expect_test "typecheck: negative unsigned suffix" =
+  run_src "func f() i8 { return -1u8 }";
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:22
+        func f() i8 { return -1u8 }
+                             ^~~~ does not fit in u8
+    error: type mismatch
+      at <test>:1:22
+        func f() i8 { return -1u8 }
+                             ^~~~ expected i8, found u8
+    |}]
