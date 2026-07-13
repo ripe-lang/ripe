@@ -581,7 +581,18 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         add_error env l.span
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
-      let tr = check env r t in
+      let tr =
+        match op with
+        (* the count keeps its own integer type since it is only a number of positions *)
+        | Lshift | Rshift ->
+            let tr = synth env r in
+            if not (is_integer tr.T.ty) then
+              add_error env r.span
+                (Printf.sprintf "shift count must be an integer, found %s"
+                   (show_ty tr.T.ty));
+            tr
+        | _ -> check env r t
+      in
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign ->
       let tl = synth env l in
