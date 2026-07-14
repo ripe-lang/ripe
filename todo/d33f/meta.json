@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:01:31.040997",
+  "depends": [],
+  "id": "d33f",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "`as bool` is a plain copy not normalized to 0 or 1",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

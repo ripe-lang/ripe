@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.795294",
+  "depends": [],
+  "id": "6fdb",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Stdlib, io string mem and allocator and basic collections",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

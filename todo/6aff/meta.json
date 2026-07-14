@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.482305",
+  "depends": [],
+  "id": "6aff",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "No desugaring pass between typed AST and QBE text",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.579667",
+  "depends": [],
+  "id": "7eed",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Stack alloc grows the frame inside loops",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}
