@@ -550,8 +550,15 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
     else
       let fixed = List.filteri (fun i _ -> i < n_params) args in
       let rest = List.filteri (fun i _ -> i >= n_params) args in
+      (* c reads a float vararg as a double so widen it first *)
+      let promote_vararg e =
+        let te = synth env e in
+        match resolve_ty te.T.ty with
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast te)
+        | _ -> te
+      in
       List.map2 (fun e want -> check env e want) fixed sig_.param_tys
-      @ List.map (synth env) rest
+      @ List.map promote_vararg rest
   else if n_params <> n_args then (
     emit env
       (Error.arity span
