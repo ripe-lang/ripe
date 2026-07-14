@@ -890,12 +890,15 @@ func f() i32 {
         storew %t5, %sum
     @for.cont0
         %t6 =w loadsw %i
-        %t7 =w add %t6, 1
-        storew %t7, %i
+        %t7 =w ceqw %t6, 3
+        jnz %t7, @for.end0, @for.incr0
+    @for.incr0
+        %t8 =w add %t6, 1
+        storew %t8, %i
         jmp @for.cond0
     @for.end0
-        %t8 =w loadsw %sum
-        ret %t8
+        %t9 =w loadsw %sum
+        ret %t9
     }
     |}]
 
