@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.075857",
+  "depends": [],
+  "id": "c472",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Returning `&local` dangles with no diagnostic",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

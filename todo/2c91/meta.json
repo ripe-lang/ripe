@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.359180",
+  "depends": [],
+  "id": "2c91",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Integer overflow on `+ - *` wraps like go",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

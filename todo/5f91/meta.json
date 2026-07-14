@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.827632",
+  "depends": [],
+  "id": "5f91",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Dynamic arrays and array views",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

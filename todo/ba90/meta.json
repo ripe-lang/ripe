@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:01:31.241425",
+  "depends": [],
+  "id": "ba90",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "`null == p` errors while `p == null` works",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}
