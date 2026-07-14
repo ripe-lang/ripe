@@ -279,11 +279,15 @@ let cast_class t =
 
 (* a pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
-  match (cast_class src, cast_class tgt) with
-  | Aggregate, _ | _, Aggregate -> ty_equal (resolve_ty src) (resolve_ty tgt)
-  | Numeric, Numeric | Ptr, Ptr -> true
-  | (Numeric | Ptr), (Numeric | Ptr) ->
-      (not (is_float src)) && not (is_float tgt)
+  match (resolve_ty src, resolve_ty tgt) with
+  | s, TBool -> s = TBool
+  | _ -> (
+      match (cast_class src, cast_class tgt) with
+      | Aggregate, _ | _, Aggregate ->
+          ty_equal (resolve_ty src) (resolve_ty tgt)
+      | Numeric, Numeric | Ptr, Ptr -> true
+      | (Numeric | Ptr), (Numeric | Ptr) ->
+          (not (is_float src)) && not (is_float tgt))
 
 (* stamp the source span here so the mk sites underneath stay span free *)
 let rec synth (env : env) (e : expr) : T.texpr =
@@ -344,13 +348,21 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Cast (operand, t) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
-      if not (cast_ok te.T.ty ty) then
-        emit env
-          (Diagnostic.error "invalid cast"
+      if not (cast_ok te.T.ty ty) then begin
+        let d =
+          Diagnostic.error "invalid cast"
           |> Diagnostic.at e.span
           |> Diagnostic.label
                (Printf.sprintf "cannot cast %s to %s" (show_ty te.T.ty)
-                  (show_ty ty)));
+                  (show_ty ty))
+        in
+        let d =
+          if resolve_ty ty = TBool then
+            Diagnostic.help "compare with zero instead e.g. `x != 0`" d
+          else d
+        in
+        emit env d
+      end;
       T.mk ty (T.TCast te)
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
