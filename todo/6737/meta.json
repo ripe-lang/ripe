@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.107663",
+  "depends": [],
+  "id": "6737",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Struct fields and struct literal fields need no separator",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

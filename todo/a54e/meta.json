@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.234684",
+  "depends": [],
+  "id": "a54e",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "`INT_MIN / -1` raw SIGFPEs",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}

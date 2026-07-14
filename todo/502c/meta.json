@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-13 19:03:34.450991",
+  "depends": [],
+  "id": "502c",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "compiler"
+  ],
+  "title": "Unreachable trap on the impossible arm of an exhaustive match",
+  "updated_at": "2026-07-13 19:14:06.594388"
+}
