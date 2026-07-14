@@ -491,6 +491,12 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
           let tes = List.map (fun e -> check env e elem) elems in
           T.mk (TArray (elem, n)) (T.TArrayLit tes)
       | _ -> check_by_synth ())
+  | BinOp (((Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor) as op), l, r)
+    when (match op with
+         | Mod | BitAnd | BitOr | BitXor -> is_integer
+         | _ -> is_numeric)
+           (strip_alias want) ->
+      T.mk want (T.TBinOp (op, check env l want, check env r want))
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
