@@ -613,7 +613,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       let tr = check env r t in
-      T.mk t (T.TBinOp (op, tl, tr))
+      T.mk TVoid (T.TBinOp (op, tl, tr))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
