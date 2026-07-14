@@ -434,9 +434,16 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
     let te = synth env e in
     let got = te.T.ty in
     if not (compatible want got) then (
-      emit env
-        (Error.type_mismatch e.span ~expected:(show_ty want)
-           ~found:(show_ty got));
+      let mismatch =
+        Error.type_mismatch e.span ~expected:(show_ty want) ~found:(show_ty got)
+      in
+      let mismatch =
+        match (e.desc, strip_alias want) with
+        | BinOp (Assign, _, _), TBool ->
+            Diagnostic.help "did you mean `==` to compare?" mismatch
+        | _ -> mismatch
+      in
+      emit env mismatch;
       te)
     else
       match (strip_alias want, strip_alias got) with
@@ -613,7 +620,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
       let tr = check env r t in
-      T.mk t (T.TBinOp (op, tl, tr))
+      T.mk TVoid (T.TBinOp (op, tl, tr))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with

@@ -2581,3 +2581,24 @@ let%expect_test "typecheck: negative unsigned suffix" =
         func f() i8 { return -1u8 }
                              ^~~~ expected i8, found u8
     |}]
+
+let%expect_test "typecheck: assignment in condition is not a value" =
+  run_src "func f() { var b: bool = false if b = true { } }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:35
+        func f() { var b: bool = false if b = true { } }
+                                          ^~~~~~~~ expected bool, found void
+    help: did you mean `==` to compare?
+    |}]
+
+let%expect_test "typecheck: chained assignment is not a value" =
+  run_src "func f() { var a: i32 = 0 var b: i32 = 0 a = b = 5 }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:46
+        func f() { var a: i32 = 0 var b: i32 = 0 a = b = 5 }
+                                                     ^~~~~ expected i32, found void
+    |}]
