@@ -434,9 +434,16 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
     let te = synth env e in
     let got = te.T.ty in
     if not (compatible want got) then (
-      emit env
-        (Error.type_mismatch e.span ~expected:(show_ty want)
-           ~found:(show_ty got));
+      let mismatch =
+        Error.type_mismatch e.span ~expected:(show_ty want) ~found:(show_ty got)
+      in
+      let mismatch =
+        match (e.desc, strip_alias want) with
+        | BinOp (Assign, _, _), TBool ->
+            Diagnostic.help "did you mean `==` to compare?" mismatch
+        | _ -> mismatch
+      in
+      emit env mismatch;
       te)
     else
       match (strip_alias want, strip_alias got) with
