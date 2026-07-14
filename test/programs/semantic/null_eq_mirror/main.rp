@@ -1,0 +1,10 @@
+func main() i32 {
+  var p: *i32 = null
+  var n: i32 = 5
+  var q: *i32 = &n
+  if null == p { } else { return 1 }
+  if p == null { } else { return 2 }
+  if null == q { return 3 }
+  if q == null { return 4 }
+  return 0
+}
