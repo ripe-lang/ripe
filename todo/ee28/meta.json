@@ -6,10 +6,10 @@
   "id": "ee28",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "Variadic f32 args skip the C float to double promotion",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-14 05:50:44.863112"
 }
