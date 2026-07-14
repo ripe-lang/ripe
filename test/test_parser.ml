@@ -573,3 +573,23 @@ let%expect_test "parse: function pointer returning array" =
 let%expect_test "parse: function pointer returning slice" =
   run_src "type t = (i32) []i32";
   [%expect {| ok |}]
+
+let%expect_test "parse: struct fields need a separator" =
+  run_src "struct S { x: i32 y: i32 }";
+  [%expect
+    {|
+    error: expected `,` or newline between fields
+      at <test>:1:19
+        struct S { x: i32 y: i32 }
+                          ^ found y
+    |}]
+
+let%expect_test "parse: struct literal fields need a separator" =
+  run_src "func f() { const s = S { x: 1 y: 2 } }";
+  [%expect
+    {|
+    error: expected `,` or newline between fields
+      at <test>:1:31
+        func f() { const s = S { x: 1 y: 2 } }
+                                      ^ found y
+    |}]
