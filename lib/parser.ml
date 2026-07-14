@@ -143,6 +143,13 @@ let parse_modifiers st =
   go []
 
 (* x: i32 *)
+let expect_field_sep st =
+  (match st.tok with
+  | COMMA -> advance st
+  | SEMI | RBRACE -> ()
+  | _ -> fail_found st "expected `,` or newline between fields");
+  skip_semi st
+
 let parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
@@ -152,8 +159,7 @@ let parse_fields st =
     let t = parse_typ st in
     fields :=
       ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
-    if st.tok = COMMA then advance st;
-    skip_semi st
+    expect_field_sep st
   done;
   List.rev !fields
 
@@ -417,8 +423,7 @@ and parse_struct_lit_fields st =
         expect st COLON;
         let e = parse_expr st 1 in
         fields := (name, nspan, e) :: !fields;
-        if st.tok = COMMA then advance st;
-        skip_semi st
+        expect_field_sep st
       done;
       List.rev !fields)
 
