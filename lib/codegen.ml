@@ -1166,6 +1166,13 @@ and emit_for ctx name elem_ty iter body =
       emit_label ctx cont_lbl;
       let cur2 = fresh ctx in
       emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) slot;
+      if inclusive then begin
+        let incr_lbl = Printf.sprintf "@for.incr%d" id in
+        let atmax = fresh ctx in
+        emit ctx "    %s =w ceq%s %s, %s\n" atmax qt cur2 hiv;
+        emit_jnz ctx atmax end_lbl incr_lbl;
+        emit_label ctx incr_lbl
+      end;
       let nxt = fresh ctx in
       emit ctx "    %s =%s add %s, 1\n" nxt qt cur2;
       emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt slot;

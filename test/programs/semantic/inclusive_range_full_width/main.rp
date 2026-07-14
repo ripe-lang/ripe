@@ -1,0 +1,15 @@
+func main() i32 {
+  var count: i32 = 0
+  for _i in 0u8..=255u8 { count = count + 1 }
+  if count != 256 { return 1 }
+
+  var signed: i32 = 0
+  for _j in -128i8..=127i8 { signed = signed + 1 }
+  if signed != 256 { return 2 }
+
+  var single: i32 = 0
+  for _k in 255u8..=255u8 { single = single + 1 }
+  if single != 1 { return 3 }
+
+  return 0
+}
