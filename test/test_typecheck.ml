@@ -499,6 +499,22 @@ func f() { var s: S  const y: f64 = s as f64 }
                                             ^~~~~~~~ cannot cast S to f64
     |}]
 
+let%expect_test "typecheck: cast int to bool rejected" =
+  run_src "func f() { const b: bool = 256 as bool }";
+  [%expect
+    {|
+    warning: unused variable: b
+      at <test>:1:18
+        func f() { const b: bool = 256 as bool }
+                         ^
+    help: prefix with an underscore: _b
+    error: invalid cast
+      at <test>:1:28
+        func f() { const b: bool = 256 as bool }
+                                   ^~~~~~~~~~~ cannot cast i32 to bool
+    help: compare with zero instead e.g. `x != 0`
+    |}]
+
 let%expect_test "typecheck: missing return value" =
   run_src "func f() i32 { return }";
   [%expect
