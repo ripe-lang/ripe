@@ -6,8 +6,8 @@
   "id": "8d11",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "Typecheck error paths cascade a second bogus error",
-  "updated_at": "2026-07-15 06:53:18.277182"
+  "updated_at": "2026-07-15 09:12:31.290167"
 }
