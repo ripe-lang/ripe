@@ -1,0 +1,21 @@
+extern func printf(fmt: cstr, ...) i32
+
+struct point { x: i32, y: i32 }
+
+func main() i32 {
+  var p: point = point { x: 42, y: 7 }
+  var q: *point = &p
+  var qq: **point = &q
+  var qqq: ***point = &qq
+
+  printf("%d %d %d\n", q.x, (*qq).x, (**qqq).x)
+
+  q.x = 1
+  (*qq).y = 2
+  printf("%d %d\n", p.x, p.y)
+
+  (**qqq).x = 3
+  (**qqq).y = 9
+  printf("%d %d\n", p.x, p.y)
+  return 0
+}

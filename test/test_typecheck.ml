@@ -747,6 +747,20 @@ func f(p: *pt) i32 { return p.x }
 |};
   [%expect {| ok |}]
 
+let%expect_test "typecheck: field access through a double pointer" =
+  run_src {|
+struct pt { x: i32 }
+func f(p: **pt) i32 { return p.x }
+|};
+  [%expect
+    {|
+    error: too many pointer levels: **pt
+      at <test>:3:30
+        func f(p: **pt) i32 { return p.x }
+                                     ^~~
+    help: dereference first: `(*p).x`
+    |}]
+
 let%expect_test "typecheck: duplicate function" =
   run_src {|
 func f() {}

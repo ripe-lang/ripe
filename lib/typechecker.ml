@@ -699,17 +699,23 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
 
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
     (fname : string) : T.texpr =
-  let rec peel = function
-    | TStruct (sname, _) -> Some sname
-    | TAlias (_, base) -> peel base
-    | TPointer t -> peel t
+  let rec peel depth = function
+    | TStruct (sname, _) -> Some (sname, depth)
+    | TAlias (_, base) -> peel depth base
+    | TPointer t -> peel (depth + 1) t
     | _ -> None
   in
-  match peel ty with
+  match peel 0 ty with
   | None ->
       emit env (Error.named span "type has no fields" (show_ty ty));
       dummy_texpr
-  | Some sname -> (
+  | Some (_, depth) when depth > 1 ->
+      let hint = Printf.sprintf "dereference first: `(*p).%s`" fname in
+      emit env
+        (Error.named span "too many pointer levels" (show_ty ty)
+        |> Diagnostic.help hint);
+      dummy_texpr
+  | Some (sname, _) -> (
       let info = lookup_struct env span sname in
       match List.assoc_opt fname info.field_tys with
       | Some ft -> T.mk ft (T.TFieldAccess (te, fname))
