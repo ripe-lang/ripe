@@ -918,7 +918,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
   | _ -> Error.ice ~span "unexpected binary operator");
   match op with
-  | Ast.Add | Ast.Sub | Ast.Mul -> narrow_int_to ctx tmp t
+  | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
   | _ -> tmp
 
 (* this rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
