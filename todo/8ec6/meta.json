@@ -6,10 +6,10 @@
   "id": "8ec6",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "Narrow signed division is not renarrowed",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-15 09:26:27.308271"
 }
