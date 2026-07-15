@@ -6,10 +6,10 @@
   "id": "f243",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "Double pointer field access is wrong for read and write",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-15 06:54:44.312915"
 }
