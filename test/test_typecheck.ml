@@ -689,6 +689,21 @@ func f() {
                      ^
     |}]
 
+let%expect_test "typecheck: a failed check does not cascade" =
+  run_src {|
+func f() {
+  const n: i32 = 1
+  const _y = *n.x + 1
+}
+|};
+  [%expect
+    {|
+    error: type has no fields: i32
+      at <test>:4:15
+          const _y = *n.x + 1
+                      ^~~
+    |}]
+
 let%expect_test "typecheck: address-of and deref roundtrip" =
   run_src
     {|
@@ -1392,10 +1407,6 @@ let%expect_test "typecheck: range in condition is an error" =
       at <test>:1:15
         func f() { if 0..5 { } }
                       ^~~~
-    error: type mismatch
-      at <test>:1:15
-        func f() { if 0..5 { } }
-                      ^~~~ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: for over array literal" =
