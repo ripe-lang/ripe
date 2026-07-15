@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-15 06:53:18.277172",
+  "depends": [],
+  "id": "8d11",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [],
+  "title": "Typecheck error paths cascade a second bogus error",
+  "updated_at": "2026-07-15 06:53:18.277182"
+}
