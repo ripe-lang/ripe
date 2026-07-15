@@ -19,6 +19,7 @@ type ty =
   | TSlice of ty
   | TNewtype of string * ty
   | TAlias of string * ty
+  | TError
 [@@deriving show { with_path = false }]
 
 let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
@@ -75,6 +76,7 @@ let rec show_ty = function
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
       Printf.sprintf "(%s)%s" p_str r_str
+  | TError -> "<error>"
 
 (* sees through a newtype or alias to the concrete representation codegen must use *)
 let rec resolve_ty = function
@@ -94,4 +96,7 @@ let rec erase_aliases = function
   | TNewtype (name, base) -> TNewtype (name, erase_aliases base)
   | t -> t
 
-let ty_equal a b = erase_aliases a = erase_aliases b
+let ty_equal a b =
+  match (erase_aliases a, erase_aliases b) with
+  | TError, _ | _, TError -> true
+  | x, y -> x = y
