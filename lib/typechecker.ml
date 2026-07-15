@@ -44,7 +44,7 @@ let make_env (uses : Resolve.t) : env =
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
-let dummy_texpr = T.mk (TInt I32) (T.TInt 0L)
+let dummy_texpr = T.mk TError (T.TInt 0L)
 let add_warning (env : env) span msg = Diagnostic.warn_at env.diags span msg
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
@@ -254,15 +254,17 @@ let is_lvalue (te : T.texpr) : bool =
   | _ -> false
 
 let is_numeric t =
-  match strip_alias t with TInt _ | TFloat _ -> true | _ -> false
+  match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
 
 let is_ordered = is_numeric
-let is_integer t = match strip_alias t with TInt _ -> true | _ -> false
+
+let is_integer t =
+  match strip_alias t with TInt _ | TError -> true | _ -> false
 
 (* a newtype hides every operation of its base *)
 (* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull -> true
+  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
   | TAlias (_, base) -> is_comparable base
   | _ -> false
 
@@ -400,6 +402,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
               if not (is_integer tidx.T.ty) then
                 add_error env idx.span "array index must be an integer";
               T.mk elem (T.TIndex (tbase, tidx)))
+      | TError -> dummy_texpr
       | t ->
           emit env (Error.named e.span "cannot index type" (show_ty t));
           dummy_texpr)
@@ -478,6 +481,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
             emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
           T.mk want (T.TInt n)
+      | TError -> T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
           emit env
@@ -486,6 +490,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   | Float f -> (
       match strip_alias want with
       | TFloat _ -> T.mk want (T.TFloat f)
+      | TError -> T.mk want (T.TFloat f)
       | _ ->
           emit env
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
@@ -671,6 +676,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       match strip_alias te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
+      | TError -> dummy_texpr
       | t ->
           emit env (Error.named e.span "cannot dereference type" (show_ty t));
           dummy_texpr)
@@ -706,6 +712,7 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
     | _ -> None
   in
   match peel 0 ty with
+  | None when strip_alias ty = TError -> dummy_texpr
   | None ->
       emit env (Error.named span "type has no fields" (show_ty ty));
       dummy_texpr
