@@ -3163,6 +3163,34 @@ let%expect_test "codegen: remainder by zero in constant" =
                        ^~~~~
     |}]
 
+let%expect_test "codegen: function address cast to int in constant" =
+  run_codegen {|
+func g() i32 { return 3 }
+const A: i64 = g as i64
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:3:16
+        const A: i64 = g as i64
+                       ^
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "codegen: string in constant arithmetic" =
+  run_codegen {|
+const S: cstr = "x"
+const N: i64 = S as i64 + 1
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:3:16
+        const N: i64 = S as i64 + 1
+                       ^
+    help: constant initializers must fold to a compile-time value
+    |}]
+
 (* internal invariants: the typechecker keeps these unreachable from source, so
    drive the codegen helpers directly *)
 
