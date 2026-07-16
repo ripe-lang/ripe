@@ -231,7 +231,7 @@ let collect_newtype (env : env) (td : type_alias_def) : unit =
 
 let collect_global (env : env) (gd : global_def) : unit =
   if gd.is_const && gd.init = None then
-    emit env (Error.named gd.span "const without initializer" gd.name);
+    emit env (Error.named gd.span "let without initializer" gd.name);
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.is_const)
 
@@ -639,11 +639,11 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       (match tl.T.desc with
       | TIdent s when Symbol.is_func s.kind ->
           emit env (Error.named l.span "cannot assign to function" s.name)
-      (* This catches assignment to a const whether it's local or global. *)
+      (* This catches assignment to an immutable binding whether it's local or global. *)
       | TIdent s
         when s.kind = Const
              || (Symbol.is_global s.kind && is_const_global env s.name) ->
-          emit env (Error.named l.span "cannot assign to const" s.name)
+          emit env (Error.named l.span "cannot assign to immutable" s.name)
       | _ -> ());
       let t = tl.T.ty in
       if op <> Assign && not (is_numeric t) then

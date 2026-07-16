@@ -1,4 +1,4 @@
-const X: i32 = 32
+let X: i32 = 32
 var n: i32 = 10
 
 func main() {

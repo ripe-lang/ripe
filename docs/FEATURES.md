@@ -4,17 +4,17 @@ I'll be adding this to the ripe-lang.org in the future.
 
 ## Declarations and bindings
 
-### const and var
+### let and var
 
 ```ripe
-const name: cstr = "ramon"   // immutable
+let name: cstr = "ramon"     // immutable
 var count: i32 = 0           // mutable
 ```
 
 ### Inferred bindings
 
 ```ripe
-const x = 5      // type inferred from the value
+let x = 5        // type inferred from the value
 var total = 0
 ```
 

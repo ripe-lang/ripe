@@ -191,11 +191,11 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    "const var return if elseif else while for in true false break continue as \
+    "let var return if elseif else while for in true false break continue as \
      sizeof null extern struct inline public func type newtype undefined\n";
   [%expect
     {|
-    KW const
+    KW let
     KW var
     KW return
     KW if

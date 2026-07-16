@@ -308,10 +308,10 @@ let%expect_test "codegen: simple add return" =
     }
     |}]
 
-let%expect_test "codegen: const arithmetic local" =
+let%expect_test "codegen: let arithmetic local" =
   run_codegen {|
 func f() i32 {
-  const x: i32 = 1 + 2
+  let x: i32 = 1 + 2
   return x
 }
 |};
@@ -594,9 +594,9 @@ func f(a: Id) i64 { return a as i64 }
     }
     |}]
 
-let%expect_test "codegen: global const narrowing cast folds" =
+let%expect_test "codegen: global let narrowing cast folds" =
   run_codegen {|
-const A: u8 = 1000 as u8
+let A: u8 = 1000 as u8
 func f() u8 { return A }
 |};
   [%expect
@@ -621,9 +621,9 @@ let%expect_test "codegen: sizeof int" =
     }
     |}]
 
-let%expect_test "codegen: global const int" =
+let%expect_test "codegen: global let int" =
   run_codegen {|
-const X: i32 = 42
+let X: i32 = 42
 func f() i32 { return X }
 |};
   [%expect
@@ -1092,7 +1092,7 @@ let%expect_test "codegen: sub-slice construction" =
     {|
 func f() i32 {
   var a: [4]i32 = [1, 2, 3, 4]
-  const s: []i32 = a[1..3]
+  let s: []i32 = a[1..3]
   return s[0]
 }
 |};
@@ -1154,7 +1154,7 @@ let%expect_test "codegen: inclusive sub-slice construction" =
     {|
 func f() i32 {
   var a: [4]i32 = [1, 2, 3, 4]
-  const s: []i32 = a[1..=3]
+  let s: []i32 = a[1..=3]
   return s[0]
 }
 |};
@@ -1217,7 +1217,7 @@ let%expect_test "codegen: slice len loads from fat pointer" =
     {|
 func f() usize {
   var a: [3]i32 = [1, 2, 3]
-  const s: []i32 = a[0..3]
+  let s: []i32 = a[0..3]
   return s.len
 }
 |};
@@ -1812,7 +1812,7 @@ let%expect_test "codegen: struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 func f() i32 {
-  const p = pt { x: 3, y: 4 }
+  let p = pt { x: 3, y: 4 }
   return p.y
 }
 |};
@@ -1837,7 +1837,7 @@ let%expect_test "codegen: partial struct literal zeroes omitted fields" =
     {|
 struct pt { x: i32, y: i32 }
 func f() i32 {
-  const p = pt { x: 3 }
+  let p = pt { x: 3 }
   return p.y
 }
 |};
@@ -1863,7 +1863,7 @@ let%expect_test "codegen: nested struct literal" =
 struct inner { a: i32 }
 struct outer { i: inner, b: i32 }
 func f() i32 {
-  const o = outer { i: inner { a: 1 }, b: 2 }
+  let o = outer { i: inner { a: 1 }, b: 2 }
   return o.i.a + o.b
 }
 |};
@@ -1910,11 +1910,11 @@ func f() i32 {
     }
     |}]
 
-let%expect_test "codegen: const global struct data with padding" =
+let%expect_test "codegen: let global struct data with padding" =
   run_codegen
     {|
 struct mix { a: i8, b: i64 }
-const g: mix = mix { a: 1, b: 2 }
+let g: mix = mix { a: 1, b: 2 }
 func f() i64 { return g.b }
 |};
   [%expect
@@ -2469,10 +2469,10 @@ func f(a: bool, b: bool) i32 {
     }
     |}]
 
-let%expect_test "codegen: const references another const by value" =
+let%expect_test "codegen: let references another let by value" =
   run_codegen {|
-const A: i32 = 5
-const B: i32 = A
+let A: i32 = 5
+let B: i32 = A
 func f() i32 { return B }
 |};
   [%expect
@@ -2487,10 +2487,10 @@ func f() i32 { return B }
     }
     |}]
 
-let%expect_test "codegen: const references a later const" =
+let%expect_test "codegen: let references a later let" =
   run_codegen {|
-const B: i32 = A
-const A: i32 = 5
+let B: i32 = A
+let A: i32 = 5
 func f() i32 { return B }
 |};
   [%expect
@@ -2505,9 +2505,9 @@ func f() i32 { return B }
     }
     |}]
 
-let%expect_test "codegen: var initialized from a const" =
+let%expect_test "codegen: var initialized from a let" =
   run_codegen {|
-const A: i32 = 5
+let A: i32 = 5
 var B: i32 = A
 func f() i32 { return B }
 |};
@@ -2523,36 +2523,36 @@ func f() i32 { return B }
     }
     |}]
 
-let%expect_test "codegen: self referential const is a cycle" =
+let%expect_test "codegen: self referential let is a cycle" =
   run_codegen {|
-const X: i32 = X
+let X: i32 = X
 func f() i32 { return X }
 |};
   [%expect
     {|
     error: cyclic constant: X
-      at <test>:2:16
-        const X: i32 = X
-                       ^
+      at <test>:2:14
+        let X: i32 = X
+                     ^
     |}]
 
 let%expect_test "codegen: mutually referential consts are a cycle" =
   run_codegen {|
-const A: i32 = B
-const B: i32 = A
+let A: i32 = B
+let B: i32 = A
 func f() i32 { return A }
 |};
   [%expect
     {|
     error: cyclic constant: B
-      at <test>:2:16
-        const A: i32 = B
-                       ^
+      at <test>:2:14
+        let A: i32 = B
+                     ^
     |}]
 
-let%expect_test "codegen: global const arithmetic" =
+let%expect_test "codegen: global let arithmetic" =
   run_codegen {|
-const A: i32 = 2 + 3
+let A: i32 = 2 + 3
 func f() i32 { return A }
 |};
   [%expect
@@ -2566,11 +2566,11 @@ func f() i32 { return A }
     }
     |}]
 
-let%expect_test "codegen: global const arithmetic referencing another const" =
+let%expect_test "codegen: global let arithmetic referencing another let" =
   run_codegen
     {|
-const A: i32 = 5
-const B: i32 = A * 2 + 1
+let A: i32 = 5
+let B: i32 = A * 2 + 1
 func f() i32 { return B }
 |};
   [%expect
@@ -2585,9 +2585,9 @@ func f() i32 { return B }
     }
     |}]
 
-let%expect_test "codegen: global const float arithmetic" =
+let%expect_test "codegen: global let float arithmetic" =
   run_codegen {|
-const A: f64 = 1.5 + 2.5
+let A: f64 = 1.5 + 2.5
 func f() f64 { return A }
 |};
   [%expect
@@ -2601,9 +2601,9 @@ func f() f64 { return A }
     }
     |}]
 
-let%expect_test "codegen: global const cast arithmetic" =
+let%expect_test "codegen: global let cast arithmetic" =
   run_codegen {|
-const A: f32 = (1 + 2) as f32
+let A: f32 = (1 + 2) as f32
 func f() f32 { return A }
 |};
   [%expect
@@ -3144,50 +3144,50 @@ func f(x: i32) {
     |}]
 
 let%expect_test "codegen: division by zero in constant" =
-  run_codegen {|const X: i32 = 1 / 0|};
+  run_codegen {|let X: i32 = 1 / 0|};
   [%expect
     {|
     error: division by zero in constant
-      at <test>:1:16
-        const X: i32 = 1 / 0
-                       ^~~~~
+      at <test>:1:14
+        let X: i32 = 1 / 0
+                     ^~~~~
     |}]
 
 let%expect_test "codegen: remainder by zero in constant" =
-  run_codegen {|const X: i32 = 1 % 0|};
+  run_codegen {|let X: i32 = 1 % 0|};
   [%expect
     {|
     error: remainder by zero in constant
-      at <test>:1:16
-        const X: i32 = 1 % 0
-                       ^~~~~
+      at <test>:1:14
+        let X: i32 = 1 % 0
+                     ^~~~~
     |}]
 
 let%expect_test "codegen: function address cast to int in constant" =
   run_codegen {|
 func g() i32 { return 3 }
-const A: i64 = g as i64
+let A: i64 = g as i64
 |};
   [%expect
     {|
     error: unsupported constant expression
-      at <test>:3:16
-        const A: i64 = g as i64
-                       ^
+      at <test>:3:14
+        let A: i64 = g as i64
+                     ^
     help: constant initializers must fold to a compile-time value
     |}]
 
 let%expect_test "codegen: string in constant arithmetic" =
   run_codegen {|
-const S: cstr = "x"
-const N: i64 = S as i64 + 1
+let S: cstr = "x"
+let N: i64 = S as i64 + 1
 |};
   [%expect
     {|
     error: unsupported constant expression
-      at <test>:3:16
-        const N: i64 = S as i64 + 1
-                       ^
+      at <test>:3:14
+        let N: i64 = S as i64 + 1
+                     ^
     help: constant initializers must fold to a compile-time value
     |}]
 
@@ -3363,7 +3363,7 @@ let%expect_test "codegen: global sharing a string label name" =
     {|
 var str0: i32 = 7
 func main() i32 {
-  const _s: cstr = "hi"
+  let _s: cstr = "hi"
   return str0
 }
 |};

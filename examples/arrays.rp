@@ -23,8 +23,8 @@ func main() i32 {
   }
 
   // [5]i32 coerces to []i32, and a[1..4] borrows a sub-slice.
-  const whole: i32 = sum(a)         // 10 + 2 + 3 + 4 + 5 = 24
-  const middle: i32 = sum(a[1..4])  // 2 + 3 + 4 = 9
+  let whole: i32 = sum(a)         // 10 + 2 + 3 + 4 + 5 = 24
+  let middle: i32 = sum(a[1..4])  // 2 + 3 + 4 = 9
 
   // doubled = 2*(10+2+3+4+5) = 48
   return doubled + whole + middle - 47   // 48 + 24 + 9 - 47 = 34
