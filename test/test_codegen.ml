@@ -2550,6 +2550,112 @@ func f() i32 { return A }
                      ^
     |}]
 
+let%expect_test "codegen: const global inlines with no data" =
+  run_codegen {|
+const N: i32 = 4
+func f() i32 { return N }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 4
+    }
+    |}]
+
+let%expect_test "codegen: const expression folds at the use site" =
+  run_codegen
+    {|
+const N: i32 = 4
+const M: i32 = N * 2 + 1
+func f() i32 { return M }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 9
+    }
+    |}]
+
+let%expect_test "codegen: local const gets no slot" =
+  run_codegen {|
+func f() i32 {
+  const c: i32 = 2
+  return c
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 2
+    }
+    |}]
+
+let%expect_test "codegen: const forward reference" =
+  run_codegen
+    {|
+const B: i32 = A + 1
+const A: i32 = 4
+func f() i32 { return B }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 5
+    }
+    |}]
+
+let%expect_test "codegen: const reads a let global" =
+  run_codegen
+    {|
+let L: i32 = 10
+const C: i32 = L * 2
+func f() i32 { return C }
+|};
+  [%expect
+    {|
+    data $L = align 4 { w 10 }
+
+    function w $f() {
+    @start
+        ret 20
+    }
+    |}]
+
+let%expect_test "codegen: let initialized from a const" =
+  run_codegen
+    {|
+const N: i32 = 4
+let L: i32 = N + 1
+func f() i32 { return L }
+|};
+  [%expect
+    {|
+    data $L = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $L
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: sizeof folds in a const" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+const S: i64 = sizeof(pt)
+func f() i64 { return S }
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function l $f() {
+    @start
+        ret 8
+    }
+    |}]
+
 let%expect_test "codegen: global let arithmetic" =
   run_codegen {|
 let A: i32 = 2 + 3

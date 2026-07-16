@@ -332,6 +332,142 @@ let%expect_test "typecheck: let requires initializer" =
         ^~~~~~~~~~
     |}]
 
+let%expect_test "typecheck: const requires initializer" =
+  run_src "const X: i32";
+  [%expect
+    {|
+    error: const without initializer: X
+      at <test>:1:1
+        const X: i32
+        ^~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: cannot take address of a const global" =
+  run_src {|
+const N: i32 = 4
+func f() *i32 { return &N }
+|};
+  [%expect
+    {|
+    error: cannot take address of a constant: N
+      at <test>:3:25
+        func f() *i32 { return &N }
+                                ^
+    help: a const has no storage, use let
+    |}]
+
+let%expect_test "typecheck: cannot take address of a local const" =
+  run_src {|
+func f() {
+  const c: i32 = 2
+  var p: *i32 = &c
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:4:7
+          var p: *i32 = &c
+              ^
+    help: prefix with an underscore: _p
+    error: cannot take address of a constant: c
+      at <test>:4:18
+          var p: *i32 = &c
+                         ^
+    help: a const has no storage, use let
+    |}]
+
+let%expect_test "typecheck: const must be a scalar" =
+  run_src {|
+func f() {
+  const a: [2]i32 = [1, 2]
+}
+|};
+  [%expect
+    {|
+    error: const must be a scalar, found [2]i32
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^
+    help: use let for values that need storage
+    warning: unused variable: a
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^
+    help: prefix with an underscore: _a
+    |}]
+
+let%expect_test "typecheck: const cstr is not a scalar" =
+  run_src {|
+const S: cstr = "x"
+|};
+  [%expect
+    {|
+    error: const must be a scalar, found cstr
+      at <test>:2:1
+        const S: cstr = "x"
+        ^~~~~~~~~~~~~~~~~~~
+    help: use let for values that need storage
+    |}]
+
+let%expect_test "typecheck: local const initializer must fold" =
+  run_src
+    {|
+func g() i32 { return 3 }
+func f() i32 {
+  const c: i32 = g()
+  return c
+}
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:4:18
+          const c: i32 = g()
+                         ^~~
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "typecheck: mutually referential consts are a cycle" =
+  run_src {|
+const A: i32 = B
+const B: i32 = A
+|};
+  [%expect
+    {|
+    error: cyclic constant: B
+      at <test>:2:16
+        const A: i32 = B
+                       ^
+    |}]
+
+let%expect_test "typecheck: cannot assign to a const" =
+  run_src {|
+func f() i32 {
+  const c: i32 = 2
+  c = 3
+  return c
+}
+|};
+  [%expect
+    {|
+    error: cannot assign to immutable: c
+      at <test>:4:3
+          c = 3
+          ^
+    |}]
+
+let%expect_test "typecheck: local const reads an earlier const" =
+  run_src
+    {|
+func f() i32 {
+  const a: i32 = 2
+  const b: i32 = a * 3
+  return b
+}
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: int arithmetic ok" =
   run_src "func f() i32 { return 1 + 2 * 3 - 4 }";
   [%expect {| ok |}]
