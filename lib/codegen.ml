@@ -26,7 +26,6 @@ let qbe_ty (t : ty) : string =
 
 (* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
 let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
-let float_kind_size = function F32 -> 4 | F64 -> 8
 
 (* s_ for single, d_ for double *)
 let float_lit (ty : ty) (f : float) : string =
@@ -51,63 +50,6 @@ let parse_const_num (ty : ty) (s : string) : const_num =
   | _ ->
       if qbe_base ty = L then Ni64 (Int64.of_string s)
       else Ni32 (Int32.of_string s)
-
-(* C ABI alignment and padding rules *)
-(* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
-(* TODO(8969): Add a packed attr to strip padding for exact memory layout *)
-
-let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
-  match resolve_ty t with
-  | TInt k -> int_kind_size k
-  | TFloat k -> float_kind_size k
-  | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no alignment"
-  | TError -> Error.ice "TError has no alignment"
-  | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
-      | Some fields ->
-          List.fold_left
-            (fun acc (_, ft) -> max acc (ty_align structs ft))
-            1 fields
-      | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
-  | TArray (e, _) -> ty_align structs e
-  | TSlice _ -> 8
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-
-(* n and a must be non-negative *)
-let align_to n a = (n + a - 1) / a * a
-
-let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
-  match resolve_ty t with
-  | TInt k -> int_kind_size k
-  | TFloat k -> float_kind_size k
-  | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no size"
-  | TError -> Error.ice "TError has no size"
-  | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
-      | Some fields ->
-          let struct_align = ty_align structs t in
-          let offset =
-            List.fold_left
-              (fun off (_, ft) ->
-                let a = ty_align structs ft in
-                let off = align_to off a in
-                off + ty_size structs ft)
-              0 fields
-          in
-          align_to offset struct_align
-      | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
-  | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
-  (* fat pointer: { ptr, len } *)
-  | TSlice _ -> 16
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =

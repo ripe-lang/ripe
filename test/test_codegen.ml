@@ -3208,7 +3208,7 @@ let%expect_test "codegen ICE: TVoid has no QBE base type" =
 
 let%expect_test "codegen ICE: TVoid has no alignment" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen.ty_align (empty_structs ()) Ripe.Types.TVoid));
+      ignore (Ripe.Types.ty_align (empty_structs ()) Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3218,7 +3218,7 @@ let%expect_test "codegen ICE: TVoid has no alignment" =
 
 let%expect_test "codegen ICE: TVoid has no size" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen.ty_size (empty_structs ()) Ripe.Types.TVoid));
+      ignore (Ripe.Types.ty_size (empty_structs ()) Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3265,7 +3265,7 @@ let%expect_test "codegen ICE: TVoid has no extended type" =
 let%expect_test "codegen ICE: missing struct layout in alignment" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.ty_align (empty_structs ())
+        (Ripe.Types.ty_align (empty_structs ())
            (Ripe.Types.TStruct ("Foo", []))));
   [%expect
     {|
@@ -3277,8 +3277,7 @@ let%expect_test "codegen ICE: missing struct layout in alignment" =
 let%expect_test "codegen ICE: missing struct layout in size" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.ty_size (empty_structs ())
-           (Ripe.Types.TStruct ("Foo", []))));
+        (Ripe.Types.ty_size (empty_structs ()) (Ripe.Types.TStruct ("Foo", []))));
   [%expect
     {|
     error: internal compiler error
