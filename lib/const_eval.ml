@@ -45,6 +45,8 @@ let unsupported_const span =
     |> at span
     |> help "constant initializers must fold to a compile-time value")
 
+(* TODO: once functions can be evaluated at compile time here bound the recursion depth and number of steps so a runaway evaluation cannot hang the compiler *)
+
 (* [resolve] yields the value of a named constant so cycle handling stays in the caller *)
 let rec fold_const_num ~sizeof
     ~(resolve : Symbol.t -> ty -> Ast.span -> const_num) (te : T.texpr) :
