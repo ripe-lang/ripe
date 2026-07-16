@@ -23,21 +23,8 @@ let qbe_base (t : ty) : qbe_base =
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
-let is_unsigned (t : ty) : bool =
-  match resolve_ty t with
-  | TInt (U8 | U16 | U32 | U64 | Usize) -> true
-  | _ -> false
-
 (* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
 let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
-
-(* byte size of each integer kind: bit width / 8 *)
-let int_kind_size = function
-  | I8 | U8 -> 1
-  | I16 | U16 -> 2
-  | I32 | U32 -> 4
-  | I64 | U64 | Isize | Usize -> 8
-
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
 (* the integers keep their real width
