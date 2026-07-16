@@ -230,10 +230,10 @@ let collect_newtype (env : env) (td : type_alias_def) : unit =
     Hashtbl.replace env.types td.name (DNewtype t)
 
 let collect_global (env : env) (gd : global_def) : unit =
-  if gd.is_const && gd.init = None then
+  if gd.kind <> Var && gd.init = None then
     emit env (Error.named gd.span "let without initializer" gd.name);
   let t = ty_of_ast env gd.typ in
-  Hashtbl.replace env.globals gd.name (t, gd.is_const)
+  Hashtbl.replace env.globals gd.name (t, gd.kind <> Var)
 
 let collect_decl (env : env) (decl : decl) : unit =
   match decl with
@@ -641,7 +641,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           emit env (Error.named l.span "cannot assign to function" s.name)
       (* This catches assignment to an immutable binding whether it's local or global. *)
       | TIdent s
-        when s.kind = Const
+        when Symbol.is_immutable s.kind
              || (Symbol.is_global s.kind && is_const_global env s.name) ->
           emit env (Error.named l.span "cannot assign to immutable" s.name)
       | _ -> ());
@@ -739,7 +739,7 @@ let rec array_storage_escapes (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent s -> (
       match s.Symbol.kind with
-      | Symbol.Var | Symbol.Const | Symbol.Param | Symbol.ForVar -> true
+      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
       | _ -> false)
   | T.TArrayLit _ -> true
   | T.TIndex (base, _) -> array_storage_escapes base
@@ -762,19 +762,7 @@ let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
 
 and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
   match s.sdesc with
-  | Const (name, nspan, ann, e) ->
-      let t, te =
-        match ann with
-        | Some a ->
-            let want = ty_of_ast env a in
-            let te = check env e want in
-            (want, te)
-        | None ->
-            let te = synth env e in
-            (te.T.ty, te)
-      in
-      (extend_var env nspan name t, T.TConst (sym env nspan, t, te))
-  | Var (name, nspan, ann, e) ->
+  | Binding (kind, name, nspan, ann, e) ->
       let t, te =
         match (ann, e) with
         | Some a, Some e ->
@@ -791,7 +779,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
             emit env (Error.named nspan "cannot infer type" name);
             (TInt I32, dummy_texpr)
       in
-      (extend_var env nspan name t, T.TVar (sym env nspan, t, te))
+      (extend_var env nspan name t, T.TBinding (kind, sym env nspan, t, te))
   | Return None ->
       (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
       if env.ret_ty <> TVoid && not env.in_main then
@@ -989,7 +977,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           emit env (Error.named e.span "initializer must be constant" gd.name);
         Some te
   in
-  { T.name = gd.name; ty = t; init = tinit; is_const = gd.is_const }
+  { T.name = gd.name; ty = t; init = tinit; kind = gd.kind }
 
 let check_decl (env : env) (decl : decl) : T.tdecl =
   match decl with

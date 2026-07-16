@@ -1041,7 +1041,7 @@ and emit_cast ctx v src_ty target_ty =
 
 and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
   match s.T.tsdesc with
-  | T.TConst (s, t, e) | T.TVar (s, t, e) -> (
+  | T.TBinding (_kind, s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
       emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
@@ -1610,7 +1610,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       | T.TGlobal gd -> (
           Hashtbl.replace ctx.globals gd.name ();
           match gd.init with
-          | Some te when gd.is_const ->
+          | Some te when gd.kind <> Ast.Var ->
               Hashtbl.replace ctx.const_inits gd.name te
           | _ -> ())
       (* a variadic body cannot be pasted so those keep using an ordinary call *)

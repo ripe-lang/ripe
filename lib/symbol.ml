@@ -4,7 +4,13 @@
    modules I will need mangled names for the linker+ABI on top of the ids*)
 type id = int [@@deriving show { with_path = false }]
 
-type kind = Func | Extern | Global | Const | Var | Param | ForVar
+type kind =
+  | Func
+  | Extern
+  | Global
+  | Local of Ast.binding_kind
+  | Param
+  | ForVar
 [@@deriving show { with_path = false }]
 
 type t = { id : id; name : string; kind : kind; span : Ast.span }
@@ -12,3 +18,5 @@ type t = { id : id; name : string; kind : kind; span : Ast.span }
 
 let is_func = function Func | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
+let is_immutable = function Local (Ast.Let | Ast.Const) -> true | _ -> false
+let is_comptime = function Local Ast.Const -> true | _ -> false
