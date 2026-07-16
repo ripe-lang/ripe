@@ -1403,7 +1403,11 @@ and fold_const_num (ctx : ctx) (te : T.texpr) : const_num =
   | T.TChar c -> Ni32 (Int32.of_int (Char.code c))
   | T.TFloat f -> Nf f
   | T.TSizeOf t -> wrap_const te.T.ty (Int64.of_int (ty_size ctx.structs t))
-  | T.TIdent s -> parse_const_num te.T.ty (resolve_const ctx s.name te.T.span)
+  | T.TIdent s -> (
+      match resolve_ty te.T.ty with
+      | TInt _ | TFloat _ | TBool ->
+          parse_const_num te.T.ty (resolve_const ctx s.name te.T.span)
+      | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
   | T.TCast e -> (
       let v = fold_const_num ctx e in
       match (resolve_ty te.T.ty, v) with
@@ -1500,6 +1504,7 @@ and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =
   | Some v -> v
   | None -> (
       match Hashtbl.find_opt ctx.const_inits name with
+      (* FIXME: a non const name also lands here so the message can lie *)
       | None ->
           raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ])
       | Some init ->
