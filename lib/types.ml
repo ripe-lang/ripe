@@ -97,6 +97,13 @@ let int_kind_size = function
   | I32 | U32 -> 4
   | I64 | U64 | Isize | Usize -> 8
 
+(* the 8 byte value classes, so constant folding picks a 64 bit result *)
+let is_wide_ty t =
+  match resolve_ty t with
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      true
+  | _ -> false
+
 (* an alias is just another name for its base type so it never makes two types different *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
