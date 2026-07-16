@@ -3289,10 +3289,10 @@ let%expect_test "codegen ICE: missing struct layout in size" =
 let%expect_test "codegen: assignment operator in constant" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Assign
+        (Ripe.Const_eval.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Assign
            ~result_ty:(Ripe.Types.TInt Ripe.Types.I32)
-           ~operand_ty:(Ripe.Types.TInt Ripe.Types.I32) (Ripe.Codegen.Ni32 1l)
-           (Ripe.Codegen.Ni32 2l)));
+           ~operand_ty:(Ripe.Types.TInt Ripe.Types.I32)
+           (Ripe.Const_eval.Ni32 1l) (Ripe.Const_eval.Ni32 2l)));
   [%expect
     {|
     error: unsupported constant expression
@@ -3305,10 +3305,10 @@ let%expect_test "codegen: assignment operator in constant" =
 let%expect_test "codegen: unsupported float operation in constant" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Lshift
+        (Ripe.Const_eval.fold_const_binop Ripe.Ast.dummy_span Ripe.Ast.Lshift
            ~result_ty:(Ripe.Types.TFloat Ripe.Types.F64)
-           ~operand_ty:(Ripe.Types.TFloat Ripe.Types.F64) (Ripe.Codegen.Nf 1.0)
-           (Ripe.Codegen.Nf 2.0)));
+           ~operand_ty:(Ripe.Types.TFloat Ripe.Types.F64)
+           (Ripe.Const_eval.Nf 1.0) (Ripe.Const_eval.Nf 2.0)));
   [%expect
     {|
     error: unsupported constant expression

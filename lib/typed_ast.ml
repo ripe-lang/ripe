@@ -36,8 +36,7 @@ let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }
 
 type tstmt_desc =
-  | TConst of Symbol.t * ty * texpr
-  | TVar of Symbol.t * ty * texpr
+  | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
   | TReturn of texpr option
   | TIf of (texpr * tstmt list) list * tstmt list
   | TWhile of texpr * tstmt list
@@ -64,7 +63,7 @@ type tglobal_def = {
   name : string;
   ty : ty;
   init : texpr option;
-  is_const : bool;
+  kind : Ast.binding_kind;
 }
 [@@deriving show { with_path = false }]
 

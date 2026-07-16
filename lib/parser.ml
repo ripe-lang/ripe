@@ -437,9 +437,12 @@ and parse_header_expr st =
 and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
-  (* let x: i32 = 42 *)
-  | LET ->
+  (* let x: i32 = 42 / const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
+  | (LET | CONST | VAR) as tok ->
       advance st;
+      let kind =
+        match tok with LET -> Ast.Let | CONST -> Ast.Const | _ -> Ast.Var
+      in
       let name, nspan = expect_ident_span st in
       (* optional type annotation since the typechecker can infer it *)
       let ann =
@@ -448,27 +451,17 @@ and parse_simple_stmt st =
           Some (parse_typ st))
         else None
       in
-      (* a let binding always requires a value *)
-      expect st ASSIGN;
-      let e = parse_expr st 1 in
-      mks lo st (Const (name, nspan, ann, e))
-  (* var x: i32 / var x = 42 / var x *)
-  | VAR ->
-      advance st;
-      let name, nspan = expect_ident_span st in
-      let ann =
-        if at st COLON then (
-          advance st;
-          Some (parse_typ st))
-        else None
-      in
+      (* only var may omit the value *)
       let e =
-        if at st ASSIGN then (
+        if kind <> Ast.Var then (
+          expect st ASSIGN;
+          Some (parse_expr st 1))
+        else if at st ASSIGN then (
           advance st;
           Some (parse_expr st 1))
         else None
       in
-      mks lo st (Var (name, nspan, ann, e))
+      mks lo st (Binding (kind, name, nspan, ann, e))
   | BREAK ->
       advance st;
       mks lo st Break
@@ -610,7 +603,9 @@ let parse_func st mods =
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
   let lo = cur_pos st in
-  let is_const = st.tok = LET in
+  let kind =
+    match st.tok with LET -> Ast.Let | CONST -> Ast.Const | _ -> Ast.Var
+  in
   advance st;
   let name = expect_ident st in
   expect st COLON;
@@ -623,7 +618,7 @@ let parse_global st =
   in
   let hi = st.prev_end in
   skip_semi st;
-  Global { name; typ; init; is_const; span = { lo; hi } }
+  Global { name; typ; init; kind; span = { lo; hi } }
 
 (* type binop = (i32, i32) i32 *)
 let parse_type_alias st =
@@ -675,7 +670,7 @@ let parse_decl st =
   | _, STRUCT -> parse_struct st mods
   | _, FUNC -> parse_func st mods
   | [], EXTERN -> parse_extern st
-  | [], (LET | VAR) -> parse_global st
+  | [], (LET | CONST | VAR) -> parse_global st
   | [], TYPE -> parse_type_alias st
   | [], NEWTYPE -> parse_newtype st
   | _ -> err ()

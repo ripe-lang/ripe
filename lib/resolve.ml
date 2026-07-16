@@ -95,12 +95,9 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 
 let rec resolve_stmt (st : state) (s : stmt) : unit =
   match s.sdesc with
-  | Const (name, nspan, _, e) ->
-      resolve_expr st e;
-      declare_local st Symbol.Const name nspan
-  | Var (name, nspan, _, e) ->
+  | Binding (kind, name, nspan, _, e) ->
       Option.iter (resolve_expr st) e;
-      declare_local st Symbol.Var name nspan
+      declare_local st (Symbol.Local kind) name nspan
   | Return e -> Option.iter (resolve_expr st) e
   | Expr e -> resolve_expr st e
   | If (branches, else_body) ->

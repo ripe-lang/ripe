@@ -96,10 +96,11 @@ type expr_desc =
 and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
 
+type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]
+
 (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
 type stmt_desc =
-  | Const of string * span * typ option * expr
-  | Var of string * span * typ option * expr option
+  | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
   | If of (expr * stmt list) list * stmt list
   | While of expr * stmt list
@@ -150,7 +151,7 @@ type global_def = {
   name : string;
   typ : typ;
   init : expr option;
-  is_const : bool;
+  kind : binding_kind;
   span : span;
 }
 [@@deriving show { with_path = false }]

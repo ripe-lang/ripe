@@ -85,6 +85,25 @@ let rec resolve_ty = function
 
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
+let is_unsigned t =
+  match resolve_ty t with
+  | TInt (U8 | U16 | U32 | U64 | Usize) -> true
+  | _ -> false
+
+(* byte size of each integer kind: bit width / 8 *)
+let int_kind_size = function
+  | I8 | U8 -> 1
+  | I16 | U16 -> 2
+  | I32 | U32 -> 4
+  | I64 | U64 | Isize | Usize -> 8
+
+(* the 8 byte value classes, so constant folding picks a 64 bit result *)
+let is_wide_ty t =
+  match resolve_ty t with
+  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+      true
+  | _ -> false
+
 (* an alias is just another name for its base type so it never makes two types different *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
