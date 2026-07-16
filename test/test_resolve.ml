@@ -136,7 +136,7 @@ let%expect_test "resolve: address of a function lowers" =
     {|
 func g() i32 { return 7 }
 func main() i32 {
-  const _p = &g
+  let _p = &g
   return 0
 }
 |};
@@ -156,10 +156,10 @@ func main() i32 {
     }
     |}]
 
-let%expect_test "resolve: var shadowing a const global is assignable" =
+let%expect_test "resolve: var shadowing a let global is assignable" =
   run_src
     {|
-const C: i32 = 5
+let C: i32 = 5
 func main() i32 {
   var C: i32 = 1
   C = 2
@@ -268,9 +268,9 @@ func main() i32 { return nope() }
                                  ^~~~
     |}]
 
-let%expect_test "resolve: global const is visible in a function" =
+let%expect_test "resolve: global let is visible in a function" =
   run_src {|
-const C: i32 = 5
+let C: i32 = 5
 func main() i32 { return C }
 |};
   [%expect {| ok |}]

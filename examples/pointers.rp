@@ -17,8 +17,8 @@ func bump(p: *point) {
 func main() i32 {
   var x: i32 = 10
   var y: i32 = 32
-  const sum = deref_sum(&x, &y)
-  const neg = deref_negate(&x)
+  let sum = deref_sum(&x, &y)
+  let neg = deref_negate(&x)
 
   var p: point = point { x: 0, y: 0 }
   bump(&p)

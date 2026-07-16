@@ -25,17 +25,17 @@ let%expect_test "parse: stray token" =
     |}]
 
 let%expect_test "parse: unterminated string" =
-  run_src "func f() { const s = \"oops";
+  run_src "func f() { let s = \"oops";
   [%expect
     {|
     error: unterminated string
-      at <test>:1:27
-        func f() { const s = "oops
-                                  ^
+      at <test>:1:25
+        func f() { let s = "oops
+                                ^
     error: expected }
-      at <test>:1:27
-        func f() { const s = "oops
-                                  ^ found <eof>
+      at <test>:1:25
+        func f() { let s = "oops
+                                ^ found <eof>
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -47,7 +47,7 @@ let%expect_test "parse: line comments stripped" =
   [%expect {| ok |}]
 
 let%expect_test "parse: semicolon-free newline-terminated" =
-  run_src "func f() i32 {\n  const x: i32 = 1\n  return x\n}";
+  run_src "func f() i32 {\n  let x: i32 = 1\n  return x\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: recover, two broken decls" =
@@ -259,13 +259,13 @@ let%expect_test "parse: modifiers on func" =
   [%expect {| ok |}]
 
 let%expect_test "parse: modifier before non-func decl" =
-  run_src "public const X: i32 = 1";
+  run_src "public let X: i32 = 1";
   [%expect
     {|
     error: expected declaration
       at <test>:1:8
-        public const X: i32 = 1
-               ^~~~~ found const
+        public let X: i32 = 1
+               ^~~ found let
     |}]
 
 let%expect_test "parse: stray token at top level" =
@@ -306,7 +306,7 @@ let%expect_test "parse: multiline struct literal" =
   run_src
     "struct pt { x: i32, y: i32 }\n\
      func f() i32 {\n\
-    \  const p = pt {\n\
+    \  let p = pt {\n\
     \    x: 1,\n\
     \    y: 2\n\
     \  }\n\
@@ -353,7 +353,7 @@ let%expect_test "parse: braces are literal in a string" =
   [%expect {| "a{x}b" |}]
 
 let%expect_test "parse: crlf newline as statement separator" =
-  run_src "func f() i32 {\r\n  const x: i32 = 1\r\n  return x\r\n}";
+  run_src "func f() i32 {\r\n  let x: i32 = 1\r\n  return x\r\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: stray closing paren" =
@@ -545,13 +545,13 @@ let%expect_test "parse: expression body wrong return type" =
     |}]
 
 let%expect_test "parse: unknown string escape" =
-  run_src {|func f() { const s = "a\qb" }|};
+  run_src {|func f() { let s = "a\qb" }|};
   [%expect
     {|
     error: unknown escape: \q
-      at <test>:1:25
-        func f() { const s = "a\qb" }
-                                ^
+      at <test>:1:23
+        func f() { let s = "a\qb" }
+                              ^
     |}]
 
 let%expect_test "parse: call result indexed then field accessed" =
@@ -585,11 +585,11 @@ let%expect_test "parse: struct fields need a separator" =
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
-  run_src "func f() { const s = S { x: 1 y: 2 } }";
+  run_src "func f() { let s = S { x: 1 y: 2 } }";
   [%expect
     {|
     error: expected `,` or newline between fields
-      at <test>:1:31
-        func f() { const s = S { x: 1 y: 2 } }
-                                      ^ found y
+      at <test>:1:29
+        func f() { let s = S { x: 1 y: 2 } }
+                                    ^ found y
     |}]

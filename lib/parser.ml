@@ -437,8 +437,8 @@ and parse_header_expr st =
 and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
-  (* const x: i32 = 42 *)
-  | CONST ->
+  (* let x: i32 = 42 *)
+  | LET ->
       advance st;
       let name, nspan = expect_ident_span st in
       (* optional type annotation since the typechecker can infer it *)
@@ -448,7 +448,7 @@ and parse_simple_stmt st =
           Some (parse_typ st))
         else None
       in
-      (* const always requires a value *)
+      (* a let binding always requires a value *)
       expect st ASSIGN;
       let e = parse_expr st 1 in
       mks lo st (Const (name, nspan, ann, e))
@@ -607,10 +607,10 @@ let parse_func st mods =
   Func
     { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
 
-(* const PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
+(* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
   let lo = cur_pos st in
-  let is_const = st.tok = CONST in
+  let is_const = st.tok = LET in
   advance st;
   let name = expect_ident st in
   expect st COLON;
@@ -675,7 +675,7 @@ let parse_decl st =
   | _, STRUCT -> parse_struct st mods
   | _, FUNC -> parse_func st mods
   | [], EXTERN -> parse_extern st
-  | [], (CONST | VAR) -> parse_global st
+  | [], (LET | VAR) -> parse_global st
   | [], TYPE -> parse_type_alias st
   | [], NEWTYPE -> parse_newtype st
   | _ -> err ()

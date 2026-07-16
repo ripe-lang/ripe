@@ -25,8 +25,8 @@ func main() i32 {
     scores[i] += 1
   }
 
-  const total: i32 = sum(scores)   // (31+11+51+21+41) = 155
-  const top: i32 = max(scores)     // 51
+  let total: i32 = sum(scores)   // (31+11+51+21+41) = 155
+  let top: i32 = max(scores)     // 51
 
   return total - top - 100   // 155 - 51 - 100 = 4
 }

@@ -13,11 +13,11 @@ func main() i32 {
   var data: [6]i32 = [4, 8, 15, 16, 23, 42]
 
   // [6]i32 coerces to []i32 at the call.
-  const at: i32 = index_of(data, 16)     // 3
-  const missing: i32 = index_of(data, 99) // -1
+  let at: i32 = index_of(data, 16)     // 3
+  let missing: i32 = index_of(data, 99) // -1
 
   // Search only a sub-slice (the last three elements).
-  const in_tail: i32 = index_of(data[3..6], 42) // 2
+  let in_tail: i32 = index_of(data[3..6], 42) // 2
 
   return at + in_tail - missing   // 3 + 2 - (-1) = 6
 }

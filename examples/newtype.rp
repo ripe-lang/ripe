@@ -8,8 +8,8 @@ func to_f(c: Celsius) Fahrenheit {
 }
 
 func main() i32 {
-  const boiling: Celsius = 100.0 as Celsius
-  const f: Fahrenheit = to_f(boiling)
+  let boiling: Celsius = 100.0 as Celsius
+  let f: Fahrenheit = to_f(boiling)
 
   // 212
   return f as f32 as i32
