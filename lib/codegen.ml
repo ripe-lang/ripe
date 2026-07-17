@@ -159,6 +159,25 @@ let sym_addr ctx (s : Symbol.t) : string =
 let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
 let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
 
+(* the data pointer sits at offset 0 in the fat pointer *)
+let load_slice_ptr ctx addr =
+  let ptr = fresh ctx in
+  emit ctx "    %s =l loadl %s\n" ptr addr;
+  ptr
+
+(* the length sits at offset 8 in the fat pointer *)
+let load_slice_len ctx addr =
+  let lenp = fresh ctx in
+  emit ctx "    %s =l add %s, 8\n" lenp addr;
+  let len = fresh ctx in
+  emit ctx "    %s =l loadl %s\n" len lenp;
+  len
+
+let load_slice_fields ctx addr =
+  let ptr = load_slice_ptr ctx addr in
+  let len = load_slice_len ctx addr in
+  (ptr, len)
+
 let intern_string ctx s =
   let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
   incr ctx.str_ctr;
@@ -316,24 +335,16 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       match resolve_ty e.T.ty with
       | TArray (_, n) -> string_of_int n
       | TSlice _ ->
-          (* len lives at offset 8 in the fat pointer *)
           let addr = emit_expr ctx e in
-          let lenp = fresh ctx in
-          emit ctx "    %s =l add %s, 8\n" lenp addr;
-          let l = fresh ctx in
-          emit ctx "    %s =l loadl %s\n" l lenp;
-          l
+          load_slice_len ctx addr
       | t ->
           Error.ice ~span:e.T.span
             (Printf.sprintf "TLen on non-array type: %s" (show_ty t)))
   | T.TDataPtr e -> (
       match resolve_ty e.T.ty with
       | TSlice _ ->
-          (* ptr lives at offset 0 in the fat pointer *)
           let addr = emit_expr ctx e in
-          let p = fresh ctx in
-          emit ctx "    %s =l loadl %s\n" p addr;
-          p
+          load_slice_ptr ctx addr
       (* an array's base address is already the pointer to its first element *)
       | TArray _ -> emit_expr ctx e
       | t ->
@@ -366,14 +377,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       let storage, blen =
         match resolve_ty base.T.ty with
         | TArray (_, n) -> (base_addr, string_of_int n)
-        | TSlice _ ->
-            let p = fresh ctx in
-            emit ctx "    %s =l loadl %s\n" p base_addr;
-            let lenp = fresh ctx in
-            emit ctx "    %s =l add %s, 8\n" lenp base_addr;
-            let l = fresh ctx in
-            emit ctx "    %s =l loadl %s\n" l lenp;
-            (p, l)
+        | TSlice _ -> load_slice_fields ctx base_addr
         | t ->
             Error.ice ~span:base.T.span
               (Printf.sprintf "cannot slice: %s" (show_ty t))
@@ -467,12 +471,7 @@ and emit_index_addr ctx base idx elem =
     match resolve_ty base.T.ty with
     | TArray (_, n) -> (base_addr, Some (string_of_int n))
     | TSlice _ ->
-        let p = fresh ctx in
-        emit ctx "    %s =l loadl %s\n" p base_addr;
-        let lenp = fresh ctx in
-        emit ctx "    %s =l add %s, 8\n" lenp base_addr;
-        let l = fresh ctx in
-        emit ctx "    %s =l loadl %s\n" l lenp;
+        let p, l = load_slice_fields ctx base_addr in
         (p, Some l)
     | _ -> (base_addr, None)
   in
@@ -1065,14 +1064,7 @@ and emit_for ctx name elem_ty iter body =
         let base = emit_expr ctx iter in
         match resolve_ty iter.T.ty with
         | TArray (_, n) -> (base, string_of_int n)
-        | TSlice _ ->
-            let p = fresh ctx in
-            emit ctx "    %s =l loadl %s\n" p base;
-            let lenp = fresh ctx in
-            emit ctx "    %s =l add %s, 8\n" lenp base;
-            let l = fresh ctx in
-            emit ctx "    %s =l loadl %s\n" l lenp;
-            (p, l)
+        | TSlice _ -> load_slice_fields ctx base
         | t ->
             Error.ice ~span:iter.T.span
               (Printf.sprintf "cannot iterate over type: %s" (show_ty t))
