@@ -98,7 +98,8 @@ let expect_field_sep st =
   skip_semi st
 
 let prec_of = function
-  | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN ->
+  | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN
+  | PERCENT_ASSIGN | AMP_ASSIGN | PIPE_ASSIGN | CARET_ASSIGN ->
       Some (1, Right)
   | DOTDOT | DOTDOTEQ -> Some (2, NonAssoc)
   | OR -> Some (3, Left)
@@ -137,6 +138,10 @@ let binop_of = function
   | MINUS_ASSIGN -> SubAssign
   | STAR_ASSIGN -> MulAssign
   | SLASH_ASSIGN -> DivAssign
+  | PERCENT_ASSIGN -> ModAssign
+  | AMP_ASSIGN -> BitAndAssign
+  | PIPE_ASSIGN -> BitOrAssign
+  | CARET_ASSIGN -> BitXorAssign
   | _ -> failwith "not a binary operator"
 
 let in_brackets st f =

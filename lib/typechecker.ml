@@ -686,7 +686,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         | _ -> check env r t
       in
       T.mk t (T.TBinOp (op, tl, tr))
-  | Assign | AddAssign | SubAssign | MulAssign | DivAssign ->
+  | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
+  | BitAndAssign | BitOrAssign | BitXorAssign ->
       let tl = synth env l in
       if not (is_lvalue tl) then
         add_error env l.span "cannot assign to expression";
@@ -700,7 +701,18 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           emit env (Error.named l.span "cannot assign to immutable" s.name)
       | _ -> ());
       let t = tl.T.ty in
-      if op <> Assign && not (is_numeric t) then
+      let operand_ok =
+        match op with
+        | Assign -> true
+        | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
+        (* qbe has no float remainder instruction *)
+        | ModAssign ->
+            is_numeric t
+            && not (match strip_alias t with TFloat _ -> true | _ -> false)
+        | BitAndAssign | BitOrAssign | BitXorAssign -> is_integer t
+        | _ -> false
+      in
+      if not operand_ok then
         add_error env l.span
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));

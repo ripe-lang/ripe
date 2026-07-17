@@ -30,6 +30,10 @@ type binop =
   | SubAssign
   | MulAssign
   | DivAssign
+  | ModAssign
+  | BitAndAssign
+  | BitOrAssign
+  | BitXorAssign
 [@@deriving show { with_path = false }]
 
 let show_binop_sym = function
@@ -56,6 +60,10 @@ let show_binop_sym = function
   | SubAssign -> "-="
   | MulAssign -> "*="
   | DivAssign -> "/="
+  | ModAssign -> "%="
+  | BitAndAssign -> "&="
+  | BitOrAssign -> "|="
+  | BitXorAssign -> "^="
 
 type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]

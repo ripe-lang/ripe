@@ -299,7 +299,9 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         tmp
   | T.TBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
   | T.TBinOp
-      ( ((Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign) as op),
+      ( (( Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign
+         | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign | Ast.BitXorAssign
+           ) as op),
         l,
         r ) ->
       emit_compound_assign ctx op l r
@@ -665,17 +667,17 @@ and emit_store_into ctx ty addr r =
     emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
     rv
 
-(* x += rhs -> x = x + rhs *)
-(* x -= rhs -> x = x - rhs *)
-(* x *= rhs -> x = x * rhs *)
-(* x /= rhs -> x = x / rhs *)
-and compound_arith op lt =
+(* x += rhs runs as x = x + rhs, and likewise for every other compound form *)
+and base_binop_of op =
   match op with
-  | Ast.AddAssign -> "add"
-  | Ast.SubAssign -> "sub"
-  | Ast.MulAssign -> "mul"
-  | Ast.DivAssign ->
-      if is_float lt then "div" else if is_unsigned lt then "udiv" else "div"
+  | Ast.AddAssign -> Ast.Add
+  | Ast.SubAssign -> Ast.Sub
+  | Ast.MulAssign -> Ast.Mul
+  | Ast.DivAssign -> Ast.Div
+  | Ast.ModAssign -> Ast.Mod
+  | Ast.BitAndAssign -> Ast.BitAnd
+  | Ast.BitOrAssign -> Ast.BitOr
+  | Ast.BitXorAssign -> Ast.BitXor
   | _ -> Error.ice "unexpected compound assignment operator"
 
 and emit_compound_assign ctx op l r =
@@ -697,15 +699,13 @@ and emit_compound_assign ctx op l r =
 
 (* load through addr, apply the compound op, store the result back *)
 and emit_compound_via_addr ctx op elem addr r =
-  let qt = qbe_ty elem in
   let cur = fresh ctx in
-  emit ctx "    %s =%s %s %s\n" cur qt (qbe_load elem) addr;
+  emit ctx "    %s =%s %s %s\n" cur (qbe_ty elem) (qbe_load elem) addr;
   let rv = emit_expr ctx r in
-  (match op with
-  | Ast.DivAssign when not (is_float elem) -> emit_divzero_check ctx rv qt
-  | _ -> ());
-  let new_val = fresh ctx in
-  emit ctx "    %s =%s %s %s, %s\n" new_val qt (compound_arith op elem) cur rv;
+  let new_val =
+    emit_arith_binop ctx (base_binop_of op) ~result_ty:elem ~operand_ty:elem
+      ~span:r.T.span cur rv
+  in
   emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
   new_val
 
