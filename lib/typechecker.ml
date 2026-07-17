@@ -119,12 +119,6 @@ let is_comptime_global (env : env) (name : string) : bool =
   | Some (_, Const) -> true
   | _ -> false
 
-(* a const is a compile-time value so only types the folder can compute are allowed *)
-let is_scalar (t : ty) : bool =
-  match resolve_ty t with
-  | TInt _ | TFloat _ | TBool | TError -> true
-  | _ -> false
-
 let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
   if not (is_scalar t) then
     emit env
