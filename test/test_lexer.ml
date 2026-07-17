@@ -121,6 +121,15 @@ let%expect_test "lexer: multiline block comment stripped" =
     EOF
     |}]
 
+let%expect_test "lexer: nested block comment stripped" =
+  dump_tokens "x /* a /* b */ c */ y\n";
+  [%expect {|
+    IDENT x
+    IDENT y
+    SEMI
+    EOF
+    |}]
+
 let%expect_test "lexer: unterminated block comment errors" =
   dump_tokens "x /* never closes\n";
   [%expect {|
