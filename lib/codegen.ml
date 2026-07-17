@@ -26,7 +26,6 @@ let qbe_ty (t : ty) : string =
 
 (* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
 let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
-let float_kind_size = function F32 -> 4 | F64 -> 8
 
 (* s_ for single, d_ for double *)
 let float_lit (ty : ty) (f : float) : string =
@@ -40,74 +39,6 @@ let format_const_num (ty : ty) (n : const_num) : string =
   | Ni32 n -> Int32.to_string n
   | Ni64 n -> Int64.to_string n
   | Nf f -> float_lit ty f
-
-(* undoes the s_/d_ tag format_const_num stamps on floats *)
-let parse_const_num (ty : ty) (s : string) : const_num =
-  match resolve_ty ty with
-  | TFloat _ ->
-      let n = String.length s in
-      let s = if n > 2 && s.[1] = '_' then String.sub s 2 (n - 2) else s in
-      Nf (float_of_string s)
-  | _ ->
-      if qbe_base ty = L then Ni64 (Int64.of_string s)
-      else Ni32 (Int32.of_string s)
-
-(* C ABI alignment and padding rules *)
-(* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
-(* TODO(8969): Add a packed attr to strip padding for exact memory layout *)
-
-let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
-  match resolve_ty t with
-  | TInt k -> int_kind_size k
-  | TFloat k -> float_kind_size k
-  | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no alignment"
-  | TError -> Error.ice "TError has no alignment"
-  | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
-      | Some fields ->
-          List.fold_left
-            (fun acc (_, ft) -> max acc (ty_align structs ft))
-            1 fields
-      | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
-  | TArray (e, _) -> ty_align structs e
-  | TSlice _ -> 8
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-
-(* n and a must be non-negative *)
-let align_to n a = (n + a - 1) / a * a
-
-let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
-  match resolve_ty t with
-  | TInt k -> int_kind_size k
-  | TFloat k -> float_kind_size k
-  | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no size"
-  | TError -> Error.ice "TError has no size"
-  | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
-      | Some fields ->
-          let struct_align = ty_align structs t in
-          let offset =
-            List.fold_left
-              (fun off (_, ft) ->
-                let a = ty_align structs ft in
-                let off = align_to off a in
-                off + ty_size structs ft)
-              0 fields
-          in
-          align_to offset struct_align
-      | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
-  | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
-  (* fat pointer: { ptr, len } *)
-  | TSlice _ -> 16
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =
@@ -173,8 +104,6 @@ type ctx = {
   str_ctr : int ref;
   loops : (string * string) list ref;
   terminated : bool ref;
-  const_vals : (string, string) Hashtbl.t;
-  const_inits : (string, T.texpr) Hashtbl.t;
   entry : Buffer.t ref;
   in_main : bool ref;
   inline_funcs : (string, T.tfunc_def) Hashtbl.t;
@@ -1327,44 +1256,16 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
-let rec fold_const_value (ctx : ctx) (te : T.texpr) : string =
+(* the typechecker already folded everything so this only formats values *)
+let fold_const_value (ctx : ctx) (te : T.texpr) : string =
   match te.T.desc with
   | T.TInt n -> Int64.to_string n
   | T.TBool b -> if b then "1" else "0"
   | T.TNull -> "0"
-  | T.TChar c -> string_of_int (Char.code c)
-  | T.TSizeOf t -> string_of_int (ty_size ctx.structs t)
   | T.TFloat f -> format_const_num te.T.ty (Nf f)
-  | T.TCast e -> (
-      match resolve_ty te.T.ty with
-      | TInt _ | TFloat _ | TBool -> format_const_num te.T.ty (fold_num ctx te)
-      | _ -> fold_const_value ctx e)
   | T.TIdent s when Symbol.is_func s.kind -> "$" ^ s.name
-  | T.TIdent s -> resolve_const ctx s.name te.T.span
   | T.TCStr s -> intern_string ctx s
-  | T.TBinOp _ | T.TUnOp _ -> format_const_num te.T.ty (fold_num ctx te)
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
-
-and fold_num (ctx : ctx) (te : T.texpr) : const_num =
-  fold_const_num ~sizeof:(ty_size ctx.structs)
-    ~resolve:(fun s ty span ->
-      parse_const_num ty (resolve_const ctx s.name span))
-    te
-
-(* yank it from the table first so a cycle dies here instead of looping forever *)
-and resolve_const (ctx : ctx) (name : string) (span : Ast.span) : string =
-  match Hashtbl.find_opt ctx.const_vals name with
-  | Some v -> v
-  | None -> (
-      match Hashtbl.find_opt ctx.const_inits name with
-      (* FIXME: a non const name also lands here so the message can lie *)
-      | None ->
-          raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ])
-      | Some init ->
-          Hashtbl.remove ctx.const_inits name;
-          let v = fold_const_value ctx init in
-          Hashtbl.replace ctx.const_vals name v;
-          v)
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
 let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
@@ -1442,8 +1343,6 @@ let emit_qbe (tdecls : T.tdecl list) : string =
       str_ctr = ref 0;
       loops = ref [];
       terminated = ref false;
-      const_vals = Hashtbl.create 16;
-      const_inits = Hashtbl.create 16;
       entry = ref (Buffer.create 64);
       in_main = ref false;
       inline_funcs = Hashtbl.create 16;
@@ -1453,12 +1352,7 @@ let emit_qbe (tdecls : T.tdecl list) : string =
 
   List.iter
     (function
-      | T.TGlobal gd -> (
-          Hashtbl.replace ctx.globals gd.name ();
-          match gd.init with
-          | Some te when gd.kind <> Ast.Var ->
-              Hashtbl.replace ctx.const_inits gd.name te
-          | _ -> ())
+      | T.TGlobal gd -> Hashtbl.replace ctx.globals gd.name ()
       (* a variadic body cannot be pasted so those keep using an ordinary call *)
       | T.TFunc tfd when List.mem Ast.Inline tfd.modifiers && not tfd.variadic
         ->

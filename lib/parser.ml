@@ -90,127 +90,12 @@ let mk lo st desc = { desc; span = { lo; hi = st.prev_end } }
 let mks lo st sdesc = { sdesc; span = { lo; hi = st.prev_end } }
 let mkt lo st tdesc = { tdesc; span = { lo; hi = st.prev_end } }
 
-(* i32, *i32, (i32, i32) i32 *)
-let rec parse_typ st =
-  let lo = cur_pos st in
-  match st.tok with
-  | STAR ->
-      advance st;
-      mkt lo st (Pointer (parse_typ st))
-  | IDENT name ->
-      advance st;
-      mkt lo st (Named name)
-  (* [N]T fixed-size array, []T slice *)
-  | LBRACKET ->
-      advance st;
-      if st.tok = RBRACKET then (
-        advance st;
-        mkt lo st (Slice (parse_typ st)))
-      else
-        let n =
-          match st.tok with
-          | INT (n, _) ->
-              advance st;
-              Int64.to_int n
-          | _ -> fail_found st "expected array size"
-        in
-        expect st RBRACKET;
-        mkt lo st (Array (n, parse_typ st))
-  | LPAREN ->
-      advance st;
-      let params = comma_sep st RPAREN (fun () -> parse_typ st) in
-      expect st RPAREN;
-      let ret =
-        match st.tok with
-        | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
-        | _ -> None
-      in
-      mkt lo st (FuncPtr (params, ret))
-  | _ -> fail_found st "expected type"
-
-let parse_modifiers st =
-  let rec go acc =
-    match st.tok with
-    | INLINE ->
-        advance st;
-        go (Ast.Inline :: acc)
-    (* TODO(74d8): not entirely sure yet. static? public? *)
-    | PUBLIC ->
-        advance st;
-        go (Ast.Pub :: acc)
-    | _ -> List.rev acc
-  in
-  go []
-
-(* x: i32 *)
 let expect_field_sep st =
   (match st.tok with
   | COMMA -> advance st
   | SEMI | RBRACE -> ()
   | _ -> fail_found st "expected `,` or newline between fields");
   skip_semi st
-
-let parse_fields st =
-  let fields = ref [] in
-  while st.tok <> RBRACE do
-    (* TODO(9ee0): parse modifiers *)
-    let name, nspan = expect_ident_span st in
-    expect st COLON;
-    let t = parse_typ st in
-    fields :=
-      ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
-    expect_field_sep st
-  done;
-  List.rev !fields
-
-(* struct point { x: i32, y: i32 } *)
-let parse_struct st mods =
-  let lo = cur_pos st in
-  advance st;
-  (* STRUCT *)
-  let name = expect_ident st in
-  skip_semi st;
-  expect st LBRACE;
-  let fields = parse_fields st in
-  expect st RBRACE;
-  let hi = st.prev_end in
-  skip_semi st;
-  Struct { name; fields; modifiers = mods; span = { lo; hi } }
-
-(* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
-let parse_params st =
-  expect st LPAREN;
-  let params = ref [] in
-  let variadic = ref false in
-  let parse_one () =
-    let lo = cur_pos st in
-    let name = expect_ident st in
-    expect st COLON;
-    let t = parse_typ st in
-    let hi = st.prev_end in
-    ({ name; typ = t; span = { lo; hi } } : param)
-  in
-  if st.tok <> RPAREN then begin
-    params := [ parse_one () ];
-    while st.tok = COMMA && not !variadic do
-      advance st;
-      if st.tok = ELLIPSIS then (
-        advance st;
-        variadic := true)
-      else params := parse_one () :: !params
-    done
-  end;
-  if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
-  expect st RPAREN;
-  (List.rev !params, !variadic)
-
-(* i32 *)
-let parse_ret_type st =
-  match st.tok with
-  | LBRACE | SEMI | EOF | ASSIGN -> None
-  | _ -> Some (parse_typ st)
-
-(* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
 
 let prec_of = function
   | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN ->
@@ -261,7 +146,116 @@ let in_brackets st f =
   st.no_struct_lit <- saved;
   r
 
-let rec parse_expr st min_prec =
+(* i32, *i32, (i32, i32) i32 *)
+let rec parse_typ st =
+  let lo = cur_pos st in
+  match st.tok with
+  | STAR ->
+      advance st;
+      mkt lo st (Pointer (parse_typ st))
+  | IDENT name ->
+      advance st;
+      mkt lo st (Named name)
+  (* [N]T fixed-size array, []T slice *)
+  | LBRACKET ->
+      advance st;
+      if st.tok = RBRACKET then (
+        advance st;
+        mkt lo st (Slice (parse_typ st)))
+      else
+        let n = parse_expr st 1 in
+        expect st RBRACKET;
+        mkt lo st (Array (n, parse_typ st))
+  | LPAREN ->
+      advance st;
+      let params = comma_sep st RPAREN (fun () -> parse_typ st) in
+      expect st RPAREN;
+      let ret =
+        match st.tok with
+        | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
+        | _ -> None
+      in
+      mkt lo st (FuncPtr (params, ret))
+  | _ -> fail_found st "expected type"
+
+and parse_modifiers st =
+  let rec go acc =
+    match st.tok with
+    | INLINE ->
+        advance st;
+        go (Ast.Inline :: acc)
+    (* TODO(74d8): not entirely sure yet. static? public? *)
+    | PUBLIC ->
+        advance st;
+        go (Ast.Pub :: acc)
+    | _ -> List.rev acc
+  in
+  go []
+
+(* x: i32 *)
+and parse_fields st =
+  let fields = ref [] in
+  while st.tok <> RBRACE do
+    (* TODO(9ee0): parse modifiers *)
+    let name, nspan = expect_ident_span st in
+    expect st COLON;
+    let t = parse_typ st in
+    fields :=
+      ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
+    expect_field_sep st
+  done;
+  List.rev !fields
+
+(* struct point { x: i32, y: i32 } *)
+and parse_struct st mods =
+  let lo = cur_pos st in
+  advance st;
+  (* STRUCT *)
+  let name = expect_ident st in
+  skip_semi st;
+  expect st LBRACE;
+  let fields = parse_fields st in
+  expect st RBRACE;
+  let hi = st.prev_end in
+  skip_semi st;
+  Struct { name; fields; modifiers = mods; span = { lo; hi } }
+
+(* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
+and parse_params st =
+  expect st LPAREN;
+  let params = ref [] in
+  let variadic = ref false in
+  let parse_one () =
+    let lo = cur_pos st in
+    let name = expect_ident st in
+    expect st COLON;
+    let t = parse_typ st in
+    let hi = st.prev_end in
+    ({ name; typ = t; span = { lo; hi } } : param)
+  in
+  if st.tok <> RPAREN then begin
+    params := [ parse_one () ];
+    while st.tok = COMMA && not !variadic do
+      advance st;
+      if st.tok = ELLIPSIS then (
+        advance st;
+        variadic := true)
+      else params := parse_one () :: !params
+    done
+  end;
+  if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
+  expect st RPAREN;
+  (List.rev !params, !variadic)
+
+(* i32 *)
+and parse_ret_type st =
+  match st.tok with
+  | LBRACE | SEMI | EOF | ASSIGN -> None
+  | _ -> Some (parse_typ st)
+
+(* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
+
+and parse_expr st min_prec =
   let lo = cur_pos st in
   let lhs = ref (parse_prefix st) in
 

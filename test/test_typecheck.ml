@@ -332,6 +332,289 @@ let%expect_test "typecheck: let requires initializer" =
         ^~~~~~~~~~
     |}]
 
+let%expect_test "typecheck: const requires initializer" =
+  run_src "const X: i32";
+  [%expect
+    {|
+    error: const without initializer: X
+      at <test>:1:1
+        const X: i32
+        ^~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: cannot take address of a const global" =
+  run_src {|
+const N: i32 = 4
+func f() *i32 { return &N }
+|};
+  [%expect
+    {|
+    error: cannot take address of a constant: N
+      at <test>:3:25
+        func f() *i32 { return &N }
+                                ^
+    help: a const has no storage, use let
+    |}]
+
+let%expect_test "typecheck: cannot take address of a local const" =
+  run_src {|
+func f() {
+  const c: i32 = 2
+  var p: *i32 = &c
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:4:7
+          var p: *i32 = &c
+              ^
+    help: prefix with an underscore: _p
+    error: cannot take address of a constant: c
+      at <test>:4:18
+          var p: *i32 = &c
+                         ^
+    help: a const has no storage, use let
+    |}]
+
+let%expect_test "typecheck: const must be a scalar" =
+  run_src {|
+func f() {
+  const a: [2]i32 = [1, 2]
+}
+|};
+  [%expect
+    {|
+    error: const must be a scalar, found [2]i32
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^
+    help: use let for values that need storage
+    warning: unused variable: a
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^
+    help: prefix with an underscore: _a
+    |}]
+
+let%expect_test "typecheck: const cstr is not a scalar" =
+  run_src {|
+const S: cstr = "x"
+|};
+  [%expect
+    {|
+    error: const must be a scalar, found cstr
+      at <test>:2:1
+        const S: cstr = "x"
+        ^~~~~~~~~~~~~~~~~~~
+    help: use let for values that need storage
+    |}]
+
+let%expect_test "typecheck: local const initializer must fold" =
+  run_src
+    {|
+func g() i32 { return 3 }
+func f() i32 {
+  const c: i32 = g()
+  return c
+}
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:4:18
+          const c: i32 = g()
+                         ^~~
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "typecheck: mutually referential consts are a cycle" =
+  run_src {|
+const A: i32 = B
+const B: i32 = A
+|};
+  [%expect
+    {|
+    error: cyclic constant: A
+      at <test>:3:16
+        const B: i32 = A
+                       ^
+    |}]
+
+let%expect_test "typecheck: cannot assign to a const" =
+  run_src {|
+func f() i32 {
+  const c: i32 = 2
+  c = 3
+  return c
+}
+|};
+  [%expect
+    {|
+    error: cannot assign to immutable: c
+      at <test>:4:3
+          c = 3
+          ^
+    |}]
+
+let%expect_test "typecheck: local const reads an earlier const" =
+  run_src
+    {|
+func f() i32 {
+  const a: i32 = 2
+  const b: i32 = a * 3
+  return b
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array size from a later const" =
+  run_src
+    {|
+var a: [N]i32 = undefined
+const N: i32 = 3
+func f() i32 { return a[0] }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array size expression" =
+  run_src
+    {|
+const N: i32 = 4
+func f() i32 {
+  var a: [N * 2 + 1]i32 = undefined
+  a[8] = 1
+  return a[8]
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array size with a suffix" =
+  run_src {|
+func f() i32 {
+  var a: [2u8]i32 = [1, 2]
+  return a[1]
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: struct field sized by a later const" =
+  run_src
+    {|
+struct S { buf: [N]i32 }
+const N: i32 = 2
+func f(s: S) i32 { return s.buf[1] }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: local const sizes a local array" =
+  run_src
+    {|
+func f() i32 {
+  const n: i32 = 3
+  var a: [n]i32 = [1, 2, 3]
+  return a[2]
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: negative array size" =
+  run_src {|
+var a: [0 - 1]i32 = undefined
+|};
+  [%expect
+    {|
+    error: array size is negative: -1
+      at <test>:2:9
+        var a: [0 - 1]i32 = undefined
+                ^~~~~
+    |}]
+
+let%expect_test "typecheck: huge array size" =
+  run_src {|
+var a: [9999999999i64]i32 = undefined
+|};
+  [%expect
+    {|
+    error: array size is too large: 9999999999
+      at <test>:2:9
+        var a: [9999999999i64]i32 = undefined
+                ^~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: huge unsigned array size" =
+  run_src {|
+var a: [(0 - 1) as u64]i32 = undefined
+|};
+  [%expect
+    {|
+    error: array size is too large: 18446744073709551615
+      at <test>:2:9
+        var a: [(0 - 1) as u64]i32 = undefined
+                ^~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: float array size" =
+  run_src {|
+var a: [1.5]i32 = undefined
+|};
+  [%expect
+    {|
+    error: array size must be an integer
+      at <test>:2:9
+        var a: [1.5]i32 = undefined
+                ^~~
+    |}]
+
+let%expect_test "typecheck: array size names a var" =
+  run_src {|
+var n: i32 = 3
+var a: [n]i32 = undefined
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:3:9
+        var a: [n]i32 = undefined
+                ^
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "typecheck: array size calls a function" =
+  run_src {|
+func g() i32 { return 3 }
+var a: [g()]i32 = undefined
+|};
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:3:9
+        var a: [g()]i32 = undefined
+                ^~~
+    help: constant initializers must fold to a compile-time value
+    |}]
+
+let%expect_test "typecheck: cycle through an array size" =
+  run_src {|
+const N: i32 = sizeof([M]i32)
+const M: i32 = sizeof([N]i32)
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:16
+        const N: i32 = sizeof([M]i32)
+                       ^~~~~~~~~~~~~~ expected i32, found i64
+    error: type mismatch
+      at <test>:3:16
+        const M: i32 = sizeof([N]i32)
+                       ^~~~~~~~~~~~~~ expected i32, found i64
+    error: cyclic constant: N
+      at <test>:3:24
+        const M: i32 = sizeof([N]i32)
+                               ^
+    |}]
+
 let%expect_test "typecheck: int arithmetic ok" =
   run_src "func f() i32 { return 1 + 2 * 3 - 4 }";
   [%expect {| ok |}]

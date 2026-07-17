@@ -2550,6 +2550,230 @@ func f() i32 { return A }
                      ^
     |}]
 
+let%expect_test "codegen: const global inlines with no data" =
+  run_codegen {|
+const N: i32 = 4
+func f() i32 { return N }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 4
+    }
+    |}]
+
+let%expect_test "codegen: const expression folds at the use site" =
+  run_codegen
+    {|
+const N: i32 = 4
+const M: i32 = N * 2 + 1
+func f() i32 { return M }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 9
+    }
+    |}]
+
+let%expect_test "codegen: local const gets no slot" =
+  run_codegen {|
+func f() i32 {
+  const c: i32 = 2
+  return c
+}
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 2
+    }
+    |}]
+
+let%expect_test "codegen: const forward reference" =
+  run_codegen
+    {|
+const B: i32 = A + 1
+const A: i32 = 4
+func f() i32 { return B }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 5
+    }
+    |}]
+
+let%expect_test "codegen: const reads a let global" =
+  run_codegen
+    {|
+let L: i32 = 10
+const C: i32 = L * 2
+func f() i32 { return C }
+|};
+  [%expect
+    {|
+    data $L = align 4 { w 10 }
+
+    function w $f() {
+    @start
+        ret 20
+    }
+    |}]
+
+let%expect_test "codegen: let initialized from a const" =
+  run_codegen
+    {|
+const N: i32 = 4
+let L: i32 = N + 1
+func f() i32 { return L }
+|};
+  [%expect
+    {|
+    data $L = align 4 { w 5 }
+
+    function w $f() {
+    @start
+        %t0 =w loadsw $L
+        ret %t0
+    }
+    |}]
+
+let%expect_test "codegen: sizeof folds in a const" =
+  run_codegen
+    {|
+struct pt { x: i32, y: i32 }
+const S: i64 = sizeof(pt)
+func f() i64 { return S }
+|};
+  [%expect
+    {|
+    type :pt = { w, w }
+
+    function l $f() {
+    @start
+        ret 8
+    }
+    |}]
+
+let%expect_test "codegen: const sizes a global array" =
+  run_codegen
+    {|
+const N: i32 = 3
+let A: [N]i32 = [1, 2, 3]
+func f() i32 { return A[1] }
+|};
+  [%expect
+    {|
+    data $A = align 4 { w 1, w 2, w 3 }
+
+    function w $f() {
+    @start
+        %t0 =l extsw 1
+        %t2 =w cugel %t0, 3
+        jnz %t2, @bounds.fail.1, @bounds.ok.1
+    @bounds.fail.1
+        call $ripe_panic_bounds(l %t0, l 3)
+        hlt
+    @bounds.ok.1
+        %t3 =l mul %t0, 4
+        %t4 =l add $A, %t3
+        %t5 =w loadsw %t4
+        ret %t5
+    }
+    |}]
+
+let%expect_test "codegen: const sizes a local array" =
+  run_codegen
+    {|
+const N: i32 = 2
+func f() i32 {
+  var a: [N]i32 = [7, 8]
+  return a[0]
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %a =l alloc4 8
+        storew 7, %a
+        %t0 =l add %a, 4
+        storew 8, %t0
+        %t1 =l extsw 0
+        %t3 =w cugel %t1, 2
+        jnz %t3, @bounds.fail.2, @bounds.ok.2
+    @bounds.fail.2
+        call $ripe_panic_bounds(l %t1, l 2)
+        hlt
+    @bounds.ok.2
+        %t4 =l mul %t1, 4
+        %t5 =l add %a, %t4
+        %t6 =w loadsw %t5
+        ret %t6
+    }
+    |}]
+
+let%expect_test "codegen: expression array size" =
+  run_codegen
+    {|
+const N: i32 = 3
+func f() i64 { return sizeof([N * 2 + 1]i32) }
+|};
+  [%expect {|
+    function l $f() {
+    @start
+        ret 28
+    }
+    |}]
+
+let%expect_test "codegen: suffixed array size" =
+  run_codegen {|
+func f() i64 { return sizeof([2u8]i32) }
+|};
+  [%expect {|
+    function l $f() {
+    @start
+        ret 8
+    }
+    |}]
+
+let%expect_test "codegen: sizeof of a const sized array folds" =
+  run_codegen
+    {|
+const N: i32 = 4
+const S: i64 = sizeof([N]i32)
+func f() i64 { return S }
+|};
+  [%expect {|
+    function l $f() {
+    @start
+        ret 16
+    }
+    |}]
+
+let%expect_test "codegen: struct field sized by a later const" =
+  run_codegen
+    {|
+struct S { buf: [N]i32, tail: i32 }
+const N: i32 = 2
+func f(s: *S) i32 { return s.tail }
+|};
+  [%expect
+    {|
+    type :S = { w 2, w }
+
+    function w $f(l %t0) {
+    @start
+        %s =l alloc8 8
+        storel %t0, %s
+        %t1 =l loadl %s
+        %t2 =l add %t1, 8
+        %t3 =w loadsw %t2
+        ret %t3
+    }
+    |}]
+
 let%expect_test "codegen: global let arithmetic" =
   run_codegen {|
 let A: i32 = 2 + 3
@@ -3208,7 +3432,7 @@ let%expect_test "codegen ICE: TVoid has no QBE base type" =
 
 let%expect_test "codegen ICE: TVoid has no alignment" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen.ty_align (empty_structs ()) Ripe.Types.TVoid));
+      ignore (Ripe.Types.ty_align (empty_structs ()) Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3218,7 +3442,7 @@ let%expect_test "codegen ICE: TVoid has no alignment" =
 
 let%expect_test "codegen ICE: TVoid has no size" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen.ty_size (empty_structs ()) Ripe.Types.TVoid));
+      ignore (Ripe.Types.ty_size (empty_structs ()) Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3265,7 +3489,7 @@ let%expect_test "codegen ICE: TVoid has no extended type" =
 let%expect_test "codegen ICE: missing struct layout in alignment" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.ty_align (empty_structs ())
+        (Ripe.Types.ty_align (empty_structs ())
            (Ripe.Types.TStruct ("Foo", []))));
   [%expect
     {|
@@ -3277,8 +3501,7 @@ let%expect_test "codegen ICE: missing struct layout in alignment" =
 let%expect_test "codegen ICE: missing struct layout in size" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Codegen.ty_size (empty_structs ())
-           (Ripe.Types.TStruct ("Foo", []))));
+        (Ripe.Types.ty_size (empty_structs ()) (Ripe.Types.TStruct ("Foo", []))));
   [%expect
     {|
     error: internal compiler error
