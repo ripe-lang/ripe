@@ -29,6 +29,8 @@ type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   types : (string, type_def) Hashtbl.t;
+  (* struct field layouts mirror the DStruct entries in types so ty_size need not rebuild them *)
+  struct_fields : (string, (string * ty) list) Hashtbl.t;
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
   (* constants evaluate on demand so an array size may name a later const *)
   g_state : (string, gstate) Hashtbl.t;
@@ -45,6 +47,7 @@ let make_env (uses : Resolve.t) : env =
     vars = [];
     funcs = Hashtbl.create 16;
     types = Hashtbl.create 16;
+    struct_fields = Hashtbl.create 16;
     globals = Hashtbl.create 16;
     g_state = Hashtbl.create 16;
     l_vals = Hashtbl.create 16;
@@ -269,7 +272,8 @@ let collect_struct (env : env) (sd : struct_def) : unit =
           emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys }))
+    Hashtbl.replace env.types sd.name (DStruct { field_tys });
+    Hashtbl.replace env.struct_fields sd.name field_tys)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
@@ -822,20 +826,11 @@ let rec slice_return_escapes (te : T.texpr) : bool =
       | _ -> array_storage_escapes base)
   | _ -> false
 
-let struct_layouts (env : env) : (string, (string * ty) list) Hashtbl.t =
-  let structs = Hashtbl.create 16 in
-  Hashtbl.iter
-    (fun name -> function
-      | DStruct { field_tys } -> Hashtbl.replace structs name field_tys
-      | _ -> ())
-    env.types;
-  structs
-
 (* an array size can demand a const before its decl is checked so values
    resolve on demand from here and fold_consts below shares this resolver *)
 let rec fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
   Const_eval.fold_const_num
-    ~sizeof:(ty_size (struct_layouts env))
+    ~sizeof:(ty_size env.struct_fields)
     ~resolve:(resolve_const env) te
 
 and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
