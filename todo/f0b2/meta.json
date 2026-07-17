@@ -6,8 +6,8 @@
   "id": "f0b2",
   "priority": "low",
   "source": "lib/ast.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "allow const-expr sizes, not just an int literal",
-  "updated_at": "2026-07-12 08:23:02.153889"
+  "updated_at": "2026-07-17 05:31:23.826844"
 }

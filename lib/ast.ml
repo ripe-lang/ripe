@@ -6,17 +6,6 @@ let pp_span = Span.pp
 let show_span = Span.show
 let dummy_span = Span.dummy
 
-type typ_desc =
-  | Named of string
-  | Pointer of typ
-  | FuncPtr of typ list * typ option
-  (* TODO(f0b2): allow const-expr sizes, not just an int literal *)
-  | Array of int * typ
-  | Slice of typ
-
-and typ = { tdesc : typ_desc; span : span }
-[@@deriving show { with_path = false }]
-
 type binop =
   | Add
   | Sub
@@ -94,6 +83,17 @@ type expr_desc =
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
+[@@deriving show { with_path = false }]
+
+and typ_desc =
+  | Named of string
+  | Pointer of typ
+  | FuncPtr of typ list * typ option
+  | Array of expr * typ
+  | Slice of typ
+[@@deriving show { with_path = false }]
+
+and typ = { tdesc : typ_desc; span : span }
 [@@deriving show { with_path = false }]
 
 type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]

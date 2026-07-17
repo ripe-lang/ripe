@@ -16,11 +16,23 @@ type struct_info = { field_tys : (string * ty) list }
 type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
+(* the typed and value fields only ever go from None to Some so nothing rolls back *)
+type gstate = {
+  def : global_def;
+  mutable typed : T.texpr option;
+  mutable value : Const_eval.const_num option;
+  (* busy means this global is mid evaluation so a self demand is a cycle *)
+  mutable busy : bool;
+}
+
 type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   types : (string, type_def) Hashtbl.t;
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
+  (* constants evaluate on demand so an array size may name a later const *)
+  g_state : (string, gstate) Hashtbl.t;
+  l_vals : (Symbol.id, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   in_main : bool;
@@ -34,12 +46,20 @@ let make_env (uses : Resolve.t) : env =
     funcs = Hashtbl.create 16;
     types = Hashtbl.create 16;
     globals = Hashtbl.create 16;
+    g_state = Hashtbl.create 16;
+    l_vals = Hashtbl.create 16;
     ret_ty = TVoid;
     in_loop = false;
     in_main = false;
     diags = Diagnostic.sink ();
     uses;
   }
+
+let dummy_const_num = Const_eval.Ni32 0l
+
+(* ty_of_ast sits above the checker so sizes reach the folder through this hook *)
+let eval_array_size_fwd : (env -> expr -> int) ref =
+  ref (fun _ _ -> assert false)
 
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
@@ -81,21 +101,6 @@ let lookup_var_opt (env : env) (name : string) : ty option =
         | None -> search rest)
   in
   search env.vars
-
-let lookup_var (env : env) (span : Ast.span) (name : string) : ty =
-  match lookup_var_opt env name with
-  | Some t -> t
-  | None -> (
-      (* locals shadow globals shadow functions *)
-      match Hashtbl.find_opt env.globals name with
-      | Some (t, _) -> t
-      | None -> (
-          (* fall back to function table so function names can be used as values *)
-          match Hashtbl.find_opt env.funcs name with
-          | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
-          | None ->
-              emit env (Error.undefined_name span "variable" name);
-              TInt I32))
 
 let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs name with
@@ -149,12 +154,40 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
               emit env (Error.undefined_name t.span "type" name);
               TInt I32))
   | Pointer t -> TPointer (ty_of_ast env t)
-  | Array (n, t) -> TArray (ty_of_ast env t, n)
+  | Array (e, t) -> TArray (ty_of_ast env t, !eval_array_size_fwd env e)
   | Slice t -> TSlice (ty_of_ast env t)
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
       let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
       TFunc (pts, rt)
+
+let lookup_var (env : env) (span : Ast.span) (name : string) : ty =
+  match lookup_var_opt env name with
+  | Some t -> t
+  | None -> (
+      (* locals shadow globals shadow functions *)
+      match Hashtbl.find_opt env.globals name with
+      | Some (t, _) -> t
+      | None -> (
+          (* an array size may name a global not collected yet so type it now *)
+          match Hashtbl.find_opt env.g_state name with
+          (* a global whose own size names it would loop forever *)
+          | Some st when st.busy ->
+              emit env (Error.named span "cyclic constant" name);
+              TError
+          | Some st ->
+              st.busy <- true;
+              let t = ty_of_ast env st.def.typ in
+              st.busy <- false;
+              Hashtbl.replace env.globals name (t, st.def.kind);
+              t
+          | None -> (
+              (* fall back to function table so function names can be used as values *)
+              match Hashtbl.find_opt env.funcs name with
+              | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+              | None ->
+                  emit env (Error.undefined_name span "variable" name);
+                  TInt I32)))
 
 (* an alias is transparent and compares as its underlying type *)
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
@@ -789,6 +822,133 @@ let rec slice_return_escapes (te : T.texpr) : bool =
       | _ -> array_storage_escapes base)
   | _ -> false
 
+let struct_layouts (env : env) : (string, (string * ty) list) Hashtbl.t =
+  let structs = Hashtbl.create 16 in
+  Hashtbl.iter
+    (fun name -> function
+      | DStruct { field_tys } -> Hashtbl.replace structs name field_tys
+      | _ -> ())
+    env.types;
+  structs
+
+(* an array size can demand a const before its decl is checked so values
+   resolve on demand from here and fold_consts below shares this resolver *)
+let rec fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
+  Const_eval.fold_const_num
+    ~sizeof:(ty_size (struct_layouts env))
+    ~resolve:(resolve_const env) te
+
+and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
+    Const_eval.const_num =
+  match s.kind with
+  | Symbol.Local Ast.Const -> (
+      match Hashtbl.find_opt env.l_vals s.id with
+      | Some v -> v
+      | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
+  | Symbol.Global when Hashtbl.mem env.g_state s.name ->
+      global_const_num env span s.name
+  | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+
+and global_const_num (env : env) (span : Ast.span) (name : string) :
+    Const_eval.const_num =
+  let st =
+    match Hashtbl.find_opt env.g_state name with
+    | Some st -> st
+    | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+  in
+  match st.value with
+  | Some v -> v
+  | None ->
+      if st.busy then
+        raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ]);
+      let te =
+        match global_typed_init env span name with
+        | te -> te
+        (* a dummy lands on failure so the error reports only once *)
+        | exception e ->
+            st.value <- Some dummy_const_num;
+            raise e
+      in
+      st.busy <- true;
+      let v =
+        match
+          if (not (is_scalar te.T.ty)) || te.T.ty = TError then dummy_const_num
+          else fold_num env te
+        with
+        | v ->
+            st.busy <- false;
+            v
+        | exception e ->
+            st.busy <- false;
+            st.value <- Some dummy_const_num;
+            raise e
+      in
+      st.value <- Some v;
+      v
+
+(* typing shares the busy flag so a self demand mid typing is a cycle *)
+and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
+  let st =
+    match Hashtbl.find_opt env.g_state name with
+    | Some st -> st
+    | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+  in
+  match st.typed with
+  | Some te -> te
+  | None ->
+      if st.busy then
+        raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ]);
+      let e, typ =
+        match st.def with
+        | { init = Some e; typ; _ } -> (e, typ)
+        | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+      in
+      st.busy <- true;
+      let te =
+        match check env e (ty_of_ast env typ) with
+        | te -> te
+        | exception ex ->
+            st.busy <- false;
+            raise ex
+      in
+      st.busy <- false;
+      st.typed <- Some te;
+      te
+
+(* a failed fold reports and hands back a dummy so checking continues *)
+and fold_num_or (env : env) (default : Const_eval.const_num) (te : T.texpr) :
+    Const_eval.const_num =
+  if (not (is_scalar te.T.ty)) || te.T.ty = TError then default
+  else
+    try fold_num env te
+    with Diagnostic.Errors ds ->
+      List.iter (emit env) ds;
+      default
+
+(* the folded size fixes dropped suffixes and silent wraps on huge counts *)
+let eval_array_size (env : env) (e : expr) : int =
+  let bad msg =
+    add_error env e.span msg;
+    0
+  in
+  let te = synth env e in
+  if not (is_integer te.T.ty) then bad "array size must be an integer"
+  else
+    let v = fold_num_or env dummy_const_num te in
+    let n = Const_eval.const_to_int64 te.T.ty v in
+    (* the source may be an expression so the message shows the folded value *)
+    let shown =
+      if is_unsigned te.T.ty then Printf.sprintf "%Lu" n else Int64.to_string n
+    in
+    if
+      Int64.compare n 0x7FFF_FFFFL > 0
+      || (Int64.compare n 0L < 0 && is_unsigned te.T.ty)
+    then bad ("array size is too large: " ^ shown)
+    else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
+    else Int64.to_int n
+
+let () = eval_array_size_fwd := eval_array_size
+
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
   let env', tsdesc = check_stmt_desc env s in
   (env', { T.tsdesc; span = s.span })
@@ -812,7 +972,10 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
             emit env (Error.named nspan "cannot infer type" name);
             (TInt I32, dummy_texpr)
       in
-      if kind = Const then check_const_scalar env nspan t;
+      if kind = Const then (
+        check_const_scalar env nspan t;
+        Hashtbl.replace env.l_vals (sym env nspan).id
+          (fold_num_or env dummy_const_num te));
       (extend_var env nspan name t, T.TBinding (kind, sym env nspan, t, te))
   | Return None ->
       (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
@@ -1000,14 +1163,23 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TUndef -> true
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
-  let t = ty_of_ast env gd.typ in
+  (* the collected type is reused so a bad array size errors once *)
+  let t =
+    match Hashtbl.find_opt env.globals gd.name with
+    | Some (t, _) -> t
+    | None -> ty_of_ast env gd.typ
+  in
   if gd.kind = Const then check_const_scalar env gd.span t;
   let tinit =
     match gd.init with
     | None -> None
     | Some { desc = Undefined; _ } -> None
     | Some e ->
-        let te = check env e t in
+        let te =
+          if Hashtbl.mem env.g_state gd.name then
+            global_typed_init env e.span gd.name
+          else check env e t
+        in
         if not (is_const_texpr env te) then (
           emit env (Error.named e.span "initializer must be constant" gd.name);
           None)
@@ -1053,93 +1225,12 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
 
 (* every constant folds to a value here so codegen never resolves a name *)
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
-  let structs = Hashtbl.create 16 in
-  List.iter
-    (function
-      | T.TStruct (name, fields, _) -> Hashtbl.replace structs name fields
-      | _ -> ())
-    tdecls;
-  let sizeof = ty_size structs in
-
-  (* a let keeps storage but its value is still a known constant *)
-  let inits = Hashtbl.create 16 in
-  List.iter
-    (function
-      | T.TGlobal { name; init = Some te; kind = Let | Const; _ } ->
-          Hashtbl.replace inits name te
-      | _ -> ())
-    tdecls;
-
-  let global_vals : (string, Const_eval.const_num) Hashtbl.t =
-    Hashtbl.create 16
-  in
-  let local_vals : (Symbol.id, Const_eval.const_num) Hashtbl.t =
-    Hashtbl.create 16
-  in
-  let dummy_val = Const_eval.Ni32 0l in
-
-  let rec fold_num (te : T.texpr) : Const_eval.const_num =
-    Const_eval.fold_const_num ~sizeof ~resolve te
-  and resolve (s : Symbol.t) (_ : ty) (span : Ast.span) : Const_eval.const_num =
-    match s.kind with
-    | Symbol.Local Ast.Const -> (
-        match Hashtbl.find_opt local_vals s.id with
-        | Some v -> v
-        | None ->
-            raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-    | Symbol.Global when is_const_global env s.name -> (
-        match Hashtbl.find_opt global_vals s.name with
-        | Some v -> v
-        | None -> (
-            match Hashtbl.find_opt inits s.name with
-            (* gone from both tables means the fold looped back into itself *)
-            | None ->
-                raise
-                  (Diagnostic.Errors
-                     [ Error.named span "cyclic constant" s.name ])
-            | Some init ->
-                Hashtbl.remove inits s.name;
-                let v = fold_num init in
-                Hashtbl.replace global_vals s.name v;
-                v))
-    | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
-  in
-
-  let fold_or_dummy (t : ty) (store : Const_eval.const_num -> unit)
-      (init : T.texpr) : unit =
-    (* a wrong type or broken subexpression already errored so stay quiet *)
-    if (not (is_scalar t)) || init.T.ty = TError then store dummy_val
-    else
-      try store (fold_num init)
-      with Diagnostic.Errors ds ->
-        List.iter (emit env) ds;
-        store dummy_val
-  in
-
-  (* the resolver detects cycles so the entry itself must not yank *)
-  let fold_global (name : string) (t : ty) (init : T.texpr) :
-      Const_eval.const_num option =
-    match Hashtbl.find_opt global_vals name with
-    | Some v -> Some v
-    | None ->
-        if (not (is_scalar t)) || init.T.ty = TError then None
-        else begin
-          let v =
-            try fold_num init
-            with Diagnostic.Errors ds ->
-              List.iter (emit env) ds;
-              dummy_val
-          in
-          Hashtbl.replace global_vals name v;
-          Some v
-        end
-  in
-
   (* fold every global const up front so an unused bad one still errors *)
   List.iter
     (function
-      | T.TGlobal { name; init = Some init; kind = Const; ty; _ } ->
-          ignore (fold_global name ty init)
+      | T.TGlobal { name; init = Some init; kind = Const; _ } -> (
+          try ignore (global_const_num env init.T.span name)
+          with Diagnostic.Errors ds -> List.iter (emit env) ds)
       | _ -> ())
     tdecls;
 
@@ -1159,14 +1250,14 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
     let mk desc = { te with T.desc } in
     match te.T.desc with
     | T.TIdent s when Symbol.is_comptime s.kind -> (
-        match Hashtbl.find_opt local_vals s.id with
+        match Hashtbl.find_opt env.l_vals s.id with
         | Some v -> literal_of te v
         | None -> te)
     | T.TIdent s when Symbol.is_global s.kind && is_comptime_global env s.name
       -> (
-        match Hashtbl.find_opt global_vals s.name with
-        | Some v -> literal_of te v
-        | None -> te)
+        match Hashtbl.find_opt env.g_state s.name with
+        | Some { value = Some v; _ } -> literal_of te v
+        | _ -> te)
     | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
     | T.TIdent _ | T.TSizeOf _ | T.TZero | T.TUndef ->
         te
@@ -1191,13 +1282,11 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
           (T.TStructLit (name, List.map (fun (f, e) -> (f, sub_expr e)) fields))
   in
 
-  (* a const binding folds into the table and vanishes from the tree *)
+  (* a const binding folded while checking so it just vanishes from the tree *)
   let rec sub_stmt (st : T.tstmt) : T.tstmt option =
     let keep tsdesc = Some { st with T.tsdesc } in
     match st.T.tsdesc with
-    | T.TBinding (Ast.Const, s, t, init) ->
-        fold_or_dummy t (Hashtbl.replace local_vals s.id) init;
-        None
+    | T.TBinding (Ast.Const, _, _, _) -> None
     | T.TBinding (kind, s, t, e) -> keep (T.TBinding (kind, s, t, sub_expr e))
     | T.TReturn e -> keep (T.TReturn (Option.map sub_expr e))
     | T.TIf (branches, els) ->
@@ -1220,7 +1309,7 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
     match te.T.desc with
     | T.TInt _ | T.TFloat _ | T.TBool _ -> te
     | _ when is_scalar te.T.ty && te.T.ty <> TError -> (
-        try literal_of te (fold_num te)
+        try literal_of te (fold_num env te)
         with Diagnostic.Errors ds ->
           List.iter (emit env) ds;
           te)
@@ -1247,10 +1336,8 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
       | T.TGlobal gd ->
           let init =
             match gd.init with
-            | Some init when is_scalar gd.ty -> (
-                match fold_global gd.name gd.ty init with
-                | Some v -> Some (literal_of init v)
-                | None -> Some init)
+            | Some init when is_scalar gd.ty && init.T.ty <> TError ->
+                Some (literal_of init (fold_num_or env dummy_const_num init))
             | Some init -> Some (fold_global_init init)
             | None -> None
           in
@@ -1263,6 +1350,14 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
 let typecheck (uses : Resolve.t) (decls : decl list) :
     T.tdecl list * Diagnostic.t list =
   let env = make_env uses in
+  (* an early array size can demand any later const so defs go in first *)
+  List.iter
+    (function
+      | Global ({ kind = Let | Const; _ } as gd) ->
+          Hashtbl.replace env.g_state gd.name
+            { def = gd; typed = None; value = None; busy = false }
+      | _ -> ())
+    decls;
   List.iter (collect_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
   let tdecls = fold_consts env tdecls in

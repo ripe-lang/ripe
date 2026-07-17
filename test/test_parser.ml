@@ -206,10 +206,10 @@ let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
   [%expect
     {|
-    error: expected array size
+    error: undefined variable: xyz
       at <test>:1:12
         func f(a: [xyz]i32) {}
-                   ^~~ found xyz
+                   ^~~
     |}]
 
 let%expect_test "parse: array literal trailing comma" =

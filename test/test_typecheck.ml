@@ -435,9 +435,9 @@ const B: i32 = A
 |};
   [%expect
     {|
-    error: cyclic constant: B
-      at <test>:2:16
-        const A: i32 = B
+    error: cyclic constant: A
+      at <test>:3:16
+        const B: i32 = A
                        ^
     |}]
 

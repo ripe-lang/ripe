@@ -111,18 +111,6 @@ let parse_only src =
   with Ripe.Diagnostic.Errors diags ->
     List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
 
-(* compact s-expr expression dumper, no spans *)
-let rec dump_typ (t : Ripe.Ast.typ) =
-  match t.tdesc with
-  | Named n -> n
-  | Pointer p -> "*" ^ dump_typ p
-  | Array (n, t) -> Printf.sprintf "[%d]%s" n (dump_typ t)
-  | Slice t -> "[]" ^ dump_typ t
-  | FuncPtr (params, ret) ->
-      let ps = String.concat ", " (List.map dump_typ params) in
-      let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
-      "(" ^ ps ^ ")" ^ r
-
 let show_unop = function
   | Ripe.Ast.Neg -> "neg"
   | Not -> "!"
@@ -130,7 +118,19 @@ let show_unop = function
   | Deref -> "deref"
   | AddressOf -> "addr"
 
-let rec dump_expr (e : Ripe.Ast.expr) =
+(* compact s-expr expression dumper, no spans *)
+let rec dump_typ (t : Ripe.Ast.typ) =
+  match t.tdesc with
+  | Named n -> n
+  | Pointer p -> "*" ^ dump_typ p
+  | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
+  | Slice t -> "[]" ^ dump_typ t
+  | FuncPtr (params, ret) ->
+      let ps = String.concat ", " (List.map dump_typ params) in
+      let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
+      "(" ^ ps ^ ")" ^ r
+
+and dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float f -> string_of_float f

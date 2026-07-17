@@ -82,20 +82,34 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st l;
       resolve_expr st r
   | FieldAccess (inner, _) -> resolve_expr st inner
-  | Cast (inner, _) -> resolve_expr st inner
+  | Cast (inner, ty) ->
+      resolve_expr st inner;
+      resolve_typ st ty
+  | SizeOf ty -> resolve_typ st ty
   | Index (base, idx) ->
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit (_, _, fields) ->
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
-  | Int _ | Float _ | Bool _ | Null | Char _ | String _ | SizeOf _ | Undefined
-    ->
-      ()
+  | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
+
+(* an array size expression may name constants *)
+and resolve_typ (st : state) (t : typ) : unit =
+  match t.tdesc with
+  | Named _ -> ()
+  | Pointer t | Slice t -> resolve_typ st t
+  | Array (e, t) ->
+      resolve_expr st e;
+      resolve_typ st t
+  | FuncPtr (ps, ret) ->
+      List.iter (resolve_typ st) ps;
+      Option.iter (resolve_typ st) ret
 
 let rec resolve_stmt (st : state) (s : stmt) : unit =
   match s.sdesc with
-  | Binding (kind, name, nspan, _, e) ->
+  | Binding (kind, name, nspan, ann, e) ->
+      Option.iter (resolve_typ st) ann;
       Option.iter (resolve_expr st) e;
       declare_local st (Symbol.Local kind) name nspan
   | Return e -> Option.iter (resolve_expr st) e
@@ -135,7 +149,12 @@ let declare_param (st : state) (p : param) : unit =
 
 let resolve_func (st : state) (fd : func_def) : unit =
   push_scope st;
-  List.iter (declare_param st) fd.params;
+  List.iter
+    (fun (p : param) ->
+      resolve_typ st p.typ;
+      declare_param st p)
+    fd.params;
+  Option.iter (resolve_typ st) fd.ret;
   List.iter (resolve_stmt st) fd.body;
   pop_scope st
 
@@ -161,8 +180,12 @@ let resolve (decls : decl list) : t =
   List.iter
     (function
       | Func fd | Extern fd -> resolve_func st fd
-      | Global gd -> Option.iter (resolve_expr st) gd.init
-      | Struct _ | TypeAlias _ | Newtype _ -> ())
+      | Global gd ->
+          resolve_typ st gd.typ;
+          Option.iter (resolve_expr st) gd.init
+      | Struct sd ->
+          List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
+      | TypeAlias td | Newtype td -> resolve_typ st td.typ)
     decls;
   let all = Diagnostic.drain st.diags in
   if List.exists (fun (d : Diagnostic.t) -> d.severity = Diagnostic.Error) all
