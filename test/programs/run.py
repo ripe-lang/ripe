@@ -28,9 +28,10 @@ def find_ripec(explicit):
     return os.path.abspath(fallback)
 
 
-def tests():
+def tests(testname):
+    root = os.path.join(TEST_DIR, testname) if testname else TEST_DIR
     found = []
-    for dirpath, _, filenames in os.walk(TEST_DIR):
+    for dirpath, _, filenames in os.walk(root):
         if "main.rp" in filenames:
             found.append(dirpath)
     return sorted(found)
@@ -84,13 +85,13 @@ def check_one(ripec, testdir, workdir):
     return "mismatch", diff(want, actual, "out.txt")
 
 
-def check(ripec):
+def check(ripec, testname):
     succeeded = []
     failed = []
 
     print("[Tests]")
     with tempfile.TemporaryDirectory() as workdir:
-        for testdir in tests():
+        for testdir in tests(testname):
             name = os.path.relpath(testdir, TEST_DIR)
             status, log = check_one(ripec, testdir, workdir)
 
@@ -124,11 +125,16 @@ def main():
         default=None,
         help="ripe compiler to use (defaults to ripec on PATH, then the build dir)",
     )
+    parser.add_argument(
+        "testname",
+        nargs="?",
+        help="only run tests under the given subdirectory",
+    )
     args = parser.parse_args()
 
     ripec = find_ripec(args.ripec)
 
-    return check(ripec)
+    return check(ripec, args.testname)
 
 
 if __name__ == "__main__":
