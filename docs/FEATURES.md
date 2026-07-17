@@ -259,17 +259,6 @@ func main() i32 {
 }
 ```
 
-### Chained assignment
-
-```ripe
-func main() i32 {
-  var x: i32 = 0
-  var y: i32 = 0
-  x = y = 5
-  return x + y
-}
-```
-
 ### Cast
 
 ```ripe
