@@ -156,6 +156,16 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TSlice _ -> 16
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
+(* aggregates are addressed by pointer: an ident of this type is its base address *)
+let is_aggregate t =
+  match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
+
+(* a const is a compile-time value so only types the folder can compute are allowed *)
+let is_scalar t =
+  match resolve_ty t with
+  | TInt _ | TFloat _ | TBool | TError -> true
+  | _ -> false
+
 (* the 8 byte value classes, so constant folding picks a 64 bit result *)
 let is_wide_ty t =
   match resolve_ty t with

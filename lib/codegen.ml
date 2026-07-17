@@ -201,10 +201,6 @@ let lvalue_sym (e : T.texpr) : Symbol.t =
   | T.TIdent s -> s
   | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
-(* aggregates are addressed by pointer: an ident of this type is its base address *)
-let is_aggregate t =
-  match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
-
 (* bytes between consecutive elements (element size rounded up to its alignment) *)
 let stride structs elem =
   align_to (ty_size structs elem) (ty_align structs elem)
