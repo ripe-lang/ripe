@@ -323,6 +323,48 @@ func f() { X = 2 }
                    ^
     |}]
 
+let%expect_test "typecheck: write to a let struct field" =
+  run_src
+    {|
+struct P { x: i32, y: i32 }
+func f() {
+  let p: P = P { x: 1, y: 2 }
+  p.x = 5
+}
+|};
+  [%expect
+    {|
+    error: cannot assign to immutable: p
+      at <test>:5:3
+          p.x = 5
+          ^~~
+    |}]
+
+let%expect_test "typecheck: write to a let array element" =
+  run_src {|
+func f() {
+  let arr: [3]i32 = [1, 2, 3]
+  arr[0] = 9
+}
+|};
+  [%expect
+    {|
+    error: cannot assign to immutable: arr
+      at <test>:4:3
+          arr[0] = 9
+          ^~~~~~
+    |}]
+
+let%expect_test "typecheck: write through a let pointer" =
+  run_src {|
+var g: i32 = 0
+func f() {
+  let p: *i32 = &g
+  *p = 5
+}
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: non-let global initializer" =
   run_src {|
 func g() i32 { return 1 }
