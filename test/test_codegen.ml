@@ -3379,7 +3379,16 @@ func f() {
         call $ripe_panic_divzero()
         hlt
     @divzero.ok.2
-        %t1 =w div %t0, 4
+        %t5 =w ceqw 4, -1
+        jnz %t5, @div.neg1.4, @div.norm.4
+    @div.neg1.4
+        %t6 =w sub 0, %t0
+        jmp @div.join.4
+    @div.norm.4
+        %t7 =w div %t0, 4
+        jmp @div.join.4
+    @div.join.4
+        %t1 =w phi @div.neg1.4 %t6, @div.norm.4 %t7
         storew %t1, %n
         ret
     }
