@@ -558,6 +558,11 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
       | _ -> check env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
+  | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
+  | UnOp (Neg, operand) when is_numeric (strip_alias want) ->
+      T.mk want (T.TUnOp (Neg, check env operand want))
+  | UnOp (BitNot, operand) when is_integer (strip_alias want) ->
+      T.mk want (T.TUnOp (BitNot, check env operand want))
   | ArrayLit elems -> (
       match strip_alias want with
       | TArray (elem, n) ->
