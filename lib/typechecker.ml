@@ -1119,14 +1119,21 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
   (final_env, List.rev tstmts_reversed)
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
+  (* the collected signature is reused so a bad array size errors once *)
+  let collected = Hashtbl.find_opt env.funcs fd.name in
+  let param_tys =
+    match collected with
+    | Some s when List.length s.param_tys = List.length fd.params -> s.param_tys
+    | _ -> List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params
+  in
   let params_typed =
-    List.map
-      (fun (p : param) -> (p.name, ty_of_ast env p.typ, p.span))
-      fd.params
+    List.map2 (fun (p : param) t -> (p.name, t, p.span)) fd.params param_tys
   in
   let params = List.map (fun (_, t, span) -> (sym env span, t)) params_typed in
 
-  let ret_ty = ret_ty_of env fd in
+  let ret_ty =
+    match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
+  in
 
   if fd.name = "main" && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
