@@ -1327,6 +1327,9 @@ let fold_const_value (ctx : ctx) (te : T.texpr) : string =
   | T.TFloat f -> format_const_num te.T.ty (Nf f)
   | T.TIdent s when Symbol.is_func s.kind -> "$" ^ s.name
   | T.TCStr s -> intern_string ctx s
+  | T.TUnOp (Ast.AddressOf, { desc = T.TIdent s; _ })
+    when Symbol.is_global s.kind ->
+      "$" ^ s.name
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
