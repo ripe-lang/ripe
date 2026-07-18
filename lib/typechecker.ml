@@ -1186,6 +1186,8 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TInt _ | TFloat _ | TBool _ | TNull | TChar _ | TCStr _ | TSizeOf _ -> true
   (* A function address is a link time constant. *)
   | TIdent s -> Symbol.is_func s.kind || is_const_global env s.name
+  (* the address of a global is a link time constant *)
+  | TUnOp (Ast.AddressOf, { desc = TIdent s; _ }) -> Symbol.is_global s.kind
   | TUnOp (_, e) -> is_const_texpr env e
   | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
   | TCast e -> is_const_texpr env e
