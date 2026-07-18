@@ -759,7 +759,9 @@ and emit_binop ctx op l r t =
   let lty = l.T.ty in
   match op with
   | Ast.Lshift | Ast.Rshift ->
-      emit_shift ctx op ~ty:t ~count_ty:r.T.ty ~unsigned:(is_unsigned lty) lv rv
+      let const_count = match r.T.desc with T.TInt n -> Some n | _ -> None in
+      emit_shift ctx op ?const_count ~ty:t ~count_ty:r.T.ty
+        ~unsigned:(is_unsigned lty) lv rv
   | _ ->
       emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
 
@@ -809,33 +811,44 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | _ -> tmp
 
 (* this rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
-and emit_shift ctx op ~ty ~count_ty ~unsigned lv rv =
+and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
   let bits = match qbe_base ty with L -> 64 | _ -> 32 in
-  (* the range check runs in the count width so a huge count is caught before the truncation *)
-  let in_range = fresh ctx in
-  emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
-  let count = word_count ctx count_ty rv in
-  match op with
-  | Ast.Rshift when not unsigned ->
-      (* an out of range count is forced to all ones so sar keeps filling with the sign bit *)
-      let spill = fresh ctx in
-      emit ctx "    %s =w sub %s, 1\n" spill in_range;
-      let capped = fresh ctx in
-      emit ctx "    %s =w or %s, %s\n" capped count spill;
+  match (op, const_count) with
+  | Ast.Rshift, Some n when not unsigned ->
+      let in_range =
+        Int64.compare n 0L >= 0 && Int64.compare n (Int64.of_int bits) < 0
+      in
+      let count = if in_range then n else Int64.of_int (bits - 1) in
       let res = fresh ctx in
-      emit ctx "    %s =%s sar %s, %s\n" res qt lv capped;
+      emit ctx "    %s =%s sar %s, %Ld\n" res qt lv count;
       res
-  | Ast.Lshift | Ast.Rshift ->
-      let is_lshift = op = Ast.Lshift in
-      let instr = if is_lshift then "shl" else "shr" in
-      let raw = fresh ctx in
-      emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
-      (* an out of range count makes the mask all zeros so the result drops to 0 *)
-      let res = fresh ctx in
-      emit ctx "    %s =%s and %s, %s\n" res qt raw (shift_mask ctx ty in_range);
-      if is_lshift then narrow_int_to ctx res ty else res
-  | _ -> Error.ice "emit_shift on non-shift op"
+  | _ -> (
+      (* the range check runs in the count width so a huge count is caught before the truncation *)
+      let in_range = fresh ctx in
+      emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
+      let count = word_count ctx count_ty rv in
+      match op with
+      | Ast.Rshift when not unsigned ->
+          (* an out of range count is forced to all ones so sar keeps filling with the sign bit *)
+          let spill = fresh ctx in
+          emit ctx "    %s =w sub %s, 1\n" spill in_range;
+          let capped = fresh ctx in
+          emit ctx "    %s =w or %s, %s\n" capped count spill;
+          let res = fresh ctx in
+          emit ctx "    %s =%s sar %s, %s\n" res qt lv capped;
+          res
+      | Ast.Lshift | Ast.Rshift ->
+          let is_lshift = op = Ast.Lshift in
+          let instr = if is_lshift then "shl" else "shr" in
+          let raw = fresh ctx in
+          emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
+          (* an out of range count makes the mask all zeros so the result drops to 0 *)
+          let res = fresh ctx in
+          emit ctx "    %s =%s and %s, %s\n" res qt raw
+            (shift_mask ctx ty in_range);
+          if is_lshift then narrow_int_to ctx res ty else res
+      | _ -> Error.ice "emit_shift on non-shift op")
 
 (* the shift wants a word count so a long one drops to its low word *)
 and word_count ctx count_ty rv =
