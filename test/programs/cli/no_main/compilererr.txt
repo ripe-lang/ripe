@@ -1,0 +1,2 @@
+error: no `main` function found
+help: add a `func main() i32` entry point
