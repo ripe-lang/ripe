@@ -29,6 +29,10 @@ type token =
   | MINUS_ASSIGN
   | STAR_ASSIGN
   | SLASH_ASSIGN
+  | PERCENT_ASSIGN
+  | AMP_ASSIGN
+  | PIPE_ASSIGN
+  | CARET_ASSIGN
   | LET
   | CONST
   | VAR
@@ -132,6 +136,10 @@ let show_token = function
   | MINUS_ASSIGN -> "-="
   | STAR_ASSIGN -> "*="
   | SLASH_ASSIGN -> "/="
+  | PERCENT_ASSIGN -> "%="
+  | AMP_ASSIGN -> "&="
+  | PIPE_ASSIGN -> "|="
+  | CARET_ASSIGN -> "^="
   | CARET -> "^"
   | LPAREN -> "("
   | RPAREN -> ")"

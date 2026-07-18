@@ -95,6 +95,10 @@ rule read_main st = parse
   | "-=" { MINUS_ASSIGN }
   | "*=" { STAR_ASSIGN }
   | "/=" { SLASH_ASSIGN }
+  | "%=" { PERCENT_ASSIGN }
+  | "&=" { AMP_ASSIGN }
+  | "|=" { PIPE_ASSIGN }
+  | "^=" { CARET_ASSIGN }
   | '!'  { BANG }
   | '+'  { PLUS }
   | '-'  { MINUS }

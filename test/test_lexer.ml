@@ -139,7 +139,8 @@ let%expect_test "lexer: unterminated block comment errors" =
     |}]
 
 let%expect_test "lexer: operators and compound assignment" =
-  dump_tokens "+ - * / % += -= *= /= == != < > <= >= << >> && || & | ~ ^ !";
+  dump_tokens
+    "+ - * / % += -= *= /= %= &= |= ^= == != < > <= >= << >> && || & | ~ ^ !";
   [%expect
     {|
     +
@@ -151,6 +152,10 @@ let%expect_test "lexer: operators and compound assignment" =
     -=
     *=
     /=
+    %=
+    &=
+    |=
+    ^=
     ==
     !=
     <
