@@ -1,0 +1,7 @@
+func main() i32 {
+  var a: [1024]i32
+  a[7] = 42
+  var b: [1024]i32 = a
+  a[7] = 0
+  return b[7]
+}
