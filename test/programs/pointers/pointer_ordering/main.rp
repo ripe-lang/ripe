@@ -1,0 +1,9 @@
+func main() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  let p: *i32 = &a[0]
+  let q: *i32 = &a[2]
+  if p < q && q > p && p <= p && q >= q && null < p {
+    return 1
+  }
+  return 0
+}
