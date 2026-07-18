@@ -4,3 +4,4 @@
 /main
 /lib/debug.ml
 predocs
+/test/fuzz/
