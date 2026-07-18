@@ -85,6 +85,8 @@ rule read_main st = parse
   | "!=" { NEQ }
   | "<=" { LTE }
   | ">=" { GTE }
+  | "<<=" { LSHIFT_ASSIGN }
+  | ">>=" { RSHIFT_ASSIGN }
   | "<<" { LSHIFT }
   | ">>" { RSHIFT }
   | '<'  { LT }

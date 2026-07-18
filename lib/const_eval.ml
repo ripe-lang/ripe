@@ -150,5 +150,5 @@ and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
       | Ast.Or -> const_bool (x <> 0L || y <> 0L)
       | Ast.Assign | Ast.AddAssign | Ast.SubAssign | Ast.MulAssign
       | Ast.DivAssign | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign
-      | Ast.BitXorAssign ->
+      | Ast.BitXorAssign | Ast.LshiftAssign | Ast.RshiftAssign ->
           raise (Diagnostic.Errors [ unsupported_const span ]))

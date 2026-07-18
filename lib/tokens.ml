@@ -33,6 +33,8 @@ type token =
   | AMP_ASSIGN
   | PIPE_ASSIGN
   | CARET_ASSIGN
+  | LSHIFT_ASSIGN
+  | RSHIFT_ASSIGN
   | LET
   | CONST
   | VAR
@@ -140,6 +142,8 @@ let show_token = function
   | AMP_ASSIGN -> "&="
   | PIPE_ASSIGN -> "|="
   | CARET_ASSIGN -> "^="
+  | LSHIFT_ASSIGN -> "<<="
+  | RSHIFT_ASSIGN -> ">>="
   | CARET -> "^"
   | LPAREN -> "("
   | RPAREN -> ")"
