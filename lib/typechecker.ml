@@ -307,6 +307,14 @@ let is_lvalue (te : T.texpr) : bool =
   | TIndex _ -> true
   | _ -> false
 
+(* a deref stops the walk since the pointee isn't owned by this binding *)
+let rec root_binding (te : T.texpr) : Symbol.t option =
+  match te.T.desc with
+  | TIdent s -> Some s
+  | TFieldAccess (base, _) -> root_binding base
+  | TIndex (base, _) -> root_binding base
+  | _ -> None
+
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
 
@@ -699,11 +707,14 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       (match tl.T.desc with
       | TIdent s when Symbol.is_func s.kind ->
           emit env (Error.named l.span "cannot assign to function" s.name)
-      (* This catches assignment to an immutable binding whether it's local or global. *)
-      | TIdent s
-        when Symbol.is_immutable s.kind
-             || (Symbol.is_global s.kind && is_const_global env s.name) ->
-          emit env (Error.named l.span "cannot assign to immutable" s.name)
+      | TIdent _ | TFieldAccess _ | TIndex _ -> (
+          (* This catches assignment to an immutable binding whether it's local or global. *)
+          match root_binding tl with
+          | Some s
+            when Symbol.is_immutable s.kind
+                 || (Symbol.is_global s.kind && is_const_global env s.name) ->
+              emit env (Error.named l.span "cannot assign to immutable" s.name)
+          | _ -> ())
       | _ -> ());
       let t = tl.T.ty in
       let operand_ok =
