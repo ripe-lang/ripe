@@ -301,7 +301,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
   | T.TBinOp
       ( (( Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign
          | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign | Ast.BitXorAssign
-           ) as op),
+         | Ast.LshiftAssign | Ast.RshiftAssign ) as op),
         l,
         r ) ->
       emit_compound_assign ctx op l r
@@ -678,6 +678,8 @@ and base_binop_of op =
   | Ast.BitAndAssign -> Ast.BitAnd
   | Ast.BitOrAssign -> Ast.BitOr
   | Ast.BitXorAssign -> Ast.BitXor
+  | Ast.LshiftAssign -> Ast.Lshift
+  | Ast.RshiftAssign -> Ast.Rshift
   | _ -> Error.ice "unexpected compound assignment operator"
 
 and emit_compound_assign ctx op l r =
@@ -702,9 +704,15 @@ and emit_compound_via_addr ctx op elem addr r =
   let cur = fresh ctx in
   emit ctx "    %s =%s %s %s\n" cur (qbe_ty elem) (qbe_load elem) addr;
   let rv = emit_expr ctx r in
+  let base = base_binop_of op in
   let new_val =
-    emit_arith_binop ctx (base_binop_of op) ~result_ty:elem ~operand_ty:elem
-      ~span:r.T.span cur rv
+    match base with
+    | Ast.Lshift | Ast.Rshift ->
+        emit_shift ctx base ~ty:elem ~count_ty:r.T.ty
+          ~unsigned:(is_unsigned elem) cur rv
+    | _ ->
+        emit_arith_binop ctx base ~result_ty:elem ~operand_ty:elem
+          ~span:r.T.span cur rv
   in
   emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
   new_val

@@ -34,6 +34,8 @@ type binop =
   | BitAndAssign
   | BitOrAssign
   | BitXorAssign
+  | LshiftAssign
+  | RshiftAssign
 [@@deriving show { with_path = false }]
 
 let show_binop_sym = function
@@ -64,6 +66,8 @@ let show_binop_sym = function
   | BitAndAssign -> "&="
   | BitOrAssign -> "|="
   | BitXorAssign -> "^="
+  | LshiftAssign -> "<<="
+  | RshiftAssign -> ">>="
 
 type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]

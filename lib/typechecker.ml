@@ -692,7 +692,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       in
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
-  | BitAndAssign | BitOrAssign | BitXorAssign ->
+  | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
       let tl = synth env l in
       if not (is_lvalue tl) then
         add_error env l.span "cannot assign to expression";
@@ -714,14 +714,27 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         | ModAssign ->
             is_numeric t
             && not (match strip_alias t with TFloat _ -> true | _ -> false)
-        | BitAndAssign | BitOrAssign | BitXorAssign -> is_integer t
+        | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign
+        | RshiftAssign ->
+            is_integer t
         | _ -> false
       in
       if not operand_ok then
         add_error env l.span
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
-      let tr = check env r t in
+      let tr =
+        match op with
+        (* the count keeps its own type since it's just how far to shift *)
+        | LshiftAssign | RshiftAssign ->
+            let tr = synth env r in
+            if not (is_integer tr.T.ty) then
+              add_error env r.span
+                (Printf.sprintf "shift count must be an integer, found %s"
+                   (show_ty tr.T.ty));
+            tr
+        | _ -> check env r t
+      in
       T.mk TVoid (T.TBinOp (op, tl, tr))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
