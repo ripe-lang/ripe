@@ -132,6 +132,10 @@ let%expect_test "parse: address-of and deref chain" =
   parse_expr "&*p";
   [%expect {| (addr (deref p)) |}]
 
+let%expect_test "parse: double address-of splits the and token" =
+  parse_expr "&&x";
+  [%expect {| (addr (addr x)) |}]
+
 let%expect_test "parse: call with args" =
   parse_expr "add(1, 2 * 3)";
   [%expect {| (call add 1 (* 2 3)) |}]

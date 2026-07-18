@@ -6,10 +6,10 @@
   "id": "cb53",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "`&&x` lexes as the logical and token and dies",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-18 06:27:25.855231"
 }
