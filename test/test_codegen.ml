@@ -3182,11 +3182,17 @@ let%expect_test "codegen: right shift on signed int" =
         storew %t1, %b
         %t2 =w loadsw %a
         %t3 =w loadsw %b
-        %t4 =w cultw %t3, 32
-        %t5 =w sub %t4, 1
-        %t6 =w or %t3, %t5
-        %t7 =w sar %t2, %t6
-        ret %t7
+        %t5 =w csltw %t3, 0
+        jnz %t5, @negshift.fail.4, @negshift.ok.4
+    @negshift.fail.4
+        call $ripe_panic_shift()
+        hlt
+    @negshift.ok.4
+        %t6 =w cultw %t3, 32
+        %t7 =w sub %t6, 1
+        %t8 =w or %t3, %t7
+        %t9 =w sar %t2, %t8
+        ret %t9
     }
     |}]
 
