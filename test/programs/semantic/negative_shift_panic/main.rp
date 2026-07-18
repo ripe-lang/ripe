@@ -1,0 +1,4 @@
+func main() i32 {
+  var n: i32 = -1
+  return 1 << n
+}

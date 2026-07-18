@@ -35,3 +35,8 @@ void ripe_panic_null(void) {
     fprintf(stderr, "%s null pointer dereference\n", panic_prefix());
     abort();
 }
+
+void ripe_panic_shift(void) {
+    fprintf(stderr, "%s negative shift amount\n", panic_prefix());
+    abort();
+}
