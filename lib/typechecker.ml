@@ -183,7 +183,9 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
 
-let is_ordered = is_numeric
+(* a pointer is just an address so p < q asks which one sits earlier in memory *)
+let is_ordered t =
+  match strip_alias t with TPointer _ -> true | _ -> is_numeric t
 
 let is_integer t =
   match strip_alias t with TInt _ | TError -> true | _ -> false
@@ -606,11 +608,12 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       T.mk TBool (T.TBinOp (op, tl, tr))
   | Lt | Gt | Lte | Gte ->
       let tl = synth env l in
-      let t = tl.T.ty in
+      let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_ordered t) then
         add_error env l.span
           (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
              (show_ty t));
+      let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
   | And | Or ->
