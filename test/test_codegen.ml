@@ -3136,6 +3136,34 @@ let%expect_test "codegen: right shift on signed int" =
     }
     |}]
 
+let%expect_test "codegen: signed right shift by a constant out of range count" =
+  run_codegen "func f(a: i32) i32 { return a >> 40 }";
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w sar %t1, 31
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: signed right shift by a constant in range count" =
+  run_codegen "func f(a: i32) i32 { return a >> 5 }";
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w sar %t1, 5
+        ret %t2
+    }
+    |}]
+
 let%expect_test "codegen: right shift on unsigned int" =
   run_codegen "func f(a: u32, b: u32) u32 { return a >> b }";
   [%expect
