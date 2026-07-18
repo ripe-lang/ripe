@@ -3001,3 +3001,13 @@ let%expect_test "typecheck: chained assignment is not a value" =
         func f() { var a: i32 = 0 var b: i32 = 0 a = b = 5 }
                                                      ^~~~~ expected i32, found void
     |}]
+
+let%expect_test "typecheck: assign to for loop variable" =
+  run_src "func f() { for i in 0..3 { i = 99 } }";
+  [%expect
+    {|
+    error: cannot assign to immutable: i
+      at <test>:1:28
+        func f() { for i in 0..3 { i = 99 } }
+                                   ^
+    |}]
