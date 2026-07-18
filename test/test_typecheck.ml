@@ -342,6 +342,17 @@ let%expect_test "typecheck: const requires initializer" =
         ^~~~~~~~~~~~
     |}]
 
+let%expect_test "typecheck: const cannot be undefined" =
+  run_src "const N: i32 = undefined";
+  [%expect
+    {|
+    error: const cannot be undefined
+      at <test>:1:16
+        const N: i32 = undefined
+                       ^~~~~~~~~
+    help: use let for values that need storage
+    |}]
+
 let%expect_test "typecheck: cannot take address of a const global" =
   run_src {|
 const N: i32 = 4
