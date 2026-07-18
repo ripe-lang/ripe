@@ -1,0 +1,15 @@
+func main() i32 {
+  let x: i64 = ~53
+  if x != -54 { return 1 }
+
+  let y: i64 = -(1 + 2)
+  if y != -3 { return 2 }
+
+  let z: i64 = ~(1 + 2)
+  if z != -4 { return 3 }
+
+  let c: u8 = ~5 & 255
+  if c != 250 { return 4 }
+
+  return 0
+}
