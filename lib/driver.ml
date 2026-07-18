@@ -64,6 +64,20 @@ let show_tdecls tdecls =
 let render_all ctx diags =
   List.iter (fun d -> Printf.eprintf "%s" (Diagnostic.render ctx d)) diags
 
+(* the C runtime we link calls main, so refuse before the linker leaks its own error *)
+let check_has_main tdecls =
+  let is_main = function
+    | Typed_ast.TFunc { name = "main"; _ } -> true
+    | _ -> false
+  in
+  if not (List.exists is_main tdecls) then
+    raise
+      (Diagnostic.Errors
+         [
+           Diagnostic.error "no `main` function found"
+           |> Diagnostic.help "add a `func main() i32` entry point";
+         ])
+
 (* read the source and build a fresh lexer plus the diagnostic context *)
 let load filename =
   if not (Sys.file_exists filename) then
@@ -118,6 +132,7 @@ let compile ~stage ~out ~filename =
     let il = Codegen.emit_qbe tdecls in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
+    check_has_main tdecls;
     output_binary il
   with
   | Exit -> ()
