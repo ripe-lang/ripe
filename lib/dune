@@ -15,6 +15,7 @@
   typechecker
   typed_ast
   const_eval
+  const_fold
   codegen
   runtime_src
   driver)
