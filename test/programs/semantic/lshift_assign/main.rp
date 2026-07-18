@@ -1,0 +1,5 @@
+func main() i32 {
+  var a: i32 = 3
+  a <<= 4
+  return a
+}
