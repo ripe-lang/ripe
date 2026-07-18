@@ -27,6 +27,9 @@ let qbe_ty (t : ty) : string =
 (* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
 let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
 
+let div_overflows_at_reg_width (t : ty) : bool =
+  match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
+
 (* s_ for single, d_ for double *)
 let float_lit (ty : ty) (f : float) : string =
   let prefix, digits =
@@ -534,6 +537,28 @@ and emit_divzero_check ctx divisor op_qt =
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
+(* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware divide when the divisor is -1 *)
+and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
+  let id = fresh_id ctx in
+  let neg1_lbl = Printf.sprintf "@div.neg1.%d" id in
+  let norm_lbl = Printf.sprintf "@div.norm.%d" id in
+  let join_lbl = Printf.sprintf "@div.join.%d" id in
+  let is_neg1 = fresh ctx in
+  emit ctx "    %s =w ceq%s %s, -1\n" is_neg1 op_qt rv;
+  emit_jnz ctx is_neg1 neg1_lbl norm_lbl;
+  emit_label ctx neg1_lbl;
+  let neg_res = fresh ctx in
+  if instr = "rem" then emit ctx "    %s =%s copy 0\n" neg_res qt
+  else emit ctx "    %s =%s sub 0, %s\n" neg_res qt lv;
+  emit_jmp ctx join_lbl;
+  emit_label ctx norm_lbl;
+  let norm_res = fresh ctx in
+  emit ctx "    %s =%s %s %s, %s\n" norm_res qt instr lv rv;
+  emit_jmp ctx join_lbl;
+  emit_label ctx join_lbl;
+  emit ctx "    %s =%s phi %s %s, %s %s\n" dest qt neg1_lbl neg_res norm_lbl
+    norm_res
+
 and emit_null_check ctx ptr =
   let id = fresh_id ctx in
   let fail_lbl = Printf.sprintf "@null.fail.%d" id in
@@ -800,15 +825,20 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
   | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
   | Ast.Div ->
-      let instr =
-        if is_float lty then "div" else if unsigned then "udiv" else "div"
-      in
-      if not (is_float lty) then emit_divzero_check ctx rv op_qt;
-      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+      if is_float lty then emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
+      else begin
+        emit_divzero_check ctx rv op_qt;
+        if unsigned then emit ctx "    %s =%s udiv %s, %s\n" tmp qt lv rv
+        else if div_overflows_at_reg_width lty then
+          emit_div_overflow_guard ctx ~instr:"div" ~qt ~op_qt ~dest:tmp lv rv
+        else emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
+      end
   | Ast.Mod ->
-      let instr = if unsigned then "urem" else "rem" in
       emit_divzero_check ctx rv op_qt;
-      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv rv
+      if unsigned then emit ctx "    %s =%s urem %s, %s\n" tmp qt lv rv
+      else if div_overflows_at_reg_width lty then
+        emit_div_overflow_guard ctx ~instr:"rem" ~qt ~op_qt ~dest:tmp lv rv
+      else emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
   (* floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
