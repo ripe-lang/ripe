@@ -1,0 +1,4 @@
+func main() i32 {
+  var p: *i32 = null
+  return *p
+}
