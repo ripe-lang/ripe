@@ -59,11 +59,6 @@ let make_env (uses : Resolve.t) : env =
   }
 
 let dummy_const_num = Const_eval.Ni32 0l
-
-(* ty_of_ast sits above the checker so sizes reach the folder through this hook *)
-let eval_array_size_fwd : (env -> expr -> int) ref =
-  ref (fun _ _ -> assert false)
-
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
@@ -137,55 +132,6 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
-let rec ty_of_ast (env : env) (t : typ) : ty =
-  match t.tdesc with
-  | Named name -> (
-      match List.assoc_opt name builtin_tys with
-      | Some bt -> bt
-      | None -> (
-          match Hashtbl.find_opt env.types name with
-          | Some (DStruct _) -> TStruct (name, [])
-          | Some (DNewtype base) -> TNewtype (name, base)
-          | Some (DAlias aliased) -> TAlias (name, aliased)
-          | None ->
-              emit env (Error.undefined_name t.span "type" name);
-              TInt I32))
-  | Pointer t -> TPointer (ty_of_ast env t)
-  | Array (e, t) -> TArray (ty_of_ast env t, !eval_array_size_fwd env e)
-  | Slice t -> TSlice (ty_of_ast env t)
-  | FuncPtr (ps, ret) ->
-      let pts = List.map (ty_of_ast env) ps in
-      let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
-      TFunc (pts, rt)
-
-let lookup_var (env : env) (span : Ast.span) (name : string) : ty =
-  match lookup_var_opt env name with
-  | Some t -> t
-  | None -> (
-      (* locals shadow globals shadow functions *)
-      match Hashtbl.find_opt env.globals name with
-      | Some (t, _) -> t
-      | None -> (
-          (* an array size may name a global not collected yet so type it now *)
-          match Hashtbl.find_opt env.g_state name with
-          (* a global whose own size names it would loop forever *)
-          | Some st when st.busy ->
-              emit env (Error.named span "cyclic constant" name);
-              TError
-          | Some st ->
-              st.busy <- true;
-              let t = ty_of_ast env st.def.typ in
-              st.busy <- false;
-              Hashtbl.replace env.globals name (t, st.def.kind);
-              t
-          | None -> (
-              (* fall back to function table so function names can be used as values *)
-              match Hashtbl.find_opt env.funcs name with
-              | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
-              | None ->
-                  emit env (Error.undefined_name span "variable" name);
-                  TInt I32)))
-
 (* an alias is transparent and compares as its underlying type *)
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
@@ -217,87 +163,6 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | s_want, s_got -> ty_equal s_want s_got
-
-(* main implicitly returns i32 for the C runtime and everything else is void *)
-let ret_ty_of (env : env) (fd : func_def) : ty =
-  match fd.ret with
-  | Some t -> ty_of_ast env t
-  | None -> if fd.name = "main" then TInt I32 else TVoid
-
-(* First pass collecting signatures so that the compiler
-   can handle forward references *)
-let collect_func (env : env) (fd : func_def) : unit =
-  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
-  let ret_ty = ret_ty_of env fd in
-  Hashtbl.replace env.funcs fd.name
-    { param_tys; ret_ty; variadic = fd.variadic }
-
-(* every kind of type name shares one namespace *)
-let existing_type_kind (env : env) (name : string) : string option =
-  if List.mem_assoc name builtin_tys then Some "a builtin type"
-  else
-    match Hashtbl.find_opt env.types name with
-    | Some (DStruct _) -> Some "a struct"
-    | Some (DNewtype _) -> Some "a newtype"
-    | Some (DAlias _) -> Some "an alias"
-    | None -> None
-
-let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
-    =
-  match existing_type_kind env name with
-  | Some kind ->
-      emit env (Error.named span ("already defined as " ^ kind) name);
-      true
-  | None -> false
-
-(* TODO(d1ec): Support forward reference between structs *)
-(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
-(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
-let collect_struct (env : env) (sd : struct_def) : unit =
-  if not (reject_taken_type_name env sd.span sd.name) then (
-    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
-    let field_tys =
-      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
-    in
-    let seen = Hashtbl.create 8 in
-    List.iter
-      (fun (f : field) ->
-        if Hashtbl.mem seen f.name then
-          emit env (Error.named f.span "duplicate field" f.name)
-        else Hashtbl.add seen f.name ())
-      sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys });
-    Hashtbl.replace env.struct_fields sd.name field_tys)
-
-let collect_alias (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DAlias t)
-
-let collect_newtype (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DNewtype t)
-
-let collect_global (env : env) (gd : global_def) : unit =
-  (if gd.init = None then
-     match gd.kind with
-     | Var -> ()
-     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
-     | Const ->
-         emit env (Error.named gd.span "const without initializer" gd.name));
-  let t = ty_of_ast env gd.typ in
-  Hashtbl.replace env.globals gd.name (t, gd.kind)
-
-let collect_decl (env : env) (decl : decl) : unit =
-  match decl with
-  | Struct sd -> collect_struct env sd
-  | Func fd | Extern fd -> collect_func env fd
-  | Global gd -> collect_global env gd
-  | TypeAlias td -> collect_alias env td
-  | Newtype td -> collect_newtype env td
-
-(* Second pass doing the bidirectional type checking *)
 
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
@@ -353,8 +218,81 @@ let cast_ok src tgt =
       | (Numeric | Ptr), (Numeric | Ptr) ->
           (not (is_float src)) && not (is_float tgt))
 
+(* a param array is copied into this frame so a slice of it dangles too *)
+let rec array_storage_escapes (te : T.texpr) : bool =
+  match te.T.desc with
+  | T.TIdent s -> (
+      match s.Symbol.kind with
+      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
+      | _ -> false)
+  | T.TArrayLit _ -> true
+  | T.TIndex (base, _) -> array_storage_escapes base
+  | T.TFieldAccess (base, _) -> array_storage_escapes base
+  | _ -> false
+
+(* only these two forms build a slice out of storage that could be local *)
+let rec slice_return_escapes (te : T.texpr) : bool =
+  match te.T.desc with
+  | T.TToSlice arr -> array_storage_escapes arr
+  | T.TSliceExpr (base, _, _) -> (
+      match strip_alias base.T.ty with
+      | TSlice _ -> slice_return_escapes base
+      | _ -> array_storage_escapes base)
+  | _ -> false
+
+let rec ty_of_ast (env : env) (t : typ) : ty =
+  match t.tdesc with
+  | Named name -> (
+      match List.assoc_opt name builtin_tys with
+      | Some bt -> bt
+      | None -> (
+          match Hashtbl.find_opt env.types name with
+          | Some (DStruct _) -> TStruct (name, [])
+          | Some (DNewtype base) -> TNewtype (name, base)
+          | Some (DAlias aliased) -> TAlias (name, aliased)
+          | None ->
+              emit env (Error.undefined_name t.span "type" name);
+              TInt I32))
+  | Pointer t -> TPointer (ty_of_ast env t)
+  | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
+  | Slice t -> TSlice (ty_of_ast env t)
+  | FuncPtr (ps, ret) ->
+      let pts = List.map (ty_of_ast env) ps in
+      let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
+      TFunc (pts, rt)
+
+and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
+  match lookup_var_opt env name with
+  | Some t -> t
+  | None -> (
+      (* locals shadow globals shadow functions *)
+      match Hashtbl.find_opt env.globals name with
+      | Some (t, _) -> t
+      | None -> (
+          (* an array size may name a global not collected yet so type it now *)
+          match Hashtbl.find_opt env.g_state name with
+          (* a global whose own size names it would loop forever *)
+          | Some st when st.busy ->
+              emit env (Error.named span "cyclic constant" name);
+              TError
+          | Some st ->
+              st.busy <- true;
+              let t = ty_of_ast env st.def.typ in
+              st.busy <- false;
+              Hashtbl.replace env.globals name (t, st.def.kind);
+              t
+          | None -> (
+              (* fall back to function table so function names can be used as values *)
+              match Hashtbl.find_opt env.funcs name with
+              | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+              | None ->
+                  emit env (Error.undefined_name span "variable" name);
+                  TInt I32)))
+
+(* Second pass doing the bidirectional type checking *)
+
 (* stamp the source span here so the mk sites underneath stay span free *)
-let rec synth (env : env) (e : expr) : T.texpr =
+and synth (env : env) (e : expr) : T.texpr =
   { (synth_desc env e) with T.span = e.span }
 
 and synth_desc (env : env) (e : expr) : T.texpr =
@@ -839,31 +777,9 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
-(* a param array is copied into this frame so a slice of it dangles too *)
-let rec array_storage_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TIdent s -> (
-      match s.Symbol.kind with
-      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
-      | _ -> false)
-  | T.TArrayLit _ -> true
-  | T.TIndex (base, _) -> array_storage_escapes base
-  | T.TFieldAccess (base, _) -> array_storage_escapes base
-  | _ -> false
-
-(* only these two forms build a slice out of storage that could be local *)
-let rec slice_return_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TToSlice arr -> array_storage_escapes arr
-  | T.TSliceExpr (base, _, _) -> (
-      match strip_alias base.T.ty with
-      | TSlice _ -> slice_return_escapes base
-      | _ -> array_storage_escapes base)
-  | _ -> false
-
 (* an array size can demand a const before its decl is checked so values
    resolve on demand from here and fold_consts below shares this resolver *)
-let rec fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
+and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
   Const_eval.fold_const_num
     ~sizeof:(ty_size env.struct_fields)
     ~resolve:(resolve_const env) te
@@ -956,7 +872,7 @@ and fold_num_or (env : env) (default : Const_eval.const_num) (te : T.texpr) :
       default
 
 (* the folded size fixes dropped suffixes and silent wraps on huge counts *)
-let eval_array_size (env : env) (e : expr) : int =
+and eval_array_size (env : env) (e : expr) : int =
   let bad msg =
     add_error env e.span msg;
     0
@@ -977,7 +893,84 @@ let eval_array_size (env : env) (e : expr) : int =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-let () = eval_array_size_fwd := eval_array_size
+(* main implicitly returns i32 for the C runtime and everything else is void *)
+let ret_ty_of (env : env) (fd : func_def) : ty =
+  match fd.ret with
+  | Some t -> ty_of_ast env t
+  | None -> if fd.name = "main" then TInt I32 else TVoid
+
+(* First pass collecting signatures so that the compiler
+   can handle forward references *)
+let collect_func (env : env) (fd : func_def) : unit =
+  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
+  let ret_ty = ret_ty_of env fd in
+  Hashtbl.replace env.funcs fd.name
+    { param_tys; ret_ty; variadic = fd.variadic }
+
+(* every kind of type name shares one namespace *)
+let existing_type_kind (env : env) (name : string) : string option =
+  if List.mem_assoc name builtin_tys then Some "a builtin type"
+  else
+    match Hashtbl.find_opt env.types name with
+    | Some (DStruct _) -> Some "a struct"
+    | Some (DNewtype _) -> Some "a newtype"
+    | Some (DAlias _) -> Some "an alias"
+    | None -> None
+
+let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
+    =
+  match existing_type_kind env name with
+  | Some kind ->
+      emit env (Error.named span ("already defined as " ^ kind) name);
+      true
+  | None -> false
+
+(* TODO(d1ec): Support forward reference between structs *)
+(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
+(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
+let collect_struct (env : env) (sd : struct_def) : unit =
+  if not (reject_taken_type_name env sd.span sd.name) then (
+    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+    let field_tys =
+      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+    in
+    let seen = Hashtbl.create 8 in
+    List.iter
+      (fun (f : field) ->
+        if Hashtbl.mem seen f.name then
+          emit env (Error.named f.span "duplicate field" f.name)
+        else Hashtbl.add seen f.name ())
+      sd.fields;
+    Hashtbl.replace env.types sd.name (DStruct { field_tys });
+    Hashtbl.replace env.struct_fields sd.name field_tys)
+
+let collect_alias (env : env) (td : type_alias_def) : unit =
+  if not (reject_taken_type_name env td.span td.name) then
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.types td.name (DAlias t)
+
+let collect_newtype (env : env) (td : type_alias_def) : unit =
+  if not (reject_taken_type_name env td.span td.name) then
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.types td.name (DNewtype t)
+
+let collect_global (env : env) (gd : global_def) : unit =
+  (if gd.init = None then
+     match gd.kind with
+     | Var -> ()
+     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
+     | Const ->
+         emit env (Error.named gd.span "const without initializer" gd.name));
+  let t = ty_of_ast env gd.typ in
+  Hashtbl.replace env.globals gd.name (t, gd.kind)
+
+let collect_decl (env : env) (decl : decl) : unit =
+  match decl with
+  | Struct sd -> collect_struct env sd
+  | Func fd | Extern fd -> collect_func env fd
+  | Global gd -> collect_global env gd
+  | TypeAlias td -> collect_alias env td
+  | Newtype td -> collect_newtype env td
 
 (* a break inside an inner loop stops that loop and not this one *)
 let rec loop_has_break stmts = List.exists stmt_has_break stmts
