@@ -6,10 +6,10 @@
   "id": "a54e",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "`INT_MIN / -1` raw SIGFPEs",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-18 16:40:21.444403"
 }
