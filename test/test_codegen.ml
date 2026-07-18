@@ -175,48 +175,47 @@ func main() i32 {
     @bounds.ok.9
         %t11 =l mul %t8, 8
         %t12 =l add %m, %t11
-        %t13 =l loadl %t12
-        storel %t13, %t7
-        %t14 =l extsw 0
-        %t16 =w cugel %t14, 2
-        jnz %t16, @bounds.fail.15, @bounds.ok.15
-    @bounds.fail.15
-        call $ripe_panic_bounds(l %t14, l 2)
+        blit %t12, %t7, 8
+        %t13 =l extsw 0
+        %t15 =w cugel %t13, 2
+        jnz %t15, @bounds.fail.14, @bounds.ok.14
+    @bounds.fail.14
+        call $ripe_panic_bounds(l %t13, l 2)
         hlt
-    @bounds.ok.15
-        %t17 =l mul %t14, 8
-        %t18 =l add %m, %t17
-        %t19 =l extsw 0
-        %t21 =w cugel %t19, 2
-        jnz %t21, @bounds.fail.20, @bounds.ok.20
-    @bounds.fail.20
-        call $ripe_panic_bounds(l %t19, l 2)
+    @bounds.ok.14
+        %t16 =l mul %t13, 8
+        %t17 =l add %m, %t16
+        %t18 =l extsw 0
+        %t20 =w cugel %t18, 2
+        jnz %t20, @bounds.fail.19, @bounds.ok.19
+    @bounds.fail.19
+        call $ripe_panic_bounds(l %t18, l 2)
         hlt
-    @bounds.ok.20
-        %t22 =l mul %t19, 4
-        %t23 =l add %t18, %t22
-        %t24 =w loadsw %t23
-        %t25 =l extsw 0
-        %t27 =w cugel %t25, 2
-        jnz %t27, @bounds.fail.26, @bounds.ok.26
-    @bounds.fail.26
-        call $ripe_panic_bounds(l %t25, l 2)
+    @bounds.ok.19
+        %t21 =l mul %t18, 4
+        %t22 =l add %t17, %t21
+        %t23 =w loadsw %t22
+        %t24 =l extsw 0
+        %t26 =w cugel %t24, 2
+        jnz %t26, @bounds.fail.25, @bounds.ok.25
+    @bounds.fail.25
+        call $ripe_panic_bounds(l %t24, l 2)
         hlt
-    @bounds.ok.26
-        %t28 =l mul %t25, 8
-        %t29 =l add %m, %t28
-        %t30 =l extsw 1
-        %t32 =w cugel %t30, 2
-        jnz %t32, @bounds.fail.31, @bounds.ok.31
-    @bounds.fail.31
-        call $ripe_panic_bounds(l %t30, l 2)
+    @bounds.ok.25
+        %t27 =l mul %t24, 8
+        %t28 =l add %m, %t27
+        %t29 =l extsw 1
+        %t31 =w cugel %t29, 2
+        jnz %t31, @bounds.fail.30, @bounds.ok.30
+    @bounds.fail.30
+        call $ripe_panic_bounds(l %t29, l 2)
         hlt
-    @bounds.ok.31
-        %t33 =l mul %t30, 4
-        %t34 =l add %t29, %t33
-        %t35 =w loadsw %t34
-        %t36 =w add %t24, %t35
-        ret %t36
+    @bounds.ok.30
+        %t32 =l mul %t29, 4
+        %t33 =l add %t28, %t32
+        %t34 =w loadsw %t33
+        %t35 =w add %t23, %t34
+        ret %t35
     }
     |}]
 
@@ -1067,12 +1066,7 @@ func f() i32 {
     function w $sum(l %t0) {
     @start
         %xs =l alloc8 16
-        %t1 =l loadl %t0
-        storel %t1, %xs
-        %t3 =l add %t0, 8
-        %t2 =l loadl %t3
-        %t4 =l add %xs, 8
-        storel %t2, %t4
+        blit %t0, %xs, 16
         ret 0
     }
 
@@ -1132,26 +1126,21 @@ func f() i32 {
         storel %t10, %t12
         %t13 =l add %t12, 8
         storel %t11, %t13
-        %t14 =l loadl %t12
-        storel %t14, %s
-        %t16 =l add %t12, 8
-        %t15 =l loadl %t16
-        %t17 =l add %s, 8
-        storel %t15, %t17
-        %t18 =l loadl %s
-        %t19 =l add %s, 8
-        %t20 =l loadl %t19
-        %t21 =l extsw 0
-        %t23 =w cugel %t21, %t20
-        jnz %t23, @bounds.fail.22, @bounds.ok.22
-    @bounds.fail.22
-        call $ripe_panic_bounds(l %t21, l %t20)
+        blit %t12, %s, 16
+        %t14 =l loadl %s
+        %t15 =l add %s, 8
+        %t16 =l loadl %t15
+        %t17 =l extsw 0
+        %t19 =w cugel %t17, %t16
+        jnz %t19, @bounds.fail.18, @bounds.ok.18
+    @bounds.fail.18
+        call $ripe_panic_bounds(l %t17, l %t16)
         hlt
-    @bounds.ok.22
-        %t24 =l mul %t21, 4
-        %t25 =l add %t18, %t24
-        %t26 =w loadsw %t25
-        ret %t26
+    @bounds.ok.18
+        %t20 =l mul %t17, 4
+        %t21 =l add %t14, %t20
+        %t22 =w loadsw %t21
+        ret %t22
     }
     |}]
 
@@ -1195,26 +1184,21 @@ func f() i32 {
         storel %t11, %t13
         %t14 =l add %t13, 8
         storel %t12, %t14
-        %t15 =l loadl %t13
-        storel %t15, %s
-        %t17 =l add %t13, 8
-        %t16 =l loadl %t17
-        %t18 =l add %s, 8
-        storel %t16, %t18
-        %t19 =l loadl %s
-        %t20 =l add %s, 8
-        %t21 =l loadl %t20
-        %t22 =l extsw 0
-        %t24 =w cugel %t22, %t21
-        jnz %t24, @bounds.fail.23, @bounds.ok.23
-    @bounds.fail.23
-        call $ripe_panic_bounds(l %t22, l %t21)
+        blit %t13, %s, 16
+        %t15 =l loadl %s
+        %t16 =l add %s, 8
+        %t17 =l loadl %t16
+        %t18 =l extsw 0
+        %t20 =w cugel %t18, %t17
+        jnz %t20, @bounds.fail.19, @bounds.ok.19
+    @bounds.fail.19
+        call $ripe_panic_bounds(l %t18, l %t17)
         hlt
-    @bounds.ok.23
-        %t25 =l mul %t22, 4
-        %t26 =l add %t19, %t25
-        %t27 =w loadsw %t26
-        ret %t27
+    @bounds.ok.19
+        %t21 =l mul %t18, 4
+        %t22 =l add %t15, %t21
+        %t23 =w loadsw %t22
+        ret %t23
     }
     |}]
 
@@ -1255,15 +1239,10 @@ func f() usize {
         storel %t9, %t11
         %t12 =l add %t11, 8
         storel %t10, %t12
-        %t13 =l loadl %t11
-        storel %t13, %s
-        %t15 =l add %t11, 8
-        %t14 =l loadl %t15
-        %t16 =l add %s, 8
-        storel %t14, %t16
-        %t17 =l add %s, 8
-        %t18 =l loadl %t17
-        ret %t18
+        blit %t11, %s, 16
+        %t13 =l add %s, 8
+        %t14 =l loadl %t13
+        ret %t14
     }
     |}]
 
@@ -1281,41 +1260,36 @@ func sum(xs: []i32) i32 {
     function w $sum(l %t0) {
     @start
         %xs =l alloc8 16
-        %t1 =l loadl %t0
-        storel %t1, %xs
-        %t3 =l add %t0, 8
-        %t2 =l loadl %t3
-        %t4 =l add %xs, 8
-        storel %t2, %t4
+        blit %t0, %xs, 16
         %t =l alloc4 4
         storew 0, %t
-        %t6 =l loadl %xs
-        %t7 =l add %xs, 8
-        %t8 =l loadl %t7
-        %for.i5 =l alloc8 8
-        storel 0, %for.i5
+        %t2 =l loadl %xs
+        %t3 =l add %xs, 8
+        %t4 =l loadl %t3
+        %for.i1 =l alloc8 8
+        storel 0, %for.i1
         %x =l alloc4 4
-    @for.cond5
-        %t9 =l loadl %for.i5
-        %t10 =w csltl %t9, %t8
-        jnz %t10, @for.body5, @for.end5
-    @for.body5
-        %t11 =l mul %t9, 4
-        %t12 =l add %t6, %t11
-        %t13 =w loadsw %t12
-        storew %t13, %x
-        %t14 =w loadsw %t
-        %t15 =w loadsw %x
-        %t16 =w add %t14, %t15
-        storew %t16, %t
-    @for.cont5
-        %t17 =l loadl %for.i5
-        %t18 =l add %t17, 1
-        storel %t18, %for.i5
-        jmp @for.cond5
-    @for.end5
-        %t19 =w loadsw %t
-        ret %t19
+    @for.cond1
+        %t5 =l loadl %for.i1
+        %t6 =w csltl %t5, %t4
+        jnz %t6, @for.body1, @for.end1
+    @for.body1
+        %t7 =l mul %t5, 4
+        %t8 =l add %t2, %t7
+        %t9 =w loadsw %t8
+        storew %t9, %x
+        %t10 =w loadsw %t
+        %t11 =w loadsw %x
+        %t12 =w add %t10, %t11
+        storew %t12, %t
+    @for.cont1
+        %t13 =l loadl %for.i1
+        %t14 =l add %t13, 1
+        storel %t14, %for.i1
+        jmp @for.cond1
+    @for.end1
+        %t15 =w loadsw %t
+        ret %t15
     }
     |}]
 
@@ -1356,25 +1330,20 @@ func f() {
         storel %t9, %t11
         %t12 =l add %t11, 8
         storel %t10, %t12
-        %t13 =l loadl %t11
-        storel %t13, %s
-        %t15 =l add %t11, 8
-        %t14 =l loadl %t15
-        %t16 =l add %s, 8
-        storel %t14, %t16
-        %t17 =l loadl %s
-        %t18 =l add %s, 8
-        %t19 =l loadl %t18
-        %t20 =l extsw 1
-        %t22 =w cugel %t20, %t19
-        jnz %t22, @bounds.fail.21, @bounds.ok.21
-    @bounds.fail.21
-        call $ripe_panic_bounds(l %t20, l %t19)
+        blit %t11, %s, 16
+        %t13 =l loadl %s
+        %t14 =l add %s, 8
+        %t15 =l loadl %t14
+        %t16 =l extsw 1
+        %t18 =w cugel %t16, %t15
+        jnz %t18, @bounds.fail.17, @bounds.ok.17
+    @bounds.fail.17
+        call $ripe_panic_bounds(l %t16, l %t15)
         hlt
-    @bounds.ok.21
-        %t23 =l mul %t20, 4
-        %t24 =l add %t17, %t23
-        storew 9, %t24
+    @bounds.ok.17
+        %t19 =l mul %t16, 4
+        %t20 =l add %t13, %t19
+        storew 9, %t20
         ret
     }
     |}]
@@ -1526,29 +1495,28 @@ func f() i32 {
     @for.body3
         %t6 =l mul %t4, 8
         %t7 =l add %m, %t6
-        %t8 =l loadl %t7
-        storel %t8, %row
-        %t9 =w loadsw %s
-        %t10 =l extsw 0
-        %t12 =w cugel %t10, 2
-        jnz %t12, @bounds.fail.11, @bounds.ok.11
-    @bounds.fail.11
-        call $ripe_panic_bounds(l %t10, l 2)
+        blit %t7, %row, 8
+        %t8 =w loadsw %s
+        %t9 =l extsw 0
+        %t11 =w cugel %t9, 2
+        jnz %t11, @bounds.fail.10, @bounds.ok.10
+    @bounds.fail.10
+        call $ripe_panic_bounds(l %t9, l 2)
         hlt
-    @bounds.ok.11
-        %t13 =l mul %t10, 4
-        %t14 =l add %row, %t13
-        %t15 =w loadsw %t14
-        %t16 =w add %t9, %t15
-        storew %t16, %s
+    @bounds.ok.10
+        %t12 =l mul %t9, 4
+        %t13 =l add %row, %t12
+        %t14 =w loadsw %t13
+        %t15 =w add %t8, %t14
+        storew %t15, %s
     @for.cont3
-        %t17 =l loadl %for.i3
-        %t18 =l add %t17, 1
-        storel %t18, %for.i3
+        %t16 =l loadl %for.i3
+        %t17 =l add %t16, 1
+        storel %t17, %for.i3
         jmp @for.cond3
     @for.end3
-        %t19 =w loadsw %s
-        ret %t19
+        %t18 =w loadsw %s
+        ret %t18
     }
     |}]
 
@@ -1744,11 +1712,10 @@ func f(p: pt) i32 { return p.y }
     function w $f(l %t0) {
     @start
         %p =l alloc8 8
-        %t1 =l loadl %t0
-        storel %t1, %p
-        %t2 =l add %p, 4
-        %t3 =w loadsw %t2
-        ret %t3
+        blit %t0, %p, 8
+        %t1 =l add %p, 4
+        %t2 =w loadsw %t1
+        ret %t2
     }
     |}]
 
@@ -1768,13 +1735,11 @@ func f(a: pt) i32 {
     function w $f(l %t0) {
     @start
         %a =l alloc8 8
-        %t1 =l loadl %t0
-        storel %t1, %a
+        blit %t0, %a, 8
         %b =l alloc8 8
-        %t2 =l loadl %a
-        storel %t2, %b
-        %t3 =w loadsw %b
-        ret %t3
+        blit %a, %b, 8
+        %t1 =w loadsw %b
+        ret %t1
     }
     |}]
 
@@ -3417,10 +3382,9 @@ func f() i32 {
     function w $read_x(l %t0) {
     @start
         %p =l alloc8 8
-        %t1 =l loadl %t0
-        storel %t1, %p
-        %t2 =w loadsw %p
-        ret %t2
+        blit %t0, %p, 8
+        %t1 =w loadsw %p
+        ret %t1
     }
 
     function w $f() {

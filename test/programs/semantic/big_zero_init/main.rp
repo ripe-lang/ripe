@@ -1,0 +1,5 @@
+func main() i32 {
+  var big: [4096]i32
+  big[2048] = 40
+  return big[0] + big[2048] + big[4095] + 2
+}

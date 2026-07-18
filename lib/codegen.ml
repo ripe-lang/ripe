@@ -33,6 +33,9 @@ let signedness (t : ty) : string =
 let div_overflows_at_reg_width (t : ty) : bool =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
 
+(* past this many bytes a libc call beats emitting one instruction per word *)
+let bulk_mem_threshold = 64
+
 (* s_ for single, d_ for double *)
 let float_lit (ty : ty) (f : float) : string =
   let prefix, digits =
@@ -621,35 +624,28 @@ and emit_zero_into ctx dest t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ ->
       let size = ty_size ctx.structs t in
-      let off = ref 0 in
-      let step w store =
-        while !off + w <= size do
-          emit ctx "    %s 0, %s\n" store (offset_addr ctx dest !off);
-          off := !off + w
-        done
-      in
-      step 8 "storel";
-      step 4 "storew";
-      step 2 "storeh";
-      step 1 "storeb"
+      if size > bulk_mem_threshold then
+        emit ctx "    call $memset(l %s, w 0, l %d)\n" dest size
+      else begin
+        let off = ref 0 in
+        let step w store =
+          while !off + w <= size do
+            emit ctx "    %s 0, %s\n" store (offset_addr ctx dest !off);
+            off := !off + w
+          done
+        in
+        step 8 "storel";
+        step 4 "storew";
+        step 2 "storeh";
+        step 1 "storeb"
+      end
   | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
 
 (* copy size bytes from src to dest for by-value aggregate (slice) moves *)
 and emit_aggregate_copy ctx dest src size =
-  let off = ref 0 in
-  let step w letter load store =
-    while !off + w <= size do
-      let at base = offset_addr ctx base !off in
-      let v = fresh ctx in
-      emit ctx "    %s =%s %s %s\n" v letter load (at src);
-      emit ctx "    %s %s, %s\n" store v (at dest);
-      off := !off + w
-    done
-  in
-  step 8 "l" "loadl" "storel";
-  step 4 "w" "loaduw" "storew";
-  step 2 "w" "loaduh" "storeh";
-  step 1 "w" "loadub" "storeb"
+  if size > bulk_mem_threshold then
+    emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
+  else emit ctx "    blit %s, %s, %d\n" src dest size
 
 (* store each element of a literal into an already-allocated array at base *)
 and emit_array_lit_into ctx base elems elem =
