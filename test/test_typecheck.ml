@@ -555,6 +555,18 @@ var a: [0 - 1]i32 = undefined
                 ^~~~~
     |}]
 
+let%expect_test "typecheck: bad array size in a param errors once" =
+  run_src {|
+func f(a: [0 - 1]i32) {}
+|};
+  [%expect
+    {|
+    error: array size is negative: -1
+      at <test>:2:12
+        func f(a: [0 - 1]i32) {}
+                   ^~~~~
+    |}]
+
 let%expect_test "typecheck: huge array size" =
   run_src {|
 var a: [9999999999i64]i32 = undefined
