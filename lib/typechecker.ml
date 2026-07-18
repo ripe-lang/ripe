@@ -1192,6 +1192,13 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   let tinit =
     match gd.init with
     | None -> None
+    | Some { desc = Undefined; span } when gd.kind = Const ->
+        emit env
+          Diagnostic.(
+            error "const cannot be undefined"
+            |> at span
+            |> help "use let for values that need storage");
+        None
     | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te =
