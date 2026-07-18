@@ -968,6 +968,32 @@ let eval_array_size (env : env) (e : expr) : int =
 
 let () = eval_array_size_fwd := eval_array_size
 
+(* a break inside an inner loop stops that loop and not this one *)
+let rec loop_has_break stmts = List.exists stmt_has_break stmts
+
+and stmt_has_break s =
+  match s.sdesc with
+  | Break -> true
+  | Block body -> loop_has_break body
+  | If (branches, else_body) ->
+      loop_has_break else_body
+      || List.exists (fun (_, b) -> loop_has_break b) branches
+  | _ -> false
+
+(* every path through the stmts ends in a return *)
+let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
+
+and stmt_returns (s : stmt) : bool =
+  match s.sdesc with
+  | Return _ -> true
+  | Block body -> stmts_return body
+  | If (branches, else_body) ->
+      else_body <> [] && stmts_return else_body
+      && List.for_all (fun (_, body) -> stmts_return body) branches
+  (* a while true with no break loops forever so the code after it never runs *)
+  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
+  | _ -> false
+
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
   let env', tsdesc = check_stmt_desc env s in
   (env', { T.tsdesc; span = s.span })
@@ -1082,40 +1108,15 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
         if returned && not warned then
           add_warning current_env s.span "unreachable code";
         let next_env, ts = check_stmt current_env s in
-        (* break and continue end the block just like return does *)
+        (* break and continue end the block just like a returning if does *)
         let terminates =
-          match s.sdesc with Return _ | Break | Continue -> true | _ -> false
+          stmt_returns s
+          || match s.sdesc with Break | Continue -> true | _ -> false
         in
         (next_env, ts :: acc, returned || terminates, warned || returned))
       (env, [], false, false) stmts
   in
   (final_env, List.rev tstmts_reversed)
-
-(* a break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break stmts = List.exists stmt_has_break stmts
-
-and stmt_has_break s =
-  match s.sdesc with
-  | Break -> true
-  | Block body -> loop_has_break body
-  | If (branches, else_body) ->
-      loop_has_break else_body
-      || List.exists (fun (_, b) -> loop_has_break b) branches
-  | _ -> false
-
-(* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
-
-and stmt_returns (s : stmt) : bool =
-  match s.sdesc with
-  | Return _ -> true
-  | Block body -> stmts_return body
-  | If (branches, else_body) ->
-      else_body <> [] && stmts_return else_body
-      && List.for_all (fun (_, body) -> stmts_return body) branches
-  (* a while true with no break loops forever so the code after it never runs *)
-  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
-  | _ -> false
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   let params_typed =

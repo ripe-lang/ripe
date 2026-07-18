@@ -127,6 +127,20 @@ let%expect_test "typecheck: unreachable code after continue" =
     ok
     |}]
 
+let%expect_test "typecheck: unreachable code after a returning if" =
+  run_src
+    "func f() i32 { if true { return 1 } else { return 2 }\n\
+    \    g() }\n\
+     func g() {}";
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:2:5
+            g() }
+            ^~~
+    ok
+    |}]
+
 let%expect_test "typecheck: forward reference" =
   run_src {|
 func f() { g() }
