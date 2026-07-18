@@ -18,5 +18,9 @@ type t = { id : id; name : string; kind : kind; span : Ast.span }
 
 let is_func = function Func | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
-let is_immutable = function Local (Ast.Let | Ast.Const) -> true | _ -> false
+
+let is_immutable = function
+  | Local (Ast.Let | Ast.Const) | ForVar -> true
+  | _ -> false
+
 let is_comptime = function Local Ast.Const -> true | _ -> false
