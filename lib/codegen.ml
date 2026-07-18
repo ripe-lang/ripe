@@ -24,8 +24,11 @@ let qbe_base (t : ty) : qbe_base =
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
-(* the QBE mnemonic prefix, u for unsigned int types and s otherwise *)
-let signedness (t : ty) : string = if is_unsigned t then "u" else "s"
+(* the QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
+let signedness (t : ty) : string =
+  match resolve_ty t with
+  | TPointer _ | TNull | TCStr -> "u"
+  | t -> if is_unsigned t then "u" else "s"
 
 let div_overflows_at_reg_width (t : ty) : bool =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
