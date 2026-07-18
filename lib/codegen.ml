@@ -547,6 +547,19 @@ and emit_null_check ctx ptr =
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
+and emit_negshift_check ctx count count_qt =
+  let id = fresh_id ctx in
+  let fail_lbl = Printf.sprintf "@negshift.fail.%d" id in
+  let ok_lbl = Printf.sprintf "@negshift.ok.%d" id in
+  let neg = fresh ctx in
+  emit ctx "    %s =w cslt%s %s, 0\n" neg count_qt count;
+  emit_jnz ctx neg fail_lbl ok_lbl;
+  emit_label ctx fail_lbl;
+  emit ctx "    call $ripe_panic_shift()\n";
+  emit ctx "    hlt\n";
+  ctx.terminated := true;
+  emit_label ctx ok_lbl
+
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.texpr) =
   match e.T.desc with
@@ -838,15 +851,19 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
   let bits = match qbe_base ty with L -> 64 | _ -> 32 in
   match (op, const_count) with
-  | Ast.Rshift, Some n when not unsigned ->
-      let in_range =
-        Int64.compare n 0L >= 0 && Int64.compare n (Int64.of_int bits) < 0
-      in
+  | Ast.Rshift, Some n when (not unsigned) && Int64.compare n 0L >= 0 ->
+      let in_range = Int64.compare n (Int64.of_int bits) < 0 in
       let count = if in_range then n else Int64.of_int (bits - 1) in
       let res = fresh ctx in
       emit ctx "    %s =%s sar %s, %Ld\n" res qt lv count;
       res
   | _ -> (
+      let known_nonneg =
+        match const_count with
+        | Some n -> Int64.compare n 0L >= 0
+        | None -> is_unsigned count_ty
+      in
+      if not known_nonneg then emit_negshift_check ctx rv (qbe_ty count_ty);
       (* the range check runs in the count width so a huge count is caught before the truncation *)
       let in_range = fresh ctx in
       emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
