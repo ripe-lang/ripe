@@ -30,3 +30,8 @@ void ripe_panic_divzero(void) {
     fprintf(stderr, "%s integer divide by zero\n", panic_prefix());
     abort();
 }
+
+void ripe_panic_null(void) {
+    fprintf(stderr, "%s null pointer dereference\n", panic_prefix());
+    abort();
+}

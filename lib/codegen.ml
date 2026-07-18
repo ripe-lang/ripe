@@ -427,7 +427,10 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
 and emit_unop ctx op e t =
   match op with
   (* dereferencing a struct pointer just yields its address, same as any other aggregate lvalue *)
-  | Ast.Deref when is_aggregate t -> emit_expr ctx e
+  | Ast.Deref when is_aggregate t ->
+      let ptr = emit_expr ctx e in
+      emit_null_check ctx ptr;
+      ptr
   | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref -> (
       let ev = emit_expr ctx e in
       let qt = qbe_ty t in
@@ -438,7 +441,9 @@ and emit_unop ctx op e t =
           (* operand is always bool (w) after typechecking *)
           emit ctx "    %s =w ceqw %s, 0\n" tmp ev
       | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
-      | Ast.Deref -> emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
+      | Ast.Deref ->
+          emit_null_check ctx ev;
+          emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
       | _ -> Error.ice ~span:e.T.span "unexpected unary operator");
       match op with Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t | _ -> tmp)
   | Ast.AddressOf ->
@@ -529,6 +534,19 @@ and emit_divzero_check ctx divisor op_qt =
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
+and emit_null_check ctx ptr =
+  let id = fresh_id ctx in
+  let fail_lbl = Printf.sprintf "@null.fail.%d" id in
+  let ok_lbl = Printf.sprintf "@null.ok.%d" id in
+  let isnull = fresh ctx in
+  emit ctx "    %s =w ceql %s, 0\n" isnull ptr;
+  emit_jnz ctx isnull fail_lbl ok_lbl;
+  emit_label ctx fail_lbl;
+  emit ctx "    call $ripe_panic_null()\n";
+  emit ctx "    hlt\n";
+  ctx.terminated := true;
+  emit_label ctx ok_lbl
+
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.texpr) =
   match e.T.desc with
@@ -543,6 +561,9 @@ and emit_lvalue_addr ctx (e : T.texpr) =
 (* address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
 and emit_field_addr ctx base field =
   let addr = emit_expr ctx base in
+  (match resolve_ty base.T.ty with
+  | TPointer _ -> emit_null_check ctx addr
+  | _ -> ());
   let rec peel = function
     | TStruct (n, _) -> n
     | TAlias (_, inner) -> peel inner
@@ -645,6 +666,7 @@ and emit_assign ctx l r _t =
       emit_store_into ctx l.T.ty addr r
   | T.TUnOp (Ast.Deref, inner) ->
       let addr = emit_expr ctx inner in
+      emit_null_check ctx addr;
       emit_store_into ctx l.T.ty addr r
   | _ -> emit_expr ctx r
 
@@ -694,6 +716,7 @@ and emit_compound_assign ctx op l r =
       emit_compound_via_addr ctx op l.T.ty addr r
   | T.TUnOp (Ast.Deref, inner) ->
       let addr = emit_expr ctx inner in
+      emit_null_check ctx addr;
       emit_compound_via_addr ctx op l.T.ty addr r
   | _ ->
       let s = lvalue_sym l in
