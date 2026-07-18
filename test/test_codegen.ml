@@ -706,6 +706,12 @@ func f() i32 {
         %t0 =l copy %x
         storel %t0, %p
         %t1 =l loadl %p
+        %t4 =w ceql %t1, 0
+        jnz %t4, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
         %t2 =w loadsw %t1
         ret %t2
     }
@@ -2261,9 +2267,15 @@ func check(p: *i32) i32 {
         jnz %t4, @and.rhs2, @if.else1
     @and.rhs2
         %t5 =l loadl %p
+        %t8 =w ceql %t5, 0
+        jnz %t8, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
         %t6 =w loadsw %t5
-        %t7 =w ceqw %t6, 3
-        jnz %t7, @if.then1_0, @if.else1
+        %t9 =w ceqw %t6, 3
+        jnz %t9, @if.then1_0, @if.else1
     @if.then1_0
         ret 1
     @if.else1
@@ -2768,9 +2780,15 @@ func f(s: *S) i32 { return s.tail }
         %s =l alloc8 8
         storel %t0, %s
         %t1 =l loadl %s
-        %t2 =l add %t1, 8
-        %t3 =w loadsw %t2
-        ret %t3
+        %t3 =w ceql %t1, 0
+        jnz %t3, @null.fail.2, @null.ok.2
+    @null.fail.2
+        call $ripe_panic_null()
+        hlt
+    @null.ok.2
+        %t4 =l add %t1, 8
+        %t5 =w loadsw %t4
+        ret %t5
     }
     |}]
 
@@ -2866,9 +2884,15 @@ func f() i32 {
         %t1 =l copy %p
         storel %t1, %q
         %t2 =l loadl %q
+        %t4 =w ceql %t2, 0
+        jnz %t4, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
         storew 8, %t2
-        %t3 =w loadsw %p
-        ret %t3
+        %t5 =w loadsw %p
+        ret %t5
     }
     |}]
 
@@ -2892,9 +2916,15 @@ func f() i32 {
         %t0 =l copy %x
         storel %t0, %q
         %t1 =l loadl %q
+        %t3 =w ceql %t1, 0
+        jnz %t3, @null.fail.2, @null.ok.2
+    @null.fail.2
+        call $ripe_panic_null()
+        hlt
+    @null.ok.2
         storew 42, %t1
-        %t2 =w loadsw %x
-        ret %t2
+        %t4 =w loadsw %x
+        ret %t4
     }
     |}]
 
@@ -2972,11 +3002,17 @@ func f() i32 {
         %t0 =l copy %x
         storel %t0, %q
         %t1 =l loadl %q
-        %t2 =w loadsw %t1
-        %t3 =w add %t2, 5
-        storew %t3, %t1
-        %t4 =w loadsw %x
-        ret %t4
+        %t3 =w ceql %t1, 0
+        jnz %t3, @null.fail.2, @null.ok.2
+    @null.fail.2
+        call $ripe_panic_null()
+        hlt
+    @null.ok.2
+        %t4 =w loadsw %t1
+        %t5 =w add %t4, 5
+        storew %t5, %t1
+        %t6 =w loadsw %x
+        ret %t6
     }
     |}]
 
@@ -3004,6 +3040,12 @@ func f() i32 {
         %t1 =l copy %p
         storel %t1, %px
         %t2 =l loadl %px
+        %t5 =w ceql %t2, 0
+        jnz %t5, @null.fail.4, @null.ok.4
+    @null.fail.4
+        call $ripe_panic_null()
+        hlt
+    @null.ok.4
         %t3 =w loadsw %t2
         ret %t3
     }
@@ -3038,8 +3080,14 @@ func f() i32 {
         %t3 =l copy %t2
         storel %t3, %pt2
         %t4 =l loadl %pt2
-        %t5 =w loadsw %t4
-        ret %t5
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.5, @null.ok.5
+    @null.fail.5
+        call $ripe_panic_null()
+        hlt
+    @null.ok.5
+        %t7 =w loadsw %t4
+        ret %t7
     }
     |}]
 
@@ -3077,6 +3125,12 @@ func f() i32 {
         %t8 =l copy %t7
         storel %t8, %p
         %t9 =l loadl %p
+        %t12 =w ceql %t9, 0
+        jnz %t12, @null.fail.11, @null.ok.11
+    @null.fail.11
+        call $ripe_panic_null()
+        hlt
+    @null.ok.11
         %t10 =w loadsw %t9
         ret %t10
     }
@@ -3874,9 +3928,15 @@ func main() i32 {
         %t0 =l copy %op
         storel %t0, %p
         %t1 =l loadl %p
+        %t4 =w ceql %t1, 0
+        jnz %t4, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
         %t2 =l loadl %t1
-        %t3 =w call %t2(w 4, w 5)
-        ret %t3
+        %t5 =w call %t2(w 4, w 5)
+        ret %t5
     }
     |}]
 
@@ -4020,10 +4080,22 @@ func main() i32 {
         %p =l alloc8 8
         storel %t0, %p
         %t1 =l loadl %p
-        %t2 =l loadl %p
-        %t3 =w loadsw %t2
-        %t4 =w add %t3, 1
-        storew %t4, %t1
+        %t3 =w ceql %t1, 0
+        jnz %t3, @null.fail.2, @null.ok.2
+    @null.fail.2
+        call $ripe_panic_null()
+        hlt
+    @null.ok.2
+        %t4 =l loadl %p
+        %t7 =w ceql %t4, 0
+        jnz %t7, @null.fail.6, @null.ok.6
+    @null.fail.6
+        call $ripe_panic_null()
+        hlt
+    @null.ok.6
+        %t5 =w loadsw %t4
+        %t8 =w add %t5, 1
+        storew %t8, %t1
         ret
     }
 
@@ -4035,13 +4107,25 @@ func main() i32 {
         %p.2.inl0 =l alloc8 8
         storel %t1, %p.2.inl0
         %t2 =l loadl %p.2.inl0
-        %t3 =l loadl %p.2.inl0
-        %t4 =w loadsw %t3
-        %t5 =w add %t4, 1
-        storew %t5, %t2
+        %t4 =w ceql %t2, 0
+        jnz %t4, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t5 =l loadl %p.2.inl0
+        %t8 =w ceql %t5, 0
+        jnz %t8, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t6 =w loadsw %t5
+        %t9 =w add %t6, 1
+        storew %t9, %t2
         jmp @inline.end0
     @inline.end0
-        %t6 =w loadsw %n
-        ret %t6
+        %t10 =w loadsw %n
+        ret %t10
     }
     |}]
