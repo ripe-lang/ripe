@@ -1,0 +1,12 @@
+var calls: i32 = 0
+
+func idx() i32 {
+  calls += 1
+  return 1
+}
+
+func main() i32 {
+  var a: [3]i32 = [10, 20, 30]
+  a[idx()] += 5
+  return a[1] + calls
+}
