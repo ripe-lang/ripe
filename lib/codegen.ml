@@ -320,9 +320,6 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
   | T.CCast e ->
       let v = emit_expr ctx e in
       emit_cast ctx v e.T.ty t
-  | T.CRange _ | T.CRangeInclusive _ ->
-      raise
-        (Diagnostic.Errors [ Error.unsupported e.T.span "range expressions" ])
   | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.CFieldAccess (e, field) ->
       let ft = t in
@@ -1023,7 +1020,7 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CExpr e ->
       let _ = emit_expr ctx e in
       ()
-  | T.CFor (name, elem_ty, iter, body) -> emit_for ctx name elem_ty iter body
+  | T.CLoop { init; cond; step; body } -> emit_loop ctx init cond step body
   | T.CIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
@@ -1074,100 +1071,24 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
       emit_jmp ctx test_lbl;
       emit_label ctx end_lbl
 
-(* for i in lo..hi and for x in arr *)
-and emit_for ctx name elem_ty iter body =
+and emit_loop ctx init cond step body =
   let id = fresh_id ctx in
-  let cond_lbl = Printf.sprintf "@for.cond%d" id in
-  let body_lbl = Printf.sprintf "@for.body%d" id in
-  let cont_lbl = Printf.sprintf "@for.cont%d" id in
-  let end_lbl = Printf.sprintf "@for.end%d" id in
-  let qt = qbe_ty elem_ty in
-  let sign = signedness elem_ty in
-  let slot = bind_local ctx name in
-  let run_body () =
-    ctx.loops := (cont_lbl, end_lbl) :: !(ctx.loops);
-    emit_stmts ctx body;
-    ctx.loops := List.tl !(ctx.loops)
-  in
-  match iter.T.desc with
-  | T.CRange (lo, hi) | T.CRangeInclusive (lo, hi) ->
-      let inclusive =
-        match iter.T.desc with T.CRangeInclusive _ -> true | _ -> false
-      in
-      (* loop var lives in a stack slot so the body can read and increment it *)
-      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx elem_ty);
-      let lov = emit_expr ctx lo in
-      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) lov slot;
-      (* upper bound is evaluated once before the loop *)
-      let hiv = emit_expr ctx hi in
-      emit_label ctx cond_lbl;
-      let cur = fresh ctx in
-      emit ctx "    %s =%s %s %%%s\n" cur qt (qbe_load elem_ty) slot;
-      let cmp = fresh ctx in
-      let cmpop = if inclusive then "le" else "lt" in
-      emit ctx "    %s =w c%s%s%s %s, %s\n" cmp sign cmpop qt cur hiv;
-      emit_jnz ctx cmp body_lbl end_lbl;
-      emit_label ctx body_lbl;
-      run_body ();
-      emit_label ctx cont_lbl;
-      let cur2 = fresh ctx in
-      emit ctx "    %s =%s %s %%%s\n" cur2 qt (qbe_load elem_ty) slot;
-      if inclusive then begin
-        let incr_lbl = Printf.sprintf "@for.incr%d" id in
-        let atmax = fresh ctx in
-        emit ctx "    %s =w ceq%s %s, %s\n" atmax qt cur2 hiv;
-        emit_jnz ctx atmax end_lbl incr_lbl;
-        emit_label ctx incr_lbl
-      end;
-      let nxt = fresh ctx in
-      emit ctx "    %s =%s add %s, 1\n" nxt qt cur2;
-      emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) nxt slot;
-      emit_jmp ctx cond_lbl;
-      emit_label ctx end_lbl
-  | _ ->
-      (* array/slice iteration: walk index 0..len with a hidden counter.
-         storage is the element pointer, len is a constant (array) or loaded (slice) *)
-      let storage, len =
-        let base = emit_expr ctx iter in
-        match resolve_ty iter.T.ty with
-        | TArray (_, n) -> (base, string_of_int n)
-        | TSlice _ -> load_slice_fields ctx base
-        | t ->
-            Error.ice ~span:iter.T.span
-              (Printf.sprintf "cannot iterate over type: %s" (show_ty t))
-      in
-      let idx = Printf.sprintf "%%for.i%d" id in
-      emit ctx "    %s =l alloc8 8\n" idx;
-      emit ctx "    storel 0, %s\n" idx;
-      (* element binding slot, refreshed each iteration *)
-      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx elem_ty);
-      emit_label ctx cond_lbl;
-      let i = fresh ctx in
-      emit ctx "    %s =l loadl %s\n" i idx;
-      let cmp = fresh ctx in
-      emit ctx "    %s =w csltl %s, %s\n" cmp i len;
-      emit_jnz ctx cmp body_lbl end_lbl;
-      emit_label ctx body_lbl;
-      let off = fresh ctx in
-      emit ctx "    %s =l mul %s, %d\n" off i (stride ctx.structs elem_ty);
-      let addr = fresh ctx in
-      emit ctx "    %s =l add %s, %s\n" addr storage off;
-      (if is_aggregate elem_ty then
-         (* aggregate element: copy its bytes into the loop variable *)
-         emit_aggregate_copy ctx ("%" ^ slot) addr (ty_size ctx.structs elem_ty)
-       else
-         let v = fresh ctx in
-         emit ctx "    %s =%s %s %s\n" v qt (qbe_load elem_ty) addr;
-         emit ctx "    %s %s, %%%s\n" (qbe_store elem_ty) v slot);
-      run_body ();
-      emit_label ctx cont_lbl;
-      let i2 = fresh ctx in
-      emit ctx "    %s =l loadl %s\n" i2 idx;
-      let nxt = fresh ctx in
-      emit ctx "    %s =l add %s, 1\n" nxt i2;
-      emit ctx "    storel %s, %s\n" nxt idx;
-      emit_jmp ctx cond_lbl;
-      emit_label ctx end_lbl
+  let cond_lbl = Printf.sprintf "@loop.cond%d" id in
+  let body_lbl = Printf.sprintf "@loop.body%d" id in
+  let step_lbl = Printf.sprintf "@loop.step%d" id in
+  let end_lbl = Printf.sprintf "@loop.end%d" id in
+  emit_stmts ctx init;
+  emit_label ctx cond_lbl;
+  emit_branch ctx cond body_lbl end_lbl;
+  emit_label ctx body_lbl;
+  ctx.loops := (step_lbl, end_lbl) :: !(ctx.loops);
+  emit_stmts ctx body;
+  emit_jmp ctx step_lbl;
+  emit_label ctx step_lbl;
+  emit_stmts ctx step;
+  ctx.loops := List.tl !(ctx.loops);
+  emit_jmp ctx cond_lbl;
+  emit_label ctx end_lbl
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 

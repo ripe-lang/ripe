@@ -17,8 +17,6 @@ type cexpr_desc =
   (* target type is the node type *)
   | CCast of cexpr
   | CSizeOf of Types.ty
-  | CRange of cexpr * cexpr
-  | CRangeInclusive of cexpr * cexpr
   | CArrayLit of cexpr list
   | CIndex of cexpr * cexpr
   | CLen of cexpr
@@ -40,7 +38,12 @@ type cstmt_desc =
   | CReturn of cexpr option
   | CIf of (cexpr * cstmt list) list * cstmt list
   | CWhile of cexpr * cstmt list
-  | CFor of Symbol.t * ty * cexpr * cstmt list
+  | CLoop of {
+      init : cstmt list;
+      cond : cexpr;
+      step : cstmt list;
+      body : cstmt list;
+    }
   | CBreak
   | CContinue
   | CExpr of cexpr

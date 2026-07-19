@@ -3,6 +3,32 @@
 module S = Typed_ast
 module D = Core
 
+(* negative ids never clash with the resolver's, which count up from zero *)
+let sym_counter = ref 0
+
+let fresh_sym name : Symbol.t =
+  let c = !sym_counter in
+  incr sym_counter;
+  {
+    Symbol.id = -1 - c;
+    name = Printf.sprintf "%s.%d" name c;
+    kind = Symbol.Local Ast.Var;
+    span = Ast.dummy_span;
+  }
+
+let mkstmt (desc : D.cstmt_desc) : D.cstmt =
+  { D.tsdesc = desc; span = Ast.dummy_span }
+
+let ident ty sym = D.mk ty (D.CIdent sym)
+let int ty n = D.mk ty (D.CInt n)
+let binop ty op a b = D.mk ty (D.CBinOp (op, a, b))
+let bind sym ty e = mkstmt (D.CBinding (Ast.Var, sym, ty, e))
+
+let assign (lhs : D.cexpr) rhs =
+  mkstmt (D.CExpr (binop lhs.D.ty Ast.Assign lhs rhs))
+
+let if_then cond body = mkstmt (D.CIf ([ (cond, body) ], []))
+
 let rec lower_expr (te : S.texpr) : D.cexpr =
   let ty = te.S.ty and span = te.S.span in
   let desc =
@@ -21,9 +47,8 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
     | S.TCast e -> D.CCast (lower_expr e)
     | S.TSizeOf t -> D.CSizeOf t
-    | S.TRange (lo, hi) -> D.CRange (lower_expr lo, lower_expr hi)
-    | S.TRangeInclusive (lo, hi) ->
-        D.CRangeInclusive (lower_expr lo, lower_expr hi)
+    | S.TRange _ | S.TRangeInclusive _ ->
+        Error.ice ~span "range outside a for loop"
     | S.TArrayLit es -> D.CArrayLit (List.map lower_expr es)
     | S.TIndex (base, idx) -> D.CIndex (lower_expr base, lower_expr idx)
     | S.TLen e -> D.CLen (lower_expr e)
@@ -38,6 +63,64 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   in
   { D.desc; ty; span }
 
+let lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt_desc =
+  let ivar = ident elem_ty sym in
+  let hisym = fresh_sym "for.hi" in
+  let hivar = ident elem_ty hisym in
+  let init = [ bind sym elem_ty lo; bind hisym elem_ty hi ] in
+  let cond =
+    binop Types.TBool (if inclusive then Ast.Lte else Ast.Lt) ivar hivar
+  in
+  let incr = assign ivar (binop elem_ty Ast.Add ivar (int elem_ty 1L)) in
+  (* the guard keeps an inclusive range from incrementing past the type's max *)
+  let step =
+    if inclusive then
+      [
+        if_then (binop Types.TBool Ast.Eq ivar hivar) [ mkstmt D.CBreak ]; incr;
+      ]
+    else [ incr ]
+  in
+  D.CLoop { init; cond; step; body }
+
+let lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt_desc =
+  let usize = Types.TInt Types.Usize in
+  let ptr_ty = Types.TPointer elem_ty in
+  (* a slice is snapshotted so its pointer and length come from one evaluation *)
+  let pre, src =
+    match Types.resolve_ty iter.D.ty with
+    | Types.TSlice _ ->
+        let it = fresh_sym "for.it" in
+        ([ bind it iter.D.ty iter ], ident iter.D.ty it)
+    | _ -> ([], iter)
+  in
+  let psym = fresh_sym "for.p" in
+  let nsym = fresh_sym "for.n" in
+  let isym = fresh_sym "for.i" in
+  let ivar = ident usize isym in
+  let init =
+    pre
+    @ [
+        bind psym ptr_ty (D.mk ptr_ty (D.CDataPtr src));
+        bind nsym usize (D.mk usize (D.CLen src));
+        bind isym usize (int usize 0L);
+      ]
+  in
+  let cond = binop Types.TBool Ast.Lt ivar (ident usize nsym) in
+  let elem = D.mk elem_ty (D.CIndex (ident ptr_ty psym, ivar)) in
+  let incr = assign ivar (binop usize Ast.Add ivar (int usize 1L)) in
+  let body = bind sym elem_ty elem :: body in
+  D.CLoop { init; cond; step = [ incr ]; body }
+
+let lower_for sym elem_ty iter body : D.cstmt_desc =
+  match iter.S.desc with
+  | S.TRange (lo, hi) ->
+      lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
+        ~inclusive:false body
+  | S.TRangeInclusive (lo, hi) ->
+      lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
+        ~inclusive:true body
+  | _ -> lower_each_for sym elem_ty (lower_expr iter) body
+
 let rec lower_stmt (st : S.tstmt) : D.cstmt =
   let span = st.S.span in
   let tsdesc =
@@ -49,8 +132,8 @@ let rec lower_stmt (st : S.tstmt) : D.cstmt =
           ( List.map (fun (c, body) -> (lower_expr c, lower_stmts body)) branches,
             lower_stmts else_body )
     | S.TWhile (cond, body) -> D.CWhile (lower_expr cond, lower_stmts body)
-    | S.TFor (sym, ty, iter, body) ->
-        D.CFor (sym, ty, lower_expr iter, lower_stmts body)
+    | S.TFor (sym, elem_ty, iter, body) ->
+        lower_for sym elem_ty iter (lower_stmts body)
     | S.TBreak -> D.CBreak
     | S.TContinue -> D.CContinue
     | S.TExpr e -> D.CExpr (lower_expr e)
@@ -88,4 +171,6 @@ let lower_decl (d : S.tdecl) : D.cdecl =
   | S.TTypeAlias (name, ty) -> D.CTypeAlias (name, ty)
   | S.TNewtype (name, ty) -> D.CNewtype (name, ty)
 
-let lower (decls : S.tdecl list) : D.cdecl list = List.map lower_decl decls
+let lower (decls : S.tdecl list) : D.cdecl list =
+  sym_counter := 0;
+  List.map lower_decl decls
