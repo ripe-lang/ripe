@@ -47,6 +47,18 @@ let%expect_test "typecheck: type mismatch in let" =
                                  ^~ expected bool, found i32
     |}]
 
+let%expect_test "typecheck: unused parameter warns" =
+  run_src "func g(used: i32, _skip: i32, dead: i32) i32 { return used }";
+  [%expect
+    {|
+    warning: unused variable: dead
+      at <test>:1:31
+        func g(used: i32, _skip: i32, dead: i32) i32 { return used }
+                                      ^~~~~~~~~
+    help: prefix with an underscore: _dead
+    ok
+    |}]
+
 let%expect_test "typecheck: wrong number of arguments" =
   run_src {|
 func g() {}
