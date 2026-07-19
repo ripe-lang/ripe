@@ -24,6 +24,8 @@ let qbe_base (t : ty) : qbe_base =
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
+let qbe_id id = if id < 0 then Printf.sprintf "n%d" (-id) else string_of_int id
+
 (* the QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
@@ -145,7 +147,7 @@ let bind_local ctx (s : Symbol.t) : string =
   let slot =
     match !(ctx.inline_stack) with
     (* the same binder id lands at every call site so the tag is what keeps their slots apart *)
-    | f :: _ -> Printf.sprintf "%s.%d.inl%d" s.name s.id f.tag
+    | f :: _ -> Printf.sprintf "%s.%s.inl%d" s.name (qbe_id s.id) f.tag
     | [] ->
         if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
           Printf.sprintf "%s.%d" s.name s.id
