@@ -224,11 +224,6 @@ let field_offset structs fields fname =
   in
   go 0 fields
 
-let lvalue_sym (e : T.cexpr) : Symbol.t =
-  match e.T.desc with
-  | T.CIdent s -> s
-  | _ -> Error.ice ~span:e.T.span "expected an lvalue"
-
 (* bytes between consecutive elements (element size rounded up to its alignment) *)
 let stride structs elem =
   align_to (ty_size structs elem) (ty_align structs elem)
@@ -307,13 +302,6 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.CBinOp
-      ( (( Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign
-         | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign | Ast.BitXorAssign
-         | Ast.LshiftAssign | Ast.RshiftAssign ) as op),
-        l,
-        r ) ->
-      emit_compound_assign ctx op l r
   | T.CBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
@@ -699,57 +687,6 @@ and emit_store_into ctx ty addr r =
     let rv = emit_expr ctx r in
     emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
     rv
-
-(* x += rhs runs as x = x + rhs, and likewise for every other compound form *)
-and base_binop_of op =
-  match op with
-  | Ast.AddAssign -> Ast.Add
-  | Ast.SubAssign -> Ast.Sub
-  | Ast.MulAssign -> Ast.Mul
-  | Ast.DivAssign -> Ast.Div
-  | Ast.ModAssign -> Ast.Mod
-  | Ast.BitAndAssign -> Ast.BitAnd
-  | Ast.BitOrAssign -> Ast.BitOr
-  | Ast.BitXorAssign -> Ast.BitXor
-  | Ast.LshiftAssign -> Ast.Lshift
-  | Ast.RshiftAssign -> Ast.Rshift
-  | _ -> Error.ice "unexpected compound assignment operator"
-
-and emit_compound_assign ctx op l r =
-  match l.T.desc with
-  (* arr[i] += rhs: load through the element address, apply, store back *)
-  | T.CIndex (base, idx) ->
-      let elem = l.T.ty in
-      let addr = emit_index_addr ctx base idx elem in
-      emit_compound_via_addr ctx op elem addr r
-  | T.CFieldAccess (base, field) ->
-      let addr = emit_field_addr ctx base field in
-      emit_compound_via_addr ctx op l.T.ty addr r
-  | T.CUnOp (Ast.Deref, inner) ->
-      let addr = emit_expr ctx inner in
-      emit_null_check ctx addr;
-      emit_compound_via_addr ctx op l.T.ty addr r
-  | _ ->
-      let s = lvalue_sym l in
-      emit_compound_via_addr ctx op l.T.ty (sym_addr ctx s) r
-
-(* load through addr, apply the compound op, store the result back *)
-and emit_compound_via_addr ctx op elem addr r =
-  let cur = fresh ctx in
-  emit ctx "    %s =%s %s %s\n" cur (qbe_ty elem) (qbe_load elem) addr;
-  let rv = emit_expr ctx r in
-  let base = base_binop_of op in
-  let new_val =
-    match base with
-    | Ast.Lshift | Ast.Rshift ->
-        emit_shift ctx base ~ty:elem ~count_ty:r.T.ty
-          ~unsigned:(is_unsigned elem) cur rv
-    | _ ->
-        emit_arith_binop ctx base ~result_ty:elem ~operand_ty:elem
-          ~span:r.T.span cur rv
-  in
-  emit ctx "    %s %s, %s\n" (qbe_store elem) new_val addr;
-  new_val
 
 (* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
 and emit_branch ctx e true_lbl false_lbl =

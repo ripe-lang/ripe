@@ -63,6 +63,37 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   in
   { D.desc; ty; span }
 
+(* x op= r runs as x = x op r, and likewise for every other compound form *)
+let base_binop_of = function
+  | Ast.AddAssign -> Some Ast.Add
+  | Ast.SubAssign -> Some Ast.Sub
+  | Ast.MulAssign -> Some Ast.Mul
+  | Ast.DivAssign -> Some Ast.Div
+  | Ast.ModAssign -> Some Ast.Mod
+  | Ast.BitAndAssign -> Some Ast.BitAnd
+  | Ast.BitOrAssign -> Some Ast.BitOr
+  | Ast.BitXorAssign -> Some Ast.BitXor
+  | Ast.LshiftAssign -> Some Ast.Lshift
+  | Ast.RshiftAssign -> Some Ast.Rshift
+  | _ -> None
+
+(* the target's address is taken once so an index or base with side effects doesn't run twice *)
+let lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt_desc =
+  let elem = l.S.ty in
+  let ptr_ty = Types.TPointer elem in
+  let span = l.S.span in
+  let base =
+    match base_binop_of op with
+    | Some b -> b
+    | None -> Error.ice ~span "expected a compound assignment operator"
+  in
+  let psym = fresh_sym "compound.p" in
+  let pvar = ident ptr_ty psym in
+  let place = D.mk ~span elem (D.CUnOp (Ast.Deref, pvar)) in
+  let addr = D.mk ~span ptr_ty (D.CUnOp (Ast.AddressOf, lower_expr l)) in
+  let updated = binop elem base place (lower_expr r) in
+  D.CBlock [ bind psym ptr_ty addr; assign place updated ]
+
 let lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt_desc =
   let ivar = ident elem_ty sym in
   let hisym = fresh_sym "for.hi" in
@@ -143,6 +174,9 @@ let rec lower_stmt (st : S.tstmt) : D.cstmt =
         lower_for sym elem_ty iter (lower_stmts body)
     | S.TBreak -> D.CBreak
     | S.TContinue -> D.CContinue
+    | S.TExpr { S.desc = S.TBinOp (op, l, r); _ } when base_binop_of op <> None
+      ->
+        lower_compound_assign op l r
     | S.TExpr e -> D.CExpr (lower_expr e)
     | S.TBlock body -> D.CBlock (lower_stmts body)
   in
