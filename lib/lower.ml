@@ -131,7 +131,14 @@ let rec lower_stmt (st : S.tstmt) : D.cstmt =
         D.CIf
           ( List.map (fun (c, body) -> (lower_expr c, lower_stmts body)) branches,
             lower_stmts else_body )
-    | S.TWhile (cond, body) -> D.CWhile (lower_expr cond, lower_stmts body)
+    | S.TWhile (cond, body) ->
+        D.CLoop
+          {
+            init = [];
+            cond = lower_expr cond;
+            step = [];
+            body = lower_stmts body;
+          }
     | S.TFor (sym, elem_ty, iter, body) ->
         lower_for sym elem_ty iter (lower_stmts body)
     | S.TBreak -> D.CBreak

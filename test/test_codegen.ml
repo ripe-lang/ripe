@@ -428,16 +428,18 @@ func f() i32 {
     @start
         %i =l alloc4 4
         storew 0, %i
-    @while.cond0
+    @loop.cond0
         %t1 =w loadsw %i
         %t2 =w csltw %t1, 10
-        jnz %t2, @while.body0, @while.end0
-    @while.body0
+        jnz %t2, @loop.body0, @loop.end0
+    @loop.body0
         %t3 =w loadsw %i
         %t4 =w add %t3, 1
         storew %t4, %i
-        jmp @while.cond0
-    @while.end0
+        jmp @loop.step0
+    @loop.step0
+        jmp @loop.cond0
+    @loop.end0
         %t5 =w loadsw %i
         ret %t5
     }
@@ -1057,22 +1059,24 @@ func f() i32 {
     @start
         %i =l alloc4 4
         storew 0, %i
-    @while.cond0
-        jnz 1, @while.body0, @while.end0
-    @while.body0
+    @loop.cond0
+        jnz 1, @loop.body0, @loop.end0
+    @loop.body0
     @if.cond1_0
         %t2 =w loadsw %i
         %t3 =w ceqw %t2, 3
         jnz %t3, @if.then1_0, @if.else1
     @if.then1_0
-        jmp @while.end0
+        jmp @loop.end0
     @if.else1
     @if.end1
         %t4 =w loadsw %i
         %t5 =w add %t4, 1
         storew %t5, %i
-        jmp @while.cond0
-    @while.end0
+        jmp @loop.step0
+    @loop.step0
+        jmp @loop.cond0
+    @loop.end0
         %t6 =w loadsw %i
         ret %t6
     }
@@ -2132,19 +2136,21 @@ func f(n: i32) i32 {
         storew %t0, %n
         %x =l alloc4 4
         storew 1, %x
-    @while.cond1
+    @loop.cond1
         %t2 =w loadsw %x
         %t3 =w loadsw %n
         %t4 =w csltw %t2, %t3
-        jnz %t4, @while.body1, @while.end1
-    @while.body1
+        jnz %t4, @loop.body1, @loop.end1
+    @loop.body1
         %x.3 =l alloc4 4
         storew 100, %x.3
         %t5 =w loadsw %x.3
         %t6 =w add %t5, 1
         storew %t6, %x.3
-        jmp @while.cond1
-    @while.end1
+        jmp @loop.step1
+    @loop.step1
+        jmp @loop.cond1
+    @loop.end1
         %t7 =w loadsw %x
         ret %t7
     }
@@ -2448,15 +2454,17 @@ func f(a: bool, b: bool) {
         storeb %t0, %a
         %b =l alloc4 1
         storeb %t1, %b
-    @while.cond2
+    @loop.cond2
         %t4 =w loadub %a
-        jnz %t4, @and.rhs3, @while.end2
+        jnz %t4, @and.rhs3, @loop.end2
     @and.rhs3
         %t5 =w loadub %b
-        jnz %t5, @while.body2, @while.end2
-    @while.body2
+        jnz %t5, @loop.body2, @loop.end2
+    @loop.body2
         ret
-    @while.end2
+    @loop.step2
+        jmp @loop.cond2
+    @loop.end2
         ret
     }
     |}]

@@ -1,0 +1,8 @@
+func main() i32 {
+  var i: i32 = 0
+  while i < 100 {
+    if i == 6 { break }
+    i += 1
+  }
+  return i
+}
