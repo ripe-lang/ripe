@@ -88,6 +88,8 @@ let rec fold_const_num ~sizeof
         (recur l) (recur r)
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
+and foldable (te : T.texpr) : bool = is_scalar te.T.ty && te.T.ty <> TError
+
 and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
     ~(operand_ty : ty) (a : const_num) (b : const_num) : const_num =
   match (a, b) with

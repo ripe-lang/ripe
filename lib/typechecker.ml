@@ -821,8 +821,7 @@ and global_const_num (env : env) (span : Ast.span) (name : string) :
       st.busy <- true;
       let v =
         match
-          if (not (is_scalar te.T.ty)) || te.T.ty = TError then dummy_const_num
-          else fold_num env te
+          if Const_eval.foldable te then fold_num env te else dummy_const_num
         with
         | v ->
             st.busy <- false;
@@ -867,7 +866,7 @@ and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
 (* a failed fold reports and hands back a dummy so checking continues *)
 and fold_num_or (env : env) (default : Const_eval.const_num) (te : T.texpr) :
     Const_eval.const_num =
-  if (not (is_scalar te.T.ty)) || te.T.ty = TError then default
+  if not (Const_eval.foldable te) then default
   else
     try fold_num env te
     with Diagnostic.Errors ds ->
