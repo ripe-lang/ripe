@@ -1056,20 +1056,6 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
       match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
   | T.CContinue -> (
       match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
-  | T.CWhile (cond, body) ->
-      let id = fresh_id ctx in
-      let test_lbl = Printf.sprintf "@while.cond%d" id in
-      let body_lbl = Printf.sprintf "@while.body%d" id in
-      let end_lbl = Printf.sprintf "@while.end%d" id in
-      emit_label ctx test_lbl;
-      emit_branch ctx cond body_lbl end_lbl;
-      emit_label ctx body_lbl;
-      (* continue re-tests the condition and break exits *)
-      ctx.loops := (test_lbl, end_lbl) :: !(ctx.loops);
-      emit_scoped ctx body;
-      ctx.loops := List.tl !(ctx.loops);
-      emit_jmp ctx test_lbl;
-      emit_label ctx end_lbl
 
 and emit_loop ctx init cond step body =
   let id = fresh_id ctx in
