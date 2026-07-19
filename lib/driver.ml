@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type stage = Tokens | Ast | Resolve | Tast | Check | Qbe | Asm | Bin
+type stage = Tokens | Ast | Resolve | Tast | Check | Core | Qbe | Asm | Bin
 
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
@@ -60,6 +60,9 @@ let show_decls decls = String.concat "\n" (List.map Ast.show_decl decls) ^ "\n"
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"
+
+let show_cdecls cdecls =
+  String.concat "\n" (List.map Core.show_cdecl cdecls) ^ "\n"
 
 let render_all ctx diags =
   List.iter (fun d -> Printf.eprintf "%s" (Diagnostic.render ctx d)) diags
@@ -129,7 +132,9 @@ let compile ~stage ~out ~filename =
     render_all ctx warns;
     stop_at Check (fun () -> output_text "typecheck: ok\n");
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));
-    let il = Codegen.emit_qbe tdecls in
+    let cdecls = Lower.lower tdecls in
+    stop_at Core (fun () -> output_text (show_cdecls cdecls));
+    let il = Codegen.emit_qbe cdecls in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
     check_has_main tdecls;

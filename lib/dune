@@ -14,8 +14,10 @@
   resolve
   typechecker
   typed_ast
+  core
   const_eval
   const_fold
+  lower
   codegen
   runtime_src
   driver)

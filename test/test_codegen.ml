@@ -847,23 +847,27 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-    @for.cond0
+        %for.hi.0 =l alloc4 4
+        storew 3, %for.hi.0
+    @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w csltw %t1, 3
-        jnz %t2, @for.body0, @for.end0
-    @for.body0
-        %t3 =w loadsw %sum
-        %t4 =w loadsw %i
-        %t5 =w add %t3, %t4
-        storew %t5, %sum
-    @for.cont0
-        %t6 =w loadsw %i
-        %t7 =w add %t6, 1
-        storew %t7, %i
-        jmp @for.cond0
-    @for.end0
-        %t8 =w loadsw %sum
-        ret %t8
+        %t2 =w loadsw %for.hi.0
+        %t3 =w csltw %t1, %t2
+        jnz %t3, @loop.body0, @loop.end0
+    @loop.body0
+        %t4 =w loadsw %sum
+        %t5 =w loadsw %i
+        %t6 =w add %t4, %t5
+        storew %t6, %sum
+        jmp @loop.step0
+    @loop.step0
+        %t7 =w loadsw %i
+        %t8 =w add %t7, 1
+        storew %t8, %i
+        jmp @loop.cond0
+    @loop.end0
+        %t9 =w loadsw %sum
+        ret %t9
     }
     |}]
 
@@ -884,26 +888,36 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-    @for.cond0
+        %for.hi.0 =l alloc4 4
+        storew 3, %for.hi.0
+    @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w cslew %t1, 3
-        jnz %t2, @for.body0, @for.end0
-    @for.body0
-        %t3 =w loadsw %sum
-        %t4 =w loadsw %i
-        %t5 =w add %t3, %t4
-        storew %t5, %sum
-    @for.cont0
-        %t6 =w loadsw %i
-        %t7 =w ceqw %t6, 3
-        jnz %t7, @for.end0, @for.incr0
-    @for.incr0
-        %t8 =w add %t6, 1
-        storew %t8, %i
-        jmp @for.cond0
-    @for.end0
-        %t9 =w loadsw %sum
-        ret %t9
+        %t2 =w loadsw %for.hi.0
+        %t3 =w cslew %t1, %t2
+        jnz %t3, @loop.body0, @loop.end0
+    @loop.body0
+        %t4 =w loadsw %sum
+        %t5 =w loadsw %i
+        %t6 =w add %t4, %t5
+        storew %t6, %sum
+        jmp @loop.step0
+    @loop.step0
+    @if.cond7_0
+        %t8 =w loadsw %i
+        %t9 =w loadsw %for.hi.0
+        %t10 =w ceqw %t8, %t9
+        jnz %t10, @if.then7_0, @if.else7
+    @if.then7_0
+        jmp @loop.end0
+    @if.else7
+    @if.end7
+        %t11 =w loadsw %i
+        %t12 =w add %t11, 1
+        storew %t12, %i
+        jmp @loop.cond0
+    @loop.end0
+        %t13 =w loadsw %sum
+        ret %t13
     }
     |}]
 
@@ -929,30 +943,38 @@ func f() i32 {
         storew 3, %t1
         %sum =l alloc4 4
         storew 0, %sum
-        %for.i2 =l alloc8 8
-        storel 0, %for.i2
+        %for.p.0 =l alloc8 8
+        storel %a, %for.p.0
+        %for.n.1 =l alloc8 8
+        storel 3, %for.n.1
+        %for.i.2 =l alloc8 8
+        storel 0, %for.i.2
+    @loop.cond2
+        %t3 =l loadl %for.i.2
+        %t4 =l loadl %for.n.1
+        %t5 =w cultl %t3, %t4
+        jnz %t5, @loop.body2, @loop.end2
+    @loop.body2
         %x =l alloc4 4
-    @for.cond2
-        %t3 =l loadl %for.i2
-        %t4 =w csltl %t3, 3
-        jnz %t4, @for.body2, @for.end2
-    @for.body2
-        %t5 =l mul %t3, 4
-        %t6 =l add %a, %t5
-        %t7 =w loadsw %t6
-        storew %t7, %x
-        %t8 =w loadsw %sum
-        %t9 =w loadsw %x
-        %t10 =w add %t8, %t9
-        storew %t10, %sum
-    @for.cont2
-        %t11 =l loadl %for.i2
-        %t12 =l add %t11, 1
-        storel %t12, %for.i2
-        jmp @for.cond2
-    @for.end2
-        %t13 =w loadsw %sum
-        ret %t13
+        %t6 =l loadl %for.p.0
+        %t7 =l loadl %for.i.2
+        %t8 =l mul %t7, 4
+        %t9 =l add %t6, %t8
+        %t10 =w loadsw %t9
+        storew %t10, %x
+        %t11 =w loadsw %sum
+        %t12 =w loadsw %x
+        %t13 =w add %t11, %t12
+        storew %t13, %sum
+        jmp @loop.step2
+    @loop.step2
+        %t14 =l loadl %for.i.2
+        %t15 =l add %t14, 1
+        storel %t15, %for.i.2
+        jmp @loop.cond2
+    @loop.end2
+        %t16 =w loadsw %sum
+        ret %t16
     }
     |}]
 
@@ -977,39 +999,43 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-    @for.cond0
+        %for.hi.0 =l alloc4 4
+        storew 10, %for.hi.0
+    @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w csltw %t1, 10
-        jnz %t2, @for.body0, @for.end0
-    @for.body0
-    @if.cond3_0
-        %t4 =w loadsw %i
-        %t5 =w ceqw %t4, 2
-        jnz %t5, @if.then3_0, @if.else3
-    @if.then3_0
-        jmp @for.cont0
-    @if.else3
-    @if.end3
-    @if.cond6_0
-        %t7 =w loadsw %i
-        %t8 =w ceqw %t7, 5
-        jnz %t8, @if.then6_0, @if.else6
-    @if.then6_0
-        jmp @for.end0
-    @if.else6
-    @if.end6
-        %t9 =w loadsw %sum
-        %t10 =w loadsw %i
-        %t11 =w add %t9, %t10
-        storew %t11, %sum
-    @for.cont0
-        %t12 =w loadsw %i
-        %t13 =w add %t12, 1
-        storew %t13, %i
-        jmp @for.cond0
-    @for.end0
-        %t14 =w loadsw %sum
-        ret %t14
+        %t2 =w loadsw %for.hi.0
+        %t3 =w csltw %t1, %t2
+        jnz %t3, @loop.body0, @loop.end0
+    @loop.body0
+    @if.cond4_0
+        %t5 =w loadsw %i
+        %t6 =w ceqw %t5, 2
+        jnz %t6, @if.then4_0, @if.else4
+    @if.then4_0
+        jmp @loop.step0
+    @if.else4
+    @if.end4
+    @if.cond7_0
+        %t8 =w loadsw %i
+        %t9 =w ceqw %t8, 5
+        jnz %t9, @if.then7_0, @if.else7
+    @if.then7_0
+        jmp @loop.end0
+    @if.else7
+    @if.end7
+        %t10 =w loadsw %sum
+        %t11 =w loadsw %i
+        %t12 =w add %t10, %t11
+        storew %t12, %sum
+        jmp @loop.step0
+    @loop.step0
+        %t13 =w loadsw %i
+        %t14 =w add %t13, 1
+        storew %t14, %i
+        jmp @loop.cond0
+    @loop.end0
+        %t15 =w loadsw %sum
+        ret %t15
     }
     |}]
 
@@ -1263,33 +1289,43 @@ func sum(xs: []i32) i32 {
         blit %t0, %xs, 16
         %t =l alloc4 4
         storew 0, %t
-        %t2 =l loadl %xs
-        %t3 =l add %xs, 8
+        %for.it.0 =l alloc8 16
+        blit %xs, %for.it.0, 16
+        %for.p.1 =l alloc8 8
+        %t2 =l loadl %for.it.0
+        storel %t2, %for.p.1
+        %for.n.2 =l alloc8 8
+        %t3 =l add %for.it.0, 8
         %t4 =l loadl %t3
-        %for.i1 =l alloc8 8
-        storel 0, %for.i1
+        storel %t4, %for.n.2
+        %for.i.3 =l alloc8 8
+        storel 0, %for.i.3
+    @loop.cond1
+        %t5 =l loadl %for.i.3
+        %t6 =l loadl %for.n.2
+        %t7 =w cultl %t5, %t6
+        jnz %t7, @loop.body1, @loop.end1
+    @loop.body1
         %x =l alloc4 4
-    @for.cond1
-        %t5 =l loadl %for.i1
-        %t6 =w csltl %t5, %t4
-        jnz %t6, @for.body1, @for.end1
-    @for.body1
-        %t7 =l mul %t5, 4
-        %t8 =l add %t2, %t7
-        %t9 =w loadsw %t8
-        storew %t9, %x
-        %t10 =w loadsw %t
-        %t11 =w loadsw %x
-        %t12 =w add %t10, %t11
-        storew %t12, %t
-    @for.cont1
-        %t13 =l loadl %for.i1
-        %t14 =l add %t13, 1
-        storel %t14, %for.i1
-        jmp @for.cond1
-    @for.end1
-        %t15 =w loadsw %t
-        ret %t15
+        %t8 =l loadl %for.p.1
+        %t9 =l loadl %for.i.3
+        %t10 =l mul %t9, 4
+        %t11 =l add %t8, %t10
+        %t12 =w loadsw %t11
+        storew %t12, %x
+        %t13 =w loadsw %t
+        %t14 =w loadsw %x
+        %t15 =w add %t13, %t14
+        storew %t15, %t
+        jmp @loop.step1
+    @loop.step1
+        %t16 =l loadl %for.i.3
+        %t17 =l add %t16, 1
+        storel %t17, %for.i.3
+        jmp @loop.cond1
+    @loop.end1
+        %t18 =w loadsw %t
+        ret %t18
     }
     |}]
 
@@ -1485,38 +1521,46 @@ func f() i32 {
         storew 4, %t2
         %s =l alloc4 4
         storew 0, %s
-        %for.i3 =l alloc8 8
-        storel 0, %for.i3
+        %for.p.0 =l alloc8 8
+        storel %m, %for.p.0
+        %for.n.1 =l alloc8 8
+        storel 2, %for.n.1
+        %for.i.2 =l alloc8 8
+        storel 0, %for.i.2
+    @loop.cond3
+        %t4 =l loadl %for.i.2
+        %t5 =l loadl %for.n.1
+        %t6 =w cultl %t4, %t5
+        jnz %t6, @loop.body3, @loop.end3
+    @loop.body3
         %row =l alloc4 8
-    @for.cond3
-        %t4 =l loadl %for.i3
-        %t5 =w csltl %t4, 2
-        jnz %t5, @for.body3, @for.end3
-    @for.body3
-        %t6 =l mul %t4, 8
-        %t7 =l add %m, %t6
-        blit %t7, %row, 8
-        %t8 =w loadsw %s
-        %t9 =l extsw 0
-        %t10 =w cugel %t9, 2
-        jnz %t10, @bounds.fail.11, @bounds.ok.11
-    @bounds.fail.11
-        call $ripe_panic_bounds(l %t9, l 2)
+        %t7 =l loadl %for.p.0
+        %t8 =l loadl %for.i.2
+        %t9 =l mul %t8, 8
+        %t10 =l add %t7, %t9
+        blit %t10, %row, 8
+        %t11 =w loadsw %s
+        %t12 =l extsw 0
+        %t13 =w cugel %t12, 2
+        jnz %t13, @bounds.fail.14, @bounds.ok.14
+    @bounds.fail.14
+        call $ripe_panic_bounds(l %t12, l 2)
         hlt
-    @bounds.ok.11
-        %t12 =l mul %t9, 4
-        %t13 =l add %row, %t12
-        %t14 =w loadsw %t13
-        %t15 =w add %t8, %t14
-        storew %t15, %s
-    @for.cont3
-        %t16 =l loadl %for.i3
-        %t17 =l add %t16, 1
-        storel %t17, %for.i3
-        jmp @for.cond3
-    @for.end3
-        %t18 =w loadsw %s
-        ret %t18
+    @bounds.ok.14
+        %t15 =l mul %t12, 4
+        %t16 =l add %row, %t15
+        %t17 =w loadsw %t16
+        %t18 =w add %t11, %t17
+        storew %t18, %s
+        jmp @loop.step3
+    @loop.step3
+        %t19 =l loadl %for.i.2
+        %t20 =l add %t19, 1
+        storel %t20, %for.i.2
+        jmp @loop.cond3
+    @loop.end3
+        %t21 =w loadsw %s
+        ret %t21
     }
     |}]
 
@@ -1565,35 +1609,43 @@ func f() i32 {
         %t1 =l alloc4 12
         %s =l alloc4 4
         storew 0, %s
+        %for.p.0 =l alloc8 8
         storew 1, %t1
         %t2 =l add %t1, 4
         storew 2, %t2
         %t3 =l add %t1, 8
         storew 3, %t3
-        %for.i0 =l alloc8 8
-        storel 0, %for.i0
+        storel %t1, %for.p.0
+        %for.n.1 =l alloc8 8
+        storel 3, %for.n.1
+        %for.i.2 =l alloc8 8
+        storel 0, %for.i.2
+    @loop.cond0
+        %t4 =l loadl %for.i.2
+        %t5 =l loadl %for.n.1
+        %t6 =w cultl %t4, %t5
+        jnz %t6, @loop.body0, @loop.end0
+    @loop.body0
         %x =l alloc4 4
-    @for.cond0
-        %t4 =l loadl %for.i0
-        %t5 =w csltl %t4, 3
-        jnz %t5, @for.body0, @for.end0
-    @for.body0
-        %t6 =l mul %t4, 4
-        %t7 =l add %t1, %t6
-        %t8 =w loadsw %t7
-        storew %t8, %x
-        %t9 =w loadsw %s
-        %t10 =w loadsw %x
-        %t11 =w add %t9, %t10
-        storew %t11, %s
-    @for.cont0
-        %t12 =l loadl %for.i0
-        %t13 =l add %t12, 1
-        storel %t13, %for.i0
-        jmp @for.cond0
-    @for.end0
-        %t14 =w loadsw %s
-        ret %t14
+        %t7 =l loadl %for.p.0
+        %t8 =l loadl %for.i.2
+        %t9 =l mul %t8, 4
+        %t10 =l add %t7, %t9
+        %t11 =w loadsw %t10
+        storew %t11, %x
+        %t12 =w loadsw %s
+        %t13 =w loadsw %x
+        %t14 =w add %t12, %t13
+        storew %t14, %s
+        jmp @loop.step0
+    @loop.step0
+        %t15 =l loadl %for.i.2
+        %t16 =l add %t15, 1
+        storel %t16, %for.i.2
+        jmp @loop.cond0
+    @loop.end0
+        %t17 =w loadsw %s
+        ret %t17
     }
     |}]
 
@@ -2037,22 +2089,26 @@ func f() i32 {
         storew 99, %i
         %i.2 =l alloc4 4
         storew 0, %i.2
-    @for.cond0
+        %for.hi.0 =l alloc4 4
+        storew 3, %for.hi.0
+    @loop.cond0
         %t1 =w loadsw %i.2
-        %t2 =w csltw %t1, 3
-        jnz %t2, @for.body0, @for.end0
-    @for.body0
+        %t2 =w loadsw %for.hi.0
+        %t3 =w csltw %t1, %t2
+        jnz %t3, @loop.body0, @loop.end0
+    @loop.body0
         %y =l alloc4 4
-        %t3 =w loadsw %i.2
-        storew %t3, %y
-    @for.cont0
         %t4 =w loadsw %i.2
-        %t5 =w add %t4, 1
-        storew %t5, %i.2
-        jmp @for.cond0
-    @for.end0
-        %t6 =w loadsw %i
-        ret %t6
+        storew %t4, %y
+        jmp @loop.step0
+    @loop.step0
+        %t5 =w loadsw %i.2
+        %t6 =w add %t5, 1
+        storew %t6, %i.2
+        jmp @loop.cond0
+    @loop.end0
+        %t7 =w loadsw %i
+        ret %t7
     }
     |}]
 
