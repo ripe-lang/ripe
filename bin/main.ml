@@ -24,6 +24,9 @@ let stage_help =
          Printf.sprintf "                          %-6s  %s" name desc)
        emit_stages)
 
+let backends = [ ("qbe", Driver.Backend.Qbe) ]
+let backend_names = String.concat ", " (List.map fst backends)
+
 let usage_msg =
   Printf.sprintf
     "The Ripe compiler\n\n\
@@ -32,26 +35,32 @@ let usage_msg =
     \  -e, --emit <STAGE>    Stop compilation after <STAGE> and print its \
      output:\n\
      %s\n\
+    \  -b, --backend <NAME>  Select the code generator: %s (default qbe)\n\
     \  -o, --output <FILE>   Write the compiler output to <FILE>\n\
     \  -h, --help            Display this list of options\n\n\
      Examples:\n\
     \  ripec source.rp\n\
     \  ripec --emit tast source.rp\n\
     \  ripec -o output.s source.rp"
-    stage_help
+    stage_help backend_names
 
 let emit_conv =
   Arg_parser.enum ~default_value_name:"STAGE"
     (List.map (fun (name, stage, _) -> (name, stage)) emit_stages)
 
+let backend_conv = Arg_parser.enum ~default_value_name:"NAME" backends
+
 let command =
   let open Arg_parser in
   let+ stage = named_opt [ "e"; "emit" ] emit_conv
+  and+ backend =
+    named_with_default [ "b"; "backend" ] backend_conv
+      ~default:Driver.Backend.Qbe
   and+ out =
     named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
-  Driver.compile ~stage ~out ~filename
+  Driver.compile ~stage ~backend ~out ~filename
 
 let is_help arg = arg = "-h" || arg = "--help"
 

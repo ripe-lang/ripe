@@ -2,6 +2,10 @@
 
 type stage = Tokens | Ast | Resolve | Tast | Check | Core | Qbe | Asm | Bin
 
+module Backend = struct
+  type t = Qbe
+end
+
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 let die msg =
@@ -102,7 +106,7 @@ let load filename =
   in
   (read, lexbuf, ctx)
 
-let compile ~stage ~out ~filename =
+let compile ~stage ~backend ~out ~filename =
   (* write to -o if set, else stdout *)
   let output_text s =
     if out = "" then print_string s
@@ -134,7 +138,7 @@ let compile ~stage ~out ~filename =
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));
     let cdecls = Lower.lower tdecls in
     stop_at Core (fun () -> output_text (show_cdecls cdecls));
-    let il = Codegen_qbe.emit_qbe cdecls in
+    let il = match backend with Backend.Qbe -> Codegen_qbe.emit_qbe cdecls in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
     check_has_main tdecls;
