@@ -29,6 +29,29 @@ let assign (lhs : D.cexpr) rhs =
 
 let if_then cond body = mkstmt (D.CIf ([ (cond, body) ], []))
 
+(* a for-loop continue still has to run the step, so drop a copy in front of each one *)
+(* nested loops aren't touched here since their continues belong to them *)
+let rec paste_step step (stmts : D.cstmt list) : D.cstmt list =
+  let on_stmt (st : D.cstmt) =
+    match st.D.tsdesc with
+    | D.CContinue -> { st with D.tsdesc = D.CBlock (step @ [ st ]) }
+    | D.CIf (branches, else_body) ->
+        let branches =
+          List.map (fun (c, body) -> (c, paste_step step body)) branches
+        in
+        { st with D.tsdesc = D.CIf (branches, paste_step step else_body) }
+    | D.CBlock body -> { st with D.tsdesc = D.CBlock (paste_step step body) }
+    | _ -> st
+  in
+  List.map on_stmt stmts
+
+let loop ~init ~cond ~step ~body : D.cstmt_desc =
+  let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
+  let guard = if_then not_cond [ mkstmt D.CBreak ] in
+  let body = if step = [] then body else paste_step step body @ step in
+  let bare = D.CLoop (guard :: body) in
+  match init with [] -> bare | _ -> D.CBlock (init @ [ mkstmt bare ])
+
 let rec lower_expr (te : S.texpr) : D.cexpr =
   let ty = te.S.ty and span = te.S.span in
   let desc =
@@ -111,7 +134,7 @@ let lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt_desc =
       ]
     else [ incr ]
   in
-  D.CLoop { init; cond; step; body }
+  loop ~init ~cond ~step ~body
 
 let lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt_desc =
   let usize = Types.TInt Types.Usize in
@@ -140,7 +163,7 @@ let lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt_desc =
   let elem = D.mk elem_ty (D.CIndex (ident ptr_ty psym, ivar)) in
   let incr = assign ivar (binop usize Ast.Add ivar (int usize 1L)) in
   let body = bind sym elem_ty elem :: body in
-  D.CLoop { init; cond; step = [ incr ]; body }
+  loop ~init ~cond ~step:[ incr ] ~body
 
 let lower_for sym elem_ty iter body : D.cstmt_desc =
   match iter.S.desc with
@@ -163,13 +186,7 @@ let rec lower_stmt (st : S.tstmt) : D.cstmt =
           ( List.map (fun (c, body) -> (lower_expr c, lower_stmts body)) branches,
             lower_stmts else_body )
     | S.TWhile (cond, body) ->
-        D.CLoop
-          {
-            init = [];
-            cond = lower_expr cond;
-            step = [];
-            body = lower_stmts body;
-          }
+        loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_stmts body)
     | S.TFor (sym, elem_ty, iter, body) ->
         lower_for sym elem_ty iter (lower_stmts body)
     | S.TBreak -> D.CBreak

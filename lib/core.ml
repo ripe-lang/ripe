@@ -37,13 +37,7 @@ type cstmt_desc =
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
   | CIf of (cexpr * cstmt list) list * cstmt list
-  (* FIXME(2fb0): could bottom out at a bare loop {} someday *)
-  | CLoop of {
-      init : cstmt list;
-      cond : cexpr;
-      step : cstmt list;
-      body : cstmt list;
-    }
+  | CLoop of cstmt list
   | CBreak
   | CContinue
   | CExpr of cexpr
