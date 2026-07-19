@@ -5,9 +5,9 @@
   "depends": [],
   "id": "7e23",
   "priority": "low",
-  "source": "lib/codegen.ml",
+  "source": "lib/codegen_qbe.ml",
   "status": "open",
   "tags": [],
   "title": "I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1.",
-  "updated_at": "2026-07-12 08:23:02.154740"
+  "updated_at": "2026-07-19 08:50:33.073458"
 }
