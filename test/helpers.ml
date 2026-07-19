@@ -94,7 +94,7 @@ let run_codegen src =
     let uses = Ripe.Resolve.resolve decls in
     let tdecls, _ = Ripe.Typechecker.typecheck uses decls in
     let cdecls = Ripe.Lower.lower tdecls in
-    let il = Ripe.Codegen.emit_qbe cdecls in
+    let il = Ripe.Codegen_qbe.emit_qbe cdecls in
     print_string il;
     check_qbe il
   with Ripe.Diagnostic.Errors diags ->

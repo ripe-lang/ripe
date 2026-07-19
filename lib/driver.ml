@@ -134,7 +134,7 @@ let compile ~stage ~out ~filename =
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));
     let cdecls = Lower.lower tdecls in
     stop_at Core (fun () -> output_text (show_cdecls cdecls));
-    let il = Codegen.emit_qbe cdecls in
+    let il = Codegen_qbe.emit_qbe cdecls in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
     check_has_main tdecls;
