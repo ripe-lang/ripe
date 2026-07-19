@@ -31,10 +31,10 @@ let run ~(emit : Diagnostic.t -> unit)
     { te with T.desc }
   in
 
-  (* a failed fold reports and hands back a dummy so checking continues *)
+  (* a failed fold reports and hands back a default so checking continues *)
   let fold_num_or (default : Const_eval.const_num) (te : T.texpr) :
       Const_eval.const_num =
-    if (not (is_scalar te.T.ty)) || te.T.ty = TError then default
+    if not (Const_eval.foldable te) then default
     else
       try fold_num te
       with Diagnostic.Errors ds ->
@@ -100,7 +100,7 @@ let run ~(emit : Diagnostic.t -> unit)
   let fold_scalar (te : T.texpr) : T.texpr =
     match te.T.desc with
     | T.TInt _ | T.TFloat _ | T.TBool _ -> te
-    | _ when is_scalar te.T.ty && te.T.ty <> TError -> (
+    | _ when Const_eval.foldable te -> (
         try literal_of te (fold_num te)
         with Diagnostic.Errors ds ->
           List.iter emit ds;
