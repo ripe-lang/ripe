@@ -3,7 +3,7 @@
 (* https://c9x.me/compile/doc/il.html *)
 open Types
 open Const_eval
-module T = Typed_ast
+module T = Core
 
 (* TODO(7e23): I need to think about the layout/offset/padding of Structs because C++ treats empty structs as size 1. *)
 
@@ -115,7 +115,7 @@ type ctx = {
   terminated : bool ref;
   entry : Buffer.t ref;
   in_main : bool ref;
-  inline_funcs : (string, T.tfunc_def) Hashtbl.t;
+  inline_funcs : (string, T.cfunc_def) Hashtbl.t;
   inline_stack : inline_frame list ref; (* the pastes we are currently inside *)
 }
 
@@ -224,9 +224,9 @@ let field_offset structs fields fname =
   in
   go 0 fields
 
-let lvalue_sym (e : T.texpr) : Symbol.t =
+let lvalue_sym (e : T.cexpr) : Symbol.t =
   match e.T.desc with
-  | T.TIdent s -> s
+  | T.CIdent s -> s
   | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
 (* bytes between consecutive elements (element size rounded up to its alignment) *)
@@ -248,37 +248,37 @@ let array_elem_ty ~span t =
   | TArray (el, _) -> el
   | _ -> Error.ice ~span "expected an array type"
 
-let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
+let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
   let t = e.T.ty in
   match e.T.desc with
-  | T.TInt n -> Int64.to_string n
-  | T.TFloat f -> float_lit t f
-  | T.TBool b -> if b then "1" else "0"
-  | T.TNull -> "0"
-  | T.TChar c -> string_of_int (Char.code c)
+  | T.CInt n -> Int64.to_string n
+  | T.CFloat f -> float_lit t f
+  | T.CBool b -> if b then "1" else "0"
+  | T.CNull -> "0"
+  | T.CChar c -> string_of_int (Char.code c)
   (* aggregate: the slot itself is the value so yield its address *)
-  | T.TIdent s when is_aggregate t -> sym_addr ctx s
-  | T.TIdent s ->
+  | T.CIdent s when is_aggregate t -> sym_addr ctx s
+  | T.CIdent s ->
       if Symbol.is_func s.kind then "$" ^ s.name
       else
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty t) (qbe_load t)
           (sym_addr ctx s);
         tmp
-  | T.TCStr s -> intern_string ctx s
-  | T.TCall ({ desc = T.TIdent sym; _ }, args, _)
+  | T.CCStr s -> intern_string ctx s
+  | T.CCall ({ desc = T.CIdent sym; _ }, args, _)
     when Symbol.is_func sym.kind
          && Hashtbl.mem ctx.inline_funcs sym.name
          (* a call to itself would paste forever so the recursive case stays a normal call *)
          && not (List.exists (fun f -> f.name = sym.name) !(ctx.inline_stack))
     ->
       emit_inline_call ctx (Hashtbl.find ctx.inline_funcs sym.name) args
-  | T.TCall (callee, args, fixed_count) ->
+  | T.CCall (callee, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
         List.rev
           (List.rev_map
-             (fun (a : T.texpr) ->
+             (fun (a : T.cexpr) ->
                Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
              args)
       in
@@ -295,7 +295,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       (* a plain function name calls direct otherwise the callee holds a fn ptr *)
       let callee =
         match callee.T.desc with
-        | T.TIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
+        | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
         | _ -> emit_expr ctx callee
       in
       if ret_ty = TVoid then (
@@ -306,25 +306,25 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         emit ctx "    %s =%s call %s(%s)\n" tmp (qbe_ty ret_ty) callee
           (String.concat ", " arg_strs);
         tmp
-  | T.TBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.TBinOp
+  | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
+  | T.CBinOp
       ( (( Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign
          | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign | Ast.BitXorAssign
          | Ast.LshiftAssign | Ast.RshiftAssign ) as op),
         l,
         r ) ->
       emit_compound_assign ctx op l r
-  | T.TBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
-  | T.TBinOp (op, l, r) -> emit_binop ctx op l r t
-  | T.TUnOp (op, e) -> emit_unop ctx op e t
-  | T.TCast e ->
+  | T.CBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
+  | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
+  | T.CUnOp (op, e) -> emit_unop ctx op e t
+  | T.CCast e ->
       let v = emit_expr ctx e in
       emit_cast ctx v e.T.ty t
-  | T.TRange _ | T.TRangeInclusive _ ->
+  | T.CRange _ | T.CRangeInclusive _ ->
       raise
         (Diagnostic.Errors [ Error.unsupported e.T.span "range expressions" ])
-  | T.TSizeOf sz -> string_of_int (ty_size ctx.structs sz)
-  | T.TFieldAccess (e, field) ->
+  | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
+  | T.CFieldAccess (e, field) ->
       let ft = t in
       let ptr = emit_field_addr ctx e field in
       (* aggregate field: its address is the value like TIndex below *)
@@ -333,7 +333,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
         tmp
-  | T.TIndex (base, idx) ->
+  | T.CIndex (base, idx) ->
       let elem = t in
       let addr = emit_index_addr ctx base idx elem in
       (* nested array: the element is itself an aggregate so yield its address *)
@@ -342,7 +342,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty elem) (qbe_load elem) addr;
         tmp
-  | T.TLen e -> (
+  | T.CLen e -> (
       match resolve_ty e.T.ty with
       | TArray (_, n) -> string_of_int n
       | TSlice _ ->
@@ -351,7 +351,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       | t ->
           Error.ice ~span:e.T.span
             (Printf.sprintf "TLen on non-array type: %s" (show_ty t)))
-  | T.TDataPtr e -> (
+  | T.CDataPtr e -> (
       match resolve_ty e.T.ty with
       | TSlice _ ->
           let addr = emit_expr ctx e in
@@ -361,7 +361,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       | t ->
           Error.ice ~span:e.T.span
             (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t)))
-  | T.TToSlice arr ->
+  | T.CToSlice arr ->
       let arr_addr = emit_expr ctx arr in
       let n =
         match resolve_ty arr.T.ty with
@@ -378,7 +378,7 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit ctx "    %s =l add %s, 8\n" lenp slot;
       emit ctx "    storel %d, %s\n" n lenp;
       slot
-  | T.TSliceExpr (base, lo, hi) ->
+  | T.CSliceExpr (base, lo, hi) ->
       let elem =
         match t with
         | TSlice e -> e
@@ -409,25 +409,25 @@ let rec emit_expr (ctx : ctx) (e : T.texpr) : string =
       emit ctx "    %s =l add %s, 8\n" lenp slot;
       emit ctx "    storel %s, %s\n" len lenp;
       slot
-  | T.TArrayLit elems ->
+  | T.CArrayLit elems ->
       (* as a value: materialize into a fresh stack slot and yield its address *)
       let elem = array_elem_ty ~span:e.T.span t in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_array_lit_into ctx slot elems elem;
       slot
-  | T.TZero when is_aggregate t ->
+  | T.CZero when is_aggregate t ->
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_zero_into ctx slot t;
       slot
-  | T.TZero -> "0"
-  | T.TUndef when is_aggregate t ->
+  | T.CZero -> "0"
+  | T.CUndef when is_aggregate t ->
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       slot
-  | T.TUndef -> "0"
-  | T.TStructLit (sname, tfields) ->
+  | T.CUndef -> "0"
+  | T.CStructLit (sname, tfields) ->
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_struct_lit_into ctx slot sname tfields;
@@ -569,14 +569,14 @@ and emit_negshift_check ctx count count_qt =
       emit ctx "    call $ripe_panic_shift()\n")
 
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
-and emit_lvalue_addr ctx (e : T.texpr) =
+and emit_lvalue_addr ctx (e : T.cexpr) =
   match e.T.desc with
   (* &funcname is already the function pointer. *)
-  | T.TIdent s when Symbol.is_func s.kind -> "$" ^ s.name
-  | T.TIdent s -> sym_addr ctx s
-  | T.TIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
-  | T.TFieldAccess (base, field) -> emit_field_addr ctx base field
-  | T.TUnOp (Ast.Deref, inner) -> emit_expr ctx inner
+  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.name
+  | T.CIdent s -> sym_addr ctx s
+  | T.CIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
+  | T.CFieldAccess (base, field) -> emit_field_addr ctx base field
+  | T.CUnOp (Ast.Deref, inner) -> emit_expr ctx inner
   | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
 (* address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
@@ -632,7 +632,7 @@ and emit_array_lit_into ctx base elems elem =
       let addr = offset_addr ctx base (i * strd) in
       match el.T.desc with
       (* nested literal (multi-dimensional array): recurse into the sub-array *)
-      | T.TArrayLit sub ->
+      | T.CArrayLit sub ->
           let subelem = array_elem_ty ~span:el.T.span el.T.ty in
           emit_array_lit_into ctx addr sub subelem
       | _ when is_aggregate elem ->
@@ -647,18 +647,18 @@ and emit_array_lit_into ctx base elems elem =
 and emit_struct_lit_into ctx base sname tfields =
   let fields = Hashtbl.find ctx.structs sname in
   List.iter
-    (fun (fname, (fe : T.texpr)) ->
+    (fun (fname, (fe : T.cexpr)) ->
       let ft = fe.T.ty in
       let offset = field_offset ctx.structs fields fname in
       let addr = offset_addr ctx base offset in
       match fe.T.desc with
-      | T.TStructLit (sub, subfields) ->
+      | T.CStructLit (sub, subfields) ->
           emit_struct_lit_into ctx addr sub subfields
-      | T.TArrayLit sub ->
+      | T.CArrayLit sub ->
           let subelem = array_elem_ty ~span:fe.T.span ft in
           emit_array_lit_into ctx addr sub subelem
-      | T.TZero -> emit_zero_into ctx addr ft
-      | T.TUndef -> ()
+      | T.CZero -> emit_zero_into ctx addr ft
+      | T.CUndef -> ()
       | _ when is_aggregate ft ->
           let src = emit_expr ctx fe in
           emit_aggregate_copy ctx addr src (ty_size ctx.structs ft)
@@ -670,15 +670,15 @@ and emit_struct_lit_into ctx base sname tfields =
 (* split from emit_binop so the lhs is not re-evaluated into dead loads *)
 and emit_assign ctx l r _t =
   match l.T.desc with
-  | T.TIndex (base, idx) ->
+  | T.CIndex (base, idx) ->
       let elem = l.T.ty in
       let addr = emit_index_addr ctx base idx elem in
       emit_store_into ctx elem addr r
-  | T.TIdent s -> emit_store_into ctx l.T.ty (sym_addr ctx s) r
-  | T.TFieldAccess (base, field) ->
+  | T.CIdent s -> emit_store_into ctx l.T.ty (sym_addr ctx s) r
+  | T.CFieldAccess (base, field) ->
       let addr = emit_field_addr ctx base field in
       emit_store_into ctx l.T.ty addr r
-  | T.TUnOp (Ast.Deref, inner) ->
+  | T.CUnOp (Ast.Deref, inner) ->
       let addr = emit_expr ctx inner in
       emit_null_check ctx addr;
       emit_store_into ctx l.T.ty addr r
@@ -689,9 +689,9 @@ and emit_assign ctx l r _t =
 and emit_store_into ctx ty addr r =
   if is_aggregate ty then begin
     (match (r.T.desc, ty) with
-    | T.TArrayLit elems, TArray (elem, _) ->
+    | T.CArrayLit elems, TArray (elem, _) ->
         emit_array_lit_into ctx addr elems elem
-    | T.TStructLit (sname, tfields), _ ->
+    | T.CStructLit (sname, tfields), _ ->
         emit_struct_lit_into ctx addr sname tfields
     | _ ->
         let src = emit_expr ctx r in
@@ -721,14 +721,14 @@ and base_binop_of op =
 and emit_compound_assign ctx op l r =
   match l.T.desc with
   (* arr[i] += rhs: load through the element address, apply, store back *)
-  | T.TIndex (base, idx) ->
+  | T.CIndex (base, idx) ->
       let elem = l.T.ty in
       let addr = emit_index_addr ctx base idx elem in
       emit_compound_via_addr ctx op elem addr r
-  | T.TFieldAccess (base, field) ->
+  | T.CFieldAccess (base, field) ->
       let addr = emit_field_addr ctx base field in
       emit_compound_via_addr ctx op l.T.ty addr r
-  | T.TUnOp (Ast.Deref, inner) ->
+  | T.CUnOp (Ast.Deref, inner) ->
       let addr = emit_expr ctx inner in
       emit_null_check ctx addr;
       emit_compound_via_addr ctx op l.T.ty addr r
@@ -757,17 +757,17 @@ and emit_compound_via_addr ctx op elem addr r =
 (* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
-  | T.TBinOp (Ast.And, l, r) ->
+  | T.CBinOp (Ast.And, l, r) ->
       let mid = Printf.sprintf "@and.rhs%d" (fresh_id ctx) in
       emit_branch ctx l mid false_lbl;
       emit_label ctx mid;
       emit_branch ctx r true_lbl false_lbl
-  | T.TBinOp (Ast.Or, l, r) ->
+  | T.CBinOp (Ast.Or, l, r) ->
       let mid = Printf.sprintf "@or.rhs%d" (fresh_id ctx) in
       emit_branch ctx l true_lbl mid;
       emit_label ctx mid;
       emit_branch ctx r true_lbl false_lbl
-  | T.TUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
+  | T.CUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
   | _ ->
       let v = emit_expr ctx e in
       emit_jnz ctx v true_lbl false_lbl
@@ -796,7 +796,7 @@ and emit_binop ctx op l r t =
   let lty = l.T.ty in
   match op with
   | Ast.Lshift | Ast.Rshift ->
-      let const_count = match r.T.desc with T.TInt n -> Some n | _ -> None in
+      let const_count = match r.T.desc with T.CInt n -> Some n | _ -> None in
       emit_shift ctx op ?const_count ~ty:t ~count_ty:r.T.ty
         ~unsigned:(is_unsigned lty) lv rv
   | _ ->
@@ -979,19 +979,19 @@ and emit_cast ctx v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
+and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   match s.T.tsdesc with
-  | T.TBinding (_kind, s, t, e) -> (
+  | T.CBinding (_kind, s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
       emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       match e.T.desc with
-      | T.TZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
-      | T.TUndef -> ()
-      | T.TArrayLit elems ->
+      | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
+      | T.CUndef -> ()
+      | T.CArrayLit elems ->
           let elem = array_elem_ty ~span:e.T.span e.T.ty in
           emit_array_lit_into ctx ("%" ^ slot) elems elem
-      | T.TStructLit (sname, tfields) ->
+      | T.CStructLit (sname, tfields) ->
           emit_struct_lit_into ctx ("%" ^ slot) sname tfields
       | _ when is_aggregate t ->
           let src = emit_expr ctx e in
@@ -1000,7 +1000,7 @@ and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           let v = emit_expr ctx e in
           emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot)
   (* a return here should leave the pasted body, not the function it was pasted into *)
-  | T.TReturn e_opt when !(ctx.inline_stack) <> [] ->
+  | T.CReturn e_opt when !(ctx.inline_stack) <> [] ->
       let frame = List.hd !(ctx.inline_stack) in
       (match (e_opt, frame.res_slot) with
       | Some e, Some slot ->
@@ -1010,21 +1010,21 @@ and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
       | Some e, None -> ignore (emit_expr ctx e)
       | None, _ -> ());
       emit_jmp ctx frame.end_lbl
-  | T.TReturn None ->
+  | T.CReturn None ->
       (* a bare return in main exits with 0 like falling off the end *)
       if not !(ctx.terminated) then
         if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
       ctx.terminated := true
-  | T.TReturn (Some e) ->
+  | T.CReturn (Some e) ->
       let v = emit_expr ctx e in
       if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
       ctx.terminated := true
   (* TODO(d6df): emit_expr in statement position emits dead loads for idents *)
-  | T.TExpr e ->
+  | T.CExpr e ->
       let _ = emit_expr ctx e in
       ()
-  | T.TFor (name, elem_ty, iter, body) -> emit_for ctx name elem_ty iter body
-  | T.TIf (branches, else_body) -> (
+  | T.CFor (name, elem_ty, iter, body) -> emit_for ctx name elem_ty iter body
+  | T.CIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
       let cond_lbls =
@@ -1052,14 +1052,14 @@ and emit_stmt (ctx : ctx) (s : T.tstmt) : unit =
           emit_label ctx else_lbl;
           emit_scoped ctx else_body;
           emit_label ctx end_lbl)
-  | T.TBlock stmts ->
+  | T.CBlock stmts ->
       (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
       emit_scoped ctx stmts
-  | T.TBreak -> (
+  | T.CBreak -> (
       match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
-  | T.TContinue -> (
+  | T.CContinue -> (
       match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
-  | T.TWhile (cond, body) ->
+  | T.CWhile (cond, body) ->
       let id = fresh_id ctx in
       let test_lbl = Printf.sprintf "@while.cond%d" id in
       let body_lbl = Printf.sprintf "@while.body%d" id in
@@ -1090,9 +1090,9 @@ and emit_for ctx name elem_ty iter body =
     ctx.loops := List.tl !(ctx.loops)
   in
   match iter.T.desc with
-  | T.TRange (lo, hi) | T.TRangeInclusive (lo, hi) ->
+  | T.CRange (lo, hi) | T.CRangeInclusive (lo, hi) ->
       let inclusive =
-        match iter.T.desc with T.TRangeInclusive _ -> true | _ -> false
+        match iter.T.desc with T.CRangeInclusive _ -> true | _ -> false
       in
       (* loop var lives in a stack slot so the body can read and increment it *)
       emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx elem_ty);
@@ -1176,13 +1176,13 @@ and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
 and emit_scoped ctx stmts = emit_stmts ctx stmts
 
 (* the callee body takes the place of the call and its returns write into a slot the join block reads back *)
-and emit_inline_call ctx (tfd : T.tfunc_def) (args : T.texpr list) : string =
+and emit_inline_call ctx (tfd : T.cfunc_def) (args : T.cexpr list) : string =
   let ret_ty = tfd.ret_ty in
   let id = fresh_id ctx in
   let end_lbl = Printf.sprintf "@inline.end%d" id in
   (* the arguments still belong to the caller so they get read before any param slot exists *)
   let arg_vals =
-    List.map (fun (a : T.texpr) -> (emit_expr ctx a, a.T.ty)) args
+    List.map (fun (a : T.cexpr) -> (emit_expr ctx a, a.T.ty)) args
   in
   let res_slot =
     if ret_ty = TVoid then None
@@ -1216,7 +1216,7 @@ and emit_inline_call ctx (tfd : T.tfunc_def) (args : T.texpr list) : string =
       emit ctx "    %s =%s %s %s\n" r (qbe_ty ret_ty) (qbe_load ret_ty) slot;
       r
 
-let emit_func (ctx : ctx) (tfd : T.tfunc_def) =
+let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   (* temporaries and locals are function scoped *)
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
@@ -1312,35 +1312,35 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
 (* the typechecker already folded everything so this only formats values *)
-let fold_const_value (ctx : ctx) (te : T.texpr) : string =
+let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
   match te.T.desc with
-  | T.TInt n -> Int64.to_string n
-  | T.TBool b -> if b then "1" else "0"
-  | T.TNull -> "0"
-  | T.TFloat f -> format_const_num te.T.ty (Nf f)
-  | T.TIdent s when Symbol.is_func s.kind -> "$" ^ s.name
-  | T.TCStr s -> intern_string ctx s
-  | T.TUnOp (Ast.AddressOf, { desc = T.TIdent s; _ })
+  | T.CInt n -> Int64.to_string n
+  | T.CBool b -> if b then "1" else "0"
+  | T.CNull -> "0"
+  | T.CFloat f -> format_const_num te.T.ty (Nf f)
+  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.name
+  | T.CCStr s -> intern_string ctx s
+  | T.CUnOp (Ast.AddressOf, { desc = T.CIdent s; _ })
     when Symbol.is_global s.kind ->
       "$" ^ s.name
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
 (* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
-let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
+let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
   match te.T.desc with
-  | T.TArrayLit elems ->
+  | T.CArrayLit elems ->
       String.concat ", " (List.map (const_array_fields ctx) elems)
-  | T.TStructLit (_, tfields) ->
+  | T.CStructLit (_, tfields) ->
       let off = ref 0 in
       let parts = ref [] in
       List.iter
-        (fun (_, (fe : T.texpr)) ->
+        (fun (_, (fe : T.cexpr)) ->
           let ft = fe.T.ty in
           let aligned = align_to !off (ty_align ctx.structs ft) in
           if aligned > !off then
             parts := Printf.sprintf "z %d" (aligned - !off) :: !parts;
           (match fe.T.desc with
-          | T.TZero ->
+          | T.CZero ->
               parts := Printf.sprintf "z %d" (ty_size ctx.structs ft) :: !parts
           | _ -> parts := const_array_fields ctx fe :: !parts);
           off := aligned + ty_size ctx.structs ft)
@@ -1351,7 +1351,7 @@ let rec const_array_fields (ctx : ctx) (te : T.texpr) : string =
       String.concat ", " (List.rev !parts)
   | _ -> Printf.sprintf "%s %s" (qbe_ext_ty te.T.ty) (fold_const_value ctx te)
 
-let emit_global_data (ctx : ctx) (gd : T.tglobal_def) =
+let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
   let align = ty_align ctx.structs gd.ty in
   match gd.init with
   | None ->
@@ -1380,12 +1380,12 @@ let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
     content;
   emit ctx "data %s = { b \"%s\", b 0 }\n" lbl (Buffer.contents buf)
 
-let emit_qbe (tdecls : T.tdecl list) : string =
+let emit_qbe (tdecls : T.cdecl list) : string =
   (* Collect struct layouts for offset comp *)
   let structs = Hashtbl.create 8 in
   List.iter
     (function
-      | T.TStruct (name, fields, _) -> Hashtbl.replace structs name fields
+      | T.CStruct (name, fields, _) -> Hashtbl.replace structs name fields
       | _ -> ())
     tdecls;
 
@@ -1410,9 +1410,9 @@ let emit_qbe (tdecls : T.tdecl list) : string =
 
   List.iter
     (function
-      | T.TGlobal gd -> Hashtbl.replace ctx.globals gd.name ()
+      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.name ()
       (* a variadic body cannot be pasted so those keep using an ordinary call *)
-      | T.TFunc tfd when List.mem Ast.Inline tfd.modifiers && not tfd.variadic
+      | T.CFunc tfd when List.mem Ast.Inline tfd.modifiers && not tfd.variadic
         ->
           Hashtbl.replace ctx.inline_funcs tfd.name tfd
       | _ -> ())
@@ -1421,30 +1421,31 @@ let emit_qbe (tdecls : T.tdecl list) : string =
   (* TODO(ead2): enforce pub visibility on struct fields *)
   List.iter
     (function
-      | T.TStruct (name, fields, _) -> emit_struct_type ctx name fields
+      | T.CStruct (name, fields, _) -> emit_struct_type ctx name fields
       | _ -> ())
     tdecls;
   (* new line after struct(s) for clean emit output *)
   let has_structs =
-    List.exists (function T.TStruct _ -> true | _ -> false) tdecls
+    List.exists (function T.CStruct _ -> true | _ -> false) tdecls
   in
   (* No benefit only format *)
   if has_structs then emit ctx "\n";
 
   (* globals *)
   List.iter
-    (function T.TGlobal gd -> emit_global_data ctx gd | _ -> ())
+    (function T.CGlobal gd -> emit_global_data ctx gd | _ -> ())
     tdecls;
   let has_globals =
-    List.exists (function T.TGlobal _ -> true | _ -> false) tdecls
+    List.exists (function T.CGlobal _ -> true | _ -> false) tdecls
   in
   if has_globals then emit ctx "\n";
 
   (* Function defs (externs no body)  *)
   List.iter
     (function
-      | T.TFunc tfd -> emit_func ctx tfd
-      | TExtern _ | T.TStruct _ | T.TGlobal _ | T.TTypeAlias _ | T.TNewtype _ ->
+      | T.CFunc tfd -> emit_func ctx tfd
+      | T.CExtern _ | T.CStruct _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _
+        ->
           ())
     tdecls;
 
