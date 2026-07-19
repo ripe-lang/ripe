@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-19 08:50:33.072572",
+  "depends": [],
+  "id": "6676",
+  "priority": "low",
+  "source": "lib/const_eval.ml",
+  "status": "open",
+  "tags": [],
+  "title": "once functions can be evaluated at compile time here bound the recursion depth and number of steps so a runaway evaluation cannot hang the compiler",
+  "updated_at": "2026-07-19 08:50:33.072572"
+}
