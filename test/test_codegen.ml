@@ -13,9 +13,26 @@ func f() { n += 1 }
 
     function $f() {
     @start
-        %t0 =w loadsw $n
-        %t1 =w add %t0, 1
-        storew %t1, $n
+        %compound.p.0 =l alloc8 8
+        %t0 =l copy $n
+        storel %t0, %compound.p.0
+        %t1 =l loadl %compound.p.0
+        %t2 =w ceql %t1, 0
+        jnz %t2, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t4 =l loadl %compound.p.0
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t5 =w loadsw %t4
+        %t8 =w add %t5, 1
+        storew %t8, %t1
         ret
     }
     |}]
@@ -33,9 +50,26 @@ func f() {
     @start
         %n =l alloc4 4
         storew 0, %n
-        %t0 =w loadsw %n
-        %t1 =w add %t0, 1
-        storew %t1, %n
+        %compound.p.0 =l alloc8 8
+        %t0 =l copy %n
+        storel %t0, %compound.p.0
+        %t1 =l loadl %compound.p.0
+        %t2 =w ceql %t1, 0
+        jnz %t2, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t4 =l loadl %compound.p.0
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t5 =w loadsw %t4
+        %t8 =w add %t5, 1
+        storew %t8, %t1
         ret
     }
     |}]
@@ -849,27 +883,44 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-        %for.hi.0 =l alloc4 4
-        storew 3, %for.hi.0
+        %for.hi.1 =l alloc4 4
+        storew 3, %for.hi.1
     @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w loadsw %for.hi.0
+        %t2 =w loadsw %for.hi.1
         %t3 =w csltw %t1, %t2
         jnz %t3, @loop.body0, @loop.end0
     @loop.body0
-        %t4 =w loadsw %sum
-        %t5 =w loadsw %i
-        %t6 =w add %t4, %t5
-        storew %t6, %sum
+        %compound.p.0 =l alloc8 8
+        %t4 =l copy %sum
+        storel %t4, %compound.p.0
+        %t5 =l loadl %compound.p.0
+        %t6 =w ceql %t5, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t8 =l loadl %compound.p.0
+        %t10 =w ceql %t8, 0
+        jnz %t10, @null.fail.11, @null.ok.11
+    @null.fail.11
+        call $ripe_panic_null()
+        hlt
+    @null.ok.11
+        %t9 =w loadsw %t8
+        %t12 =w loadsw %i
+        %t13 =w add %t9, %t12
+        storew %t13, %t5
         jmp @loop.step0
     @loop.step0
-        %t7 =w loadsw %i
-        %t8 =w add %t7, 1
-        storew %t8, %i
+        %t14 =w loadsw %i
+        %t15 =w add %t14, 1
+        storew %t15, %i
         jmp @loop.cond0
     @loop.end0
-        %t9 =w loadsw %sum
-        ret %t9
+        %t16 =w loadsw %sum
+        ret %t16
     }
     |}]
 
@@ -890,36 +941,53 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-        %for.hi.0 =l alloc4 4
-        storew 3, %for.hi.0
+        %for.hi.1 =l alloc4 4
+        storew 3, %for.hi.1
     @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w loadsw %for.hi.0
+        %t2 =w loadsw %for.hi.1
         %t3 =w cslew %t1, %t2
         jnz %t3, @loop.body0, @loop.end0
     @loop.body0
-        %t4 =w loadsw %sum
-        %t5 =w loadsw %i
-        %t6 =w add %t4, %t5
-        storew %t6, %sum
+        %compound.p.0 =l alloc8 8
+        %t4 =l copy %sum
+        storel %t4, %compound.p.0
+        %t5 =l loadl %compound.p.0
+        %t6 =w ceql %t5, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t8 =l loadl %compound.p.0
+        %t10 =w ceql %t8, 0
+        jnz %t10, @null.fail.11, @null.ok.11
+    @null.fail.11
+        call $ripe_panic_null()
+        hlt
+    @null.ok.11
+        %t9 =w loadsw %t8
+        %t12 =w loadsw %i
+        %t13 =w add %t9, %t12
+        storew %t13, %t5
         jmp @loop.step0
     @loop.step0
-    @if.cond7_0
-        %t8 =w loadsw %i
-        %t9 =w loadsw %for.hi.0
-        %t10 =w ceqw %t8, %t9
-        jnz %t10, @if.then7_0, @if.else7
-    @if.then7_0
+    @if.cond14_0
+        %t15 =w loadsw %i
+        %t16 =w loadsw %for.hi.1
+        %t17 =w ceqw %t15, %t16
+        jnz %t17, @if.then14_0, @if.else14
+    @if.then14_0
         jmp @loop.end0
-    @if.else7
-    @if.end7
-        %t11 =w loadsw %i
-        %t12 =w add %t11, 1
-        storew %t12, %i
+    @if.else14
+    @if.end14
+        %t18 =w loadsw %i
+        %t19 =w add %t18, 1
+        storew %t19, %i
         jmp @loop.cond0
     @loop.end0
-        %t13 =w loadsw %sum
-        ret %t13
+        %t20 =w loadsw %sum
+        ret %t20
     }
     |}]
 
@@ -945,38 +1013,55 @@ func f() i32 {
         storew 3, %t1
         %sum =l alloc4 4
         storew 0, %sum
-        %for.p.0 =l alloc8 8
-        storel %a, %for.p.0
-        %for.n.1 =l alloc8 8
-        storel 3, %for.n.1
-        %for.i.2 =l alloc8 8
-        storel 0, %for.i.2
+        %for.p.1 =l alloc8 8
+        storel %a, %for.p.1
+        %for.n.2 =l alloc8 8
+        storel 3, %for.n.2
+        %for.i.3 =l alloc8 8
+        storel 0, %for.i.3
     @loop.cond2
-        %t3 =l loadl %for.i.2
-        %t4 =l loadl %for.n.1
+        %t3 =l loadl %for.i.3
+        %t4 =l loadl %for.n.2
         %t5 =w cultl %t3, %t4
         jnz %t5, @loop.body2, @loop.end2
     @loop.body2
         %x =l alloc4 4
-        %t6 =l loadl %for.p.0
-        %t7 =l loadl %for.i.2
+        %t6 =l loadl %for.p.1
+        %t7 =l loadl %for.i.3
         %t8 =l mul %t7, 4
         %t9 =l add %t6, %t8
         %t10 =w loadsw %t9
         storew %t10, %x
-        %t11 =w loadsw %sum
-        %t12 =w loadsw %x
-        %t13 =w add %t11, %t12
-        storew %t13, %sum
+        %compound.p.0 =l alloc8 8
+        %t11 =l copy %sum
+        storel %t11, %compound.p.0
+        %t12 =l loadl %compound.p.0
+        %t13 =w ceql %t12, 0
+        jnz %t13, @null.fail.14, @null.ok.14
+    @null.fail.14
+        call $ripe_panic_null()
+        hlt
+    @null.ok.14
+        %t15 =l loadl %compound.p.0
+        %t17 =w ceql %t15, 0
+        jnz %t17, @null.fail.18, @null.ok.18
+    @null.fail.18
+        call $ripe_panic_null()
+        hlt
+    @null.ok.18
+        %t16 =w loadsw %t15
+        %t19 =w loadsw %x
+        %t20 =w add %t16, %t19
+        storew %t20, %t12
         jmp @loop.step2
     @loop.step2
-        %t14 =l loadl %for.i.2
-        %t15 =l add %t14, 1
-        storel %t15, %for.i.2
+        %t21 =l loadl %for.i.3
+        %t22 =l add %t21, 1
+        storel %t22, %for.i.3
         jmp @loop.cond2
     @loop.end2
-        %t16 =w loadsw %sum
-        ret %t16
+        %t23 =w loadsw %sum
+        ret %t23
     }
     |}]
 
@@ -1001,11 +1086,11 @@ func f() i32 {
         storew 0, %sum
         %i =l alloc4 4
         storew 0, %i
-        %for.hi.0 =l alloc4 4
-        storew 10, %for.hi.0
+        %for.hi.1 =l alloc4 4
+        storew 10, %for.hi.1
     @loop.cond0
         %t1 =w loadsw %i
-        %t2 =w loadsw %for.hi.0
+        %t2 =w loadsw %for.hi.1
         %t3 =w csltw %t1, %t2
         jnz %t3, @loop.body0, @loop.end0
     @loop.body0
@@ -1025,19 +1110,36 @@ func f() i32 {
         jmp @loop.end0
     @if.else7
     @if.end7
-        %t10 =w loadsw %sum
-        %t11 =w loadsw %i
-        %t12 =w add %t10, %t11
-        storew %t12, %sum
+        %compound.p.0 =l alloc8 8
+        %t10 =l copy %sum
+        storel %t10, %compound.p.0
+        %t11 =l loadl %compound.p.0
+        %t12 =w ceql %t11, 0
+        jnz %t12, @null.fail.13, @null.ok.13
+    @null.fail.13
+        call $ripe_panic_null()
+        hlt
+    @null.ok.13
+        %t14 =l loadl %compound.p.0
+        %t16 =w ceql %t14, 0
+        jnz %t16, @null.fail.17, @null.ok.17
+    @null.fail.17
+        call $ripe_panic_null()
+        hlt
+    @null.ok.17
+        %t15 =w loadsw %t14
+        %t18 =w loadsw %i
+        %t19 =w add %t15, %t18
+        storew %t19, %t11
         jmp @loop.step0
     @loop.step0
-        %t13 =w loadsw %i
-        %t14 =w add %t13, 1
-        storew %t14, %i
+        %t20 =w loadsw %i
+        %t21 =w add %t20, 1
+        storew %t21, %i
         jmp @loop.cond0
     @loop.end0
-        %t15 =w loadsw %sum
-        ret %t15
+        %t22 =w loadsw %sum
+        ret %t22
     }
     |}]
 
@@ -1070,15 +1172,32 @@ func f() i32 {
         jmp @loop.end0
     @if.else1
     @if.end1
-        %t4 =w loadsw %i
-        %t5 =w add %t4, 1
-        storew %t5, %i
+        %compound.p.0 =l alloc8 8
+        %t4 =l copy %i
+        storel %t4, %compound.p.0
+        %t5 =l loadl %compound.p.0
+        %t6 =w ceql %t5, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t8 =l loadl %compound.p.0
+        %t10 =w ceql %t8, 0
+        jnz %t10, @null.fail.11, @null.ok.11
+    @null.fail.11
+        call $ripe_panic_null()
+        hlt
+    @null.ok.11
+        %t9 =w loadsw %t8
+        %t12 =w add %t9, 1
+        storew %t12, %t5
         jmp @loop.step0
     @loop.step0
         jmp @loop.cond0
     @loop.end0
-        %t6 =w loadsw %i
-        ret %t6
+        %t13 =w loadsw %i
+        ret %t13
     }
     |}]
 
@@ -1293,43 +1412,60 @@ func sum(xs: []i32) i32 {
         blit %t0, %xs, 16
         %t =l alloc4 4
         storew 0, %t
-        %for.it.0 =l alloc8 16
-        blit %xs, %for.it.0, 16
-        %for.p.1 =l alloc8 8
-        %t2 =l loadl %for.it.0
-        storel %t2, %for.p.1
-        %for.n.2 =l alloc8 8
-        %t3 =l add %for.it.0, 8
+        %for.it.1 =l alloc8 16
+        blit %xs, %for.it.1, 16
+        %for.p.2 =l alloc8 8
+        %t2 =l loadl %for.it.1
+        storel %t2, %for.p.2
+        %for.n.3 =l alloc8 8
+        %t3 =l add %for.it.1, 8
         %t4 =l loadl %t3
-        storel %t4, %for.n.2
-        %for.i.3 =l alloc8 8
-        storel 0, %for.i.3
+        storel %t4, %for.n.3
+        %for.i.4 =l alloc8 8
+        storel 0, %for.i.4
     @loop.cond1
-        %t5 =l loadl %for.i.3
-        %t6 =l loadl %for.n.2
+        %t5 =l loadl %for.i.4
+        %t6 =l loadl %for.n.3
         %t7 =w cultl %t5, %t6
         jnz %t7, @loop.body1, @loop.end1
     @loop.body1
         %x =l alloc4 4
-        %t8 =l loadl %for.p.1
-        %t9 =l loadl %for.i.3
+        %t8 =l loadl %for.p.2
+        %t9 =l loadl %for.i.4
         %t10 =l mul %t9, 4
         %t11 =l add %t8, %t10
         %t12 =w loadsw %t11
         storew %t12, %x
-        %t13 =w loadsw %t
-        %t14 =w loadsw %x
-        %t15 =w add %t13, %t14
-        storew %t15, %t
+        %compound.p.0 =l alloc8 8
+        %t13 =l copy %t
+        storel %t13, %compound.p.0
+        %t14 =l loadl %compound.p.0
+        %t15 =w ceql %t14, 0
+        jnz %t15, @null.fail.16, @null.ok.16
+    @null.fail.16
+        call $ripe_panic_null()
+        hlt
+    @null.ok.16
+        %t17 =l loadl %compound.p.0
+        %t19 =w ceql %t17, 0
+        jnz %t19, @null.fail.20, @null.ok.20
+    @null.fail.20
+        call $ripe_panic_null()
+        hlt
+    @null.ok.20
+        %t18 =w loadsw %t17
+        %t21 =w loadsw %x
+        %t22 =w add %t18, %t21
+        storew %t22, %t14
         jmp @loop.step1
     @loop.step1
-        %t16 =l loadl %for.i.3
-        %t17 =l add %t16, 1
-        storel %t17, %for.i.3
+        %t23 =l loadl %for.i.4
+        %t24 =l add %t23, 1
+        storel %t24, %for.i.4
         jmp @loop.cond1
     @loop.end1
-        %t18 =w loadsw %t
-        ret %t18
+        %t25 =w loadsw %t
+        ret %t25
     }
     |}]
 
@@ -1407,6 +1543,7 @@ func f() i32 {
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
+        %compound.p.0 =l alloc8 8
         %t2 =l extsw 1
         %t3 =w cugel %t2, 3
         jnz %t3, @bounds.fail.4, @bounds.ok.4
@@ -1416,20 +1553,36 @@ func f() i32 {
     @bounds.ok.4
         %t5 =l mul %t2, 4
         %t6 =l add %a, %t5
-        %t7 =w loadsw %t6
-        %t8 =w add %t7, 5
-        storew %t8, %t6
-        %t9 =l extsw 1
-        %t10 =w cugel %t9, 3
-        jnz %t10, @bounds.fail.11, @bounds.ok.11
-    @bounds.fail.11
-        call $ripe_panic_bounds(l %t9, l 3)
+        %t7 =l copy %t6
+        storel %t7, %compound.p.0
+        %t8 =l loadl %compound.p.0
+        %t9 =w ceql %t8, 0
+        jnz %t9, @null.fail.10, @null.ok.10
+    @null.fail.10
+        call $ripe_panic_null()
         hlt
-    @bounds.ok.11
-        %t12 =l mul %t9, 4
-        %t13 =l add %a, %t12
-        %t14 =w loadsw %t13
-        ret %t14
+    @null.ok.10
+        %t11 =l loadl %compound.p.0
+        %t13 =w ceql %t11, 0
+        jnz %t13, @null.fail.14, @null.ok.14
+    @null.fail.14
+        call $ripe_panic_null()
+        hlt
+    @null.ok.14
+        %t12 =w loadsw %t11
+        %t15 =w add %t12, 5
+        storew %t15, %t8
+        %t16 =l extsw 1
+        %t17 =w cugel %t16, 3
+        jnz %t17, @bounds.fail.18, @bounds.ok.18
+    @bounds.fail.18
+        call $ripe_panic_bounds(l %t16, l 3)
+        hlt
+    @bounds.ok.18
+        %t19 =l mul %t16, 4
+        %t20 =l add %a, %t19
+        %t21 =w loadsw %t20
+        ret %t21
     }
     |}]
 
@@ -1525,46 +1678,63 @@ func f() i32 {
         storew 4, %t2
         %s =l alloc4 4
         storew 0, %s
-        %for.p.0 =l alloc8 8
-        storel %m, %for.p.0
-        %for.n.1 =l alloc8 8
-        storel 2, %for.n.1
-        %for.i.2 =l alloc8 8
-        storel 0, %for.i.2
+        %for.p.1 =l alloc8 8
+        storel %m, %for.p.1
+        %for.n.2 =l alloc8 8
+        storel 2, %for.n.2
+        %for.i.3 =l alloc8 8
+        storel 0, %for.i.3
     @loop.cond3
-        %t4 =l loadl %for.i.2
-        %t5 =l loadl %for.n.1
+        %t4 =l loadl %for.i.3
+        %t5 =l loadl %for.n.2
         %t6 =w cultl %t4, %t5
         jnz %t6, @loop.body3, @loop.end3
     @loop.body3
         %row =l alloc4 8
-        %t7 =l loadl %for.p.0
-        %t8 =l loadl %for.i.2
+        %t7 =l loadl %for.p.1
+        %t8 =l loadl %for.i.3
         %t9 =l mul %t8, 8
         %t10 =l add %t7, %t9
         blit %t10, %row, 8
-        %t11 =w loadsw %s
-        %t12 =l extsw 0
-        %t13 =w cugel %t12, 2
-        jnz %t13, @bounds.fail.14, @bounds.ok.14
-    @bounds.fail.14
-        call $ripe_panic_bounds(l %t12, l 2)
+        %compound.p.0 =l alloc8 8
+        %t11 =l copy %s
+        storel %t11, %compound.p.0
+        %t12 =l loadl %compound.p.0
+        %t13 =w ceql %t12, 0
+        jnz %t13, @null.fail.14, @null.ok.14
+    @null.fail.14
+        call $ripe_panic_null()
         hlt
-    @bounds.ok.14
-        %t15 =l mul %t12, 4
-        %t16 =l add %row, %t15
-        %t17 =w loadsw %t16
-        %t18 =w add %t11, %t17
-        storew %t18, %s
+    @null.ok.14
+        %t15 =l loadl %compound.p.0
+        %t17 =w ceql %t15, 0
+        jnz %t17, @null.fail.18, @null.ok.18
+    @null.fail.18
+        call $ripe_panic_null()
+        hlt
+    @null.ok.18
+        %t16 =w loadsw %t15
+        %t19 =l extsw 0
+        %t20 =w cugel %t19, 2
+        jnz %t20, @bounds.fail.21, @bounds.ok.21
+    @bounds.fail.21
+        call $ripe_panic_bounds(l %t19, l 2)
+        hlt
+    @bounds.ok.21
+        %t22 =l mul %t19, 4
+        %t23 =l add %row, %t22
+        %t24 =w loadsw %t23
+        %t25 =w add %t16, %t24
+        storew %t25, %t12
         jmp @loop.step3
     @loop.step3
-        %t19 =l loadl %for.i.2
-        %t20 =l add %t19, 1
-        storel %t20, %for.i.2
+        %t26 =l loadl %for.i.3
+        %t27 =l add %t26, 1
+        storel %t27, %for.i.3
         jmp @loop.cond3
     @loop.end3
-        %t21 =w loadsw %s
-        ret %t21
+        %t28 =w loadsw %s
+        ret %t28
     }
     |}]
 
@@ -1613,43 +1783,60 @@ func f() i32 {
         %t1 =l alloc4 12
         %s =l alloc4 4
         storew 0, %s
-        %for.p.0 =l alloc8 8
+        %for.p.1 =l alloc8 8
         storew 1, %t1
         %t2 =l add %t1, 4
         storew 2, %t2
         %t3 =l add %t1, 8
         storew 3, %t3
-        storel %t1, %for.p.0
-        %for.n.1 =l alloc8 8
-        storel 3, %for.n.1
-        %for.i.2 =l alloc8 8
-        storel 0, %for.i.2
+        storel %t1, %for.p.1
+        %for.n.2 =l alloc8 8
+        storel 3, %for.n.2
+        %for.i.3 =l alloc8 8
+        storel 0, %for.i.3
     @loop.cond0
-        %t4 =l loadl %for.i.2
-        %t5 =l loadl %for.n.1
+        %t4 =l loadl %for.i.3
+        %t5 =l loadl %for.n.2
         %t6 =w cultl %t4, %t5
         jnz %t6, @loop.body0, @loop.end0
     @loop.body0
         %x =l alloc4 4
-        %t7 =l loadl %for.p.0
-        %t8 =l loadl %for.i.2
+        %t7 =l loadl %for.p.1
+        %t8 =l loadl %for.i.3
         %t9 =l mul %t8, 4
         %t10 =l add %t7, %t9
         %t11 =w loadsw %t10
         storew %t11, %x
-        %t12 =w loadsw %s
-        %t13 =w loadsw %x
-        %t14 =w add %t12, %t13
-        storew %t14, %s
+        %compound.p.0 =l alloc8 8
+        %t12 =l copy %s
+        storel %t12, %compound.p.0
+        %t13 =l loadl %compound.p.0
+        %t14 =w ceql %t13, 0
+        jnz %t14, @null.fail.15, @null.ok.15
+    @null.fail.15
+        call $ripe_panic_null()
+        hlt
+    @null.ok.15
+        %t16 =l loadl %compound.p.0
+        %t18 =w ceql %t16, 0
+        jnz %t18, @null.fail.19, @null.ok.19
+    @null.fail.19
+        call $ripe_panic_null()
+        hlt
+    @null.ok.19
+        %t17 =w loadsw %t16
+        %t20 =w loadsw %x
+        %t21 =w add %t17, %t20
+        storew %t21, %t13
         jmp @loop.step0
     @loop.step0
-        %t15 =l loadl %for.i.2
-        %t16 =l add %t15, 1
-        storel %t16, %for.i.2
+        %t22 =l loadl %for.i.3
+        %t23 =l add %t22, 1
+        storel %t23, %for.i.3
         jmp @loop.cond0
     @loop.end0
-        %t17 =w loadsw %s
-        ret %t17
+        %t24 =w loadsw %s
+        ret %t24
     }
     |}]
 
@@ -2266,11 +2453,28 @@ func f() i32 {
         storew 1, %x
         %x.2 =l alloc4 4
         storew 10, %x.2
-        %t0 =w loadsw %x.2
-        %t1 =w add %t0, 5
-        storew %t1, %x.2
-        %t2 =w loadsw %x
-        ret %t2
+        %compound.p.0 =l alloc8 8
+        %t0 =l copy %x.2
+        storel %t0, %compound.p.0
+        %t1 =l loadl %compound.p.0
+        %t2 =w ceql %t1, 0
+        jnz %t2, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t4 =l loadl %compound.p.0
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t5 =w loadsw %t4
+        %t8 =w add %t5, 5
+        storew %t8, %t1
+        %t9 =w loadsw %x
+        ret %t9
     }
     |}]
 
@@ -3003,11 +3207,28 @@ func f() i32 {
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
-        %t1 =w loadsw %p
-        %t2 =w add %t1, 5
-        storew %t2, %p
-        %t3 =w loadsw %p
-        ret %t3
+        %compound.p.0 =l alloc8 8
+        %t1 =l copy %p
+        storel %t1, %compound.p.0
+        %t2 =l loadl %compound.p.0
+        %t3 =w ceql %t2, 0
+        jnz %t3, @null.fail.4, @null.ok.4
+    @null.fail.4
+        call $ripe_panic_null()
+        hlt
+    @null.ok.4
+        %t5 =l loadl %compound.p.0
+        %t7 =w ceql %t5, 0
+        jnz %t7, @null.fail.8, @null.ok.8
+    @null.fail.8
+        call $ripe_panic_null()
+        hlt
+    @null.ok.8
+        %t6 =w loadsw %t5
+        %t9 =w add %t6, 5
+        storew %t9, %t2
+        %t10 =w loadsw %p
+        ret %t10
     }
     |}]
 
@@ -3030,18 +3251,29 @@ func f() i32 {
         %q =l alloc8 8
         %t0 =l copy %x
         storel %t0, %q
+        %compound.p.0 =l alloc8 8
         %t1 =l loadl %q
-        %t2 =w ceql %t1, 0
-        jnz %t2, @null.fail.3, @null.ok.3
-    @null.fail.3
+        %t2 =l copy %t1
+        storel %t2, %compound.p.0
+        %t3 =l loadl %compound.p.0
+        %t4 =w ceql %t3, 0
+        jnz %t4, @null.fail.5, @null.ok.5
+    @null.fail.5
         call $ripe_panic_null()
         hlt
-    @null.ok.3
-        %t4 =w loadsw %t1
-        %t5 =w add %t4, 5
-        storew %t5, %t1
-        %t6 =w loadsw %x
-        ret %t6
+    @null.ok.5
+        %t6 =l loadl %compound.p.0
+        %t8 =w ceql %t6, 0
+        jnz %t8, @null.fail.9, @null.ok.9
+    @null.fail.9
+        call $ripe_panic_null()
+        hlt
+    @null.ok.9
+        %t7 =w loadsw %t6
+        %t10 =w add %t7, 5
+        storew %t10, %t3
+        %t11 =w loadsw %x
+        ret %t11
     }
     |}]
 
@@ -3387,9 +3619,26 @@ func f() {
     @start
         %n =l alloc4 4
         storew 3, %n
-        %t0 =w loadsw %n
-        %t1 =w mul %t0, 4
-        storew %t1, %n
+        %compound.p.0 =l alloc8 8
+        %t0 =l copy %n
+        storel %t0, %compound.p.0
+        %t1 =l loadl %compound.p.0
+        %t2 =w ceql %t1, 0
+        jnz %t2, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t4 =l loadl %compound.p.0
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t5 =w loadsw %t4
+        %t8 =w mul %t5, 4
+        storew %t8, %t1
         ret
     }
     |}]
@@ -3407,24 +3656,41 @@ func f() {
     @start
         %n =l alloc4 4
         storew 12, %n
-        %t0 =w loadsw %n
-        %t2 =w ceqw 4, 0
-        jnz %t2, @divzero.fail.3, @divzero.ok.3
-    @divzero.fail.3
+        %compound.p.0 =l alloc8 8
+        %t0 =l copy %n
+        storel %t0, %compound.p.0
+        %t1 =l loadl %compound.p.0
+        %t2 =w ceql %t1, 0
+        jnz %t2, @null.fail.3, @null.ok.3
+    @null.fail.3
+        call $ripe_panic_null()
+        hlt
+    @null.ok.3
+        %t4 =l loadl %compound.p.0
+        %t6 =w ceql %t4, 0
+        jnz %t6, @null.fail.7, @null.ok.7
+    @null.fail.7
+        call $ripe_panic_null()
+        hlt
+    @null.ok.7
+        %t5 =w loadsw %t4
+        %t9 =w ceqw 4, 0
+        jnz %t9, @divzero.fail.10, @divzero.ok.10
+    @divzero.fail.10
         call $ripe_panic_divzero()
         hlt
-    @divzero.ok.3
-        %t5 =w ceqw 4, -1
-        jnz %t5, @div.neg1.4, @div.norm.4
-    @div.neg1.4
-        %t6 =w sub 0, %t0
-        jmp @div.join.4
-    @div.norm.4
-        %t7 =w div %t0, 4
-        jmp @div.join.4
-    @div.join.4
-        %t1 =w phi @div.neg1.4 %t6, @div.norm.4 %t7
-        storew %t1, %n
+    @divzero.ok.10
+        %t12 =w ceqw 4, -1
+        jnz %t12, @div.neg1.11, @div.norm.11
+    @div.neg1.11
+        %t13 =w sub 0, %t5
+        jmp @div.join.11
+    @div.norm.11
+        %t14 =w div %t5, 4
+        jmp @div.join.11
+    @div.join.11
+        %t8 =w phi @div.neg1.11 %t13, @div.norm.11 %t14
+        storew %t8, %t1
         ret
     }
     |}]
