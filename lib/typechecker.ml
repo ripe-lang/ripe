@@ -442,10 +442,11 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           dummy_texpr)
 
 (* MUST be this type *)
-and check (env : env) (e : expr) (want : ty) : T.texpr =
-  { (check_desc env e want) with T.span = e.span }
+and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
+  { (check_desc ~adopt env e want) with T.span = e.span }
 
-and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
+and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
+  let target = if adopt then resolve_ty want else strip_alias want in
   (* synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
@@ -478,10 +479,12 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
              ~found:(show_ty te.T.ty));
       te
   | Int (n, None) -> (
-      match strip_alias want with
+      (* an untyped literal adopts a newtype over an int and checks its base *)
+      match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
@@ -490,7 +493,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
-      match strip_alias want with
+      match target with
       | TFloat _ -> T.mk want (T.TFloat f)
       | TError -> T.mk want (T.TFloat f)
       | _ ->
@@ -498,12 +501,13 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
-      match strip_alias want with
+      match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt (Int64.neg n))
-      | _ -> check env { e with desc = Int (Int64.neg n, None) } want)
+      | _ -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
@@ -1011,7 +1015,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
         match (ann, e) with
         | Some a, Some e ->
             let want = ty_of_ast env a in
-            let te = check env e want in
+            let te = check ~adopt:true env e want in
             (want, te)
         | None, Some e ->
             let te = synth env e in

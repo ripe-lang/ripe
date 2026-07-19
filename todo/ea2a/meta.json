@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-19 11:55:17.335821",
+  "depends": [],
+  "id": "ea2a",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "typecheck"
+  ],
+  "title": "Adopt newtype for constant int expressions",
+  "updated_at": "2026-07-19 11:55:39.518765"
+}
