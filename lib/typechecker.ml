@@ -1149,10 +1149,10 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   end;
 
   let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
-  (* params pre-marked used so they don't warn *)
+  (* an extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
-      (fun e (name, t, span) -> extend_var ~used:true e span name t)
+      (fun e (name, t, span) -> extend_var ~used:is_extern e span name t)
       func_env params_typed
   in
 

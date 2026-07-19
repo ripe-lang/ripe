@@ -196,15 +196,39 @@ let%expect_test "parse: len field access" =
 
 let%expect_test "parse: fixed array type" =
   run_src "func f(a: [4]i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: [4]i32) {}
+               ^~~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: slice type" =
   run_src "func f(a: []i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: []i32) {}
+               ^~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: slice of pointer type" =
   run_src "func f(a: []*i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: []*i32) {}
+               ^~~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
