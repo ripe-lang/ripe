@@ -1,15 +1,15 @@
 Ripe is Copyright (c) Ripe Contributors.
 
-The Ripe compiler (bin/, lib/) is licensed under the GNU General Public License,
-version 2 <LICENSE-GPL>.
+## License
 
-Programs compiled with Ripe are not affected by this license. The GPL applies
-only to the compiler itself.
+The Ripe compiler (bin/, lib/) is licensed under the GNU General Public License, version 2 <LICENSE-GPL>.
 
-Copyrights in the Ripe project are retained by their contributors. No copyright
-assignment is required to contribute to Ripe. For full authorship information,
-see the version control history.
+Programs compiled with Ripe are not affected by this license. The GPL applies only to the compiler itself.
 
-Ripe vendors the following third-party software:
+Copyrights in the Ripe project are retained by their contributors. No copyright assignment is required to contribute to Ripe. For full authorship information, see the version control history.
+
+## Third-party software
+
+Ripe vendors the following:
 
 * QBE (vendor/qbe/), Copyright (c) 2015-2019 Quentin Carbonneaux, MIT license <LICENSE-MIT>.
