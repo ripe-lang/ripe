@@ -47,6 +47,18 @@ let%expect_test "typecheck: type mismatch in let" =
                                  ^~ expected bool, found i32
     |}]
 
+let%expect_test "typecheck: unused parameter warns" =
+  run_src "func g(used: i32, _skip: i32, dead: i32) i32 { return used }";
+  [%expect
+    {|
+    warning: unused variable: dead
+      at <test>:1:31
+        func g(used: i32, _skip: i32, dead: i32) i32 { return used }
+                                      ^~~~~~~~~
+    help: prefix with an underscore: _dead
+    ok
+    |}]
+
 let%expect_test "typecheck: wrong number of arguments" =
   run_src {|
 func g() {}
@@ -95,6 +107,11 @@ let%expect_test "typecheck: array does not coerce to slice under a pointer" =
   run_src "func takes(p: *[]i32) { }\nfunc f() { var a: [3]i32\n  takes(&a) }";
   [%expect
     {|
+    warning: unused variable: p
+      at <test>:1:12
+        func takes(p: *[]i32) { }
+                   ^~~~~~~~~
+    help: prefix with an underscore: _p
     error: type mismatch
       at <test>:3:9
           takes(&a) }
@@ -160,7 +177,20 @@ let%expect_test "typecheck: call with args" =
 func add(x: i32, y: i32) {}
 func f() { add(1, 2) }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:2:10
+        func add(x: i32, y: i32) {}
+                 ^~~~~~
+    help: prefix with an underscore: _x
+    warning: unused variable: y
+      at <test>:2:18
+        func add(x: i32, y: i32) {}
+                         ^~~~~~
+    help: prefix with an underscore: _y
+    ok
+    |}]
 
 let%expect_test "typecheck: fn ptr assign and call" =
   run_src
@@ -603,6 +633,11 @@ func f(a: [0 - 1]i32) {}
 |};
   [%expect
     {|
+    warning: unused variable: a
+      at <test>:2:8
+        func f(a: [0 - 1]i32) {}
+               ^~~~~~~~~~~~~
+    help: prefix with an underscore: _a
     error: array size is negative: -1
       at <test>:2:12
         func f(a: [0 - 1]i32) {}
@@ -1158,6 +1193,11 @@ func f() { g(true) }
 |};
   [%expect
     {|
+    warning: unused variable: x
+      at <test>:2:8
+        func g(x: i32) {}
+               ^~~~~~
+    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:3:14
         func f() { g(true) }
@@ -1527,7 +1567,15 @@ func f() i32 {
   return sum(a)
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: xs
+      at <test>:2:10
+        func sum(xs: []i32) i32 { return 0 }
+                 ^~~~~~~~~
+    help: prefix with an underscore: _xs
+    ok
+    |}]
 
 let%expect_test "typecheck: slice element wrong type rejected" =
   run_src
@@ -1540,6 +1588,11 @@ func f() {
 |};
   [%expect
     {|
+    warning: unused variable: xs
+      at <test>:2:10
+        func sum(xs: []i32) {}
+                 ^~~~~~~~~
+    help: prefix with an underscore: _xs
     error: type mismatch
       at <test>:5:7
           sum(a)
@@ -1653,7 +1706,15 @@ func f() i32 {
   return first(s.ptr)
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:2:12
+        func first(p: *i32) i32 { return 0 }
+                   ^~~~~~~
+    help: prefix with an underscore: _p
+    ok
+    |}]
 
 let%expect_test "typecheck: slice does not coerce back to array" =
   run_src "func f() { var a: [3]i32 = [1,2,3] var b: [3]i32 = a[0..3] }";
@@ -1778,7 +1839,15 @@ let%expect_test "typecheck: array literal as slice argument" =
 func sum(xs: []i32) i32 { return 0 }
 func f() i32 { return sum([1, 2, 3]) }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: xs
+      at <test>:2:10
+        func sum(xs: []i32) i32 { return 0 }
+                 ^~~~~~~~~
+    help: prefix with an underscore: _xs
+    ok
+    |}]
 
 let%expect_test "typecheck: scalar zero init" =
   run_src "func f() i32 { var x: i32 return x }";
@@ -2028,6 +2097,11 @@ func g() { f(true) }
 |};
   [%expect
     {|
+    warning: unused variable: x
+      at <test>:3:8
+        func f(x: myint) i32 { return 0 }
+               ^~~~~~~~
+    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:4:14
         func g() { f(true) }
@@ -2043,6 +2117,11 @@ func g() { f(1.0) }
 |};
   [%expect
     {|
+    warning: unused variable: x
+      at <test>:3:8
+        func f(x: Celsius) i32 { return 0 }
+               ^~~~~~~~~~
+    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:4:14
         func g() { f(1.0) }
@@ -2196,6 +2275,11 @@ func f() {
 |};
   [%expect
     {|
+    warning: unused variable: a
+      at <test>:2:11
+        func take(a: [4]i32) {}
+                  ^~~~~~~~~
+    help: prefix with an underscore: _a
     error: type mismatch
       at <test>:5:8
           take(a)
@@ -2503,7 +2587,15 @@ newtype Id = i32
 func take(x: Id) i32 { return 0 }
 func f() i32 { var a: Id = 5 as Id  return take(a) }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:3:11
+        func take(x: Id) i32 { return 0 }
+                  ^~~~~
+    help: prefix with an underscore: _x
+    ok
+    |}]
 
 let%expect_test
     "typecheck: type alias is interchangeable with its base both ways" =
@@ -2597,6 +2689,11 @@ func f() i32 { var a: Age = 5 as Age  return take(a) }
 |};
   [%expect
     {|
+    warning: unused variable: x
+      at <test>:4:11
+        func take(x: Id) i32 { return 0 }
+                  ^~~~~
+    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:5:51
         func f() i32 { var a: Age = 5 as Age  return take(a) }
