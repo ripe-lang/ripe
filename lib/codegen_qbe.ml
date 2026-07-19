@@ -957,7 +957,7 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CExpr e ->
       let _ = emit_expr ctx e in
       ()
-  | T.CLoop { init; cond; step; body } -> emit_loop ctx init cond step body
+  | T.CLoop body -> emit_loop ctx body
   | T.CIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
@@ -994,23 +994,15 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CContinue -> (
       match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
 
-and emit_loop ctx init cond step body =
+and emit_loop ctx body =
   let id = fresh_id ctx in
-  let cond_lbl = Printf.sprintf "@loop.cond%d" id in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
-  let step_lbl = Printf.sprintf "@loop.step%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
-  emit_stmts ctx init;
-  emit_label ctx cond_lbl;
-  emit_branch ctx cond body_lbl end_lbl;
   emit_label ctx body_lbl;
-  ctx.loops := (step_lbl, end_lbl) :: !(ctx.loops);
+  ctx.loops := (body_lbl, end_lbl) :: !(ctx.loops);
   emit_stmts ctx body;
-  emit_jmp ctx step_lbl;
-  emit_label ctx step_lbl;
-  emit_stmts ctx step;
   ctx.loops := List.tl !(ctx.loops);
-  emit_jmp ctx cond_lbl;
+  emit_jmp ctx body_lbl;
   emit_label ctx end_lbl
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
