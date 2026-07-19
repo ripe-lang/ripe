@@ -478,10 +478,12 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
              ~found:(show_ty te.T.ty));
       te
   | Int (n, None) -> (
-      match strip_alias want with
+      (* an untyped literal adopts a newtype over an int and checks its base *)
+      match resolve_ty want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
@@ -490,7 +492,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
-      match strip_alias want with
+      match resolve_ty want with
       | TFloat _ -> T.mk want (T.TFloat f)
       | TError -> T.mk want (T.TFloat f)
       | _ ->
@@ -498,10 +500,11 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
-      match strip_alias want with
+      match resolve_ty want with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt (Int64.neg n))
       | _ -> check env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
