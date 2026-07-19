@@ -18,7 +18,7 @@
   const_eval
   const_fold
   lower
-  codegen
+  codegen_qbe
   runtime_src
   driver)
  (libraries unix)

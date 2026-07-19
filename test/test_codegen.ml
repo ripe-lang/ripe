@@ -3813,7 +3813,7 @@ let empty_structs () : (string, (string * Ripe.Types.ty) list) Hashtbl.t =
   Hashtbl.create 0
 
 let%expect_test "codegen ICE: TVoid has no QBE base type" =
-  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_ty Ripe.Types.TVoid));
+  expect_errors (fun () -> ignore (Ripe.Codegen_qbe.qbe_ty Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3842,7 +3842,8 @@ let%expect_test "codegen ICE: TVoid has no size" =
     |}]
 
 let%expect_test "codegen ICE: TVoid has no alloc instruction" =
-  expect_errors (fun () -> ignore (Ripe.Codegen.alloc_instr Ripe.Types.TVoid));
+  expect_errors (fun () ->
+      ignore (Ripe.Codegen_qbe.alloc_instr Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3851,7 +3852,7 @@ let%expect_test "codegen ICE: TVoid has no alloc instruction" =
     |}]
 
 let%expect_test "codegen ICE: TVoid has no load instruction" =
-  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_load Ripe.Types.TVoid));
+  expect_errors (fun () -> ignore (Ripe.Codegen_qbe.qbe_load Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3860,7 +3861,7 @@ let%expect_test "codegen ICE: TVoid has no load instruction" =
     |}]
 
 let%expect_test "codegen ICE: TVoid has no store instruction" =
-  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_store Ripe.Types.TVoid));
+  expect_errors (fun () -> ignore (Ripe.Codegen_qbe.qbe_store Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
@@ -3869,7 +3870,8 @@ let%expect_test "codegen ICE: TVoid has no store instruction" =
     |}]
 
 let%expect_test "codegen ICE: TVoid has no extended type" =
-  expect_errors (fun () -> ignore (Ripe.Codegen.qbe_ext_ty Ripe.Types.TVoid));
+  expect_errors (fun () ->
+      ignore (Ripe.Codegen_qbe.qbe_ext_ty Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
