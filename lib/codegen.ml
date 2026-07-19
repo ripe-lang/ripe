@@ -500,48 +500,39 @@ and emit_index_addr ctx base idx elem =
   emit ctx "    %s =l add %s, %s\n" addr storage off;
   addr
 
-and emit_bounds_check ctx idx len =
+(* every runtime check jumps to a panic when cond is nonzero and otherwise falls into the ok block *)
+and emit_guard ctx ~tag ~cond ~panic =
   let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@bounds.fail.%d" id in
-  let ok_lbl = Printf.sprintf "@bounds.ok.%d" id in
-  let cond = fresh ctx in
-  emit ctx "    %s =w cugel %s, %s\n" cond idx len;
+  let fail_lbl = Printf.sprintf "@%s.fail.%d" tag id in
+  let ok_lbl = Printf.sprintf "@%s.ok.%d" tag id in
   emit_jnz ctx cond fail_lbl ok_lbl;
   emit_label ctx fail_lbl;
-  emit ctx "    call $ripe_panic_bounds(l %s, l %s)\n" idx len;
+  panic ();
   emit ctx "    hlt\n";
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
+and emit_bounds_check ctx idx len =
+  let cond = fresh ctx in
+  emit ctx "    %s =w cugel %s, %s\n" cond idx len;
+  emit_guard ctx ~tag:"bounds" ~cond ~panic:(fun () ->
+      emit ctx "    call $ripe_panic_bounds(l %s, l %s)\n" idx len)
+
 and emit_slice_bounds_check ctx lo hi len =
-  let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@slice.fail.%d" id in
-  let ok_lbl = Printf.sprintf "@slice.ok.%d" id in
   let hi_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" lo_bad lo hi;
   let bad = fresh ctx in
   emit ctx "    %s =w or %s, %s\n" bad hi_bad lo_bad;
-  emit_jnz ctx bad fail_lbl ok_lbl;
-  emit_label ctx fail_lbl;
-  emit ctx "    call $ripe_panic_slice_bounds(l %s, l %s, l %s)\n" lo hi len;
-  emit ctx "    hlt\n";
-  ctx.terminated := true;
-  emit_label ctx ok_lbl
+  emit_guard ctx ~tag:"slice" ~cond:bad ~panic:(fun () ->
+      emit ctx "    call $ripe_panic_slice_bounds(l %s, l %s, l %s)\n" lo hi len)
 
 and emit_divzero_check ctx divisor op_qt =
-  let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@divzero.fail.%d" id in
-  let ok_lbl = Printf.sprintf "@divzero.ok.%d" id in
   let zero = fresh ctx in
   emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
-  emit_jnz ctx zero fail_lbl ok_lbl;
-  emit_label ctx fail_lbl;
-  emit ctx "    call $ripe_panic_divzero()\n";
-  emit ctx "    hlt\n";
-  ctx.terminated := true;
-  emit_label ctx ok_lbl
+  emit_guard ctx ~tag:"divzero" ~cond:zero ~panic:(fun () ->
+      emit ctx "    call $ripe_panic_divzero()\n")
 
 (* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware divide when the divisor is -1 *)
 and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
@@ -566,30 +557,16 @@ and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
     norm_res
 
 and emit_null_check ctx ptr =
-  let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@null.fail.%d" id in
-  let ok_lbl = Printf.sprintf "@null.ok.%d" id in
   let isnull = fresh ctx in
   emit ctx "    %s =w ceql %s, 0\n" isnull ptr;
-  emit_jnz ctx isnull fail_lbl ok_lbl;
-  emit_label ctx fail_lbl;
-  emit ctx "    call $ripe_panic_null()\n";
-  emit ctx "    hlt\n";
-  ctx.terminated := true;
-  emit_label ctx ok_lbl
+  emit_guard ctx ~tag:"null" ~cond:isnull ~panic:(fun () ->
+      emit ctx "    call $ripe_panic_null()\n")
 
 and emit_negshift_check ctx count count_qt =
-  let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@negshift.fail.%d" id in
-  let ok_lbl = Printf.sprintf "@negshift.ok.%d" id in
   let neg = fresh ctx in
   emit ctx "    %s =w cslt%s %s, 0\n" neg count_qt count;
-  emit_jnz ctx neg fail_lbl ok_lbl;
-  emit_label ctx fail_lbl;
-  emit ctx "    call $ripe_panic_shift()\n";
-  emit ctx "    hlt\n";
-  ctx.terminated := true;
-  emit_label ctx ok_lbl
+  emit_guard ctx ~tag:"negshift" ~cond:neg ~panic:(fun () ->
+      emit ctx "    call $ripe_panic_shift()\n")
 
 (* address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.texpr) =
