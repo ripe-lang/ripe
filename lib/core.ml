@@ -47,7 +47,6 @@ type cstmt_desc =
   | CBreak
   | CContinue
   | CExpr of cexpr
-  | CBlock of cstmt list
 
 and cstmt = { tsdesc : cstmt_desc; span : Ast.span }
 [@@deriving show { with_path = false }]

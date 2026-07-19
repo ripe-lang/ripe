@@ -986,9 +986,6 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
           emit_label ctx else_lbl;
           emit_scoped ctx else_body;
           emit_label ctx end_lbl)
-  | T.CBlock stmts ->
-      (* TODO(e1d8): blocks as expressions e.g. let x = { 5 } *)
-      emit_scoped ctx stmts
   | T.CBreak -> (
       match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
   | T.CContinue -> (
