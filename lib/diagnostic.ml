@@ -150,7 +150,7 @@ let render ctx d =
   let buf = Buffer.create 256 in
   render_one ctx buf d;
   (match d.detail with Some s -> Buffer.add_string buf s | None -> ());
-  List.iter (fun n -> render_one ctx buf n) d.notes;
+  List.iter (render_one ctx buf) d.notes;
   (match d.suggestion with
   | Some s ->
       Buffer.add_string buf (colored ctx Help (severity_word Help));

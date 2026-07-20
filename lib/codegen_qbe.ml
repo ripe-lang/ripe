@@ -365,37 +365,7 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
       emit ctx "    %s =l add %s, 8\n" lenp slot;
       emit ctx "    storel %d, %s\n" n lenp;
       slot
-  | T.CSliceExpr (base, lo, hi) ->
-      let elem =
-        match t with
-        | TSlice e -> e
-        | _ -> Error.ice ~span:e.T.span "slice expression on non-slice type"
-      in
-      let base_addr = emit_expr ctx base in
-      let storage, blen =
-        match resolve_ty base.T.ty with
-        | TArray (_, n) -> (base_addr, string_of_int n)
-        | TSlice _ -> load_slice_fields ctx base_addr
-        | t ->
-            Error.ice ~span:base.T.span
-              (Printf.sprintf "cannot slice: %s" (show_ty t))
-      in
-      let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
-      let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
-      emit_slice_bounds_check ctx lo_l hi_l blen;
-      let off = fresh ctx in
-      emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
-      let ptr = fresh ctx in
-      emit ctx "    %s =l add %s, %s\n" ptr storage off;
-      let len = fresh ctx in
-      emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l alloc8 16\n" slot;
-      emit ctx "    storel %s, %s\n" ptr slot;
-      let lenp = fresh ctx in
-      emit ctx "    %s =l add %s, 8\n" lenp slot;
-      emit ctx "    storel %s, %s\n" len lenp;
-      slot
+  | T.CSliceExpr (base, lo, hi) -> emit_slice_expr ctx e.T.span base lo hi t
   | T.CArrayLit elems ->
       (* as a value: materialize into a fresh stack slot and yield its address *)
       let elem = array_elem_ty ~span:e.T.span t in
@@ -468,6 +438,38 @@ and data_ptr ctx base =
   | _ -> addr
 
 (* address of arr[idx]: storage + idx * stride(elem) *)
+and emit_slice_expr ctx (span : Ast.span) base lo hi t =
+  let elem =
+    match t with
+    | TSlice e -> e
+    | _ -> Error.ice ~span "slice expression on non-slice type"
+  in
+  let base_addr = emit_expr ctx base in
+  let storage, blen =
+    match resolve_ty base.T.ty with
+    | TArray (_, n) -> (base_addr, string_of_int n)
+    | TSlice _ -> load_slice_fields ctx base_addr
+    | t ->
+        Error.ice ~span:base.T.span
+          (Printf.sprintf "cannot slice: %s" (show_ty t))
+  in
+  let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
+  let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
+  emit_slice_bounds_check ctx lo_l hi_l blen;
+  let off = fresh ctx in
+  emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
+  let ptr = fresh ctx in
+  emit ctx "    %s =l add %s, %s\n" ptr storage off;
+  let len = fresh ctx in
+  emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
+  let slot = fresh ctx in
+  emit_entry ctx "    %s =l alloc8 16\n" slot;
+  emit ctx "    storel %s, %s\n" ptr slot;
+  let lenp = fresh ctx in
+  emit ctx "    %s =l add %s, 8\n" lenp slot;
+  emit ctx "    storel %s, %s\n" len lenp;
+  slot
+
 and emit_index_addr ctx base idx elem =
   let base_addr = emit_expr ctx base in
   let storage, len =
@@ -1209,8 +1211,7 @@ let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
   String.iter
-    (fun c ->
-      match c with
+    (function
       | '"' -> Buffer.add_string buf "\\\""
       | '\\' -> Buffer.add_string buf "\\\\"
       | '\n' -> Buffer.add_string buf "\\n"

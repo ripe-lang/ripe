@@ -27,6 +27,9 @@ let int_out_of_range span ~ty =
   |> at span
   |> label ("does not fit in " ^ ty)
 
+let bad_operand span ~op ~ty =
+  error (Printf.sprintf "cannot apply `%s` to %s" op ty) |> at span
+
 let unsupported span msg = error (msg ^ " is not yet supported") |> at span
 
 let internal ?span msg =
