@@ -5,3 +5,4 @@
 /lib/debug.ml
 predocs
 /test/fuzz/
+__pycache__/
