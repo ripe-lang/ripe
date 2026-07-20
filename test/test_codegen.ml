@@ -49,8 +49,8 @@ func f() {
     function $f() {
     @start
         %n =l alloc4 4
-        storew 0, %n
         %compound.p.0 =l alloc8 8
+        storew 0, %n
         %t0 =l copy %n
         storel %t0, %compound.p.0
         %t1 =l loadl %compound.p.0
@@ -265,8 +265,8 @@ func f() {
     function $f() {
     @start
         %n =l alloc4 4
-        storew 0, %n
         %p =l alloc8 8
+        storew 0, %n
         %t0 =l copy %n
         storel %t0, %p
         ret
@@ -738,8 +738,8 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 5, %x
         %p =l alloc8 8
+        storew 5, %x
         %t0 =l copy %x
         storel %t0, %p
         %t1 =l loadl %p
@@ -882,10 +882,11 @@ func f() i32 {
     function w $f() {
     @start
         %sum =l alloc4 4
-        storew 0, %sum
         %i =l alloc4 4
-        storew 0, %i
         %for.hi.1 =l alloc4 4
+        %compound.p.0 =l alloc8 8
+        storew 0, %sum
+        storew 0, %i
         storew 3, %for.hi.1
     @loop.body0
     @if.cond1_0
@@ -897,7 +898,6 @@ func f() i32 {
         jmp @loop.end0
     @if.else1
     @if.end1
-        %compound.p.0 =l alloc8 8
         %t5 =l copy %sum
         storel %t5, %compound.p.0
         %t6 =l loadl %compound.p.0
@@ -942,10 +942,11 @@ func f() i32 {
     function w $f() {
     @start
         %sum =l alloc4 4
-        storew 0, %sum
         %i =l alloc4 4
-        storew 0, %i
         %for.hi.1 =l alloc4 4
+        %compound.p.0 =l alloc8 8
+        storew 0, %sum
+        storew 0, %i
         storew 3, %for.hi.1
     @loop.body0
     @if.cond1_0
@@ -957,7 +958,6 @@ func f() i32 {
         jmp @loop.end0
     @if.else1
     @if.end1
-        %compound.p.0 =l alloc8 8
         %t5 =l copy %sum
         storel %t5, %compound.p.0
         %t6 =l loadl %compound.p.0
@@ -1012,18 +1012,20 @@ func f() i32 {
     function w $f() {
     @start
         %a =l alloc4 12
+        %sum =l alloc4 4
+        %for.p.1 =l alloc8 8
+        %for.n.2 =l alloc8 8
+        %for.i.3 =l alloc8 8
+        %x =l alloc4 4
+        %compound.p.0 =l alloc8 8
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        %sum =l alloc4 4
         storew 0, %sum
-        %for.p.1 =l alloc8 8
         storel %a, %for.p.1
-        %for.n.2 =l alloc8 8
         storel 3, %for.n.2
-        %for.i.3 =l alloc8 8
         storel 0, %for.i.3
     @loop.body2
     @if.cond3_0
@@ -1035,14 +1037,12 @@ func f() i32 {
         jmp @loop.end2
     @if.else3
     @if.end3
-        %x =l alloc4 4
         %t7 =l loadl %for.p.1
         %t8 =l loadl %for.i.3
         %t9 =l mul %t8, 4
         %t10 =l add %t7, %t9
         %t11 =w loadsw %t10
         storew %t11, %x
-        %compound.p.0 =l alloc8 8
         %t12 =l copy %sum
         storel %t12, %compound.p.0
         %t13 =l loadl %compound.p.0
@@ -1091,10 +1091,11 @@ func f() i32 {
     function w $f() {
     @start
         %sum =l alloc4 4
-        storew 0, %sum
         %i =l alloc4 4
-        storew 0, %i
         %for.hi.1 =l alloc4 4
+        %compound.p.0 =l alloc8 8
+        storew 0, %sum
+        storew 0, %i
         storew 10, %for.hi.1
     @loop.body0
     @if.cond1_0
@@ -1125,7 +1126,6 @@ func f() i32 {
         jmp @loop.end0
     @if.else10
     @if.end10
-        %compound.p.0 =l alloc8 8
         %t13 =l copy %sum
         storel %t13, %compound.p.0
         %t14 =l loadl %compound.p.0
@@ -1173,6 +1173,7 @@ func f() i32 {
     function w $f() {
     @start
         %i =l alloc4 4
+        %compound.p.0 =l alloc8 8
         storew 0, %i
     @loop.body0
     @if.cond1_0
@@ -1189,7 +1190,6 @@ func f() i32 {
         jmp @loop.end0
     @if.else2
     @if.end2
-        %compound.p.0 =l alloc8 8
         %t5 =l copy %i
         storel %t5, %compound.p.0
         %t6 =l loadl %compound.p.0
@@ -1236,8 +1236,8 @@ func f() i32 {
 
     function w $f() {
     @start
-        %t2 =l alloc8 16
         %a =l alloc4 12
+        %t2 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
@@ -1264,8 +1264,9 @@ func f() i32 {
     {|
     function w $f() {
     @start
-        %t12 =l alloc8 16
         %a =l alloc4 16
+        %s =l alloc8 16
+        %t12 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
@@ -1273,7 +1274,6 @@ func f() i32 {
         storew 3, %t1
         %t2 =l add %a, 12
         storew 4, %t2
-        %s =l alloc8 16
         %t3 =l extsw 1
         %t4 =l extsw 3
         %t5 =w cugtl %t4, 4
@@ -1321,8 +1321,9 @@ func f() i32 {
     {|
     function w $f() {
     @start
-        %t13 =l alloc8 16
         %a =l alloc4 16
+        %s =l alloc8 16
+        %t13 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
@@ -1330,7 +1331,6 @@ func f() i32 {
         storew 3, %t1
         %t2 =l add %a, 12
         storew 4, %t2
-        %s =l alloc8 16
         %t3 =l extsw 1
         %t4 =w add 3, 1
         %t5 =l extsw %t4
@@ -1379,14 +1379,14 @@ func f() usize {
     {|
     function l $f() {
     @start
-        %t11 =l alloc8 16
         %a =l alloc4 12
+        %s =l alloc8 16
+        %t11 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        %s =l alloc8 16
         %t2 =l extsw 0
         %t3 =l extsw 3
         %t4 =w cugtl %t3, 3
@@ -1423,20 +1423,22 @@ func sum(xs: []i32) i32 {
     {|
     function w $sum(l %t0) {
     @start
+        %t =l alloc4 4
+        %for.it.1 =l alloc8 16
+        %for.p.2 =l alloc8 8
+        %for.n.3 =l alloc8 8
+        %for.i.4 =l alloc8 8
+        %x =l alloc4 4
+        %compound.p.0 =l alloc8 8
         %xs =l alloc8 16
         blit %t0, %xs, 16
-        %t =l alloc4 4
         storew 0, %t
-        %for.it.1 =l alloc8 16
         blit %xs, %for.it.1, 16
-        %for.p.2 =l alloc8 8
         %t1 =l loadl %for.it.1
         storel %t1, %for.p.2
-        %for.n.3 =l alloc8 8
         %t2 =l add %for.it.1, 8
         %t3 =l loadl %t2
         storel %t3, %for.n.3
-        %for.i.4 =l alloc8 8
         storel 0, %for.i.4
     @loop.body4
     @if.cond5_0
@@ -1448,14 +1450,12 @@ func sum(xs: []i32) i32 {
         jmp @loop.end4
     @if.else5
     @if.end5
-        %x =l alloc4 4
         %t9 =l loadl %for.p.2
         %t10 =l loadl %for.i.4
         %t11 =l mul %t10, 4
         %t12 =l add %t9, %t11
         %t13 =w loadsw %t12
         storew %t13, %x
-        %compound.p.0 =l alloc8 8
         %t14 =l copy %t
         storel %t14, %compound.p.0
         %t15 =l loadl %compound.p.0
@@ -1499,14 +1499,14 @@ func f() {
     {|
     function $f() {
     @start
-        %t11 =l alloc8 16
         %a =l alloc4 12
+        %s =l alloc8 16
+        %t11 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        %s =l alloc8 16
         %t2 =l extsw 0
         %t3 =l extsw 3
         %t4 =w cugtl %t3, 3
@@ -1555,12 +1555,12 @@ func f() i32 {
     function w $f() {
     @start
         %a =l alloc4 12
+        %compound.p.0 =l alloc8 8
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        %compound.p.0 =l alloc8 8
         %t2 =l extsw 1
         %t3 =w cugel %t2, 3
         jnz %t3, @bounds.fail.4, @bounds.ok.4
@@ -1686,6 +1686,12 @@ func f() i32 {
     function w $f() {
     @start
         %m =l alloc4 16
+        %s =l alloc4 4
+        %for.p.1 =l alloc8 8
+        %for.n.2 =l alloc8 8
+        %for.i.3 =l alloc8 8
+        %row =l alloc4 8
+        %compound.p.0 =l alloc8 8
         storew 1, %m
         %t0 =l add %m, 4
         storew 2, %t0
@@ -1693,13 +1699,9 @@ func f() i32 {
         storew 3, %t1
         %t2 =l add %t1, 4
         storew 4, %t2
-        %s =l alloc4 4
         storew 0, %s
-        %for.p.1 =l alloc8 8
         storel %m, %for.p.1
-        %for.n.2 =l alloc8 8
         storel 2, %for.n.2
-        %for.i.3 =l alloc8 8
         storel 0, %for.i.3
     @loop.body3
     @if.cond4_0
@@ -1711,13 +1713,11 @@ func f() i32 {
         jmp @loop.end3
     @if.else4
     @if.end4
-        %row =l alloc4 8
         %t8 =l loadl %for.p.1
         %t9 =l loadl %for.i.3
         %t10 =l mul %t9, 8
         %t11 =l add %t8, %t10
         blit %t11, %row, 8
-        %compound.p.0 =l alloc8 8
         %t12 =l copy %s
         storel %t12, %compound.p.0
         %t13 =l loadl %compound.p.0
@@ -1799,19 +1799,21 @@ func f() i32 {
     {|
     function w $f() {
     @start
-        %t0 =l alloc4 12
         %s =l alloc4 4
-        storew 0, %s
         %for.p.1 =l alloc8 8
+        %t0 =l alloc4 12
+        %for.n.2 =l alloc8 8
+        %for.i.3 =l alloc8 8
+        %x =l alloc4 4
+        %compound.p.0 =l alloc8 8
+        storew 0, %s
         storew 1, %t0
         %t1 =l add %t0, 4
         storew 2, %t1
         %t2 =l add %t0, 8
         storew 3, %t2
         storel %t0, %for.p.1
-        %for.n.2 =l alloc8 8
         storel 3, %for.n.2
-        %for.i.3 =l alloc8 8
         storel 0, %for.i.3
     @loop.body3
     @if.cond4_0
@@ -1823,14 +1825,12 @@ func f() i32 {
         jmp @loop.end3
     @if.else4
     @if.end4
-        %x =l alloc4 4
         %t8 =l loadl %for.p.1
         %t9 =l loadl %for.i.3
         %t10 =l mul %t9, 4
         %t11 =l add %t8, %t10
         %t12 =w loadsw %t11
         storew %t12, %x
-        %compound.p.0 =l alloc8 8
         %t13 =l copy %s
         storel %t13, %compound.p.0
         %t14 =l loadl %compound.p.0
@@ -1998,9 +1998,9 @@ func f(a: pt) i32 {
 
     function w $f(l %t0) {
     @start
+        %b =l alloc8 8
         %a =l alloc8 8
         blit %t0, %a, 8
-        %b =l alloc8 8
         blit %a, %b, 8
         %t1 =w loadsw %b
         ret %t1
@@ -2183,8 +2183,8 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 1, %x
         %x.2 =l alloc4 4
+        storew 1, %x
         storew 2, %x.2
         %t0 =w loadsw %x.2
         %t1 =w add %t0, 5
@@ -2208,8 +2208,8 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 1, %x
         %x.2 =l alloc4 4
+        storew 1, %x
         %t0 =w loadsw %x
         %t1 =w add %t0, 4
         storew %t1, %x.2
@@ -2237,13 +2237,13 @@ func f(c: bool) {
 
     function $f(w %t0) {
     @start
+        %g =l alloc4 4
         %c =l alloc4 1
         storeb %t0, %c
     @if.cond1_0
         %t2 =w loadub %c
         jnz %t2, @if.then1_0, @if.else1
     @if.then1_0
-        %g =l alloc4 4
         storew 5, %g
         %t3 =w loadsw %g
         %t4 =w add %t3, 1
@@ -2298,10 +2298,11 @@ func f() i32 {
     function w $f() {
     @start
         %i =l alloc4 4
-        storew 99, %i
         %i.2 =l alloc4 4
-        storew 0, %i.2
         %for.hi.0 =l alloc4 4
+        %y =l alloc4 4
+        storew 99, %i
+        storew 0, %i.2
         storew 3, %for.hi.0
     @loop.body0
     @if.cond1_0
@@ -2313,7 +2314,6 @@ func f() i32 {
         jmp @loop.end0
     @if.else1
     @if.end1
-        %y =l alloc4 4
         %t5 =w loadsw %i.2
         storew %t5, %y
         %t6 =w loadsw %i.2
@@ -2342,9 +2342,10 @@ func f(n: i32) i32 {
     {|
     function w $f(w %t0) {
     @start
+        %x =l alloc4 4
+        %x.3 =l alloc4 4
         %n =l alloc4 4
         storew %t0, %n
-        %x =l alloc4 4
         storew 1, %x
     @loop.body1
     @if.cond2_0
@@ -2356,7 +2357,6 @@ func f(n: i32) i32 {
         jmp @loop.end1
     @if.else2
     @if.end2
-        %x.3 =l alloc4 4
         storew 100, %x.3
         %t6 =w loadsw %x.3
         %t7 =w add %t6, 1
@@ -2382,8 +2382,8 @@ func f() i64 {
     function l $f() {
     @start
         %x =l alloc4 4
-        storew 1, %x
         %x.2 =l alloc8 8
+        storew 1, %x
         storel 2, %x.2
         %t0 =l loadl %x.2
         ret %t0
@@ -2409,10 +2409,10 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
+        %p.2 =l alloc8 8
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
-        %p.2 =l alloc8 8
         storew 3, %p.2
         %t1 =l add %p.2, 4
         storew 4, %t1
@@ -2442,10 +2442,10 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 1, %x
         %x.2 =l alloc4 4
-        storew 2, %x.2
         %x.3 =l alloc4 4
+        storew 1, %x
+        storew 2, %x.2
         storew 3, %x.3
         %t0 =w loadsw %x.3
         %t1 =w add %t0, 1
@@ -2475,10 +2475,10 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 1, %x
         %x.2 =l alloc4 4
-        storew 10, %x.2
         %compound.p.0 =l alloc8 8
+        storew 1, %x
+        storew 10, %x.2
         %t0 =l copy %x.2
         storel %t0, %compound.p.0
         %t1 =l loadl %compound.p.0
@@ -2727,11 +2727,11 @@ func f(a: bool, b: bool) i32 {
     {|
     function w $f(w %t0, w %t1) {
     @start
+        %ok =l alloc4 1
         %a =l alloc4 1
         storeb %t0, %a
         %b =l alloc4 1
         storeb %t1, %b
-        %ok =l alloc4 1
         %t4 =w loadub %a
         jnz %t4, @sel.then2, @sel.else2
     @sel.then2
@@ -3150,10 +3150,10 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
+        %q =l alloc8 8
         storew 34, %p
         %t0 =l add %p, 4
         storew 56, %t0
-        %q =l alloc8 8
         %t1 =l copy %p
         storel %t1, %q
         %t2 =l loadl %q
@@ -3184,8 +3184,8 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 10, %x
         %q =l alloc8 8
+        storew 10, %x
         %t0 =l copy %x
         storel %t0, %q
         %t1 =l loadl %q
@@ -3244,10 +3244,10 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
+        %compound.p.0 =l alloc8 8
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
-        %compound.p.0 =l alloc8 8
         %t1 =l copy %p
         storel %t1, %compound.p.0
         %t2 =l loadl %compound.p.0
@@ -3287,11 +3287,11 @@ func f() i32 {
     function w $f() {
     @start
         %x =l alloc4 4
-        storew 10, %x
         %q =l alloc8 8
+        %compound.p.0 =l alloc8 8
+        storew 10, %x
         %t0 =l copy %x
         storel %t0, %q
-        %compound.p.0 =l alloc8 8
         %t1 =l loadl %q
         %t2 =l copy %t1
         storel %t2, %compound.p.0
@@ -3334,10 +3334,10 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
+        %px =l alloc8 8
         storew 7, %p
         %t0 =l add %p, 4
         storew 0, %t0
-        %px =l alloc8 8
         %t1 =l copy %p
         storel %t1, %px
         %t2 =l loadl %px
@@ -3370,13 +3370,13 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
+        %pt1 =l alloc8 8
+        %pt2 =l alloc8 8
         storew 3, %p
         %t0 =l add %p, 4
         storew 0, %t0
-        %pt1 =l alloc8 8
         %t1 =l copy %p
         storel %t1, %pt1
-        %pt2 =l alloc8 8
         %t2 =l loadl %pt1
         %t3 =l copy %t2
         storel %t3, %pt2
@@ -3406,6 +3406,7 @@ func f() i32 {
     function w $f() {
     @start
         %arr =l alloc4 16
+        %p =l alloc8 8
         storew 1, %arr
         %t0 =l add %arr, 4
         storew 2, %t0
@@ -3413,7 +3414,6 @@ func f() i32 {
         storew 3, %t1
         %t2 =l add %arr, 12
         storew 4, %t2
-        %p =l alloc8 8
         %t3 =l extsw 2
         %t4 =w cugel %t3, 4
         jnz %t4, @bounds.fail.5, @bounds.ok.5
@@ -3658,8 +3658,8 @@ func f() {
     function $f() {
     @start
         %n =l alloc4 4
-        storew 3, %n
         %compound.p.0 =l alloc8 8
+        storew 3, %n
         %t0 =l copy %n
         storel %t0, %compound.p.0
         %t1 =l loadl %compound.p.0
@@ -3695,8 +3695,8 @@ func f() {
     function $f() {
     @start
         %n =l alloc4 4
-        storew 12, %n
         %compound.p.0 =l alloc8 8
+        storew 12, %n
         %t0 =l copy %n
         storel %t0, %compound.p.0
         %t1 =l loadl %compound.p.0
@@ -3780,6 +3780,7 @@ func f(x: i32) {
     {|
     function $f(w %t0) {
     @start
+        %y =l alloc4 4
         %x =l alloc4 4
         storew %t0, %x
     @if.cond1_0
@@ -3790,7 +3791,6 @@ func f(x: i32) {
         ret
     @if.else1
     @if.end1
-        %y =l alloc4 4
         %t4 =w loadsw %x
         %t5 =w add %t4, 1
         storew %t5, %y
@@ -4115,8 +4115,8 @@ func main() i32 {
     export function w $main() {
     @start
         %op =l alloc8 8
-        storel $add, %op
         %r =l alloc4 4
+        storel $add, %op
         %t0 =l loadl %op
         %t1 =w call %t0(w 2, w 3)
         storew %t1, %r
@@ -4274,8 +4274,8 @@ func main() i32 {
     export function w $main() {
     @start
         %op =l alloc8 8
-        storel $add, %op
         %p =l alloc8 8
+        storel $add, %op
         %t0 =l copy %op
         storel %t0, %p
         %t1 =l loadl %p
