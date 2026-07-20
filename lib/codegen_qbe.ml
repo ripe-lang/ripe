@@ -1209,8 +1209,7 @@ let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
   String.iter
-    (fun c ->
-      match c with
+    (function
       | '"' -> Buffer.add_string buf "\\\""
       | '\\' -> Buffer.add_string buf "\\\\"
       | '\n' -> Buffer.add_string buf "\\n"
