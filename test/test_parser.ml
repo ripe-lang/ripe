@@ -126,15 +126,15 @@ let%expect_test "parse: comparison non-associative" =
 
 let%expect_test "parse: unary minus and not" =
   parse_expr "!flag && -x > 0";
-  [%expect {| (&& (! flag) (> (neg x) 0)) |}]
+  [%expect {| (&& (! flag) (> (- x) 0)) |}]
 
 let%expect_test "parse: address-of and deref chain" =
   parse_expr "&*p";
-  [%expect {| (addr (deref p)) |}]
+  [%expect {| (& (* p)) |}]
 
 let%expect_test "parse: double address-of splits the and token" =
   parse_expr "&&x";
-  [%expect {| (addr (addr x)) |}]
+  [%expect {| (& (& x)) |}]
 
 let%expect_test "parse: call with args" =
   parse_expr "add(1, 2 * 3)";
@@ -432,7 +432,7 @@ let%expect_test "parse: cast chain" =
 
 let%expect_test "parse: negation binds tighter than multiply" =
   parse_expr "-2 * 3";
-  [%expect {| (* (neg 2) 3) |}]
+  [%expect {| (* (- 2) 3) |}]
 
 let%expect_test "parse: double negation" =
   parse_expr "!!x";
@@ -452,15 +452,15 @@ let%expect_test "parse: index after call" =
 
 let%expect_test "parse: negation binds looser than index" =
   parse_expr "-arr[0]";
-  [%expect {| (neg (index arr 0)) |}]
+  [%expect {| (- (index arr 0)) |}]
 
 let%expect_test "parse: address-of binds looser than field" =
   parse_expr "&s.x";
-  [%expect {| (addr (. s x)) |}]
+  [%expect {| (& (. s x)) |}]
 
 let%expect_test "parse: deref binds looser than field" =
   parse_expr "*p.x";
-  [%expect {| (deref (. p x)) |}]
+  [%expect {| (* (. p x)) |}]
 
 let%expect_test "parse: postfix on a cast is rejected" =
   parse_expr "x as i32[0]";

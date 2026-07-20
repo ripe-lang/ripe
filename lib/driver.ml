@@ -23,14 +23,12 @@ let run cmd =
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
-let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
-
 (* lower IL through qbe and return the emitted asm path *)
 let run_qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
   Out_channel.with_open_text tmp_qbe (fun oc -> output_string oc il);
-  run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
+  run (Printf.sprintf "%s -o %s %s" Config.qbe tmp_asm tmp_qbe);
   Sys.remove tmp_qbe;
   tmp_asm
 
