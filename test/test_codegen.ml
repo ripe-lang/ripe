@@ -1176,7 +1176,7 @@ func f() i32 {
         storew 0, %i
     @loop.body0
     @if.cond1_0
-        jnz 1, @if.else1, @if.then1_0
+        jmp @if.else1
     @if.then1_0
         jmp @loop.end0
     @if.else1
@@ -2520,8 +2520,8 @@ func check(p: *i32) i32 {
     @if.cond1_0
         %t3 =l loadl %p
         %t4 =w cnel %t3, 0
-        jnz %t4, @and.rhs2, @if.else1
-    @and.rhs2
+        jnz %t4, @sel.then2, @sel.else2
+    @sel.then2
         %t5 =l loadl %p
         %t7 =w ceql %t5, 0
         jnz %t7, @null.fail.8, @null.ok.8
@@ -2532,6 +2532,8 @@ func check(p: *i32) i32 {
         %t6 =w loadsw %t5
         %t9 =w ceqw %t6, 3
         jnz %t9, @if.then1_0, @if.else1
+    @sel.else2
+        jmp @if.else1
     @if.then1_0
         ret 1
     @if.else1
@@ -2555,17 +2557,16 @@ func any(a: bool, b: bool) bool {
         %b =l alloc4 1
         storeb %t1, %b
         %t4 =w loadub %a
-        jnz %t4, @bool.true2, @or.rhs3
-    @or.rhs3
+        jnz %t4, @sel.then2, @sel.else2
+    @sel.then2
+        %t3 =w copy 1
+        jmp @sel.join2
+    @sel.else2
         %t5 =w loadub %b
-        jnz %t5, @bool.true2, @bool.false2
-    @bool.true2
-        jmp @bool.join2
-    @bool.false2
-        jmp @bool.join2
-    @bool.join2
-        %t6 =w phi @bool.true2 1, @bool.false2 0
-        ret %t6
+        %t3 =w copy %t5
+        jmp @sel.join2
+    @sel.join2
+        ret %t3
     }
     |}]
 
@@ -2589,13 +2590,17 @@ func f(a: bool, b: bool, c: bool) i32 {
         storeb %t2, %c
     @if.cond3_0
         %t6 =w loadub %a
-        jnz %t6, @and.rhs5, @if.else3
-    @and.rhs5
+        jnz %t6, @sel.then5, @sel.else5
+    @sel.then5
         %t7 =w loadub %b
-        jnz %t7, @and.rhs4, @if.else3
-    @and.rhs4
+        jnz %t7, @sel.then4, @sel.else4
+    @sel.else5
+        jmp @sel.else4
+    @sel.then4
         %t8 =w loadub %c
         jnz %t8, @if.then3_0, @if.else3
+    @sel.else4
+        jmp @if.else3
     @if.then3_0
         ret 1
     @if.else3
@@ -2622,20 +2627,25 @@ func f(a: bool, b: bool, c: bool) bool {
         %c =l alloc4 1
         storeb %t2, %c
         %t5 =w loadub %a
-        jnz %t5, @bool.true3, @or.rhs4
-    @or.rhs4
-        %t7 =w loadub %b
-        jnz %t7, @and.rhs6, @bool.false3
-    @and.rhs6
-        %t8 =w loadub %c
-        jnz %t8, @bool.true3, @bool.false3
-    @bool.true3
-        jmp @bool.join3
-    @bool.false3
-        jmp @bool.join3
-    @bool.join3
-        %t9 =w phi @bool.true3 1, @bool.false3 0
-        ret %t9
+        jnz %t5, @sel.then3, @sel.else3
+    @sel.then3
+        %t4 =w copy 1
+        jmp @sel.join3
+    @sel.else3
+        %t8 =w loadub %b
+        jnz %t8, @sel.then6, @sel.else6
+    @sel.then6
+        %t9 =w loadub %c
+        %t7 =w copy %t9
+        jmp @sel.join6
+    @sel.else6
+        %t7 =w copy 0
+        jmp @sel.join6
+    @sel.join6
+        %t4 =w copy %t7
+        jmp @sel.join3
+    @sel.join3
+        ret %t4
     }
     |}]
 
@@ -2657,10 +2667,12 @@ func f(a: bool, b: bool) i32 {
         storeb %t1, %b
     @if.cond2_0
         %t4 =w loadub %a
-        jnz %t4, @if.else2, @and.rhs3
-    @and.rhs3
+        jnz %t4, @sel.else3, @sel.then3
+    @sel.then3
         %t5 =w loadub %b
         jnz %t5, @if.then2_0, @if.else2
+    @sel.else3
+        jmp @if.else2
     @if.then2_0
         ret 1
     @if.else2
@@ -2686,10 +2698,12 @@ func f(a: bool, b: bool) {
     @loop.body2
     @if.cond3_0
         %t5 =w loadub %a
-        jnz %t5, @and.rhs4, @if.then3_0
-    @and.rhs4
+        jnz %t5, @sel.then4, @sel.else4
+    @sel.then4
         %t6 =w loadub %b
         jnz %t6, @if.else3, @if.then3_0
+    @sel.else4
+        jmp @if.then3_0
     @if.then3_0
         jmp @loop.end2
     @if.else3
@@ -2719,24 +2733,23 @@ func f(a: bool, b: bool) i32 {
         storeb %t1, %b
         %ok =l alloc4 1
         %t4 =w loadub %a
-        jnz %t4, @and.rhs3, @bool.false2
-    @and.rhs3
+        jnz %t4, @sel.then2, @sel.else2
+    @sel.then2
         %t5 =w loadub %b
-        jnz %t5, @bool.true2, @bool.false2
-    @bool.true2
-        jmp @bool.join2
-    @bool.false2
-        jmp @bool.join2
-    @bool.join2
-        %t6 =w phi @bool.true2 1, @bool.false2 0
-        storeb %t6, %ok
-    @if.cond7_0
-        %t8 =w loadub %ok
-        jnz %t8, @if.then7_0, @if.else7
-    @if.then7_0
+        %t3 =w copy %t5
+        jmp @sel.join2
+    @sel.else2
+        %t3 =w copy 0
+        jmp @sel.join2
+    @sel.join2
+        storeb %t3, %ok
+    @if.cond6_0
+        %t7 =w loadub %ok
+        jnz %t7, @if.then6_0, @if.else6
+    @if.then6_0
         ret 1
-    @if.else7
-    @if.end7
+    @if.else6
+    @if.end6
         ret 0
     }
     |}]
