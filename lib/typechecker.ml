@@ -369,6 +369,9 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
          | _ -> is_numeric)
            (strip_alias want) ->
       T.mk want (T.TBinOp (op, check env l want, check env r want))
+  | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (strip_alias want)
+    ->
+      T.mk want (T.TBinOp (op, check env l want, synth env r))
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
