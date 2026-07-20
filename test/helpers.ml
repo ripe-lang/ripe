@@ -1,51 +1,24 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
+module C = Ripe.Core
+
 let parse src =
   let st = Ripe.Lexer.make_state () in
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
 
-let tok_str (t : Ripe.Tokens.token) =
-  let open Ripe.Tokens in
-  match t with
-  | IDENT s -> "IDENT " ^ s
-  | INT (n, suf) -> "INT " ^ Int64.to_string n ^ Option.value ~default:"" suf
-  | FLOAT f -> "FLOAT " ^ string_of_float f
-  | STRING s -> "STRING " ^ String.escaped s
-  | SEMI -> "SEMI"
-  | EOF -> "EOF"
-  | ERROR s -> "ERROR " ^ s
-  | other ->
-      if List.exists (fun (_, t') -> t' = other) keywords then
-        "KW " ^ show_token other
-      else show_token other
-
-let dump_tokens src =
-  let st = Ripe.Lexer.make_state () in
-  let lexbuf = Lexing.from_string src in
-  let rec go () =
-    let t, _ = Ripe.Lexer.read st lexbuf in
-    print_endline (tok_str t);
-    if t <> Ripe.Tokens.EOF then go ()
+(* substring offset so a test can point a span at a snippet *)
+let off src sub =
+  let n = String.length sub and m = String.length src in
+  let rec go i =
+    if i + n > m then -1 else if String.sub src i n = sub then i else go (i + 1)
   in
-  go ()
+  go 0
 
-let ctx src =
-  {
-    Ripe.Diagnostic.sm = Ripe.Source_map.create src;
-    filename = "<test>";
-    color = false;
-  }
+let span src sub =
+  { Ripe.Ast.lo = off src sub; hi = off src sub + String.length sub }
 
-let run_src src =
-  try
-    let decls = parse src in
-    let uses = Ripe.Resolve.resolve decls in
-    let _, warns = Ripe.Typechecker.typecheck uses decls in
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) warns;
-    print_endline "ok"
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
+let point src sub = { Ripe.Ast.lo = off src sub; hi = off src sub }
 
 let replace s old rep =
   let olen = String.length old in
@@ -63,7 +36,22 @@ let replace s old rep =
   done;
   Buffer.contents b
 
-let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
+let ctx src =
+  {
+    Ripe.Diagnostic.sm = Ripe.Source_map.create src;
+    filename = "<test>";
+    color = false;
+  }
+
+let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
+
+(* the front of the pipeline every runner shares *)
+let check_src src =
+  let decls = parse src in
+  let uses = Ripe.Resolve.resolve decls in
+  Ripe.Typechecker.typecheck uses decls
+
+let lower_src src = Ripe.Lower.lower (fst (check_src src))
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
@@ -73,7 +61,8 @@ let check_qbe il =
   output_string oc il;
   close_out oc;
   let cmd =
-    Printf.sprintf "%s -o /dev/null %s 2> %s" (Filename.quote qbe)
+    Printf.sprintf "%s -o /dev/null %s 2> %s"
+      (Filename.quote Ripe.Config.qbe)
       (Filename.quote ssa) (Filename.quote err)
   in
   if Sys.command cmd <> 0 then begin
@@ -88,38 +77,22 @@ let check_qbe il =
   Sys.remove ssa;
   Sys.remove err
 
-let run_codegen src =
-  try
-    let decls = parse src in
-    let uses = Ripe.Resolve.resolve decls in
-    let tdecls, _ = Ripe.Typechecker.typecheck uses decls in
-    let cdecls = Ripe.Lower.lower tdecls in
-    let il = Ripe.Codegen_qbe.emit_qbe cdecls in
-    print_string il;
-    check_qbe il
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
+let tok_str (t : Ripe.Tokens.token) =
+  let open Ripe.Tokens in
+  match t with
+  | IDENT s -> "IDENT " ^ s
+  | INT (n, suf) -> "INT " ^ Int64.to_string n ^ Option.value ~default:"" suf
+  | FLOAT f -> "FLOAT " ^ string_of_float f
+  | STRING s -> "STRING " ^ String.escaped s
+  | SEMI -> "SEMI"
+  | EOF -> "EOF"
+  | ERROR s -> "ERROR " ^ s
+  | other ->
+      if List.exists (fun (_, t') -> t' = other) keywords then
+        "KW " ^ show_token other
+      else show_token other
 
-let expect_errors f =
-  try
-    f ();
-    print_endline "<no error>"
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx "") d)) diags
-
-let parse_only src =
-  try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx src) d)) diags
-
-let show_unop = function
-  | Ripe.Ast.Neg -> "neg"
-  | Not -> "!"
-  | BitNot -> "~"
-  | Deref -> "deref"
-  | AddressOf -> "addr"
-
-(* compact s-expr expression dumper, no spans *)
+(* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
   | Named n -> n
@@ -147,7 +120,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | BinOp (op, l, r) ->
       "(" ^ Ripe.Ast.show_binop_sym op ^ " " ^ dump_expr l ^ " " ^ dump_expr r
       ^ ")"
-  | UnOp (op, e) -> "(" ^ show_unop op ^ " " ^ dump_expr e ^ ")"
+  | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | FieldAccess (e, f) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
@@ -167,6 +140,50 @@ and dump_expr (e : Ripe.Ast.expr) =
              fields)
       ^ ")"
 
+(* a compact core statement dump where the flat list is the whole point *)
+let rec dump_cstmt (st : C.cstmt) : string =
+  match st.C.tsdesc with
+  | C.CBinding (_, s, _, _) -> "bind " ^ s.Ripe.Symbol.name
+  | C.CExpr _ -> "expr"
+  | C.CReturn _ -> "return"
+  | C.CBreak -> "break"
+  | C.CContinue -> "continue"
+  | C.CIf (branches, else_body) ->
+      let arm (_, body) = "if " ^ dump_cstmts body in
+      String.concat " " (List.map arm branches)
+      ^ " else " ^ dump_cstmts else_body
+  | C.CLoop body -> "loop " ^ dump_cstmts body
+
+and dump_cstmts (stmts : C.cstmt list) : string =
+  "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
+
+let all_kinds =
+  Ripe.Symbol.
+    [
+      Func;
+      Extern;
+      Global;
+      Local Ripe.Ast.Let;
+      Local Ripe.Ast.Const;
+      Local Ripe.Ast.Var;
+      Param;
+      ForVar;
+    ]
+
+let dump_tokens src =
+  let st = Ripe.Lexer.make_state () in
+  let lexbuf = Lexing.from_string src in
+  let rec go () =
+    let t, _ = Ripe.Lexer.read st lexbuf in
+    print_endline (tok_str t);
+    if t <> Ripe.Tokens.EOF then go ()
+  in
+  go ()
+
+let parse_only src =
+  try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
+  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
+
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =
   let wrapped = "func _f() { return " ^ src ^ " }" in
@@ -175,7 +192,37 @@ let parse_expr src =
     | [ Ripe.Ast.Func { body = [ { sdesc = Return (Some e); _ } ]; _ } ] ->
         print_endline (dump_expr e)
     | _ -> print_endline "<parse_expr: unexpected shape>"
+  with Ripe.Diagnostic.Errors diags -> List.iter (render wrapped) diags
+
+let run_src src =
+  try
+    let _, warns = check_src src in
+    List.iter (render src) warns;
+    print_endline "ok"
+  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
+
+let run_codegen src =
+  try
+    let il = Ripe.Codegen_qbe.emit_qbe (lower_src src) in
+    print_string il;
+    check_qbe il
+  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
+
+let run_lower src =
+  List.iter
+    (function
+      | C.CFunc fd -> print_endline (fd.C.name ^ " " ^ dump_cstmts fd.C.body)
+      | _ -> ())
+    (lower_src src)
+
+let dump_kinds pred =
+  List.iter
+    (fun k -> Printf.printf "%s %b\n" (Ripe.Symbol.show_kind k) (pred k))
+    all_kinds
+
+let expect_errors f =
+  try
+    f ();
+    print_endline "<no error>"
   with Ripe.Diagnostic.Errors diags ->
-    List.iter
-      (fun d -> print_string (Ripe.Diagnostic.render (ctx wrapped) d))
-      diags
+    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx "") d)) diags

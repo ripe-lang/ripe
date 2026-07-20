@@ -1,21 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ripe
-
-let off src sub =
-  let n = String.length sub and m = String.length src in
-  let rec go i =
-    if i + n > m then -1 else if String.sub src i n = sub then i else go (i + 1)
-  in
-  go 0
-
-let ctx src =
-  { Diagnostic.sm = Source_map.create src; filename = "t.rp"; color = false }
-
-let span src sub =
-  { Ast.lo = off src sub; hi = off src sub + String.length sub }
-
-let render src d = print_string (Diagnostic.render (ctx src) d)
+open Helpers
 
 let%expect_test "error: type mismatch" =
   let src = "var x: i32 = true\n" in
@@ -24,7 +10,7 @@ let%expect_test "error: type mismatch" =
   [%expect
     {|
     error: type mismatch
-      at t.rp:1:14
+      at <test>:1:14
         var x: i32 = true
                      ^~~~ expected i32, found bool
     |}]
@@ -35,7 +21,7 @@ let%expect_test "error: undefined name" =
   [%expect
     {|
     error: undefined variable: foo
-      at t.rp:1:8
+      at <test>:1:8
         return foo
                ^~~
     |}]
@@ -48,10 +34,10 @@ let%expect_test "error: redefinition points at the previous binder" =
   [%expect
     {|
     error: already defined: x
-      at t.rp:2:9
+      at <test>:2:9
         var x = 2
                 ^
-      at t.rp:1:5
+      at <test>:1:5
         var x = 1
             ^ previous definition here
     |}]
@@ -63,7 +49,7 @@ let%expect_test "error: arity" =
   [%expect
     {|
     error: expected 1 argument, found 2
-      at t.rp:1:1
+      at <test>:1:1
         f(1, 2)
         ^~~~~~~
     |}]
@@ -74,7 +60,7 @@ let%expect_test "error: integer literal out of range" =
   [%expect
     {|
     error: integer literal out of range
-      at t.rp:1:13
+      at <test>:1:13
         var x: i8 = 300
                     ^~~ does not fit in i8
     |}]
@@ -85,7 +71,7 @@ let%expect_test "error: unsupported feature" =
   [%expect
     {|
     error: range expressions is not yet supported
-      at t.rp:1:8
+      at <test>:1:8
         return 0..5
                ^~~~
     |}]
@@ -96,7 +82,7 @@ let%expect_test "error: internal compiler error" =
   [%expect
     {|
     error: internal compiler error
-      at t.rp:1:6
+      at <test>:1:6
         func main() {}
              ^~~~
     TVoid has no size
