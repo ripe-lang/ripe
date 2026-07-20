@@ -317,35 +317,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Ident name ->
       let t = lookup_var env e.span name in
       T.mk t (T.TIdent (sym env e.span))
-  | Call (callee, args) -> (
-      match callee.desc with
-      | Ident name when Symbol.is_func (sym env callee.span).kind ->
-          let fn_sym = sym env callee.span in
-          let sig_ = lookup_func env callee.span name in
-          let targs = check_args env e.span sig_ args in
-          let fixed_count =
-            if sig_.variadic then Some (List.length sig_.param_tys) else None
-          in
-          let callee_texpr =
-            T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
-          in
-          T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
-      | _ -> (
-          (* the callee is a value holding a fn ptr so call through it *)
-          let callee_texpr = synth env callee in
-          match resolve_ty callee_texpr.T.ty with
-          | TFunc (param_tys, ret_ty) ->
-              let sig_ = { param_tys; ret_ty; variadic = false } in
-              let targs = check_args env e.span sig_ args in
-              T.mk ret_ty (T.TCall (callee_texpr, targs, None))
-          | _ ->
-              emit env
-                (Diagnostic.error "not callable"
-                |> Diagnostic.at callee.span
-                |> Diagnostic.label
-                     (Printf.sprintf "this has type %s"
-                        (show_ty callee_texpr.T.ty)));
-              dummy_texpr))
+  | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
@@ -381,33 +353,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let elem = te0.T.ty in
       let tes = te0 :: List.map (fun e -> check env e elem) rest in
       T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
-  | Index (base, idx) -> (
-      let tbase = synth env base in
-      match strip_alias tbase.T.ty with
-      | TArray (elem, _) | TSlice elem -> (
-          match idx.desc with
-          (* arr[lo..hi] produces a slice that borrows into the same storage;
-             arr[lo..=hi] desugars to arr[lo..hi+1] *)
-          | Range (lo, hi) | RangeInclusive (lo, hi) ->
-              let inclusive =
-                match idx.desc with RangeInclusive _ -> true | _ -> false
-              in
-              let tlo, thi, lt = check_range_bounds env lo hi in
-              let thi =
-                if inclusive then
-                  T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1L)))
-                else thi
-              in
-              T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
-          | _ ->
-              let tidx = synth env idx in
-              if not (is_integer tidx.T.ty) then
-                add_error env idx.span "array index must be an integer";
-              T.mk elem (T.TIndex (tbase, tidx)))
-      | TError -> dummy_texpr
-      | t ->
-          emit env (Error.named e.span "cannot index type" (show_ty t));
-          dummy_texpr)
+  | Index (base, idx) -> synth_index env e.span base idx
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
@@ -780,6 +726,66 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
             (Error.named span "no field" fname
             |> Diagnostic.label (Printf.sprintf "on struct %s" sname));
           dummy_texpr)
+
+and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
+    : T.texpr =
+  match callee.desc with
+  | Ident name when Symbol.is_func (sym env callee.span).kind ->
+      let fn_sym = sym env callee.span in
+      let sig_ = lookup_func env callee.span name in
+      let targs = check_args env span sig_ args in
+      let fixed_count =
+        if sig_.variadic then Some (List.length sig_.param_tys) else None
+      in
+      let callee_texpr =
+        T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
+      in
+      T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
+  | _ -> (
+      (* the callee is a value holding a fn ptr so call through it *)
+      let callee_texpr = synth env callee in
+      match resolve_ty callee_texpr.T.ty with
+      | TFunc (param_tys, ret_ty) ->
+          let sig_ = { param_tys; ret_ty; variadic = false } in
+          let targs = check_args env span sig_ args in
+          T.mk ret_ty (T.TCall (callee_texpr, targs, None))
+      | _ ->
+          emit env
+            (Diagnostic.error "not callable"
+            |> Diagnostic.at callee.span
+            |> Diagnostic.label
+                 (Printf.sprintf "this has type %s" (show_ty callee_texpr.T.ty))
+            );
+          dummy_texpr)
+
+and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
+    T.texpr =
+  let tbase = synth env base in
+  match strip_alias tbase.T.ty with
+  | TArray (elem, _) | TSlice elem -> (
+      match idx.desc with
+      (* arr[lo..hi] produces a slice that borrows into the same storage;
+         arr[lo..=hi] desugars to arr[lo..hi+1] *)
+      | Range (lo, hi) | RangeInclusive (lo, hi) ->
+          let inclusive =
+            match idx.desc with RangeInclusive _ -> true | _ -> false
+          in
+          let tlo, thi, lt = check_range_bounds env lo hi in
+          let thi =
+            if inclusive then
+              T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1L)))
+            else thi
+          in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
+      | _ ->
+          let tidx = synth env idx in
+          if not (is_integer tidx.T.ty) then
+            add_error env idx.span "array index must be an integer";
+          T.mk elem (T.TIndex (tbase, tidx)))
+  | TError -> dummy_texpr
+  | t ->
+      emit env (Error.named span "cannot index type" (show_ty t));
+      dummy_texpr
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
