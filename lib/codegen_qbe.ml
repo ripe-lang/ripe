@@ -924,7 +924,7 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CBinding (_kind, s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
-      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
+      emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       match e.T.desc with
       | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
       | T.CUndef -> ()
