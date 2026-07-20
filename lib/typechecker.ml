@@ -1150,6 +1150,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
+  (* main always returns a 32 bit integer so any other type the user writes is rejected *)
   if fd.name = "main" && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env
