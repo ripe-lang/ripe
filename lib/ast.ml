@@ -72,6 +72,13 @@ let show_binop_sym = function
 type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 
+let show_unop_sym = function
+  | Neg -> "-"
+  | Not -> "!"
+  | BitNot -> "~"
+  | Deref -> "*"
+  | AddressOf -> "&"
+
 type expr_desc =
   | Int of int64 * string option
   | Float of float
