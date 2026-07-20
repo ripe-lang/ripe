@@ -12,6 +12,7 @@ type cexpr_desc =
   | CIdent of Symbol.t
   | CCall of cexpr * cexpr list * int option
   | CBinOp of Ast.binop * cexpr * cexpr
+  | CIfExpr of cexpr * cexpr * cexpr
   | CUnOp of Ast.unop * cexpr
   | CFieldAccess of cexpr * string
   (* target type is the node type *)

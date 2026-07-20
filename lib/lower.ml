@@ -65,6 +65,10 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TIdent sym -> D.CIdent sym
     | S.TCall (f, args, variadic_start) ->
         D.CCall (lower_expr f, List.map lower_expr args, variadic_start)
+    | S.TBinOp (Ast.And, l, r) ->
+        D.CIfExpr (lower_expr l, lower_expr r, D.mk ~span ty (D.CBool false))
+    | S.TBinOp (Ast.Or, l, r) ->
+        D.CIfExpr (lower_expr l, D.mk ~span ty (D.CBool true), lower_expr r)
     | S.TBinOp (op, l, r) -> D.CBinOp (op, lower_expr l, lower_expr r)
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
