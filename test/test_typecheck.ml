@@ -1665,6 +1665,84 @@ let%expect_test "typecheck: returning a slice param ok" =
   run_src "func f(xs: []i32) []i32 { return xs }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: returning the address of a local rejected" =
+  run_src "func f() *i32 { var x: i32 = 5 return &x }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:39
+        func f() *i32 { var x: i32 = 5 return &x }
+                                              ^~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning the address of a local field rejected" =
+  run_src "struct S { a: i32 } func f() *i32 { var s: S = S{a: 1} return &s.a }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:63
+        struct S { a: i32 } func f() *i32 { var s: S = S{a: 1} return &s.a }
+                                                                      ^~~~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning the address of a local element rejected" =
+  run_src "func f() *i32 { var a: [3]i32 = [1,2,3] return &a[0] }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:48
+        func f() *i32 { var a: [3]i32 = [1,2,3] return &a[0] }
+                                                       ^~~~~ points into freed stack memory
+    |}]
+
+let%expect_test
+    "typecheck: returning the address of a whole local array rejected" =
+  run_src "func f() *[3]i32 { var a: [3]i32 = [1,2,3] return &a }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:51
+        func f() *[3]i32 { var a: [3]i32 = [1,2,3] return &a }
+                                                          ^~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning the address of a local pointer rejected" =
+  run_src "func f() **i32 { var x: i32 = 5 var p: *i32 = &x return &p }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:57
+        func f() **i32 { var x: i32 = 5 var p: *i32 = &x return &p }
+                                                                ^~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning a pointer param ok" =
+  run_src "func f(p: *i32) *i32 { return p }";
+  [%expect {| ok |}]
+
+let%expect_test
+    "typecheck: returning the address of a field through a pointer ok" =
+  run_src "struct S { a: i32 } func f(p: *S) *i32 { return &p.a }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: returning a slice of a returned array rejected" =
+  run_src
+    "func g() [3]i32 { var a: [3]i32 = [1,2,3] return a } func f() []i32 { \
+     return g()[0..2] }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:78
+        func g() [3]i32 { var a: [3]i32 = [1,2,3] return a } func f() []i32 { return g()[0..2] }
+                                                                                     ^~~~~~~~~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: returning a slice from a slice call ok" =
+  run_src
+    "func g(xs: []i32) []i32 { return xs } func f(xs: []i32) []i32 { return \
+     g(xs) }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
     "func f() i32 { var a: [3]i32 = [1,2,3] let s: []i32 = a[0..=2] return \

@@ -6,10 +6,10 @@
   "id": "c472",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "Returning `&local` dangles with no diagnostic",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-20 13:48:20.891027"
 }

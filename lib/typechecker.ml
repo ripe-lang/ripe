@@ -900,11 +900,18 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (env, T.TReturn None)
   | Return (Some e) ->
       let te = check env e env.ret_ty in
-      if Escape.slice_return_escapes te then
-        emit env
-          (Diagnostic.error "slice of a local escapes"
-          |> Diagnostic.at e.span
-          |> Diagnostic.label "points into freed stack memory");
+      (match Escape.return_escapes te with
+      | Some kind ->
+          let noun =
+            match kind with
+            | Escape.Slice -> "slice of a local"
+            | Escape.Address -> "address of a local"
+          in
+          emit env
+            (Diagnostic.error (noun ^ " escapes")
+            |> Diagnostic.at e.span
+            |> Diagnostic.label "points into freed stack memory")
+      | None -> ());
       (env, T.TReturn (Some te))
   | Expr e ->
       let te = synth env e in
