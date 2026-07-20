@@ -4480,3 +4480,44 @@ func main() i32 {
         ret %t10
     }
     |}]
+
+let%expect_test "codegen: loop var and let allocs hoisted to @start" =
+  run_codegen
+    {|
+func f() {
+  var i: i32 = 0
+  while i < 3 {
+    var x: i32 = i
+    let y: i32 = x
+    i = y
+  }
+}
+|};
+  [%expect
+    {|
+    function $f() {
+    @start
+        %i =l alloc4 4
+        %x =l alloc4 4
+        %y =l alloc4 4
+        storew 0, %i
+    @loop.body0
+    @if.cond1_0
+        %t2 =w loadsw %i
+        %t3 =w csltw %t2, 3
+        jnz %t3, @if.else1, @if.then1_0
+    @if.then1_0
+        jmp @loop.end0
+    @if.else1
+    @if.end1
+        %t4 =w loadsw %i
+        storew %t4, %x
+        %t5 =w loadsw %x
+        storew %t5, %y
+        %t6 =w loadsw %y
+        storew %t6, %i
+        jmp @loop.body0
+    @loop.end0
+        ret
+    }
+    |}]
