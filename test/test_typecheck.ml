@@ -826,6 +826,10 @@ let%expect_test "typecheck: shift on int ok" =
   run_src "func f() i32 { return 1 << 3 }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: shift literal takes target type" =
+  run_src "func f() u8 { return 5 << 2 }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: bitwise on bool rejected" =
   run_src "func f() { let x = true & false }";
   [%expect
