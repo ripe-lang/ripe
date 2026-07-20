@@ -304,7 +304,7 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.CBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
+  | T.CIfExpr (cond, then_e, else_e) -> emit_if_expr ctx cond then_e else_e t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
   | T.CCast e ->
@@ -690,38 +690,42 @@ and emit_store_into ctx ty addr r =
     emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
     rv
 
-(* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
+(* a condition that's itself a branch just jumps to its arms directly *)
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
-  | T.CBinOp (Ast.And, l, r) ->
-      let mid = Printf.sprintf "@and.rhs%d" (fresh_id ctx) in
-      emit_branch ctx l mid false_lbl;
-      emit_label ctx mid;
-      emit_branch ctx r true_lbl false_lbl
-  | T.CBinOp (Ast.Or, l, r) ->
-      let mid = Printf.sprintf "@or.rhs%d" (fresh_id ctx) in
-      emit_branch ctx l true_lbl mid;
-      emit_label ctx mid;
-      emit_branch ctx r true_lbl false_lbl
+  | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
+  | T.CIfExpr (cond, then_e, else_e) ->
+      let id = fresh_id ctx in
+      let then_lbl = Printf.sprintf "@sel.then%d" id in
+      let else_lbl = Printf.sprintf "@sel.else%d" id in
+      emit_branch ctx cond then_lbl else_lbl;
+      emit_label ctx then_lbl;
+      emit_branch ctx then_e true_lbl false_lbl;
+      emit_label ctx else_lbl;
+      emit_branch ctx else_e true_lbl false_lbl
   | T.CUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
   | _ ->
       let v = emit_expr ctx e in
       emit_jnz ctx v true_lbl false_lbl
 
-(* same condition but wanted as a 0/1 value, e.g. let ok = a && b *)
-and emit_bool_value ctx e =
+(* only the taken arm runs, so in let ok = a && b the b side never runs when a is false *)
+and emit_if_expr ctx cond then_e else_e ty =
   let id = fresh_id ctx in
-  let true_lbl = Printf.sprintf "@bool.true%d" id in
-  let false_lbl = Printf.sprintf "@bool.false%d" id in
-  let join_lbl = Printf.sprintf "@bool.join%d" id in
-  emit_branch ctx e true_lbl false_lbl;
-  emit_label ctx true_lbl;
+  let then_lbl = Printf.sprintf "@sel.then%d" id in
+  let else_lbl = Printf.sprintf "@sel.else%d" id in
+  let join_lbl = Printf.sprintf "@sel.join%d" id in
+  let qt = qbe_ty ty in
+  let res = fresh ctx in
+  emit_branch ctx cond then_lbl else_lbl;
+  emit_label ctx then_lbl;
+  let tv = emit_expr ctx then_e in
+  emit ctx "    %s =%s copy %s\n" res qt tv;
   emit_jmp ctx join_lbl;
-  emit_label ctx false_lbl;
+  emit_label ctx else_lbl;
+  let ev = emit_expr ctx else_e in
+  emit ctx "    %s =%s copy %s\n" res qt ev;
   emit_jmp ctx join_lbl;
   emit_label ctx join_lbl;
-  let res = fresh ctx in
-  emit ctx "    %s =w phi %s 1, %s 0\n" res true_lbl false_lbl;
   res
 
 (* TODO(2cc1): the local arithmetic always emits instructions instead of
