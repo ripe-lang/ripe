@@ -1,0 +1,21 @@
+var count: i32 = 0
+
+func bump(v: bool) bool {
+  count = count + 1
+  return v
+}
+
+func main() i32 {
+  var a: bool = false && bump(true)
+  var b: bool = true || bump(true)
+  if a { return 1 }
+  if !b { return 2 }
+  if count != 0 { return 3 }
+
+  var c: bool = true && bump(true)
+  var d: bool = false || bump(false)
+  if !c { return 4 }
+  if d { return 5 }
+  if count != 2 { return 6 }
+  return 0
+}
