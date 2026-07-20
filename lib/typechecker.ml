@@ -541,14 +541,11 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_numeric t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       (* qbe has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
-      then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%%` to %s" (show_ty t));
+      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
@@ -556,9 +553,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -566,9 +562,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_ordered t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -580,9 +575,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_integer t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tr =
         match op with
         (* the count keeps its own integer type since it is only a number of positions *)
@@ -629,8 +623,7 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
     | _ -> false
   in
   if not operand_ok then
-    add_error env l.span
-      (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op) (show_ty t));
+    emit env (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
   let tr =
     match op with
     (* the count keeps its own type since it's just how far to shift *)
@@ -651,8 +644,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        add_error env e.span
-          (Printf.sprintf "cannot apply `-` to %s" (show_ty t));
+        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Not ->
       let te = check env e TBool in
@@ -661,8 +653,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_integer t) then
-        add_error env e.span
-          (Printf.sprintf "cannot apply `~` to %s" (show_ty t));
+        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
