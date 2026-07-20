@@ -20,22 +20,15 @@
   const_fold
   lower
   codegen_qbe
-  runtime_src
+  ripe_sites
   driver)
- (libraries unix)
+ (libraries unix dune-site)
  (preprocess
   (pps ppx_deriving.show)))
 
+(generate_sites_module
+ (module ripe_sites)
+ (sites ripe))
+
 (ocamllex
  (modules lexer))
-
-(rule
- (target runtime_src.ml)
- (deps ../runtime/panic.c)
- (action
-  (with-stdout-to
-   %{target}
-   (progn
-    (echo "let source = {rt|")
-    (cat ../runtime/panic.c)
-    (echo "|rt}\n")))))

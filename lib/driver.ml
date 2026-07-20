@@ -34,12 +34,8 @@ let run_qbe il =
 
 let compile_binary base il =
   let tmp_asm = run_qbe il in
-  let tmp_rt = Filename.temp_file "ripe_rt" ".c" in
-  Out_channel.with_open_text tmp_rt (fun oc ->
-      output_string oc Runtime_src.source);
-  run (Printf.sprintf "cc -o %s %s %s" base tmp_asm tmp_rt);
-  Sys.remove tmp_asm;
-  Sys.remove tmp_rt
+  run (Printf.sprintf "cc -o %s %s %s" base tmp_asm (Config.runtime_object ()));
+  Sys.remove tmp_asm
 
 let emit_asm il =
   let tmp_asm = run_qbe il in
