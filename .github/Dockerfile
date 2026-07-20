@@ -13,7 +13,8 @@ RUN apt-get update -y && apt-get install -y nodejs python3 && rm -rf /var/lib/ap
 WORKDIR /tmp/deps
 COPY ripe.opam ripe.opam
 COPY ripe.opam.locked ripe.opam.locked
-RUN opam install . --deps-only --locked --yes
+RUN opam repository set-url default https://opam.ocaml.org \
+  && opam update -y && opam install . --deps-only --locked --yes
 
 WORKDIR /
 RUN rm -rf /tmp/deps

@@ -1,0 +1,12 @@
+(rule
+ (target panic.o)
+ (deps panic.c)
+ (action
+  (run %{cc} -c -o %{target} %{deps})))
+
+(install
+ (section
+  (site
+   (ripe runtime)))
+ (package ripe)
+ (files panic.o))

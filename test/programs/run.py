@@ -85,22 +85,10 @@ def check_one(ripec, testdir, workdir):
     return "mismatch", diff(want, actual, "out.txt")
 
 
-def check(ripec, testname):
-    succeeded = []
-    failed = []
-
+def report(results, succeeded, failed):
     print("[Tests]")
-    with tempfile.TemporaryDirectory() as workdir:
-        for testdir in tests(testname):
-            name = os.path.relpath(testdir, TEST_DIR)
-            status, log = check_one(ripec, testdir, workdir)
-
-            print("%s: %s" % (name, status))
-
-            if status == "ok":
-                succeeded.append(name)
-            else:
-                failed.append((name, status, log))
+    for name, status in results:
+        print("%s: %s" % (name, status))
 
     if failed:
         print()
@@ -114,6 +102,27 @@ def check(ripec, testname):
     print("Passed: %d" % len(succeeded))
     if failed:
         print("Failed: %d" % len(failed))
+
+
+def check(ripec, testname, verbose):
+    results = []
+    succeeded = []
+    failed = []
+
+    with tempfile.TemporaryDirectory() as workdir:
+        for testdir in tests(testname):
+            name = os.path.relpath(testdir, TEST_DIR)
+            status, log = check_one(ripec, testdir, workdir)
+
+            results.append((name, status))
+
+            if status == "ok":
+                succeeded.append(name)
+            else:
+                failed.append((name, status, log))
+
+    if failed or verbose:
+        report(results, succeeded, failed)
 
     return len(failed)
 
@@ -130,11 +139,17 @@ def main():
         nargs="?",
         help="only run tests under the given subdirectory",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print the full report even when every test passes",
+    )
     args = parser.parse_args()
 
     ripec = find_ripec(args.ripec)
 
-    return check(ripec, args.testname)
+    return check(ripec, args.testname, args.verbose)
 
 
 if __name__ == "__main__":
