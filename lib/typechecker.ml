@@ -591,52 +591,52 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
   | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
-      let tl = synth env l in
-      if not (is_lvalue tl) then
-        add_error env l.span "cannot assign to expression";
-      (match tl.T.desc with
-      | TIdent s when Symbol.is_func s.kind ->
-          emit env (Error.named l.span "cannot assign to function" s.name)
-      | TIdent _ | TFieldAccess _ | TIndex _ -> (
-          (* This catches assignment to an immutable binding whether it's local or global. *)
-          match root_binding tl with
-          | Some s
-            when Symbol.is_immutable s.kind
-                 || (Symbol.is_global s.kind && is_const_global env s.name) ->
-              emit env (Error.named l.span "cannot assign to immutable" s.name)
-          | _ -> ())
-      | _ -> ());
-      let t = tl.T.ty in
-      let operand_ok =
-        match op with
-        | Assign -> true
-        | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
-        (* qbe has no float remainder instruction *)
-        | ModAssign ->
-            is_numeric t
-            && not (match strip_alias t with TFloat _ -> true | _ -> false)
-        | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign
-        | RshiftAssign ->
-            is_integer t
-        | _ -> false
-      in
-      if not operand_ok then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
-      let tr =
-        match op with
-        (* the count keeps its own type since it's just how far to shift *)
-        | LshiftAssign | RshiftAssign ->
-            let tr = synth env r in
-            if not (is_integer tr.T.ty) then
-              add_error env r.span
-                (Printf.sprintf "shift count must be an integer, found %s"
-                   (show_ty tr.T.ty));
-            tr
-        | _ -> check env r t
-      in
-      T.mk TVoid (T.TBinOp (op, tl, tr))
+      synth_assign env op l r
+
+and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
+  let tl = synth env l in
+  if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
+  (match tl.T.desc with
+  | TIdent s when Symbol.is_func s.kind ->
+      emit env (Error.named l.span "cannot assign to function" s.name)
+  | TIdent _ | TFieldAccess _ | TIndex _ -> (
+      (* This catches assignment to an immutable binding whether it's local or global. *)
+      match root_binding tl with
+      | Some s
+        when Symbol.is_immutable s.kind
+             || (Symbol.is_global s.kind && is_const_global env s.name) ->
+          emit env (Error.named l.span "cannot assign to immutable" s.name)
+      | _ -> ())
+  | _ -> ());
+  let t = tl.T.ty in
+  let operand_ok =
+    match op with
+    | Assign -> true
+    | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
+    (* qbe has no float remainder instruction *)
+    | ModAssign ->
+        is_numeric t
+        && not (match strip_alias t with TFloat _ -> true | _ -> false)
+    | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
+        is_integer t
+    | _ -> false
+  in
+  if not operand_ok then
+    add_error env l.span
+      (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op) (show_ty t));
+  let tr =
+    match op with
+    (* the count keeps its own type since it's just how far to shift *)
+    | LshiftAssign | RshiftAssign ->
+        let tr = synth env r in
+        if not (is_integer tr.T.ty) then
+          add_error env r.span
+            (Printf.sprintf "shift count must be an integer, found %s"
+               (show_ty tr.T.ty));
+        tr
+    | _ -> check env r t
+  in
+  T.mk TVoid (T.TBinOp (op, tl, tr))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
