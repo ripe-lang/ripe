@@ -166,11 +166,13 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
 
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
-  | TIdent _ -> true
+  | TIdent _ | TFieldAccess _ | TIndex _ -> true
   | TUnOp (Deref, _) -> true
-  | TFieldAccess _ -> true
-  | TIndex _ -> true
-  | _ -> false
+  | TUnOp _ -> false
+  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
+  | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _ | TLen _
+  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef | TStructLit _ ->
+      false
 
 (* a deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_binding (te : T.texpr) : Symbol.t option =
@@ -178,7 +180,11 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | TIdent s -> Some s
   | TFieldAccess (base, _) -> root_binding base
   | TIndex (base, _) -> root_binding base
-  | _ -> None
+  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
+  | TUnOp _ | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _
+  | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef
+  | TStructLit _ ->
+      None
 
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
@@ -195,7 +201,7 @@ let is_integer t =
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
   | TAlias (_, base) -> is_comparable base
-  | _ -> false
+  | TVoid | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ -> false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
@@ -206,7 +212,8 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool -> Numeric
   | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
-  | _ -> Aggregate
+  | TVoid | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
+  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* a pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
