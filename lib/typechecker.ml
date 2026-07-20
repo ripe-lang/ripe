@@ -573,15 +573,14 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
         | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast te)
         | _ -> te
       in
-      List.map2 (fun e want -> check env e want) fixed sig_.param_tys
-      @ List.map promote_vararg rest
+      List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
   else if n_params <> n_args then (
     emit env
       (Error.arity span
          ~expected:(Printf.sprintf "expected %d arguments" n_params)
          ~found:n_args);
     [])
-  else List.map2 (fun e want -> check env e want) args sig_.param_tys
+  else List.map2 (check env) args sig_.param_tys
 
 and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   match op with
