@@ -4,6 +4,7 @@
 
 open Ast
 open Types
+open Ty_pred
 module T = Typed_ast
 
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
@@ -131,123 +132,6 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
   | _ ->
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
-
-(* an alias is transparent and compares as its underlying type *)
-let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
-
-(* Exact equality but NULL is compatible with any pointer *)
-(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
-(* TODO(94c1): Add rawptr/void* *)
-let rec compatible (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
-  | TPointer _, TNull -> true
-  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
-  (* a fixed array coerces to a slice of the same element type *)
-  | TSlice a, TArray (b, _) -> compatible a b
-  | TSlice a, TSlice b -> compatible a b
-  | TFunc (p1, r1), TFunc (p2, r2) ->
-      List.length p1 = List.length p2
-      && List.for_all2 compatible p1 p2
-      && compatible r1 r2
-  (* a struct matches nominally by name and its type arguments must match exactly *)
-  | TStruct (n1, a1), TStruct (n2, a2) ->
-      n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
-  (* a newtype is its own type and never matches its base *)
-  | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
-  | s_want, s_got -> ty_equal s_want s_got
-
-and compatible_under_pointer (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
-  | TPointer _, TNull -> true
-  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
-  | s_want, s_got -> ty_equal s_want s_got
-
-let is_lvalue (te : T.texpr) : bool =
-  match te.T.desc with
-  | TIdent _ | TFieldAccess _ | TIndex _ -> true
-  | TUnOp (Deref, _) -> true
-  | TUnOp _ -> false
-  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
-  | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef | TStructLit _ ->
-      false
-
-(* a deref stops the walk since the pointee isn't owned by this binding *)
-let rec root_binding (te : T.texpr) : Symbol.t option =
-  match te.T.desc with
-  | TIdent s -> Some s
-  | TFieldAccess (base, _) -> root_binding base
-  | TIndex (base, _) -> root_binding base
-  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
-  | TUnOp _ | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _
-  | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef
-  | TStructLit _ ->
-      None
-
-let is_numeric t =
-  match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
-
-(* a pointer is just an address so p < q asks which one sits earlier in memory *)
-let is_ordered t =
-  match strip_alias t with TPointer _ -> true | _ -> is_numeric t
-
-let is_integer t =
-  match strip_alias t with TInt _ | TError -> true | _ -> false
-
-(* a newtype hides every operation of its base *)
-(* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
-let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
-  | TAlias (_, base) -> is_comparable base
-  | TVoid | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ -> false
-
-let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
-let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
-
-type cast_class = Numeric | Ptr | Aggregate
-
-let cast_class t =
-  match resolve_ty t with
-  | TInt _ | TFloat _ | TBool -> Numeric
-  | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
-  | TVoid | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-
-(* a pointer bit pattern is not a float and an aggregate only casts to itself *)
-let cast_ok src tgt =
-  match (resolve_ty src, resolve_ty tgt) with
-  | s, TBool -> s = TBool
-  | _ -> (
-      match (cast_class src, cast_class tgt) with
-      | Aggregate, _ | _, Aggregate ->
-          ty_equal (resolve_ty src) (resolve_ty tgt)
-      | Numeric, Numeric | Ptr, Ptr -> true
-      | (Numeric | Ptr), (Numeric | Ptr) ->
-          (not (is_float src)) && not (is_float tgt))
-
-(* a param array is copied into this frame so a slice of it dangles too *)
-let rec array_storage_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TIdent s -> (
-      match s.Symbol.kind with
-      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
-      | _ -> false)
-  | T.TArrayLit _ -> true
-  | T.TIndex (base, _) -> array_storage_escapes base
-  | T.TFieldAccess (base, _) -> array_storage_escapes base
-  | _ -> false
-
-(* only these two forms build a slice out of storage that could be local *)
-let rec slice_return_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TToSlice arr -> array_storage_escapes arr
-  | T.TSliceExpr (base, _, _) -> (
-      match strip_alias base.T.ty with
-      | TSlice _ -> slice_return_escapes base
-      | _ -> array_storage_escapes base)
-  | _ -> false
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
@@ -981,32 +865,6 @@ let collect_decl (env : env) (decl : decl) : unit =
   | TypeAlias td -> collect_alias env td
   | Newtype td -> collect_newtype env td
 
-(* a break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break stmts = List.exists stmt_has_break stmts
-
-and stmt_has_break s =
-  match s.sdesc with
-  | Break -> true
-  | Block body -> loop_has_break body
-  | If (branches, else_body) ->
-      loop_has_break else_body
-      || List.exists (fun (_, b) -> loop_has_break b) branches
-  | _ -> false
-
-(* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
-
-and stmt_returns (s : stmt) : bool =
-  match s.sdesc with
-  | Return _ -> true
-  | Block body -> stmts_return body
-  | If (branches, else_body) ->
-      else_body <> [] && stmts_return else_body
-      && List.for_all (fun (_, body) -> stmts_return body) branches
-  (* a while true with no break loops forever so the code after it never runs *)
-  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
-  | _ -> false
-
 let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
   let env', tsdesc = check_stmt_desc env s in
   (env', { T.tsdesc; span = s.span })
@@ -1042,7 +900,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (env, T.TReturn None)
   | Return (Some e) ->
       let te = check env e env.ret_ty in
-      if slice_return_escapes te then
+      if Escape.slice_return_escapes te then
         emit env
           (Diagnostic.error "slice of a local escapes"
           |> Diagnostic.at e.span
@@ -1123,7 +981,7 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
         let next_env, ts = check_stmt current_env s in
         (* break and continue end the block just like a returning if does *)
         let terminates =
-          stmt_returns s
+          Reachability.stmt_returns s
           || match s.sdesc with Break | Continue -> true | _ -> false
         in
         (next_env, ts :: acc, returned || terminates, warned || returned))
@@ -1169,7 +1027,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   if
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
-    && not (stmts_return fd.body)
+    && not (Reachability.stmts_return fd.body)
   then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env (Error.named span "missing return" fd.name)

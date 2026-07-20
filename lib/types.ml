@@ -173,6 +173,8 @@ let is_wide_ty t =
       true
   | _ -> false
 
+let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
+
 (* an alias is just another name for its base type so it never makes two types different *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
