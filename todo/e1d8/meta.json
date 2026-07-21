@@ -6,8 +6,8 @@
   "id": "e1d8",
   "priority": "low",
   "source": "lib/codegen_qbe.ml",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "blocks as expressions e.g. let x = { 5 }",
-  "updated_at": "2026-07-19 08:50:33.073694"
+  "updated_at": "2026-07-21 13:05:09.458181"
 }
