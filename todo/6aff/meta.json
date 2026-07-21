@@ -6,10 +6,10 @@
   "id": "6aff",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "compiler"
   ],
   "title": "No desugaring pass between typed AST and QBE text",
-  "updated_at": "2026-07-13 19:14:06.594388"
+  "updated_at": "2026-07-21 05:50:44.497526"
 }
