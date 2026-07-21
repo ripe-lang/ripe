@@ -430,6 +430,10 @@ let%expect_test "parse: cast chain" =
   parse_expr "x as i32 as f64";
   [%expect {| (as (as x i32) f64) |}]
 
+let%expect_test "parse: checked cast" =
+  parse_expr "x as! u8";
+  [%expect {| (as! x u8) |}]
+
 let%expect_test "parse: negation binds tighter than multiply" =
   parse_expr "-2 * 3";
   [%expect {| (* (- 2) 3) |}]

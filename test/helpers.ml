@@ -124,7 +124,9 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | FieldAccess (e, f) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
-  | Cast (e, t) -> "(as " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
+  | Cast (e, t, checked) ->
+      let op = if checked then "as!" else "as" in
+      "(" ^ op ^ " " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
       "(array"

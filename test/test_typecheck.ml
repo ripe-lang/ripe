@@ -849,6 +849,21 @@ let%expect_test "typecheck: int to int cast" =
   run_src "func f() i64 { return 1 as i64 }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: checked int cast" =
+  run_src "func f() u8 { return 300 as! u8 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: checked cast on a float rejected" =
+  run_src "func f() i32 { var x: f64 = 2.5  return x as! i32 }";
+  [%expect
+    {|
+    error: checked cast only supports integers
+      at <test>:1:41
+        func f() i32 { var x: f64 = 2.5  return x as! i32 }
+                                                ^~~~~~~~~ `as!` traps on integer overflow only
+    help: use a plain `as` cast here
+    |}]
+
 let%expect_test "typecheck: sizeof has int type" =
   run_src "func f() i64 { return sizeof(i32) as i64 }";
   [%expect {| ok |}]
