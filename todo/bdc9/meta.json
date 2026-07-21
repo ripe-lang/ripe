@@ -6,8 +6,8 @@
   "id": "bdc9",
   "priority": "low",
   "source": "lib/codegen_qbe.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "`as` silently loses data like C. Add a safe cast that catches bad conversions at runtime.",
-  "updated_at": "2026-07-19 08:50:33.073630"
+  "updated_at": "2026-07-20 20:17:05.725831"
 }
