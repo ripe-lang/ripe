@@ -40,3 +40,8 @@ void ripe_panic_shift(void) {
     fprintf(stderr, "%s negative shift amount\n", panic_prefix());
     abort();
 }
+
+void ripe_panic_cast(void) {
+    fprintf(stderr, "%s value does not fit in the target type\n", panic_prefix());
+    abort();
+}

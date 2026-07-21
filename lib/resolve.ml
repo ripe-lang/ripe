@@ -82,7 +82,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st l;
       resolve_expr st r
   | FieldAccess (inner, _) -> resolve_expr st inner
-  | Cast (inner, ty) ->
+  | Cast (inner, ty, _) ->
       resolve_expr st inner;
       resolve_typ st ty
   | SizeOf ty -> resolve_typ st ty

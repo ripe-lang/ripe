@@ -71,7 +71,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TBinOp (op, l, r) -> D.CBinOp (op, lower_expr l, lower_expr r)
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
-    | S.TCast e -> D.CCast (lower_expr e)
+    | S.TCast (e, checked) -> D.CCast (lower_expr e, checked)
     | S.TSizeOf t -> D.CSizeOf t
     | S.TRange _ | S.TRangeInclusive _ ->
         Error.ice ~span "range outside a for loop"

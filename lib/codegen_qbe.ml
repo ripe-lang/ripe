@@ -307,9 +307,9 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
   | T.CIfExpr (cond, then_e, else_e) -> emit_if_expr ctx cond then_e else_e t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
-  | T.CCast e ->
+  | T.CCast (e, checked) ->
       let v = emit_expr ctx e in
-      emit_cast ctx v e.T.ty t
+      emit_cast ctx ~checked v e.T.ty t
   | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.CFieldAccess (e, field) ->
       let ft = t in
@@ -879,7 +879,56 @@ and narrow_int_to ctx v target_ty =
       tmp
 
 (* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
-and emit_cast ctx v src_ty target_ty =
+and emit_checked_cast_guard ctx v src_ty target_ty =
+  let src_k = int_kind_of src_ty in
+  let tgt_k = int_kind_of target_ty in
+  if cast_int_needs_check src_k tgt_k then begin
+    (* the value moves up to 64 bits so both bounds fit and the compare sees its true value *)
+    let v64 =
+      if qbe_base src_ty = W then begin
+        let t = fresh ctx in
+        let ext = if is_unsigned src_ty then "extuw" else "extsw" in
+        emit ctx "    %s =l %s %s\n" t ext v;
+        t
+      end
+      else v
+    in
+    let target_is_u64 = match tgt_k with U64 | Usize -> true | _ -> false in
+    (* an unsigned source is never below zero so it can only overflow the top *)
+    let underflow =
+      if is_unsigned src_ty then None
+      else begin
+        let t = fresh ctx in
+        emit ctx "    %s =w csltl %s, %Ld\n" t v64
+          (Int64.neg (int_kind_neg_limit tgt_k));
+        Some t
+      end
+    in
+    (* nothing at 64 bits overflows a u64 so that top bound never trips *)
+    let overflow =
+      if target_is_u64 then None
+      else begin
+        let cmp = if is_unsigned src_ty then "cugtl" else "csgtl" in
+        let t = fresh ctx in
+        emit ctx "    %s =w %s %s, %Ld\n" t cmp v64 (int_kind_pos_limit tgt_k);
+        Some t
+      end
+    in
+    let bad =
+      match (underflow, overflow) with
+      | Some a, Some b ->
+          let t = fresh ctx in
+          emit ctx "    %s =w or %s, %s\n" t a b;
+          t
+      | Some x, None | None, Some x -> x
+      | None, None -> Error.ice "checked cast with no possible loss"
+    in
+    emit_guard ctx ~tag:"cast" ~cond:bad ~panic:(fun () ->
+        emit ctx "    call $ripe_panic_cast()\n")
+  end
+
+and emit_cast ctx ?(checked = false) v src_ty target_ty =
+  if checked then emit_checked_cast_guard ctx v src_ty target_ty;
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
   (* the extend already truncates so the copy would be redundant *)
