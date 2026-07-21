@@ -3128,6 +3128,34 @@ let%expect_test "typecheck: a struct points at itself" =
   run_src "struct Node { val: i32, next: *Node }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: a struct that holds itself by value has no size" =
+  run_src "struct Node { n: Node }";
+  [%expect
+    {|
+    error: recursive struct has infinite size: Node
+      at <test>:1:1
+        struct Node { n: Node }
+        ^~~~~~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test
+    "typecheck: two structs that hold each other by value have no size" =
+  run_src {|
+struct A { b: B }
+struct B { a: A }
+|};
+  [%expect
+    {|
+    error: recursive struct has infinite size: A
+      at <test>:2:1
+        struct A { b: B }
+        ^~~~~~~~~~~~~~~~~
+    error: recursive struct has infinite size: B
+      at <test>:3:1
+        struct B { a: A }
+        ^~~~~~~~~~~~~~~~~
+    |}]
+
 let%expect_test "typecheck: int literal suffix pins the type" =
   run_src "func f() u8 { return 200u8 }";
   [%expect {| ok |}]
