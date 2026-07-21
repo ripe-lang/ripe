@@ -232,7 +232,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       else if checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
         | TInt _, TInt _ -> ()
-        (* TODO: let `as!` cover float casts too once I add a loss check for floats *)
+        (* TODO(9eb1): let `as!` cover float casts too once I add a loss check for floats *)
         | _ ->
             emit env
               (Diagnostic.error "checked cast only supports integers"

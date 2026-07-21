@@ -5,9 +5,9 @@
   "depends": [],
   "id": "94c1",
   "priority": "low",
-  "source": "lib/typechecker.ml",
+  "source": "lib/ty_pred.ml",
   "status": "open",
   "tags": [],
   "title": "Add rawptr/void*",
-  "updated_at": "2026-07-12 08:23:02.156072"
+  "updated_at": "2026-07-21 13:05:09.460861"
 }

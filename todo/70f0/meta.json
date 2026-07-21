@@ -5,9 +5,9 @@
   "depends": [],
   "id": "70f0",
   "priority": "low",
-  "source": "lib/typechecker.ml",
+  "source": "lib/ty_pred.ml",
   "status": "open",
   "tags": [],
   "title": "let a newtype opt back into operators like haskell deriving",
-  "updated_at": "2026-07-12 08:23:02.156407"
+  "updated_at": "2026-07-21 13:05:09.461000"
 }
