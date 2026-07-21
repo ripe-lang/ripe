@@ -3117,6 +3117,17 @@ let%expect_test "typecheck: sizeof of an array type" =
   run_src "func f() i64 { return sizeof([4]i32) as i64 }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: a struct field names a struct defined later" =
+  run_src {|
+struct A { b: *B }
+struct B { n: i32 }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a struct points at itself" =
+  run_src "struct Node { val: i32, next: *Node }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: int literal suffix pins the type" =
   run_src "func f() u8 { return 200u8 }";
   [%expect {| ok |}]
