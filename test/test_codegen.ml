@@ -2409,12 +2409,12 @@ func f() i32 {
     function w $f() {
     @start
         %p =l alloc8 8
-        %p.2 =l alloc8 8
+        %p.3 =l alloc8 8
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
-        storew 3, %p.2
-        %t1 =l add %p.2, 4
+        storew 3, %p.3
+        %t1 =l add %p.3, 4
         storew 4, %t1
         %t2 =w loadsw %p
         ret %t2

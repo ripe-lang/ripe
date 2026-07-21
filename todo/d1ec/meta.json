@@ -6,8 +6,8 @@
   "id": "d1ec",
   "priority": "low",
   "source": "lib/typechecker.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "Support forward reference between structs",
-  "updated_at": "2026-07-12 08:23:02.156156"
+  "updated_at": "2026-07-21 06:45:23.866242"
 }

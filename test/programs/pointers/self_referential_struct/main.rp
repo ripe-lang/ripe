@@ -1,0 +1,7 @@
+struct Node { val: i32, next: *Node }
+
+func main() i32 {
+  var tail: Node = Node { val: 2, next: null }
+  var head: Node = Node { val: 1, next: &tail }
+  return head.val + head.next.val
+}

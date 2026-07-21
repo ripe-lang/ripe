@@ -143,9 +143,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DStruct _) -> TStruct (name, [])
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
-          | None ->
-              emit env (Error.undefined_name t.span "type" name);
-              TInt I32))
+          | None -> Error.ice ~span:t.span "type name escaped the resolver"))
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
   | Slice t -> TSlice (ty_of_ast env t)
@@ -833,15 +831,9 @@ let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
       true
   | None -> false
 
-(* TODO(d1ec): Support forward reference between structs *)
-(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
-(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
-let collect_struct (env : env) (sd : struct_def) : unit =
+(* the name goes in first so a field can name this struct or one defined later *)
+let reserve_struct_name (env : env) (sd : struct_def) : unit =
   if not (reject_taken_type_name env sd.span sd.name) then (
-    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
-    let field_tys =
-      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
-    in
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
@@ -849,8 +841,42 @@ let collect_struct (env : env) (sd : struct_def) : unit =
           emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys });
-    Hashtbl.replace env.struct_fields sd.name field_tys)
+    Hashtbl.replace env.types sd.name (DStruct { field_tys = [] });
+    Hashtbl.replace env.struct_fields sd.name [])
+
+(* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+let resolve_struct_fields (env : env) (sd : struct_def) : unit =
+  match Hashtbl.find_opt env.types sd.name with
+  | Some (DStruct _) ->
+      let field_tys =
+        List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+      in
+      Hashtbl.replace env.types sd.name (DStruct { field_tys });
+      Hashtbl.replace env.struct_fields sd.name field_tys
+  | _ -> ()
+
+(* a pointer or slice field is just an address so it can't grow the struct *)
+let check_struct_cycle (env : env) (sd : struct_def) : unit =
+  let fields_of name =
+    Option.value ~default:[] (Hashtbl.find_opt env.struct_fields name)
+  in
+  let on_path = Hashtbl.create 8 in
+  let rec reaches (target : string) (t : ty) : bool =
+    match resolve_ty t with
+    | TStruct (name, _) when name = target -> true
+    | TStruct (name, _) when Hashtbl.mem on_path name -> false
+    | TStruct (name, _) ->
+        Hashtbl.add on_path name ();
+        let hit =
+          List.exists (fun (_, ft) -> reaches target ft) (fields_of name)
+        in
+        Hashtbl.remove on_path name;
+        hit
+    | TArray (elem, _) -> reaches target elem
+    | _ -> false
+  in
+  if List.exists (fun (_, ft) -> reaches sd.name ft) (fields_of sd.name) then
+    emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
@@ -872,9 +898,15 @@ let collect_global (env : env) (gd : global_def) : unit =
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.kind)
 
+let fill_struct_fields_decl (env : env) (decl : decl) : unit =
+  match decl with Struct sd -> resolve_struct_fields env sd | _ -> ()
+
+let check_cycle_decl (env : env) (decl : decl) : unit =
+  match decl with Struct sd -> check_struct_cycle env sd | _ -> ()
+
 let collect_decl (env : env) (decl : decl) : unit =
   match decl with
-  | Struct sd -> collect_struct env sd
+  | Struct sd -> reserve_struct_name env sd
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
   | TypeAlias td -> collect_alias env td
@@ -1178,6 +1210,8 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
       | _ -> ())
     decls;
   List.iter (collect_decl env) decls;
+  List.iter (fill_struct_fields_decl env) decls;
+  List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
   let tdecls = fold_consts env tdecls in
   let all = Diagnostic.drain env.diags in

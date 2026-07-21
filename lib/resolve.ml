@@ -8,6 +8,7 @@ type t = { syms : (Ast.span, Symbol.t) Hashtbl.t }
 type state = {
   out : t;
   globals : (string, Symbol.t) Hashtbl.t;
+  types : (string, Symbol.t) Hashtbl.t;
   mutable scopes : (string, Symbol.t) Hashtbl.t list;
   mutable next_id : Symbol.id;
   diags : Diagnostic.sink;
@@ -55,6 +56,16 @@ let declare_global (st : state) kind name span : unit =
       let sym = mint st kind name span in
       Hashtbl.replace st.globals name sym
 
+let declare_type (st : state) name span : unit =
+  if not (Hashtbl.mem st.types name) then
+    Hashtbl.replace st.types name (mint st Symbol.Type name span)
+
+let use_type (st : state) name span : unit =
+  if not (List.mem_assoc name Types.builtin_tys) then
+    match Hashtbl.find_opt st.types name with
+    | Some sym -> Hashtbl.replace st.out.syms span sym
+    | None -> Diagnostic.emit st.diags (Error.undefined_name span "type" name)
+
 let lookup (st : state) (name : string) : Symbol.t option =
   match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
   | Some s -> Some s
@@ -97,7 +108,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 (* an array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
-  | Named _ -> ()
+  | Named name -> use_type st name t.span
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
       resolve_expr st e;
@@ -163,6 +174,7 @@ let resolve (decls : decl list) : t =
     {
       out = { syms = Hashtbl.create 256 };
       globals = Hashtbl.create 64;
+      types = Hashtbl.create 64;
       scopes = [];
       next_id = 0;
       diags = Diagnostic.sink ();
@@ -175,7 +187,8 @@ let resolve (decls : decl list) : t =
       | Func fd -> declare_global st Symbol.Func fd.name fd.span
       | Extern fd -> declare_global st Symbol.Extern fd.name fd.span
       | Global gd -> declare_global st Symbol.Global gd.name gd.span
-      | Struct _ | TypeAlias _ | Newtype _ -> ())
+      | Struct sd -> declare_type st sd.name sd.span
+      | TypeAlias td | Newtype td -> declare_type st td.name td.span)
     decls;
   List.iter
     (function
