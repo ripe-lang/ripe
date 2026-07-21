@@ -8,6 +8,7 @@ type kind =
   | Func
   | Extern
   | Global
+  | Type
   | Local of Ast.binding_kind
   | Param
   | ForVar
