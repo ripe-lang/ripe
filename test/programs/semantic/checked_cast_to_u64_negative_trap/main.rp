@@ -1,0 +1,5 @@
+func main() i32 {
+  var x: i64 = -1
+  var y: u64 = x as! u64
+  return y as i32
+}

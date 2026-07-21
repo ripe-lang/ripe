@@ -93,7 +93,7 @@ type expr_desc =
   | Range of expr * expr
   | RangeInclusive of expr * expr
   | FieldAccess of expr * string
-  | Cast of expr * typ
+  | Cast of expr * typ * bool
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr

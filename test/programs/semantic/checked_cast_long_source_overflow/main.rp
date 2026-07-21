@@ -1,0 +1,5 @@
+func main() i32 {
+  var x: i64 = 5000000000
+  var y: i32 = x as! i32
+  return y as i32
+}

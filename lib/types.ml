@@ -99,6 +99,21 @@ let int_kind_size = function
 
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
+let int_kind_of (t : ty) : int_kind =
+  match resolve_ty t with
+  | TInt k -> k
+  | _ -> Error.ice "expected an integer type"
+
+(* the value fits unless the target range can't hold every source value *)
+let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
+  let bits k = 8 * int_kind_size k in
+  let src_unsigned = is_unsigned (TInt src) in
+  let tgt_unsigned = is_unsigned (TInt tgt) in
+  match (src_unsigned, tgt_unsigned) with
+  | false, true -> true
+  | true, false -> bits tgt <= bits src
+  | _ -> bits tgt < bits src
+
 (* C ABI alignment and padding rules *)
 (* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
 (* TODO(8969): Add a packed attr to strip padding for exact memory layout *)

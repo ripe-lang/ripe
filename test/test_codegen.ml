@@ -4521,3 +4521,31 @@ func f() {
         ret
     }
     |}]
+
+let%expect_test "codegen: checked cast range guard" =
+  run_codegen {|
+func f() u8 {
+  var x: i32 = 300
+  return x as! u8
+}
+|};
+  [%expect
+    {|
+    function w $f() {
+    @start
+        %x =l alloc4 4
+        storew 300, %x
+        %t0 =w loadsw %x
+        %t1 =l extsw %t0
+        %t2 =w csltl %t1, 0
+        %t3 =w csgtl %t1, 255
+        %t4 =w or %t2, %t3
+        jnz %t4, @cast.fail.5, @cast.ok.5
+    @cast.fail.5
+        call $ripe_panic_cast()
+        hlt
+    @cast.ok.5
+        %t6 =w extub %t0
+        ret %t6
+    }
+    |}]

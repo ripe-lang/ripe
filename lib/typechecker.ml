@@ -212,7 +212,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  | Cast (operand, t) ->
+  (* TODO this trapping `as!` could be moved to the standard library in the future once sum types and generics land, then `as!` could switch to meaning force the conversion *)
+  | Cast (operand, t, checked) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
       if not (cast_ok te.T.ty ty) then begin
@@ -229,8 +230,19 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           else d
         in
         emit env d
-      end;
-      T.mk ty (T.TCast te)
+      end
+      else if checked then
+        begin match (resolve_ty te.T.ty, resolve_ty ty) with
+        | TInt _, TInt _ -> ()
+        (* TODO: let `as!` cover float casts too once I add a loss check for floats *)
+        | _ ->
+            emit env
+              (Diagnostic.error "checked cast only supports integers"
+              |> Diagnostic.at e.span
+              |> Diagnostic.label "`as!` traps on integer overflow only"
+              |> Diagnostic.help "use a plain `as` cast here")
+        end;
+      T.mk ty (T.TCast (te, checked))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
   | Range _ | RangeInclusive _ ->
@@ -410,7 +422,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
-        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast te)
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, false))
         | _ -> te
       in
       List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
@@ -1061,7 +1073,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TUnOp (Ast.AddressOf, { desc = TIdent s; _ }) -> Symbol.is_global s.kind
   | TUnOp (_, e) -> is_const_texpr env e
   | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
-  | TCast e -> is_const_texpr env e
+  | TCast (e, _) -> is_const_texpr env e
   | TZero -> true
   (* an array literal is constant when all its elements are *)
   | TArrayLit elems -> List.for_all (is_const_texpr env) elems
