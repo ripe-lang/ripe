@@ -1,0 +1,7 @@
+func main() i32 {
+  let x: i32 = {
+    var a = 20
+    a + 1
+  }
+  return x
+}

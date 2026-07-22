@@ -1,0 +1,13 @@
+func main() i32 {
+  var last = 0
+  var i = 0
+  while i < 10 {
+    let v = {
+      if i == 4 { break }
+      i * i
+    }
+    last = v
+    i += 1
+  }
+  return last
+}
