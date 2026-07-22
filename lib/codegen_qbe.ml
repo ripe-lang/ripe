@@ -19,6 +19,7 @@ let qbe_base (t : ty) : qbe_base =
   | TStruct _ | TArray _ | TSlice _ -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no QBE base type"
+  | TNever -> Error.ice "TNever has no QBE base type"
   | TError -> Error.ice "TError has no QBE base type"
 
 let qbe_ty (t : ty) : string =
@@ -63,6 +64,7 @@ let rec alloc_instr (t : ty) : string =
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no alloc instruction"
+  | TNever -> Error.ice "TNever has no alloc instruction"
   | TError -> Error.ice "TError has no alloc instruction"
 
 let qbe_load (t : ty) : string =
@@ -80,6 +82,7 @@ let qbe_load (t : ty) : string =
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no load instruction"
+  | TNever -> Error.ice "TNever has no load instruction"
   | TError -> Error.ice "TError has no load instruction"
 
 let qbe_store (t : ty) : string =
@@ -94,6 +97,7 @@ let qbe_store (t : ty) : string =
   | TStruct _ | TArray _ | TSlice _ -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no store instruction"
+  | TNever -> Error.ice "TNever has no store instruction"
   | TError -> Error.ice "TError has no store instruction"
 
 type inline_frame = {
@@ -1195,6 +1199,7 @@ let rec qbe_ext_ty (t : ty) : string =
   | TSlice _ -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no extended type"
+  | TNever -> Error.ice "TNever has no extended type"
   | TError -> Error.ice "TError has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =

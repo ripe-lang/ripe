@@ -11,6 +11,7 @@ type ty =
   | TBool
   | TCStr
   | TVoid
+  | TNever
   | TNull
   | TPointer of ty
   | TStruct of string * ty list
@@ -63,6 +64,7 @@ let rec show_ty = function
   | TBool -> "bool"
   | TCStr -> "cstr"
   | TVoid -> "void"
+  | TNever -> "never"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TStruct (name, []) -> name
@@ -126,6 +128,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no alignment"
+  | TNever -> Error.ice "TNever has no alignment"
   | TError -> Error.ice "TError has no alignment"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
@@ -150,6 +153,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TBool -> 1
   | TPointer _ | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no size"
+  | TNever -> Error.ice "TNever has no size"
   | TError -> Error.ice "TError has no size"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
