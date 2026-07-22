@@ -274,6 +274,17 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
          && not (List.exists (fun f -> f.name = sym.name) !(ctx.inline_stack))
     ->
       emit_inline_call ctx (Hashtbl.find ctx.inline_funcs sym.name) args
+  | T.CCall (_, args, _)
+    when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
+      (* the call is dead once a never argument diverges so only the args up to it get emitted *)
+      let rec emit_until = function
+        | [] -> ()
+        | (a : T.cexpr) :: rest ->
+            ignore (emit_expr ctx a);
+            if a.T.ty <> TNever then emit_until rest
+      in
+      emit_until args;
+      ""
   | T.CCall (callee, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
