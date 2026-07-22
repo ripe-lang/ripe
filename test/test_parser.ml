@@ -625,3 +625,7 @@ let%expect_test "parse: struct literal fields need a separator" =
         func f() { let s = S { x: 1 y: 2 } }
                                     ^ found y
     |}]
+
+let%expect_test "parse: never as a return type" =
+  run_src "extern func exit(code: i32) never";
+  [%expect {| ok |}]
