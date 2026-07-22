@@ -14,7 +14,6 @@ func clear_flag(flags: i32, flag: i32) i32 {
   return flags & ~flag
 }
 
-// rounds val up to the next multiple of align (align must be a power of 2)
 func align_up(val: i32, align: i32) i32 {
   return val + align - 1 & ~(align - 1)
 }

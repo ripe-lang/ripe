@@ -1,5 +1,3 @@
-// Structs: literals, zero init, and field access.
-
 struct point { x: i32, y: i32 }
 
 struct rect { origin: point, w: i32, h: i32 }
@@ -10,13 +8,7 @@ func area(r: rect) i32 {
 
 func main() i32 {
   let p = point { x: 3, y: 4 }
-
-  // Unset fields are zero initialized.
   let q = point { x: 1 }
-
-  // Literals nest.
   let r = rect { origin: p, w: 2, h: 5 }
-
-  // 3 + 4 + 1 + 0 + 10 + 3 = 21
   return p.x + p.y + q.x + q.y + area(r) + r.origin.x
 }
