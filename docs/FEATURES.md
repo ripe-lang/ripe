@@ -156,6 +156,16 @@ func main() i32 {
 }
 ```
 
+### Never return type
+
+```ripe
+extern func exit(code: i32) never
+
+func main() i32 {
+  exit(0)
+}
+```
+
 ### Public functions
 
 ```ripe
