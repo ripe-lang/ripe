@@ -18,6 +18,19 @@ let x = 5        // type inferred from the value
 var total = 0
 ```
 
+### const
+
+A const is a value the compiler works out ahead of time. For now it has to be a scalar like an int or a float or a bool. Use let when you need storage.
+
+```ripe
+const N: i32 = 3
+
+func main() i32 {
+  var a: [N]i32 = undefined
+  return a.len as i32
+}
+```
+
 ### Zero init and undefined
 
 ```ripe
@@ -140,6 +153,16 @@ func add(a: i32, b: i32) i32 { return a + b }
 func main() i32 {
   if true { return }
   return 1
+}
+```
+
+### Never return type
+
+```ripe
+extern func exit(code: i32) never
+
+func main() i32 {
+  exit(0)
 }
 ```
 
