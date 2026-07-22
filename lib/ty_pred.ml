@@ -48,13 +48,19 @@ let is_lvalue (te : T.texpr) : bool =
 let rec root_binding (te : T.texpr) : Symbol.t option =
   match te.T.desc with
   | TIdent s -> Some s
-  | TFieldAccess (base, _) -> root_binding base
-  | TIndex (base, _) -> root_binding base
+  | TFieldAccess (base, _) -> root_through base
+  | TIndex (base, _) -> root_through base
   | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
   | TUnOp _ | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _
   | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef
   | TStructLit _ ->
       None
+
+(* going through a pointer or slice lands on memory this binding doesn't own *)
+and root_through (base : T.texpr) : Symbol.t option =
+  match strip_alias base.T.ty with
+  | TPointer _ | TSlice _ -> None
+  | _ -> root_binding base
 
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
