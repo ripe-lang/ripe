@@ -582,6 +582,13 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       match strip_alias te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | TError -> dummy_texpr
+      | TAnyPtr ->
+          emit env
+            Diagnostic.(
+              error "cannot dereference *any"
+              |> at e.span
+              |> help "cast to a typed pointer first");
+          dummy_texpr
       | t ->
           emit env (Error.named e.span "cannot dereference type" (show_ty t));
           dummy_texpr)
@@ -616,6 +623,13 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
             (Error.named span "no field" fname
             |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
           dummy_texpr)
+  | TAnyPtr ->
+      emit env
+        Diagnostic.(
+          error "cannot access a field of *any"
+          |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
   | _ -> synth_struct_field env span te ty fname
 
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
@@ -703,6 +717,12 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
             add_error env idx.span "array index must be an integer";
           T.mk elem (T.TIndex (tbase, tidx)))
   | TError -> dummy_texpr
+  | TAnyPtr ->
+      emit env
+        Diagnostic.(
+          error "cannot index *any" |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
   | t ->
       emit env (Error.named span "cannot index type" (show_ty t));
       dummy_texpr

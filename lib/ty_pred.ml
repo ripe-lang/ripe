@@ -69,7 +69,8 @@ let is_integer t =
 (* a newtype hides every operation of its base *)
 (* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
+  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TAnyPtr | TNull | TError ->
+      true
   | TAlias (_, base) -> is_comparable base
   | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ ->
       false
