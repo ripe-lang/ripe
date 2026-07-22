@@ -299,7 +299,7 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
         | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
         | _ -> emit_expr ctx callee
       in
-      if ret_ty = TVoid then (
+      if ret_ty = TVoid || ret_ty = TNever then (
         emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
         "")
       else
@@ -1079,7 +1079,7 @@ and emit_inline_call ctx (tfd : T.cfunc_def) (args : T.cexpr list) : string =
     List.map (fun (a : T.cexpr) -> (emit_expr ctx a, a.T.ty)) args
   in
   let res_slot =
-    if ret_ty = TVoid then None
+    if ret_ty = TVoid || ret_ty = TNever then None
     else
       let slot = Printf.sprintf "%%inl.res%d" id in
       let sz = if is_aggregate ret_ty then 8 else ty_size ctx.structs ret_ty in
@@ -1134,7 +1134,9 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
-  let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
+  let ret_part =
+    match tfd.ret_ty with TVoid | TNever -> "" | t -> qbe_ty t ^ " "
+  in
   (* TODO(572b): export pub functions *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
