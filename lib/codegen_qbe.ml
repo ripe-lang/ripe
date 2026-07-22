@@ -13,7 +13,9 @@ let qbe_base (t : ty) : qbe_base =
   match resolve_ty t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> W
   (* FIXME(d969): Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ -> L
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
+      L
   | TFloat F32 -> S
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
@@ -30,7 +32,7 @@ let qbe_id id = if id < 0 then Printf.sprintf "n%d" (-id) else string_of_int id
 (* the QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
-  | TPointer _ | TNull | TCStr -> "u"
+  | TPointer _ | TOpaquePtr | TNull | TCStr -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
 let div_overflows_at_reg_width (t : ty) : bool =
@@ -57,7 +59,7 @@ let rec alloc_instr (t : ty) : string =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TFloat F64
-  | TPointer _ | TNull | TCStr | TStruct _ | TFunc _ ->
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TStruct _ | TFunc _ ->
       "alloc8"
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
@@ -75,7 +77,8 @@ let qbe_load (t : ty) : string =
   | TInt U16 -> "loaduh"
   | TInt I32 -> "loadsw"
   | TInt U32 -> "loaduw"
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
@@ -90,7 +93,8 @@ let qbe_store (t : ty) : string =
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
@@ -1192,7 +1196,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TInt (I16 | U16) -> "h"
   | TInt (I32 | U32) -> "w"
   (* null is a pointer no type but all pointers are 64-bit *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"

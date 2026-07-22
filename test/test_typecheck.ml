@@ -3331,3 +3331,116 @@ let%expect_test "typecheck: a never call satisfies the missing return check" =
 let%expect_test "typecheck: a never call coerces to the return type" =
   run_src "extern func exit(code: i32) never\nfunc f() i32 { return exit(1) }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: a typed pointer flows into *opaque" =
+  run_src "func f(p: *i32) *opaque { return p }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: cstr flows into *opaque" =
+  run_src "func f(s: cstr) *opaque { return s }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: null flows into *opaque" =
+  run_src "func f() *opaque { return null }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: *opaque needs a cast back to a typed pointer" =
+  run_src "func f(a: *opaque) *i32 { return a }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:34
+        func f(a: *opaque) *i32 { return a }
+                                         ^ expected *i32, found *opaque
+    |}]
+
+let%expect_test "typecheck: *opaque casts back to a typed pointer" =
+  run_src "func f(a: *opaque) *i32 { return a as *i32 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: cannot dereference *opaque" =
+  run_src "func f(a: *opaque) i32 { return *a }";
+  [%expect
+    {|
+    error: cannot dereference *opaque
+      at <test>:1:34
+        func f(a: *opaque) i32 { return *a }
+                                         ^
+    help: cast to a typed pointer first
+    |}]
+
+let%expect_test "typecheck: cannot index *opaque" =
+  run_src "func f(a: *opaque) i32 { return a[0] }";
+  [%expect
+    {|
+    error: cannot index *opaque
+      at <test>:1:33
+        func f(a: *opaque) i32 { return a[0] }
+                                        ^~~~
+    help: cast to a typed pointer first
+    |}]
+
+let%expect_test "typecheck: cannot access a field of *opaque" =
+  run_src "func f(a: *opaque) i32 { return a.x }";
+  [%expect
+    {|
+    error: cannot access a field of *opaque
+      at <test>:1:33
+        func f(a: *opaque) i32 { return a.x }
+                                        ^~~
+    help: cast to a typed pointer first
+    |}]
+
+let%expect_test "typecheck: no arithmetic on *opaque" =
+  run_src "func f(a: *opaque) *opaque { return a + 1 }";
+  [%expect
+    {|
+    error: cannot apply `+` to *opaque
+      at <test>:1:37
+        func f(a: *opaque) *opaque { return a + 1 }
+                                            ^
+    error: type mismatch
+      at <test>:1:41
+        func f(a: *opaque) *opaque { return a + 1 }
+                                                ^ expected *opaque, found i32
+    |}]
+
+let%expect_test "typecheck: *opaque compares to null" =
+  run_src "func f(a: *opaque) bool { return a == null }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: two *opaque values compare" =
+  run_src "func f(a: *opaque, b: *opaque) bool { return a != b }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: bare opaque as a param is rejected" =
+  run_src "func f(x: opaque) { }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:8
+        func f(x: opaque) { }
+               ^~~~~~~~~
+    help: prefix with an underscore: _x
+    error: opaque is only valid as a pointee
+      at <test>:1:11
+        func f(x: opaque) { }
+                  ^~~~~~
+    help: use *opaque for an untyped pointer
+    |}]
+
+let%expect_test "typecheck: bare opaque as a var is rejected" =
+  run_src "func f() { var x: opaque }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: opaque }
+                       ^
+    help: prefix with an underscore: _x
+    error: opaque is only valid as a pointee
+      at <test>:1:19
+        func f() { var x: opaque }
+                          ^~~~~~
+    help: use *opaque for an untyped pointer
+    |}]

@@ -6,8 +6,8 @@
   "id": "9b1e",
   "priority": "low",
   "source": "lib/typechecker.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "Add a rawptr/voidptr keyword for untyped pointers (C's void pointer)",
-  "updated_at": "2026-07-12 08:23:02.156323"
+  "updated_at": "2026-07-21 22:30:49.040476"
 }

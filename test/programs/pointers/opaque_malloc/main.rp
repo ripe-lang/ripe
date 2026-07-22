@@ -1,0 +1,10 @@
+extern func malloc(n: u64) *opaque
+
+struct point { x: i32, y: i32 }
+
+func main() i32 {
+  var p: *point = malloc(sizeof(point) as u64) as *point
+  p.x = 40
+  p.y = 2
+  return p.x + p.y
+}

@@ -152,6 +152,13 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           |> at t.span
           |> help "a value of type never cannot exist");
       TError
+  | Named "opaque" ->
+      emit env
+        Diagnostic.(
+          error "opaque is only valid as a pointee"
+          |> at t.span
+          |> help "use *opaque for an untyped pointer");
+      TError
   | Named name -> (
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
@@ -161,6 +168,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
           | None -> Error.ice ~span:t.span "type name escaped the resolver"))
+  | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
   | Slice t -> TSlice (ty_of_ast env t)
@@ -574,6 +582,13 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       match strip_alias te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | TError -> dummy_texpr
+      | TOpaquePtr ->
+          emit env
+            Diagnostic.(
+              error "cannot dereference *opaque"
+              |> at e.span
+              |> help "cast to a typed pointer first");
+          dummy_texpr
       | t ->
           emit env (Error.named e.span "cannot dereference type" (show_ty t));
           dummy_texpr)
@@ -608,6 +623,13 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
             (Error.named span "no field" fname
             |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
           dummy_texpr)
+  | TOpaquePtr ->
+      emit env
+        Diagnostic.(
+          error "cannot access a field of *opaque"
+          |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
   | _ -> synth_struct_field env span te ty fname
 
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
@@ -695,6 +717,13 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
             add_error env idx.span "array index must be an integer";
           T.mk elem (T.TIndex (tbase, tidx)))
   | TError -> dummy_texpr
+  | TOpaquePtr ->
+      emit env
+        Diagnostic.(
+          error "cannot index *opaque"
+          |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
   | t ->
       emit env (Error.named span "cannot index type" (show_ty t));
       dummy_texpr
