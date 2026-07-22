@@ -9,6 +9,7 @@ module T = Typed_ast
 (* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
+  | _, TNever -> true
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
@@ -70,7 +71,8 @@ let is_integer t =
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
   | TAlias (_, base) -> is_comparable base
-  | TVoid | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ -> false
+  | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ ->
+      false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
 let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
@@ -81,7 +83,7 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool -> Numeric
   | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
-  | TVoid | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
+  | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* a pointer bit pattern is not a float and an aggregate only casts to itself *)

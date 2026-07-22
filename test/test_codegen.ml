@@ -4549,3 +4549,18 @@ func f() u8 {
         ret %t6
     }
     |}]
+
+let%expect_test "codegen: never function lowers to hlt" =
+  run_codegen
+    {|
+extern func exit(code: i32) never
+func spin() never { exit(3) }
+|};
+  [%expect
+    {|
+    function $spin() {
+    @start
+        call $exit(w 3)
+        hlt
+    }
+    |}]

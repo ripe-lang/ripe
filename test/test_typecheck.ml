@@ -3244,3 +3244,90 @@ let%expect_test "typecheck: assign to for loop variable" =
         func f() { for i in 0..3 { i = 99 } }
                                    ^
     |}]
+
+let%expect_test "typecheck: never rejected as a var type" =
+  run_src "func f() { var x: never = 0 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: never = 0 }
+                       ^
+    help: prefix with an underscore: _x
+    error: never is only valid as a function return type
+      at <test>:1:19
+        func f() { var x: never = 0 }
+                          ^~~~~
+    help: a value of type never cannot exist
+    |}]
+
+let%expect_test "typecheck: never rejected as a param type" =
+  run_src "func f(x: never) {}";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:8
+        func f(x: never) {}
+               ^~~~~~~~
+    help: prefix with an underscore: _x
+    error: never is only valid as a function return type
+      at <test>:1:11
+        func f(x: never) {}
+                  ^~~~~
+    help: a value of type never cannot exist
+    |}]
+
+let%expect_test "typecheck: never rejected as a pointee type" =
+  run_src "func f() { var p: *never = null }";
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:1:16
+        func f() { var p: *never = null }
+                       ^
+    help: prefix with an underscore: _p
+    error: never is only valid as a function return type
+      at <test>:1:20
+        func f() { var p: *never = null }
+                           ^~~~~
+    help: a value of type never cannot exist
+    |}]
+
+let%expect_test "typecheck: never rejected as a field type" =
+  run_src "struct S { x: never }";
+  [%expect
+    {|
+    error: never is only valid as a function return type
+      at <test>:1:15
+        struct S { x: never }
+                      ^~~~~
+    help: a value of type never cannot exist
+    |}]
+
+let%expect_test "typecheck: return in a never function is rejected" =
+  run_src "func spin() never { return }";
+  [%expect
+    {|
+    error: a never function cannot return
+      at <test>:1:21
+        func spin() never { return }
+                            ^~~~~~
+    |}]
+
+let%expect_test "typecheck: return value in a never function is rejected" =
+  run_src "func spin() never { return 5 }";
+  [%expect
+    {|
+    error: a never function cannot return
+      at <test>:1:21
+        func spin() never { return 5 }
+                            ^~~~~~~~
+    |}]
+
+let%expect_test "typecheck: a never call satisfies the missing return check" =
+  run_src "extern func exit(code: i32) never\nfunc f() i32 { exit(1) }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a never call coerces to the return type" =
+  run_src "extern func exit(code: i32) never\nfunc f() i32 { return exit(1) }";
+  [%expect {| ok |}]

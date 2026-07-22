@@ -14,16 +14,20 @@ and stmt_has_break s =
       || List.exists (fun (_, b) -> loop_has_break b) branches
   | _ -> false
 
-(* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
+(* every path through the stmts ends in a return or another terminator *)
+let rec stmts_return (diverges : expr -> bool) (stmts : stmt list) : bool =
+  List.exists (stmt_returns diverges) stmts
 
-and stmt_returns (s : stmt) : bool =
+and stmt_returns (diverges : expr -> bool) (s : stmt) : bool =
   match s.sdesc with
   | Return _ -> true
-  | Block body -> stmts_return body
+  (* a call to a never function doesn't come back so it ends the path like a return *)
+  | Expr e -> diverges e
+  | Block body -> stmts_return diverges body
   | If (branches, else_body) ->
-      else_body <> [] && stmts_return else_body
-      && List.for_all (fun (_, body) -> stmts_return body) branches
+      else_body <> []
+      && stmts_return diverges else_body
+      && List.for_all (fun (_, body) -> stmts_return diverges body) branches
   (* a while true with no break loops forever so the code after it never runs *)
   | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
   | _ -> false
