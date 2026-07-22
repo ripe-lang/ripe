@@ -9,7 +9,7 @@ module T = Typed_ast
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
   | _, TNever -> true
-  | TAnyPtr, (TPointer _ | TCStr | TNull | TAnyPtr) -> true
+  | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
@@ -69,7 +69,8 @@ let is_integer t =
 (* a newtype hides every operation of its base *)
 (* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TAnyPtr | TNull | TError ->
+  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TOpaquePtr | TNull | TError
+    ->
       true
   | TAlias (_, base) -> is_comparable base
   | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ ->
@@ -83,7 +84,7 @@ type cast_class = Numeric | Ptr | Aggregate
 let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool -> Numeric
-  | TPointer _ | TAnyPtr | TCStr | TNull | TFunc _ -> Ptr
+  | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
   | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 

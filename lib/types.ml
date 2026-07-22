@@ -14,7 +14,7 @@ type ty =
   | TNever
   | TNull
   | TPointer of ty
-  | TAnyPtr
+  | TOpaquePtr
   | TStruct of string * ty list
   | TFunc of ty list * ty
   | TArray of ty * int
@@ -68,7 +68,7 @@ let rec show_ty = function
   | TNever -> "never"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
-  | TAnyPtr -> "*any"
+  | TOpaquePtr -> "*opaque"
   | TStruct (name, []) -> name
   | TStruct (name, args) ->
       Printf.sprintf "%s[%s]" name (String.concat ", " (List.map show_ty args))
@@ -128,7 +128,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TAnyPtr | TNull | TCStr | TFunc _ -> 8
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no alignment"
   | TNever -> Error.ice "TNever has no alignment"
   | TError -> Error.ice "TError has no alignment"
@@ -153,7 +153,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TAnyPtr | TNull | TCStr | TFunc _ -> 8
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no size"
   | TNever -> Error.ice "TNever has no size"
   | TError -> Error.ice "TError has no size"
@@ -191,7 +191,7 @@ let is_scalar t =
 let is_wide_ty t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TAnyPtr | TNull | TCStr | TFunc _ ->
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
   | _ -> false
 

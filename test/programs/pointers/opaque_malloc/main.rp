@@ -1,4 +1,4 @@
-extern func malloc(n: u64) *any
+extern func malloc(n: u64) *opaque
 
 struct point { x: i32, y: i32 }
 
