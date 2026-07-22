@@ -1,0 +1,11 @@
+func f() i32 {
+  let x = {
+    return 7
+    99
+  }
+  return x
+}
+
+func main() i32 {
+  return f()
+}

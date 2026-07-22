@@ -103,6 +103,11 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit (_, _, fields) ->
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
+  | BlockExpr (body, e) ->
+      push_scope st;
+      List.iter (resolve_stmt st) body;
+      resolve_expr st e;
+      pop_scope st
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
 
 (* an array size expression may name constants *)
@@ -118,7 +123,7 @@ and resolve_typ (st : state) (t : typ) : unit =
       List.iter (resolve_typ st) ps;
       Option.iter (resolve_typ st) ret
 
-let rec resolve_stmt (st : state) (s : stmt) : unit =
+and resolve_stmt (st : state) (s : stmt) : unit =
   match s.sdesc with
   | Binding (kind, name, nspan, ann, e) ->
       Option.iter (resolve_typ st) ann;

@@ -1,0 +1,10 @@
+func compute(n: i32) i32 {
+  return {
+    var doubled = n + n
+    doubled + 2
+  }
+}
+
+func main() i32 {
+  return compute(9)
+}

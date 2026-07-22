@@ -1,0 +1,10 @@
+func main() i32 {
+  let x = {
+    var inner = {
+      var a = 2
+      a + 3
+    }
+    inner * 4
+  }
+  return x
+}

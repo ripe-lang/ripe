@@ -86,11 +86,12 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TUndef -> D.CUndef
     | S.TStructLit (name, fields) ->
         D.CStructLit (name, List.map (fun (n, e) -> (n, lower_expr e)) fields)
+    | S.TBlockExpr (body, e) -> D.CBlockExpr (lower_stmts body, lower_expr e)
   in
   { D.desc; ty; span }
 
 (* x op= r runs as x = x op r, and likewise for every other compound form *)
-let base_binop_of = function
+and base_binop_of = function
   | Ast.AddAssign -> Some Ast.Add
   | Ast.SubAssign -> Some Ast.Sub
   | Ast.MulAssign -> Some Ast.Mul
@@ -104,7 +105,7 @@ let base_binop_of = function
   | _ -> None
 
 (* the target's address is taken once so an index or base with side effects doesn't run twice *)
-let lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
+and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
   let elem = l.S.ty in
   let ptr_ty = Types.TPointer elem in
   let span = l.S.span in
@@ -120,7 +121,7 @@ let lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
   let updated = binop elem base place (lower_expr r) in
   [ bind psym ptr_ty addr; assign place updated ]
 
-let lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
+and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
   let ivar = ident elem_ty sym in
   let hisym = fresh_sym "for.hi" in
   let hivar = ident elem_ty hisym in
@@ -139,7 +140,7 @@ let lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
   in
   loop ~init ~cond ~step ~body
 
-let lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
+and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
   (* a slice is snapshotted so its pointer and length come from one evaluation *)
@@ -168,7 +169,7 @@ let lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
   let body = bind sym elem_ty elem :: body in
   loop ~init ~cond ~step:[ incr ] ~body
 
-let lower_for sym elem_ty iter body : D.cstmt list =
+and lower_for sym elem_ty iter body : D.cstmt list =
   match iter.S.desc with
   | S.TRange (lo, hi) ->
       lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
@@ -178,7 +179,7 @@ let lower_for sym elem_ty iter body : D.cstmt list =
         ~inclusive:true body
   | _ -> lower_each_for sym elem_ty (lower_expr iter) body
 
-let rec lower_stmt (st : S.tstmt) : D.cstmt list =
+and lower_stmt (st : S.tstmt) : D.cstmt list =
   let span = st.S.span in
   let one tsdesc = [ { D.tsdesc; span } ] in
   match st.S.tsdesc with

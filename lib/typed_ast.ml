@@ -28,14 +28,12 @@ type texpr_desc =
   | TZero
   | TUndef
   | TStructLit of string * (string * texpr) list
+  | TBlockExpr of tstmt list * texpr
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
-  { desc; ty; span }
-
-type tstmt_desc =
+and tstmt_desc =
   | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
   | TReturn of texpr option
   | TIf of (texpr * tstmt list) list * tstmt list
@@ -48,6 +46,9 @@ type tstmt_desc =
 
 and tstmt = { tsdesc : tstmt_desc; span : Ast.span }
 [@@deriving show { with_path = false }]
+
+let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
+  { desc; ty; span }
 
 type tfunc_def = {
   name : string;

@@ -141,6 +141,10 @@ and dump_expr (e : Ripe.Ast.expr) =
              (fun (f, _, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")")
              fields)
       ^ ")"
+  | BlockExpr (stmts, value) ->
+      "(block "
+      ^ string_of_int (List.length stmts)
+      ^ " " ^ dump_expr value ^ ")"
 
 (* a compact core statement dump where the flat list is the whole point *)
 let rec dump_cstmt (st : C.cstmt) : string =

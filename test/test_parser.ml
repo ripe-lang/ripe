@@ -629,3 +629,13 @@ let%expect_test "parse: struct literal fields need a separator" =
 let%expect_test "parse: never as a return type" =
   run_src "extern func exit(code: i32) never";
   [%expect {| ok |}]
+
+let%expect_test "parse: block expression needs a trailing value" =
+  run_src "func f() i32 { let x = { var a = 1 } return x }";
+  [%expect
+    {|
+    error: block expression must end with a value
+      at <test>:1:24
+        func f() i32 { let x = { var a = 1 } return x }
+                               ^~~~~~~~~~~~~
+    |}]

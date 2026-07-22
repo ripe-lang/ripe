@@ -27,14 +27,11 @@ type cexpr_desc =
   | CZero
   | CUndef
   | CStructLit of string * (string * cexpr) list
+  | CBlockExpr of cstmt list * cexpr
 
 and cexpr = { desc : cexpr_desc; ty : ty; span : Ast.span }
-[@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) (ty : ty) (desc : cexpr_desc) : cexpr =
-  { desc; ty; span }
-
-type cstmt_desc =
+and cstmt_desc =
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
   | CIf of (cexpr * cstmt list) list * cstmt list
@@ -45,6 +42,9 @@ type cstmt_desc =
 
 and cstmt = { tsdesc : cstmt_desc; span : Ast.span }
 [@@deriving show { with_path = false }]
+
+let mk ?(span = Ast.dummy_span) (ty : ty) (desc : cexpr_desc) : cexpr =
+  { desc; ty; span }
 
 type cfunc_def = {
   name : string;

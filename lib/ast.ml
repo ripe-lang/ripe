@@ -79,6 +79,8 @@ let show_unop_sym = function
   | Deref -> "*"
   | AddressOf -> "&"
 
+type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]
+
 type expr_desc =
   | Int of int64 * string option
   | Float of float
@@ -99,6 +101,7 @@ type expr_desc =
   | Index of expr * expr
   | Undefined
   | StructLit of string * span * (string * span * expr) list
+  | BlockExpr of stmt list * expr
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
@@ -115,10 +118,8 @@ and typ_desc =
 and typ = { tdesc : typ_desc; span : span }
 [@@deriving show { with_path = false }]
 
-type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]
-
 (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
-type stmt_desc =
+and stmt_desc =
   | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
   | If of (expr * stmt list) list * stmt list
@@ -127,7 +128,6 @@ type stmt_desc =
   | Break
   | Continue
   | Expr of expr
-  (* TODO(f0b0): blocks are statement only right now, make them usable as expressions like var p = { ... } *)
   | Block of stmt list
 [@@deriving show { with_path = false }]
 
