@@ -102,6 +102,7 @@ type expr_desc =
   | Undefined
   | StructLit of string * span * (string * span * expr) list
   | BlockExpr of stmt list * expr
+  | IfExpr of (expr * expr) list * expr
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }

@@ -42,7 +42,7 @@ let is_lvalue (te : T.texpr) : bool =
   | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
   | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _ | TLen _
   | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef | TStructLit _
-  | TBlockExpr _ ->
+  | TBlockExpr _ | TIfExpr _ ->
       false
 
 (* a deref stops the walk since the pointee isn't owned by this binding *)
@@ -54,7 +54,7 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
   | TUnOp _ | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _
   | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef
-  | TStructLit _ | TBlockExpr _ ->
+  | TStructLit _ | TBlockExpr _ | TIfExpr _ ->
       None
 
 (* going through a pointer or slice lands on memory this binding doesn't own *)

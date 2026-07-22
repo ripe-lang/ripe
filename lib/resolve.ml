@@ -108,6 +108,13 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       List.iter (resolve_stmt st) body;
       resolve_expr st e;
       pop_scope st
+  | IfExpr (branches, else_e) ->
+      List.iter
+        (fun (c, e) ->
+          resolve_expr st c;
+          resolve_expr st e)
+        branches;
+      resolve_expr st else_e
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
 
 (* an array size expression may name constants *)

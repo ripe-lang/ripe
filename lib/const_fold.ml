@@ -73,6 +73,11 @@ let run ~(emit : Diagnostic.t -> unit)
         mk
           (T.TStructLit (name, List.map (fun (f, e) -> (f, sub_expr e)) fields))
     | T.TBlockExpr (body, e) -> mk (T.TBlockExpr (sub_stmts body, sub_expr e))
+    | T.TIfExpr (branches, else_e) ->
+        mk
+          (T.TIfExpr
+             ( List.map (fun (c, a) -> (sub_expr c, sub_expr a)) branches,
+               sub_expr else_e ))
   (* a const binding folded while checking so it just vanishes from the tree *)
   and sub_stmt (st : T.tstmt) : T.tstmt option =
     let keep tsdesc = Some { st with T.tsdesc } in
