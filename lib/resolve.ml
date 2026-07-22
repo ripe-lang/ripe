@@ -108,6 +108,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 (* an array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
+  | Named "any" -> ()
   | Named name -> use_type st name t.span
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->

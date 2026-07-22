@@ -152,6 +152,13 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           |> at t.span
           |> help "a value of type never cannot exist");
       TError
+  | Named "any" ->
+      emit env
+        Diagnostic.(
+          error "any is only valid as a pointee"
+          |> at t.span
+          |> help "use *any for an untyped pointer");
+      TError
   | Named name -> (
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
@@ -161,6 +168,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
           | None -> Error.ice ~span:t.span "type name escaped the resolver"))
+  | Pointer { tdesc = Named "any"; _ } -> TAnyPtr
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
   | Slice t -> TSlice (ty_of_ast env t)
