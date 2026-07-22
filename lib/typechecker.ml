@@ -133,6 +133,15 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
+(* a call to a never function is a terminator so reachability treats it like a return *)
+let is_never_call (env : env) (e : expr) : bool =
+  match e.desc with
+  | Call ({ desc = Ident name; _ }, _) -> (
+      match Hashtbl.find_opt env.funcs name with
+      | Some s -> s.ret_ty = TNever
+      | None -> false)
+  | _ -> false
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   (* never is the return type of a function that can't return so no value ever has it *)
@@ -1049,7 +1058,7 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
         let next_env, ts = check_stmt current_env s in
         (* break and continue end the block just like a returning if does *)
         let terminates =
-          Reachability.stmt_returns s
+          Reachability.stmt_returns (is_never_call current_env) s
           || match s.sdesc with Break | Continue -> true | _ -> false
         in
         (next_env, ts :: acc, returned || terminates, warned || returned))
@@ -1095,7 +1104,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   if
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
-    && not (Reachability.stmts_return fd.body)
+    && not (Reachability.stmts_return (is_never_call env) fd.body)
   then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env (Error.named span "missing return" fd.name)
