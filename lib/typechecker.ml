@@ -314,16 +314,37 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           dummy_texpr)
   | BlockExpr (body, e) -> check_block_expr env body e None
   | IfExpr (branches, else_e) ->
-      let telse = synth env else_e in
-      let want = telse.T.ty in
-      let tbranches =
-        List.map
-          (fun (cond, arm) ->
-            let tc = check env cond TBool in
-            (tc, check env arm want))
-          branches
-      in
-      T.mk want (T.TIfExpr (tbranches, telse))
+      let rty = reconcile_if_result env branches else_e in
+      check_desc env e rty
+
+(* A literal tail bends to a sibling so it can't anchor the type *)
+and arm_is_flexible (a : expr) : bool =
+  match a.desc with
+  | Int (_, None) | Float _ -> true
+  | UnOp (Neg, inner) -> arm_is_flexible inner
+  | BlockExpr (_, tail) -> arm_is_flexible tail
+  | IfExpr (branches, else_e) ->
+      List.for_all (fun (_, arm) -> arm_is_flexible arm) branches
+      && arm_is_flexible else_e
+  | _ -> false
+
+(* Probe with diagnostics muted so a concrete arm can anchor the type *)
+and reconcile_if_result (env : env) (branches : (expr * expr) list)
+    (else_e : expr) : ty =
+  let quiet = { env with diags = Diagnostic.sink () } in
+  let arms = List.map snd branches @ [ else_e ] in
+  let probes = List.map (fun a -> (a, (synth quiet a).T.ty)) arms in
+  let rigid =
+    List.find_opt
+      (fun (a, t) -> (not (arm_is_flexible a)) && t <> TNever)
+      probes
+  in
+  match rigid with
+  | Some (_, t) -> t
+  | None -> (
+      match List.find_opt (fun (_, t) -> t <> TNever) probes with
+      | Some (_, t) -> t
+      | None -> TNever)
 
 (* The block's value is its tail so a wanted type flows straight there *)
 and check_block_expr (env : env) (body : stmt list) (e : expr)
