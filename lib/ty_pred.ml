@@ -6,10 +6,10 @@ module T = Typed_ast
 
 (* Exact equality but NULL is compatible with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
-(* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
   | _, TNever -> true
+  | TAnyPtr, (TPointer _ | TCStr | TNull | TAnyPtr) -> true
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
@@ -82,7 +82,7 @@ type cast_class = Numeric | Ptr | Aggregate
 let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool -> Numeric
-  | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
+  | TPointer _ | TAnyPtr | TCStr | TNull | TFunc _ -> Ptr
   | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
