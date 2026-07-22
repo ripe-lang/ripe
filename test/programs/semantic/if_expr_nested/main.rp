@@ -1,0 +1,24 @@
+extern func printf(fmt: cstr, ...) i32
+
+func tier(n: i32) i32 {
+  let t = if n >= 100 {
+    if n >= 200 {
+      if n >= 300 {
+        var base = 3
+        base + 1
+      } else {
+        3
+      }
+    } else {
+      2
+    }
+  } else {
+    1
+  }
+  return t
+}
+
+func main() i32 {
+  printf("%d %d %d %d\n", tier(50), tier(150), tier(250), tier(350))
+  return 0
+}

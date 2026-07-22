@@ -312,20 +312,39 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | _ ->
           emit env (Error.undefined_name name_span "struct" name);
           dummy_texpr)
-  | BlockExpr (body, e) ->
-      let inner = push_scope env in
-      let final_inner, tbody = check_stmts inner body in
-      let te = synth final_inner e in
-      (* the body diverges so control never reaches the block's value *)
-      if
-        List.exists
-          (fun s ->
-            Reachability.stmt_returns (is_never_call env) s
-            || match s.sdesc with Break | Continue -> true | _ -> false)
-          body
-      then add_warning env e.span "unreachable code";
-      warn_unused_in_scope final_inner;
-      T.mk te.T.ty (T.TBlockExpr (tbody, te))
+  | BlockExpr (body, e) -> check_block_expr env body e None
+  | IfExpr (branches, else_e) ->
+      let telse = synth env else_e in
+      let want = telse.T.ty in
+      let tbranches =
+        List.map
+          (fun (cond, arm) ->
+            let tc = check env cond TBool in
+            (tc, check env arm want))
+          branches
+      in
+      T.mk want (T.TIfExpr (tbranches, telse))
+
+(* The block's value is its tail so a wanted type flows straight there *)
+and check_block_expr (env : env) (body : stmt list) (e : expr)
+    (want : ty option) : T.texpr =
+  let inner = push_scope env in
+  let final_inner, tbody = check_stmts inner body in
+  let te =
+    match want with
+    | Some w -> check final_inner e w
+    | None -> synth final_inner e
+  in
+  (* the body diverges so control never reaches the block's value *)
+  if
+    List.exists
+      (fun s ->
+        Reachability.stmt_returns (is_never_call env) s
+        || match s.sdesc with Break | Continue -> true | _ -> false)
+      body
+  then add_warning env e.span "unreachable code";
+  warn_unused_in_scope final_inner;
+  T.mk te.T.ty (T.TBlockExpr (tbody, te))
 
 (* MUST be this type *)
 and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
@@ -421,6 +440,12 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (strip_alias want)
     ->
       T.mk want (T.TBinOp (op, check env l want, synth env r))
+  | BlockExpr (body, e) -> check_block_expr env body e (Some want)
+  | IfExpr (branches, else_e) ->
+      let tbranches =
+        List.map (fun (c, a) -> (check env c TBool, check env a want)) branches
+      in
+      T.mk want (T.TIfExpr (tbranches, check env else_e want))
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
@@ -1179,7 +1204,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* never compile-time by design *)
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlockExpr _ ->
+  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlockExpr _ | TIfExpr _ ->
       false
   | TUndef -> true
 

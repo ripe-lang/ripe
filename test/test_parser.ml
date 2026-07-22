@@ -639,3 +639,14 @@ let%expect_test "parse: block expression needs a trailing value" =
         func f() i32 { let x = { var a = 1 } return x }
                                ^~~~~~~~~~~~~
     |}]
+
+let%expect_test "parse: if expression needs an else branch" =
+  run_src "func f() i32 { let x = if true { 1 } return x }";
+  [%expect
+    {|
+    error: if expression needs an else branch
+      at <test>:1:24
+        func f() i32 { let x = if true { 1 } return x }
+                               ^~~~~~~~~~~~~
+    help: add an else branch that yields a value
+    |}]

@@ -145,6 +145,11 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(block "
       ^ string_of_int (List.length stmts)
       ^ " " ^ dump_expr value ^ ")"
+  | IfExpr (branches, else_e) ->
+      let arm (c, e) = "(" ^ dump_expr c ^ " " ^ dump_expr e ^ ")" in
+      "(if "
+      ^ String.concat " " (List.map arm branches)
+      ^ " " ^ dump_expr else_e ^ ")"
 
 (* a compact core statement dump where the flat list is the whole point *)
 let rec dump_cstmt (st : C.cstmt) : string =

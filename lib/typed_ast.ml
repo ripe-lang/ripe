@@ -29,6 +29,7 @@ type texpr_desc =
   | TUndef
   | TStructLit of string * (string * texpr) list
   | TBlockExpr of tstmt list * texpr
+  | TIfExpr of (texpr * texpr) list * texpr
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]

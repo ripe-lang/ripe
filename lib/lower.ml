@@ -87,6 +87,14 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TStructLit (name, fields) ->
         D.CStructLit (name, List.map (fun (n, e) -> (n, lower_expr e)) fields)
     | S.TBlockExpr (body, e) -> D.CBlockExpr (lower_stmts body, lower_expr e)
+    | S.TIfExpr (branches, else_e) ->
+        let folded =
+          List.fold_right
+            (fun (cond, arm) acc ->
+              D.mk ~span ty (D.CIfExpr (lower_expr cond, lower_expr arm, acc)))
+            branches (lower_expr else_e)
+        in
+        folded.D.desc
   in
   { D.desc; ty; span }
 
