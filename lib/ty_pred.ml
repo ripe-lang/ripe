@@ -9,6 +9,7 @@ module T = Typed_ast
 (* TODO(94c1): Add rawptr/void* *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
+  | _, TNever -> true
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
