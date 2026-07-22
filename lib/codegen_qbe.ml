@@ -257,6 +257,14 @@ let array_elem_ty ~span t =
   | _ -> Error.ice ~span "expected an array type"
 
 let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
+  let v = emit_expr_desc ctx e in
+  (* A never value diverges so it ends the block and can't be consumed *)
+  if e.T.ty = TNever && not !(ctx.terminated) then (
+    emit ctx "    hlt\n";
+    ctx.terminated := true);
+  v
+
+and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   let t = e.T.ty in
   match e.T.desc with
   | T.CInt n -> Int64.to_string n
@@ -741,18 +749,26 @@ and emit_if_expr ctx cond then_e else_e ty =
   let then_lbl = Printf.sprintf "@sel.then%d" id in
   let else_lbl = Printf.sprintf "@sel.else%d" id in
   let join_lbl = Printf.sprintf "@sel.join%d" id in
-  let qt = qbe_ty ty in
-  let res = fresh ctx in
+  (* a diverging if has no result so it never names a slot or qbe type *)
+  let never = ty = TNever in
+  let res = if never then "" else fresh ctx in
+  let qt = if never then "" else qbe_ty ty in
+  let emit_arm lbl (arm : T.cexpr) =
+    emit_label ctx lbl;
+    let v = emit_expr ctx arm in
+    (* a never arm already terminated so only a live arm copies out and joins *)
+    if arm.T.ty <> TNever then (
+      emit ctx "    %s =%s copy %s\n" res qt v;
+      emit_jmp ctx join_lbl)
+  in
   emit_branch ctx cond then_lbl else_lbl;
-  emit_label ctx then_lbl;
-  let tv = emit_expr ctx then_e in
-  emit ctx "    %s =%s copy %s\n" res qt tv;
-  emit_jmp ctx join_lbl;
-  emit_label ctx else_lbl;
-  let ev = emit_expr ctx else_e in
-  emit ctx "    %s =%s copy %s\n" res qt ev;
-  emit_jmp ctx join_lbl;
+  emit_arm then_lbl then_e;
+  emit_arm else_lbl else_e;
   emit_label ctx join_lbl;
+  (* both arms diverged so the join is unreachable but still needs a terminator *)
+  if never then (
+    emit ctx "    hlt\n";
+    ctx.terminated := true);
   res
 
 (* TODO(2cc1): the local arithmetic always emits instructions instead of
@@ -997,6 +1013,8 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
 
 and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   match s.T.tsdesc with
+  | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
+      ignore (emit_expr ctx e)
   | T.CBinding (_kind, s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
