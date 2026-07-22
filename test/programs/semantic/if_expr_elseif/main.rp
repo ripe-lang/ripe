@@ -1,0 +1,11 @@
+extern func printf(fmt: cstr, ...) i32
+
+func classify(n: i32) i32 {
+  let c = if n < 0 { 0 - 1 } elseif n > 0 { 1 } else { 0 }
+  return c
+}
+
+func main() i32 {
+  printf("%d %d %d\n", classify(0 - 5), classify(7), classify(0))
+  return 0
+}

@@ -1,0 +1,4 @@
+func main() i32 {
+  let y: i64 = if false { 1 } else { 2 }
+  return y as i32
+}
