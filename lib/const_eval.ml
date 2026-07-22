@@ -45,7 +45,7 @@ let unsupported_const span =
     |> at span
     |> help "constant initializers must fold to a compile-time value")
 
-(* TODO: once functions can be evaluated at compile time here bound the recursion depth and number of steps so a runaway evaluation cannot hang the compiler *)
+(* TODO(6676): once functions can be evaluated at compile time here bound the recursion depth and number of steps so a runaway evaluation cannot hang the compiler *)
 
 (* [resolve] yields the value of a named constant so cycle handling stays in the caller *)
 let rec fold_const_num ~sizeof
@@ -62,7 +62,7 @@ let rec fold_const_num ~sizeof
       match resolve_ty te.T.ty with
       | TInt _ | TFloat _ | TBool -> resolve s te.T.ty te.T.span
       | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
-  | T.TCast e -> (
+  | T.TCast (e, _) -> (
       let v = recur e in
       match (resolve_ty te.T.ty, v) with
       | TFloat _, Nf f -> Nf f

@@ -13,21 +13,26 @@ let qbe_base (t : ty) : qbe_base =
   match resolve_ty t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool -> W
   (* FIXME(d969): Null terminated strings? Idk yet. *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ -> L
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
+      L
   | TFloat F32 -> S
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no QBE base type"
+  | TNever -> Error.ice "TNever has no QBE base type"
   | TError -> Error.ice "TError has no QBE base type"
 
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
+let qbe_id id = if id < 0 then Printf.sprintf "n%d" (-id) else string_of_int id
+
 (* the QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
-  | TPointer _ | TNull | TCStr -> "u"
+  | TPointer _ | TOpaquePtr | TNull | TCStr -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
 let div_overflows_at_reg_width (t : ty) : bool =
@@ -54,13 +59,14 @@ let rec alloc_instr (t : ty) : string =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TFloat F64
-  | TPointer _ | TNull | TCStr | TStruct _ | TFunc _ ->
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TStruct _ | TFunc _ ->
       "alloc8"
   | TArray (e, _) -> alloc_instr e
   | TSlice _ -> "alloc8"
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool -> "alloc4"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no alloc instruction"
+  | TNever -> Error.ice "TNever has no alloc instruction"
   | TError -> Error.ice "TError has no alloc instruction"
 
 let qbe_load (t : ty) : string =
@@ -71,13 +77,15 @@ let qbe_load (t : ty) : string =
   | TInt U16 -> "loaduh"
   | TInt I32 -> "loadsw"
   | TInt U32 -> "loaduw"
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no load instruction"
+  | TNever -> Error.ice "TNever has no load instruction"
   | TError -> Error.ice "TError has no load instruction"
 
 let qbe_store (t : ty) : string =
@@ -85,13 +93,15 @@ let qbe_store (t : ty) : string =
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
   | TInt (I32 | U32) -> "storew"
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no store instruction"
+  | TNever -> Error.ice "TNever has no store instruction"
   | TError -> Error.ice "TError has no store instruction"
 
 type inline_frame = {
@@ -145,7 +155,7 @@ let bind_local ctx (s : Symbol.t) : string =
   let slot =
     match !(ctx.inline_stack) with
     (* the same binder id lands at every call site so the tag is what keeps their slots apart *)
-    | f :: _ -> Printf.sprintf "%s.%d.inl%d" s.name s.id f.tag
+    | f :: _ -> Printf.sprintf "%s.%s.inl%d" s.name (qbe_id s.id) f.tag
     | [] ->
         if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
           Printf.sprintf "%s.%d" s.name s.id
@@ -271,6 +281,17 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
          && not (List.exists (fun f -> f.name = sym.name) !(ctx.inline_stack))
     ->
       emit_inline_call ctx (Hashtbl.find ctx.inline_funcs sym.name) args
+  | T.CCall (_, args, _)
+    when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
+      (* the call is dead once a never argument diverges so only the args up to it get emitted *)
+      let rec emit_until = function
+        | [] -> ()
+        | (a : T.cexpr) :: rest ->
+            ignore (emit_expr ctx a);
+            if a.T.ty <> TNever then emit_until rest
+      in
+      emit_until args;
+      ""
   | T.CCall (callee, args, fixed_count) ->
       let ret_ty = t in
       let arg_strs =
@@ -296,7 +317,7 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
         | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
         | _ -> emit_expr ctx callee
       in
-      if ret_ty = TVoid then (
+      if ret_ty = TVoid || ret_ty = TNever then (
         emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
         "")
       else
@@ -305,12 +326,12 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.CBinOp ((Ast.And | Ast.Or), _, _) -> emit_bool_value ctx e
+  | T.CIfExpr (cond, then_e, else_e) -> emit_if_expr ctx cond then_e else_e t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
-  | T.CCast e ->
+  | T.CCast (e, checked) ->
       let v = emit_expr ctx e in
-      emit_cast ctx v e.T.ty t
+      emit_cast ctx ~checked v e.T.ty t
   | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.CFieldAccess (e, field) ->
       let ft = t in
@@ -366,37 +387,7 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
       emit ctx "    %s =l add %s, 8\n" lenp slot;
       emit ctx "    storel %d, %s\n" n lenp;
       slot
-  | T.CSliceExpr (base, lo, hi) ->
-      let elem =
-        match t with
-        | TSlice e -> e
-        | _ -> Error.ice ~span:e.T.span "slice expression on non-slice type"
-      in
-      let base_addr = emit_expr ctx base in
-      let storage, blen =
-        match resolve_ty base.T.ty with
-        | TArray (_, n) -> (base_addr, string_of_int n)
-        | TSlice _ -> load_slice_fields ctx base_addr
-        | t ->
-            Error.ice ~span:base.T.span
-              (Printf.sprintf "cannot slice: %s" (show_ty t))
-      in
-      let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
-      let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
-      emit_slice_bounds_check ctx lo_l hi_l blen;
-      let off = fresh ctx in
-      emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
-      let ptr = fresh ctx in
-      emit ctx "    %s =l add %s, %s\n" ptr storage off;
-      let len = fresh ctx in
-      emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l alloc8 16\n" slot;
-      emit ctx "    storel %s, %s\n" ptr slot;
-      let lenp = fresh ctx in
-      emit ctx "    %s =l add %s, 8\n" lenp slot;
-      emit ctx "    storel %s, %s\n" len lenp;
-      slot
+  | T.CSliceExpr (base, lo, hi) -> emit_slice_expr ctx e.T.span base lo hi t
   | T.CArrayLit elems ->
       (* as a value: materialize into a fresh stack slot and yield its address *)
       let elem = array_elem_ty ~span:e.T.span t in
@@ -472,6 +463,38 @@ and data_ptr ctx base =
   | _ -> addr
 
 (* address of arr[idx]: storage + idx * stride(elem) *)
+and emit_slice_expr ctx (span : Ast.span) base lo hi t =
+  let elem =
+    match t with
+    | TSlice e -> e
+    | _ -> Error.ice ~span "slice expression on non-slice type"
+  in
+  let base_addr = emit_expr ctx base in
+  let storage, blen =
+    match resolve_ty base.T.ty with
+    | TArray (_, n) -> (base_addr, string_of_int n)
+    | TSlice _ -> load_slice_fields ctx base_addr
+    | t ->
+        Error.ice ~span:base.T.span
+          (Printf.sprintf "cannot slice: %s" (show_ty t))
+  in
+  let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
+  let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
+  emit_slice_bounds_check ctx lo_l hi_l blen;
+  let off = fresh ctx in
+  emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
+  let ptr = fresh ctx in
+  emit ctx "    %s =l add %s, %s\n" ptr storage off;
+  let len = fresh ctx in
+  emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
+  let slot = fresh ctx in
+  emit_entry ctx "    %s =l alloc8 16\n" slot;
+  emit ctx "    storel %s, %s\n" ptr slot;
+  let lenp = fresh ctx in
+  emit ctx "    %s =l add %s, 8\n" lenp slot;
+  emit ctx "    storel %s, %s\n" len lenp;
+  slot
+
 and emit_index_addr ctx base idx elem =
   let base_addr = emit_expr ctx base in
   let storage, len =
@@ -694,38 +717,42 @@ and emit_store_into ctx ty addr r =
     emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
     rv
 
-(* short circuit the condition so the rhs only runs if the lhs doesn't settle it, otherwise p != null && *p == 3 derefs null *)
+(* a condition that's itself a branch just jumps to its arms directly *)
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
-  | T.CBinOp (Ast.And, l, r) ->
-      let mid = Printf.sprintf "@and.rhs%d" (fresh_id ctx) in
-      emit_branch ctx l mid false_lbl;
-      emit_label ctx mid;
-      emit_branch ctx r true_lbl false_lbl
-  | T.CBinOp (Ast.Or, l, r) ->
-      let mid = Printf.sprintf "@or.rhs%d" (fresh_id ctx) in
-      emit_branch ctx l true_lbl mid;
-      emit_label ctx mid;
-      emit_branch ctx r true_lbl false_lbl
+  | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
+  | T.CIfExpr (cond, then_e, else_e) ->
+      let id = fresh_id ctx in
+      let then_lbl = Printf.sprintf "@sel.then%d" id in
+      let else_lbl = Printf.sprintf "@sel.else%d" id in
+      emit_branch ctx cond then_lbl else_lbl;
+      emit_label ctx then_lbl;
+      emit_branch ctx then_e true_lbl false_lbl;
+      emit_label ctx else_lbl;
+      emit_branch ctx else_e true_lbl false_lbl
   | T.CUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
   | _ ->
       let v = emit_expr ctx e in
       emit_jnz ctx v true_lbl false_lbl
 
-(* same condition but wanted as a 0/1 value, e.g. let ok = a && b *)
-and emit_bool_value ctx e =
+(* only the taken arm runs, so in let ok = a && b the b side never runs when a is false *)
+and emit_if_expr ctx cond then_e else_e ty =
   let id = fresh_id ctx in
-  let true_lbl = Printf.sprintf "@bool.true%d" id in
-  let false_lbl = Printf.sprintf "@bool.false%d" id in
-  let join_lbl = Printf.sprintf "@bool.join%d" id in
-  emit_branch ctx e true_lbl false_lbl;
-  emit_label ctx true_lbl;
+  let then_lbl = Printf.sprintf "@sel.then%d" id in
+  let else_lbl = Printf.sprintf "@sel.else%d" id in
+  let join_lbl = Printf.sprintf "@sel.join%d" id in
+  let qt = qbe_ty ty in
+  let res = fresh ctx in
+  emit_branch ctx cond then_lbl else_lbl;
+  emit_label ctx then_lbl;
+  let tv = emit_expr ctx then_e in
+  emit ctx "    %s =%s copy %s\n" res qt tv;
   emit_jmp ctx join_lbl;
-  emit_label ctx false_lbl;
+  emit_label ctx else_lbl;
+  let ev = emit_expr ctx else_e in
+  emit ctx "    %s =%s copy %s\n" res qt ev;
   emit_jmp ctx join_lbl;
   emit_label ctx join_lbl;
-  let res = fresh ctx in
-  emit ctx "    %s =w phi %s 1, %s 0\n" res true_lbl false_lbl;
   res
 
 (* TODO(2cc1): the local arithmetic always emits instructions instead of
@@ -877,7 +904,56 @@ and narrow_int_to ctx v target_ty =
       tmp
 
 (* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
-and emit_cast ctx v src_ty target_ty =
+and emit_checked_cast_guard ctx v src_ty target_ty =
+  let src_k = int_kind_of src_ty in
+  let tgt_k = int_kind_of target_ty in
+  if cast_int_needs_check src_k tgt_k then begin
+    (* the value moves up to 64 bits so both bounds fit and the compare sees its true value *)
+    let v64 =
+      if qbe_base src_ty = W then begin
+        let t = fresh ctx in
+        let ext = if is_unsigned src_ty then "extuw" else "extsw" in
+        emit ctx "    %s =l %s %s\n" t ext v;
+        t
+      end
+      else v
+    in
+    let target_is_u64 = match tgt_k with U64 | Usize -> true | _ -> false in
+    (* an unsigned source is never below zero so it can only overflow the top *)
+    let underflow =
+      if is_unsigned src_ty then None
+      else begin
+        let t = fresh ctx in
+        emit ctx "    %s =w csltl %s, %Ld\n" t v64
+          (Int64.neg (int_kind_neg_limit tgt_k));
+        Some t
+      end
+    in
+    (* nothing at 64 bits overflows a u64 so that top bound never trips *)
+    let overflow =
+      if target_is_u64 then None
+      else begin
+        let cmp = if is_unsigned src_ty then "cugtl" else "csgtl" in
+        let t = fresh ctx in
+        emit ctx "    %s =w %s %s, %Ld\n" t cmp v64 (int_kind_pos_limit tgt_k);
+        Some t
+      end
+    in
+    let bad =
+      match (underflow, overflow) with
+      | Some a, Some b ->
+          let t = fresh ctx in
+          emit ctx "    %s =w or %s, %s\n" t a b;
+          t
+      | Some x, None | None, Some x -> x
+      | None, None -> Error.ice "checked cast with no possible loss"
+    in
+    emit_guard ctx ~tag:"cast" ~cond:bad ~panic:(fun () ->
+        emit ctx "    call $ripe_panic_cast()\n")
+  end
+
+and emit_cast ctx ?(checked = false) v src_ty target_ty =
+  if checked then emit_checked_cast_guard ctx v src_ty target_ty;
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
   (* the extend already truncates so the copy would be redundant *)
@@ -924,7 +1000,7 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CBinding (_kind, s, t, e) -> (
       (* stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
-      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
+      emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       match e.T.desc with
       | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
       | T.CUndef -> ()
@@ -963,7 +1039,7 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CExpr e ->
       let _ = emit_expr ctx e in
       ()
-  | T.CLoop { init; cond; step; body } -> emit_loop ctx init cond step body
+  | T.CLoop body -> emit_loop ctx body
   | T.CIf (branches, else_body) -> (
       let id = fresh_id ctx in
       let n = List.length branches in
@@ -997,23 +1073,15 @@ and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
   | T.CContinue -> (
       match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
 
-and emit_loop ctx init cond step body =
+and emit_loop ctx body =
   let id = fresh_id ctx in
-  let cond_lbl = Printf.sprintf "@loop.cond%d" id in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
-  let step_lbl = Printf.sprintf "@loop.step%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
-  emit_stmts ctx init;
-  emit_label ctx cond_lbl;
-  emit_branch ctx cond body_lbl end_lbl;
   emit_label ctx body_lbl;
-  ctx.loops := (step_lbl, end_lbl) :: !(ctx.loops);
+  ctx.loops := (body_lbl, end_lbl) :: !(ctx.loops);
   emit_stmts ctx body;
-  emit_jmp ctx step_lbl;
-  emit_label ctx step_lbl;
-  emit_stmts ctx step;
   ctx.loops := List.tl !(ctx.loops);
-  emit_jmp ctx cond_lbl;
+  emit_jmp ctx body_lbl;
   emit_label ctx end_lbl
 
 and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
@@ -1032,7 +1100,7 @@ and emit_inline_call ctx (tfd : T.cfunc_def) (args : T.cexpr list) : string =
     List.map (fun (a : T.cexpr) -> (emit_expr ctx a, a.T.ty)) args
   in
   let res_slot =
-    if ret_ty = TVoid then None
+    if ret_ty = TVoid || ret_ty = TNever then None
     else
       let slot = Printf.sprintf "%%inl.res%d" id in
       let sz = if is_aggregate ret_ty then 8 else ty_size ctx.structs ret_ty in
@@ -1087,7 +1155,9 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
-  let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
+  let ret_part =
+    match tfd.ret_ty with TVoid | TNever -> "" | t -> qbe_ty t ^ " "
+  in
   (* the previous function ended terminated so clear it before this header *)
   ctx.terminated := false;
   (* TODO(572b): export pub functions *)
@@ -1135,7 +1205,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TInt (I16 | U16) -> "h"
   | TInt (I32 | U32) -> "w"
   (* null is a pointer no type but all pointers are 64-bit *)
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
@@ -1155,6 +1226,7 @@ let rec qbe_ext_ty (t : ty) : string =
   | TSlice _ -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no extended type"
+  | TNever -> Error.ice "TNever has no extended type"
   | TError -> Error.ice "TError has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
@@ -1220,8 +1292,7 @@ let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
   String.iter
-    (fun c ->
-      match c with
+    (function
       | '"' -> Buffer.add_string buf "\\\""
       | '\\' -> Buffer.add_string buf "\\\\"
       | '\n' -> Buffer.add_string buf "\\n"

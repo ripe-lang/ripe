@@ -1,22 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ripe
-
-let off src sub =
-  let n = String.length sub and m = String.length src in
-  let rec go i =
-    if i + n > m then -1 else if String.sub src i n = sub then i else go (i + 1)
-  in
-  go 0
-
-let ctx src =
-  { Diagnostic.sm = Source_map.create src; filename = "t.rp"; color = false }
-
-let span src sub =
-  { Ast.lo = off src sub; hi = off src sub + String.length sub }
-
-let point src sub = { Ast.lo = off src sub; hi = off src sub }
-let render src d = print_string (Diagnostic.render (ctx src) d)
+open Helpers
 
 let%expect_test "single caret from a zero-width span" =
   let src = "main() {\n    break\n}\n" in
@@ -25,7 +10,7 @@ let%expect_test "single caret from a zero-width span" =
   [%expect
     {|
     error: invalid break statement
-      at t.rp:2:5
+      at <test>:2:5
             break
             ^
     |}]
@@ -36,7 +21,7 @@ let%expect_test "wide caret over a span" =
   [%expect
     {|
     error: expected identifier
-      at t.rp:1:8
+      at <test>:1:8
         record 12345
                ^~~~~
     |}]
@@ -51,7 +36,7 @@ let%expect_test "inline label after the caret" =
   [%expect
     {|
     error: type mismatch
-      at t.rp:1:19
+      at <test>:1:19
         wrap() = needsInt(oops)
                           ^~~~ expected Int, found Str
     |}]
@@ -66,11 +51,11 @@ let%expect_test "note with a secondary location" =
   [%expect
     {|
     error: undefined name: foo
-      at t.rp:1:1
+      at <test>:1:1
         use()
         ^~~
     note: declared here
-      at t.rp:2:1
+      at <test>:2:1
         decl()
         ^~~~
     |}]
@@ -83,7 +68,7 @@ let%expect_test "help suggestion line" =
   [%expect
     {|
     error: expected `;`
-      at t.rp:1:11
+      at <test>:1:11
         var x = 1 hi
                   ^
     help: add `;` here
@@ -95,7 +80,7 @@ let%expect_test "caret aligns past a leading tab" =
   [%expect
     {|
     error: bad
-      at t.rp:2:13
+      at <test>:2:13
         var x = 1
                     ^
     |}]

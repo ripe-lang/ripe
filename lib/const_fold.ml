@@ -58,7 +58,7 @@ let run ~(emit : Diagnostic.t -> unit)
     | T.TBinOp (op, l, r) -> mk (T.TBinOp (op, sub_expr l, sub_expr r))
     | T.TUnOp (op, e) -> mk (T.TUnOp (op, sub_expr e))
     | T.TFieldAccess (e, f) -> mk (T.TFieldAccess (sub_expr e, f))
-    | T.TCast e -> mk (T.TCast (sub_expr e))
+    | T.TCast (e, checked) -> mk (T.TCast (sub_expr e, checked))
     | T.TRange (lo, hi) -> mk (T.TRange (sub_expr lo, sub_expr hi))
     | T.TRangeInclusive (lo, hi) ->
         mk (T.TRangeInclusive (sub_expr lo, sub_expr hi))

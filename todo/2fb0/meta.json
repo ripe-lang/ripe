@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-19 08:50:33.071717",
+  "depends": [],
+  "id": "2fb0",
+  "priority": "low",
+  "source": "lib/core.ml",
+  "status": "resolved",
+  "tags": [],
+  "title": "could bottom out at a bare loop {} someday",
+  "updated_at": "2026-07-19 11:40:35.968863"
+}

@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-21 13:05:09.437232",
+  "depends": [],
+  "id": "9eb1",
+  "priority": "low",
+  "source": "lib/typechecker.ml",
+  "status": "open",
+  "tags": [],
+  "title": "let `as!` cover float casts too once I add a loss check for floats",
+  "updated_at": "2026-07-21 13:05:09.437232"
+}

@@ -1,0 +1,7 @@
+newtype Meters = i32
+
+func main() i32 {
+  let m: Meters = 24
+  let m1: i32 = 26
+  return m as i32 + m1
+}

@@ -11,8 +11,10 @@ type ty =
   | TBool
   | TCStr
   | TVoid
+  | TNever
   | TNull
   | TPointer of ty
+  | TOpaquePtr
   | TStruct of string * ty list
   | TFunc of ty list * ty
   | TArray of ty * int
@@ -50,7 +52,7 @@ let builtin_tys =
   @ List.map
       (fun k -> (String.lowercase_ascii (show_float_kind k), TFloat k))
       float_kinds
-  @ [ ("bool", TBool); ("cstr", TCStr) ]
+  @ [ ("bool", TBool); ("cstr", TCStr); ("never", TNever) ]
 
 let int_kind_of_string s =
   List.find_opt
@@ -63,8 +65,10 @@ let rec show_ty = function
   | TBool -> "bool"
   | TCStr -> "cstr"
   | TVoid -> "void"
+  | TNever -> "never"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
+  | TOpaquePtr -> "*opaque"
   | TStruct (name, []) -> name
   | TStruct (name, args) ->
       Printf.sprintf "%s[%s]" name (String.concat ", " (List.map show_ty args))
@@ -99,6 +103,21 @@ let int_kind_size = function
 
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
+let int_kind_of (t : ty) : int_kind =
+  match resolve_ty t with
+  | TInt k -> k
+  | _ -> Error.ice "expected an integer type"
+
+(* the value fits unless the target range can't hold every source value *)
+let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
+  let bits k = 8 * int_kind_size k in
+  let src_unsigned = is_unsigned (TInt src) in
+  let tgt_unsigned = is_unsigned (TInt tgt) in
+  match (src_unsigned, tgt_unsigned) with
+  | false, true -> true
+  | true, false -> bits tgt <= bits src
+  | _ -> bits tgt < bits src
+
 (* C ABI alignment and padding rules *)
 (* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
 (* TODO(8969): Add a packed attr to strip padding for exact memory layout *)
@@ -109,8 +128,9 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no alignment"
+  | TNever -> Error.ice "TNever has no alignment"
   | TError -> Error.ice "TError has no alignment"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
@@ -133,8 +153,9 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
-  | TPointer _ | TNull | TCStr | TFunc _ -> 8
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no size"
+  | TNever -> Error.ice "TNever has no size"
   | TError -> Error.ice "TError has no size"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs name with
@@ -169,9 +190,12 @@ let is_scalar t =
 (* the 8 byte value classes, so constant folding picks a 64 bit result *)
 let is_wide_ty t =
   match resolve_ty t with
-  | TInt (I64 | U64 | Isize | Usize) | TPointer _ | TNull | TCStr | TFunc _ ->
+  | TInt (I64 | U64 | Isize | Usize)
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
   | _ -> false
+
+let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
 (* an alias is just another name for its base type so it never makes two types different *)
 let rec erase_aliases = function

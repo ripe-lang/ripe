@@ -14,6 +14,7 @@ depends: [
   "dune" {>= "3.21"}
   "ocaml"
   "climate"
+  "dune-site"
   "ppx_deriving"
   "ocamlformat"
   "ppx_expect"
@@ -29,10 +30,12 @@ build: [
     name
     "-j"
     jobs
+    "--promote-install-files=false"
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
+  ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/ripe-lang/ripe.git"
 x-maintenance-intent: ["(latest)"]

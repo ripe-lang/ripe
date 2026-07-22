@@ -12,10 +12,11 @@ type cexpr_desc =
   | CIdent of Symbol.t
   | CCall of cexpr * cexpr list * int option
   | CBinOp of Ast.binop * cexpr * cexpr
+  | CIfExpr of cexpr * cexpr * cexpr
   | CUnOp of Ast.unop * cexpr
   | CFieldAccess of cexpr * string
   (* target type is the node type *)
-  | CCast of cexpr
+  | CCast of cexpr * bool
   | CSizeOf of Types.ty
   | CArrayLit of cexpr list
   | CIndex of cexpr * cexpr
@@ -34,13 +35,7 @@ and cstmt_desc =
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
   | CIf of (cexpr * cstmt list) list * cstmt list
-  (* FIXME: could bottom out at a bare loop {} someday *)
-  | CLoop of {
-      init : cstmt list;
-      cond : cexpr;
-      step : cstmt list;
-      body : cstmt list;
-    }
+  | CLoop of cstmt list
   | CBreak
   | CContinue
   | CExpr of cexpr

@@ -23,25 +23,19 @@ let run cmd =
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
-let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
-
 (* lower IL through qbe and return the emitted asm path *)
 let run_qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
   Out_channel.with_open_text tmp_qbe (fun oc -> output_string oc il);
-  run (Printf.sprintf "%s -o %s %s" qbe tmp_asm tmp_qbe);
+  run (Printf.sprintf "%s -o %s %s" Config.qbe tmp_asm tmp_qbe);
   Sys.remove tmp_qbe;
   tmp_asm
 
 let compile_binary base il =
   let tmp_asm = run_qbe il in
-  let tmp_rt = Filename.temp_file "ripe_rt" ".c" in
-  Out_channel.with_open_text tmp_rt (fun oc ->
-      output_string oc Runtime_src.source);
-  run (Printf.sprintf "cc -o %s %s %s" base tmp_asm tmp_rt);
-  Sys.remove tmp_asm;
-  Sys.remove tmp_rt
+  run (Printf.sprintf "cc -o %s %s %s" base tmp_asm (Config.runtime_object ()));
+  Sys.remove tmp_asm
 
 let emit_asm il =
   let tmp_asm = run_qbe il in

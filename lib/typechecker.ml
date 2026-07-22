@@ -4,6 +4,7 @@
 
 open Ast
 open Types
+open Ty_pred
 module T = Typed_ast
 
 (* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
@@ -132,144 +133,32 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
-(* an alias is transparent and compares as its underlying type *)
-let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
-
-(* Exact equality but NULL is compatible with any pointer *)
-(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
-(* TODO(94c1): Add rawptr/void* *)
-let rec compatible (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
-  | TPointer _, TNull -> true
-  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
-  (* a fixed array coerces to a slice of the same element type *)
-  | TSlice a, TArray (b, _) -> compatible a b
-  | TSlice a, TSlice b -> compatible a b
-  | TFunc (p1, r1), TFunc (p2, r2) ->
-      List.length p1 = List.length p2
-      && List.for_all2 compatible p1 p2
-      && compatible r1 r2
-  (* a struct matches nominally by name and its type arguments must match exactly *)
-  | TStruct (n1, a1), TStruct (n2, a2) ->
-      n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
-  (* a newtype is its own type and never matches its base *)
-  | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
-  | s_want, s_got -> ty_equal s_want s_got
-
-and compatible_under_pointer (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
-  | TPointer _, TNull -> true
-  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
-  | s_want, s_got -> ty_equal s_want s_got
-
-let is_lvalue (te : T.texpr) : bool =
-  match te.T.desc with
-  | TIdent _ -> true
-  | TUnOp (Deref, _) -> true
-  | TFieldAccess _ -> true
-  | TIndex _ -> true
-  | _ -> false
-
-(* a deref stops the walk since the pointee isn't owned by this binding *)
-let rec root_binding (te : T.texpr) : Symbol.t option =
-  match te.T.desc with
-  | TIdent s -> Some s
-  | TFieldAccess (base, _) -> root_binding base
-  | TIndex (base, _) -> root_binding base
-  | _ -> None
-
-let is_numeric t =
-  match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
-
-(* a pointer is just an address so p < q asks which one sits earlier in memory *)
-let is_ordered t =
-  match strip_alias t with TPointer _ -> true | _ -> is_numeric t
-
-let is_integer t =
-  match strip_alias t with TInt _ | TError -> true | _ -> false
-
-(* a newtype hides every operation of its base *)
-(* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
-let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TNull | TError -> true
-  | TAlias (_, base) -> is_comparable base
-  | _ -> false
-
-let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
-let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
-
-type cast_class = Numeric | Ptr | Aggregate
-
-let cast_class t =
-  match resolve_ty t with
-  | TInt _ | TFloat _ | TBool -> Numeric
-  | TPointer _ | TCStr | TNull | TFunc _ -> Ptr
-  | _ -> Aggregate
-
-(* a pointer bit pattern is not a float and an aggregate only casts to itself *)
-let cast_ok src tgt =
-  match (resolve_ty src, resolve_ty tgt) with
-  | s, TBool -> s = TBool
-  | _ -> (
-      match (cast_class src, cast_class tgt) with
-      | Aggregate, _ | _, Aggregate ->
-          ty_equal (resolve_ty src) (resolve_ty tgt)
-      | Numeric, Numeric | Ptr, Ptr -> true
-      | (Numeric | Ptr), (Numeric | Ptr) ->
-          (not (is_float src)) && not (is_float tgt))
-
-(* a param array is copied into this frame so a slice of it dangles too *)
-let rec array_storage_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TIdent s -> (
-      match s.Symbol.kind with
-      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
-      | _ -> false)
-  | T.TArrayLit _ -> true
-  | T.TIndex (base, _) -> array_storage_escapes base
-  | T.TFieldAccess (base, _) -> array_storage_escapes base
-  | _ -> false
-
-(* only these two forms build a slice out of storage that could be local *)
-let rec slice_return_escapes (te : T.texpr) : bool =
-  match te.T.desc with
-  | T.TToSlice arr -> array_storage_escapes arr
-  | T.TSliceExpr (base, _, _) -> (
-      match strip_alias base.T.ty with
-      | TSlice _ -> slice_return_escapes base
-      | _ -> array_storage_escapes base)
-  | _ -> false
-
-(* a break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break stmts = List.exists stmt_has_break stmts
-
-and stmt_has_break s =
-  match s.sdesc with
-  | Break -> true
-  | Block body -> loop_has_break body
-  | If (branches, else_body) ->
-      loop_has_break else_body
-      || List.exists (fun (_, b) -> loop_has_break b) branches
-  | _ -> false
-
-(* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
-
-and stmt_returns (s : stmt) : bool =
-  match s.sdesc with
-  | Return _ -> true
-  | Block body -> stmts_return body
-  | If (branches, else_body) ->
-      else_body <> [] && stmts_return else_body
-      && List.for_all (fun (_, body) -> stmts_return body) branches
-  (* a while true with no break loops forever so the code after it never runs *)
-  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
+(* a call to a never function is a terminator so reachability treats it like a return *)
+let is_never_call (env : env) (e : expr) : bool =
+  match e.desc with
+  | Call ({ desc = Ident name; _ }, _) -> (
+      match Hashtbl.find_opt env.funcs name with
+      | Some s -> s.ret_ty = TNever
+      | None -> false)
   | _ -> false
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
+  (* never is the return type of a function that can't return so no value ever has it *)
+  | Named "never" ->
+      emit env
+        Diagnostic.(
+          error "never is only valid as a function return type"
+          |> at t.span
+          |> help "a value of type never cannot exist");
+      TError
+  | Named "opaque" ->
+      emit env
+        Diagnostic.(
+          error "opaque is only valid as a pointee"
+          |> at t.span
+          |> help "use *opaque for an untyped pointer");
+      TError
   | Named name -> (
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
@@ -278,9 +167,8 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DStruct _) -> TStruct (name, [])
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
-          | None ->
-              emit env (Error.undefined_name t.span "type" name);
-              TInt I32))
+          | None -> Error.ice ~span:t.span "type name escaped the resolver"))
+  | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
   | Slice t -> TSlice (ty_of_ast env t)
@@ -343,39 +231,12 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Ident name ->
       let t = lookup_var env e.span name in
       T.mk t (T.TIdent (sym env e.span))
-  | Call (callee, args) -> (
-      match callee.desc with
-      | Ident name when Symbol.is_func (sym env callee.span).kind ->
-          let fn_sym = sym env callee.span in
-          let sig_ = lookup_func env callee.span name in
-          let targs = check_args env e.span sig_ args in
-          let fixed_count =
-            if sig_.variadic then Some (List.length sig_.param_tys) else None
-          in
-          let callee_texpr =
-            T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
-          in
-          T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
-      | _ -> (
-          (* the callee is a value holding a fn ptr so call through it *)
-          let callee_texpr = synth env callee in
-          match resolve_ty callee_texpr.T.ty with
-          | TFunc (param_tys, ret_ty) ->
-              let sig_ = { param_tys; ret_ty; variadic = false } in
-              let targs = check_args env e.span sig_ args in
-              T.mk ret_ty (T.TCall (callee_texpr, targs, None))
-          | _ ->
-              emit env
-                (Diagnostic.error "not callable"
-                |> Diagnostic.at callee.span
-                |> Diagnostic.label
-                     (Printf.sprintf "this has type %s"
-                        (show_ty callee_texpr.T.ty)));
-              dummy_texpr))
+  | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  | Cast (operand, t) ->
+  (* TODO this trapping `as!` could be moved to the standard library in the future once sum types and generics land, then `as!` could switch to meaning force the conversion *)
+  | Cast (operand, t, checked) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
       if not (cast_ok te.T.ty ty) then begin
@@ -392,8 +253,19 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           else d
         in
         emit env d
-      end;
-      T.mk ty (T.TCast te)
+      end
+      else if checked then
+        begin match (resolve_ty te.T.ty, resolve_ty ty) with
+        | TInt _, TInt _ -> ()
+        (* TODO(9eb1): let `as!` cover float casts too once I add a loss check for floats *)
+        | _ ->
+            emit env
+              (Diagnostic.error "checked cast only supports integers"
+              |> Diagnostic.at e.span
+              |> Diagnostic.label "`as!` traps on integer overflow only"
+              |> Diagnostic.help "use a plain `as` cast here")
+        end;
+      T.mk ty (T.TCast (te, checked))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
   | Range _ | RangeInclusive _ ->
@@ -407,33 +279,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let elem = te0.T.ty in
       let tes = te0 :: List.map (fun e -> check env e elem) rest in
       T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
-  | Index (base, idx) -> (
-      let tbase = synth env base in
-      match strip_alias tbase.T.ty with
-      | TArray (elem, _) | TSlice elem -> (
-          match idx.desc with
-          (* arr[lo..hi] produces a slice that borrows into the same storage;
-             arr[lo..=hi] desugars to arr[lo..hi+1] *)
-          | Range (lo, hi) | RangeInclusive (lo, hi) ->
-              let inclusive =
-                match idx.desc with RangeInclusive _ -> true | _ -> false
-              in
-              let tlo, thi, lt = check_range_bounds env lo hi in
-              let thi =
-                if inclusive then
-                  T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1L)))
-                else thi
-              in
-              T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
-          | _ ->
-              let tidx = synth env idx in
-              if not (is_integer tidx.T.ty) then
-                add_error env idx.span "array index must be an integer";
-              T.mk elem (T.TIndex (tbase, tidx)))
-      | TError -> dummy_texpr
-      | t ->
-          emit env (Error.named e.span "cannot index type" (show_ty t));
-          dummy_texpr)
+  | Index (base, idx) -> synth_index env e.span base idx
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
@@ -474,7 +320,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       if
         List.exists
           (fun s ->
-            stmt_returns s
+            Reachability.stmt_returns (is_never_call env) s
             || match s.sdesc with Break | Continue -> true | _ -> false)
           body
       then add_warning env e.span "unreachable code";
@@ -482,10 +328,11 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       T.mk te.T.ty (T.TBlockExpr (tbody, te))
 
 (* MUST be this type *)
-and check (env : env) (e : expr) (want : ty) : T.texpr =
-  { (check_desc env e want) with T.span = e.span }
+and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
+  { (check_desc ~adopt env e want) with T.span = e.span }
 
-and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
+and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
+  let target = if adopt then resolve_ty want else strip_alias want in
   (* synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
@@ -518,10 +365,12 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
              ~found:(show_ty te.T.ty));
       te
   | Int (n, None) -> (
-      match strip_alias want with
+      (* an untyped literal adopts a newtype over an int and checks its base *)
+      match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
       (* want is not an integer type at all e.g. let y: bool = 20 *)
@@ -530,7 +379,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
-      match strip_alias want with
+      match target with
       | TFloat _ -> T.mk want (T.TFloat f)
       | TError -> T.mk want (T.TFloat f)
       | _ ->
@@ -538,12 +387,13 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
-      match strip_alias want with
+      match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-            emit env (Error.int_out_of_range e.span ~ty:(show_ty want));
+            emit env
+              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt (Int64.neg n))
-      | _ -> check env { e with desc = Int (Int64.neg n, None) } want)
+      | _ -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
@@ -568,6 +418,9 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
          | _ -> is_numeric)
            (strip_alias want) ->
       T.mk want (T.TBinOp (op, check env l want, check env r want))
+  | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (strip_alias want)
+    ->
+      T.mk want (T.TBinOp (op, check env l want, synth env r))
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
@@ -606,18 +459,17 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
-        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast te)
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, false))
         | _ -> te
       in
-      List.map2 (fun e want -> check env e want) fixed sig_.param_tys
-      @ List.map promote_vararg rest
+      List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
   else if n_params <> n_args then (
     emit env
       (Error.arity span
          ~expected:(Printf.sprintf "expected %d arguments" n_params)
          ~found:n_args);
     [])
-  else List.map2 (fun e want -> check env e want) args sig_.param_tys
+  else List.map2 (check env) args sig_.param_tys
 
 and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   match op with
@@ -625,14 +477,11 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_numeric t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       (* qbe has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
-      then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%%` to %s" (show_ty t));
+      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
@@ -640,9 +489,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -650,9 +498,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_ordered t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -664,9 +511,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tl = synth env l in
       let t = tl.T.ty in
       if not (is_integer t) then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
+        emit env
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tr =
         match op with
         (* the count keeps its own integer type since it is only a number of positions *)
@@ -682,52 +528,51 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
   | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
-      let tl = synth env l in
-      if not (is_lvalue tl) then
-        add_error env l.span "cannot assign to expression";
-      (match tl.T.desc with
-      | TIdent s when Symbol.is_func s.kind ->
-          emit env (Error.named l.span "cannot assign to function" s.name)
-      | TIdent _ | TFieldAccess _ | TIndex _ -> (
-          (* This catches assignment to an immutable binding whether it's local or global. *)
-          match root_binding tl with
-          | Some s
-            when Symbol.is_immutable s.kind
-                 || (Symbol.is_global s.kind && is_const_global env s.name) ->
-              emit env (Error.named l.span "cannot assign to immutable" s.name)
-          | _ -> ())
-      | _ -> ());
-      let t = tl.T.ty in
-      let operand_ok =
-        match op with
-        | Assign -> true
-        | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
-        (* qbe has no float remainder instruction *)
-        | ModAssign ->
-            is_numeric t
-            && not (match strip_alias t with TFloat _ -> true | _ -> false)
-        | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign
-        | RshiftAssign ->
-            is_integer t
-        | _ -> false
-      in
-      if not operand_ok then
-        add_error env l.span
-          (Printf.sprintf "cannot apply `%s` to %s" (show_binop_sym op)
-             (show_ty t));
-      let tr =
-        match op with
-        (* the count keeps its own type since it's just how far to shift *)
-        | LshiftAssign | RshiftAssign ->
-            let tr = synth env r in
-            if not (is_integer tr.T.ty) then
-              add_error env r.span
-                (Printf.sprintf "shift count must be an integer, found %s"
-                   (show_ty tr.T.ty));
-            tr
-        | _ -> check env r t
-      in
-      T.mk TVoid (T.TBinOp (op, tl, tr))
+      synth_assign env op l r
+
+and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
+  let tl = synth env l in
+  if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
+  (match tl.T.desc with
+  | TIdent s when Symbol.is_func s.kind ->
+      emit env (Error.named l.span "cannot assign to function" s.name)
+  | TIdent _ | TFieldAccess _ | TIndex _ -> (
+      (* This catches assignment to an immutable binding whether it's local or global. *)
+      match root_binding tl with
+      | Some s
+        when Symbol.is_immutable s.kind
+             || (Symbol.is_global s.kind && is_const_global env s.name) ->
+          emit env (Error.named l.span "cannot assign to immutable" s.name)
+      | _ -> ())
+  | _ -> ());
+  let t = tl.T.ty in
+  let operand_ok =
+    match op with
+    | Assign -> true
+    | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
+    (* qbe has no float remainder instruction *)
+    | ModAssign ->
+        is_numeric t
+        && not (match strip_alias t with TFloat _ -> true | _ -> false)
+    | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
+        is_integer t
+    | _ -> false
+  in
+  if not operand_ok then
+    emit env (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+  let tr =
+    match op with
+    (* the count keeps its own type since it's just how far to shift *)
+    | LshiftAssign | RshiftAssign ->
+        let tr = synth env r in
+        if not (is_integer tr.T.ty) then
+          add_error env r.span
+            (Printf.sprintf "shift count must be an integer, found %s"
+               (show_ty tr.T.ty));
+        tr
+    | _ -> check env r t
+  in
+  T.mk TVoid (T.TBinOp (op, tl, tr))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
@@ -735,8 +580,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        add_error env e.span
-          (Printf.sprintf "cannot apply `-` to %s" (show_ty t));
+        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Not ->
       let te = check env e TBool in
@@ -745,14 +589,20 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_integer t) then
-        add_error env e.span
-          (Printf.sprintf "cannot apply `~` to %s" (show_ty t));
+        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty t));
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
       match strip_alias te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | TError -> dummy_texpr
+      | TOpaquePtr ->
+          emit env
+            Diagnostic.(
+              error "cannot dereference *opaque"
+              |> at e.span
+              |> help "cast to a typed pointer first");
+          dummy_texpr
       | t ->
           emit env (Error.named e.span "cannot dereference type" (show_ty t));
           dummy_texpr)
@@ -787,6 +637,13 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
             (Error.named span "no field" fname
             |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
           dummy_texpr)
+  | TOpaquePtr ->
+      emit env
+        Diagnostic.(
+          error "cannot access a field of *opaque"
+          |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
   | _ -> synth_struct_field env span te ty fname
 
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
@@ -817,6 +674,73 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
             (Error.named span "no field" fname
             |> Diagnostic.label (Printf.sprintf "on struct %s" sname));
           dummy_texpr)
+
+and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
+    : T.texpr =
+  match callee.desc with
+  | Ident name when Symbol.is_func (sym env callee.span).kind ->
+      let fn_sym = sym env callee.span in
+      let sig_ = lookup_func env callee.span name in
+      let targs = check_args env span sig_ args in
+      let fixed_count =
+        if sig_.variadic then Some (List.length sig_.param_tys) else None
+      in
+      let callee_texpr =
+        T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
+      in
+      T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
+  | _ -> (
+      (* the callee is a value holding a fn ptr so call through it *)
+      let callee_texpr = synth env callee in
+      match resolve_ty callee_texpr.T.ty with
+      | TFunc (param_tys, ret_ty) ->
+          let sig_ = { param_tys; ret_ty; variadic = false } in
+          let targs = check_args env span sig_ args in
+          T.mk ret_ty (T.TCall (callee_texpr, targs, None))
+      | _ ->
+          emit env
+            (Diagnostic.error "not callable"
+            |> Diagnostic.at callee.span
+            |> Diagnostic.label
+                 (Printf.sprintf "this has type %s" (show_ty callee_texpr.T.ty))
+            );
+          dummy_texpr)
+
+and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
+    T.texpr =
+  let tbase = synth env base in
+  match strip_alias tbase.T.ty with
+  | TArray (elem, _) | TSlice elem -> (
+      match idx.desc with
+      (* arr[lo..hi] produces a slice that borrows into the same storage;
+         arr[lo..=hi] desugars to arr[lo..hi+1] *)
+      | Range (lo, hi) | RangeInclusive (lo, hi) ->
+          let inclusive =
+            match idx.desc with RangeInclusive _ -> true | _ -> false
+          in
+          let tlo, thi, lt = check_range_bounds env lo hi in
+          let thi =
+            if inclusive then
+              T.mk lt (T.TBinOp (Ast.Add, thi, T.mk lt (T.TInt 1L)))
+            else thi
+          in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
+      | _ ->
+          let tidx = synth env idx in
+          if not (is_integer tidx.T.ty) then
+            add_error env idx.span "array index must be an integer";
+          T.mk elem (T.TIndex (tbase, tidx)))
+  | TError -> dummy_texpr
+  | TOpaquePtr ->
+      emit env
+        Diagnostic.(
+          error "cannot index *opaque"
+          |> at span
+          |> help "cast to a typed pointer first");
+      dummy_texpr
+  | t ->
+      emit env (Error.named span "cannot index type" (show_ty t));
+      dummy_texpr
 
 (* TODO(ccf6): Validate that the operand is a numeric type *)
 (* TODO(b5ae): Better error messages *)
@@ -946,7 +870,7 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
         match (ann, e) with
         | Some a, Some e ->
             let want = ty_of_ast env a in
-            let te = check env e want in
+            let te = check ~adopt:true env e want in
             (want, te)
         | None, Some e ->
             let te = synth env e in
@@ -965,16 +889,28 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (extend_var env nspan name t, T.TBinding (kind, sym env nspan, t, te))
   | Return None ->
       (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
-      if env.ret_ty <> TVoid && not env.in_main then
+      if env.ret_ty = TNever then
+        add_error env s.span "a never function cannot return"
+      else if env.ret_ty <> TVoid && not env.in_main then
         add_error env s.span "empty return in non-void function";
       (env, T.TReturn None)
+  | Return (Some e) when env.ret_ty = TNever ->
+      add_error env s.span "a never function cannot return";
+      (env, T.TReturn (Some (synth env e)))
   | Return (Some e) ->
       let te = check env e env.ret_ty in
-      if slice_return_escapes te then
-        emit env
-          (Diagnostic.error "slice of a local escapes"
-          |> Diagnostic.at e.span
-          |> Diagnostic.label "points into freed stack memory");
+      (match Escape.return_escapes te with
+      | Some kind ->
+          let noun =
+            match kind with
+            | Escape.Slice -> "slice of a local"
+            | Escape.Address -> "address of a local"
+          in
+          emit env
+            (Diagnostic.error (noun ^ " escapes")
+            |> Diagnostic.at e.span
+            |> Diagnostic.label "points into freed stack memory")
+      | None -> ());
       (env, T.TReturn (Some te))
   | Expr e ->
       let te = synth env e in
@@ -1051,7 +987,7 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
         let next_env, ts = check_stmt current_env s in
         (* break and continue end the block just like a returning if does *)
         let terminates =
-          stmt_returns s
+          Reachability.stmt_returns (is_never_call current_env) s
           || match s.sdesc with Break | Continue -> true | _ -> false
         in
         (next_env, ts :: acc, returned || terminates, warned || returned))
@@ -1062,6 +998,7 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
 (* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
+  | Some { tdesc = Named "never"; _ } -> TNever
   | Some t -> ty_of_ast env t
   | None -> if fd.name = "main" then TInt I32 else TVoid
 
@@ -1091,15 +1028,9 @@ let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
       true
   | None -> false
 
-(* TODO(d1ec): Support forward reference between structs *)
-(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
-(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
-let collect_struct (env : env) (sd : struct_def) : unit =
+(* the name goes in first so a field can name this struct or one defined later *)
+let reserve_struct_name (env : env) (sd : struct_def) : unit =
   if not (reject_taken_type_name env sd.span sd.name) then (
-    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
-    let field_tys =
-      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
-    in
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
@@ -1107,8 +1038,42 @@ let collect_struct (env : env) (sd : struct_def) : unit =
           emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys });
-    Hashtbl.replace env.struct_fields sd.name field_tys)
+    Hashtbl.replace env.types sd.name (DStruct { field_tys = [] });
+    Hashtbl.replace env.struct_fields sd.name [])
+
+(* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+let resolve_struct_fields (env : env) (sd : struct_def) : unit =
+  match Hashtbl.find_opt env.types sd.name with
+  | Some (DStruct _) ->
+      let field_tys =
+        List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+      in
+      Hashtbl.replace env.types sd.name (DStruct { field_tys });
+      Hashtbl.replace env.struct_fields sd.name field_tys
+  | _ -> ()
+
+(* a pointer or slice field is just an address so it can't grow the struct *)
+let check_struct_cycle (env : env) (sd : struct_def) : unit =
+  let fields_of name =
+    Option.value ~default:[] (Hashtbl.find_opt env.struct_fields name)
+  in
+  let on_path = Hashtbl.create 8 in
+  let rec reaches (target : string) (t : ty) : bool =
+    match resolve_ty t with
+    | TStruct (name, _) when name = target -> true
+    | TStruct (name, _) when Hashtbl.mem on_path name -> false
+    | TStruct (name, _) ->
+        Hashtbl.add on_path name ();
+        let hit =
+          List.exists (fun (_, ft) -> reaches target ft) (fields_of name)
+        in
+        Hashtbl.remove on_path name;
+        hit
+    | TArray (elem, _) -> reaches target elem
+    | _ -> false
+  in
+  if List.exists (fun (_, ft) -> reaches sd.name ft) (fields_of sd.name) then
+    emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
@@ -1130,9 +1095,15 @@ let collect_global (env : env) (gd : global_def) : unit =
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.kind)
 
+let fill_struct_fields_decl (env : env) (decl : decl) : unit =
+  match decl with Struct sd -> resolve_struct_fields env sd | _ -> ()
+
+let check_cycle_decl (env : env) (decl : decl) : unit =
+  match decl with Struct sd -> check_struct_cycle env sd | _ -> ()
+
 let collect_decl (env : env) (decl : decl) : unit =
   match decl with
-  | Struct sd -> collect_struct env sd
+  | Struct sd -> reserve_struct_name env sd
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
   | TypeAlias td -> collect_alias env td
@@ -1155,6 +1126,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
+  (* main always returns a 32 bit integer so any other type the user writes is rejected *)
   if fd.name = "main" && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env
@@ -1163,10 +1135,10 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   end;
 
   let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
-  (* params pre-marked used so they don't warn *)
+  (* an extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
-      (fun e (name, t, span) -> extend_var ~used:true e span name t)
+      (fun e (name, t, span) -> extend_var ~used:is_extern e span name t)
       func_env params_typed
   in
 
@@ -1175,7 +1147,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   if
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
-    && not (stmts_return fd.body)
+    && not (Reachability.stmts_return (is_never_call env) fd.body)
   then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env (Error.named span "missing return" fd.name)
@@ -1199,7 +1171,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TUnOp (Ast.AddressOf, { desc = TIdent s; _ }) -> Symbol.is_global s.kind
   | TUnOp (_, e) -> is_const_texpr env e
   | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
-  | TCast e -> is_const_texpr env e
+  | TCast (e, _) -> is_const_texpr env e
   | TZero -> true
   (* an array literal is constant when all its elements are *)
   | TArrayLit elems -> List.for_all (is_const_texpr env) elems
@@ -1304,6 +1276,8 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
       | _ -> ())
     decls;
   List.iter (collect_decl env) decls;
+  List.iter (fill_struct_fields_decl env) decls;
+  List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
   let tdecls = fold_consts env tdecls in
   let all = Diagnostic.drain env.diags in

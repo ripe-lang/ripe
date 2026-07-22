@@ -72,6 +72,13 @@ let show_binop_sym = function
 type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 
+let show_unop_sym = function
+  | Neg -> "-"
+  | Not -> "!"
+  | BitNot -> "~"
+  | Deref -> "*"
+  | AddressOf -> "&"
+
 type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]
 
 type expr_desc =
@@ -88,7 +95,7 @@ type expr_desc =
   | Range of expr * expr
   | RangeInclusive of expr * expr
   | FieldAccess of expr * string
-  | Cast of expr * typ
+  | Cast of expr * typ * bool
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr

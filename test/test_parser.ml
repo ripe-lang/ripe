@@ -126,15 +126,15 @@ let%expect_test "parse: comparison non-associative" =
 
 let%expect_test "parse: unary minus and not" =
   parse_expr "!flag && -x > 0";
-  [%expect {| (&& (! flag) (> (neg x) 0)) |}]
+  [%expect {| (&& (! flag) (> (- x) 0)) |}]
 
 let%expect_test "parse: address-of and deref chain" =
   parse_expr "&*p";
-  [%expect {| (addr (deref p)) |}]
+  [%expect {| (& (* p)) |}]
 
 let%expect_test "parse: double address-of splits the and token" =
   parse_expr "&&x";
-  [%expect {| (addr (addr x)) |}]
+  [%expect {| (& (& x)) |}]
 
 let%expect_test "parse: call with args" =
   parse_expr "add(1, 2 * 3)";
@@ -196,15 +196,39 @@ let%expect_test "parse: len field access" =
 
 let%expect_test "parse: fixed array type" =
   run_src "func f(a: [4]i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: [4]i32) {}
+               ^~~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: slice type" =
   run_src "func f(a: []i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: []i32) {}
+               ^~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: slice of pointer type" =
   run_src "func f(a: []*i32) {}";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unused variable: a
+      at <test>:1:8
+        func f(a: []*i32) {}
+               ^~~~~~~~~
+    help: prefix with an underscore: _a
+    ok
+    |}]
 
 let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
@@ -406,9 +430,13 @@ let%expect_test "parse: cast chain" =
   parse_expr "x as i32 as f64";
   [%expect {| (as (as x i32) f64) |}]
 
+let%expect_test "parse: checked cast" =
+  parse_expr "x as! u8";
+  [%expect {| (as! x u8) |}]
+
 let%expect_test "parse: negation binds tighter than multiply" =
   parse_expr "-2 * 3";
-  [%expect {| (* (neg 2) 3) |}]
+  [%expect {| (* (- 2) 3) |}]
 
 let%expect_test "parse: double negation" =
   parse_expr "!!x";
@@ -428,15 +456,15 @@ let%expect_test "parse: index after call" =
 
 let%expect_test "parse: negation binds looser than index" =
   parse_expr "-arr[0]";
-  [%expect {| (neg (index arr 0)) |}]
+  [%expect {| (- (index arr 0)) |}]
 
 let%expect_test "parse: address-of binds looser than field" =
   parse_expr "&s.x";
-  [%expect {| (addr (. s x)) |}]
+  [%expect {| (& (. s x)) |}]
 
 let%expect_test "parse: deref binds looser than field" =
   parse_expr "*p.x";
-  [%expect {| (deref (. p x)) |}]
+  [%expect {| (* (. p x)) |}]
 
 let%expect_test "parse: postfix on a cast is rejected" =
   parse_expr "x as i32[0]";
@@ -597,6 +625,10 @@ let%expect_test "parse: struct literal fields need a separator" =
         func f() { let s = S { x: 1 y: 2 } }
                                     ^ found y
     |}]
+
+let%expect_test "parse: never as a return type" =
+  run_src "extern func exit(code: i32) never";
+  [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =
   run_src "func f() i32 { let x = { var a = 1 } return x }";

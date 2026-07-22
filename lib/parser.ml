@@ -280,8 +280,10 @@ and parse_expr st min_prec =
           match assoc with Left | NonAssoc -> prec + 1 | Right -> prec
         in
         if op_tok = AS then begin
+          let checked = st.tok = BANG in
+          if checked then advance st;
           let ty = parse_typ st in
-          lhs := mk lo st (Cast (!lhs, ty));
+          lhs := mk lo st (Cast (!lhs, ty, checked));
           if is_postfix_tok st.tok then
             raise
               (ParseError

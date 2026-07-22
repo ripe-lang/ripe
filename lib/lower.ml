@@ -29,6 +29,28 @@ let assign (lhs : D.cexpr) rhs =
 
 let if_then cond body = mkstmt (D.CIf ([ (cond, body) ], []))
 
+(* a for-loop continue still has to run the step, so drop a copy in front of each one *)
+(* nested loops aren't touched here since their continues belong to them *)
+let rec paste_step step (stmts : D.cstmt list) : D.cstmt list =
+  let on_stmt (st : D.cstmt) =
+    match st.D.tsdesc with
+    | D.CContinue -> step @ [ st ]
+    | D.CIf (branches, else_body) ->
+        let branches =
+          List.map (fun (c, body) -> (c, paste_step step body)) branches
+        in
+        [ { st with D.tsdesc = D.CIf (branches, paste_step step else_body) } ]
+    | _ -> [ st ]
+  in
+  List.concat_map on_stmt stmts
+
+let loop ~init ~cond ~step ~body : D.cstmt list =
+  let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
+  let guard = if_then not_cond [ mkstmt D.CBreak ] in
+  let body = if step = [] then body else paste_step step body @ step in
+  let bare = mkstmt (D.CLoop (guard :: body)) in
+  init @ [ bare ]
+
 let rec lower_expr (te : S.texpr) : D.cexpr =
   let ty = te.S.ty and span = te.S.span in
   let desc =
@@ -42,10 +64,14 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TIdent sym -> D.CIdent sym
     | S.TCall (f, args, variadic_start) ->
         D.CCall (lower_expr f, List.map lower_expr args, variadic_start)
+    | S.TBinOp (Ast.And, l, r) ->
+        D.CIfExpr (lower_expr l, lower_expr r, D.mk ~span ty (D.CBool false))
+    | S.TBinOp (Ast.Or, l, r) ->
+        D.CIfExpr (lower_expr l, D.mk ~span ty (D.CBool true), lower_expr r)
     | S.TBinOp (op, l, r) -> D.CBinOp (op, lower_expr l, lower_expr r)
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
-    | S.TCast e -> D.CCast (lower_expr e)
+    | S.TCast (e, checked) -> D.CCast (lower_expr e, checked)
     | S.TSizeOf t -> D.CSizeOf t
     | S.TRange _ | S.TRangeInclusive _ ->
         Error.ice ~span "range outside a for loop"
@@ -95,7 +121,7 @@ and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
   let updated = binop elem base place (lower_expr r) in
   [ bind psym ptr_ty addr; assign place updated ]
 
-and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt_desc =
+and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
   let ivar = ident elem_ty sym in
   let hisym = fresh_sym "for.hi" in
   let hivar = ident elem_ty hisym in
@@ -112,9 +138,9 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt_desc =
       ]
     else [ incr ]
   in
-  D.CLoop { init; cond; step; body }
+  loop ~init ~cond ~step ~body
 
-and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt_desc =
+and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
   (* a slice is snapshotted so its pointer and length come from one evaluation *)
@@ -141,9 +167,9 @@ and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt_desc =
   let elem = D.mk elem_ty (D.CIndex (ident ptr_ty psym, ivar)) in
   let incr = assign ivar (binop usize Ast.Add ivar (int usize 1L)) in
   let body = bind sym elem_ty elem :: body in
-  D.CLoop { init; cond; step = [ incr ]; body }
+  loop ~init ~cond ~step:[ incr ] ~body
 
-and lower_for sym elem_ty iter body : D.cstmt_desc =
+and lower_for sym elem_ty iter body : D.cstmt list =
   match iter.S.desc with
   | S.TRange (lo, hi) ->
       lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
@@ -168,16 +194,9 @@ and lower_stmt (st : S.tstmt) : D.cstmt list =
                branches,
              lower_stmts else_body ))
   | S.TWhile (cond, body) ->
-      one
-        (D.CLoop
-           {
-             init = [];
-             cond = lower_expr cond;
-             step = [];
-             body = lower_stmts body;
-           })
+      loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_stmts body)
   | S.TFor (sym, elem_ty, iter, body) ->
-      one (lower_for sym elem_ty iter (lower_stmts body))
+      lower_for sym elem_ty iter (lower_stmts body)
   | S.TBreak -> one D.CBreak
   | S.TContinue -> one D.CContinue
   | S.TExpr { S.desc = S.TBinOp (op, l, r); _ } when base_binop_of op <> None ->
