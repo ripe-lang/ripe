@@ -51,7 +51,7 @@ let builtin_tys =
   @ List.map
       (fun k -> (String.lowercase_ascii (show_float_kind k), TFloat k))
       float_kinds
-  @ [ ("bool", TBool); ("cstr", TCStr) ]
+  @ [ ("bool", TBool); ("cstr", TCStr); ("never", TNever) ]
 
 let int_kind_of_string s =
   List.find_opt

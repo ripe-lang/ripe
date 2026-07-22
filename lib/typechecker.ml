@@ -135,6 +135,14 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
+  (* never is the return type of a function that can't return so no value ever has it *)
+  | Named "never" ->
+      emit env
+        Diagnostic.(
+          error "never is only valid as a function return type"
+          |> at t.span
+          |> help "a value of type never cannot exist");
+      TError
   | Named name -> (
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
@@ -802,6 +810,7 @@ and eval_array_size (env : env) (e : expr) : int =
 (* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
+  | Some { tdesc = Named "never"; _ } -> TNever
   | Some t -> ty_of_ast env t
   | None -> if fd.name = "main" then TInt I32 else TVoid
 
