@@ -1,0 +1,13 @@
+func main() i32 {
+  var grid: [3][3]i32 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+  ]
+  var diagonal: i32 = 0
+  for i in 0..3 {
+    diagonal += grid[i][i]
+  }
+  grid[2][2] = 100
+  return diagonal + grid[2][2] - 100
+}

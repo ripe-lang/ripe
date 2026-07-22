@@ -1,4 +1,3 @@
-// Reductions over a slice using for-in iteration.
 func sum(xs: []i32) i32 {
   var total: i32 = 0
   for x in xs {
@@ -19,14 +18,10 @@ func max(xs: []i32) i32 {
 
 func main() i32 {
   var scores: [5]i32 = [30, 10, 50, 20, 40]
-
-  // In-place scaling with a compound assignment on an element.
   for i in 0..scores.len {
     scores[i] += 1
   }
-
-  let total: i32 = sum(scores)   // (31+11+51+21+41) = 155
-  let top: i32 = max(scores)     // 51
-
-  return total - top - 100   // 155 - 51 - 100 = 4
+  let total: i32 = sum(scores)
+  let top: i32 = max(scores)
+  return total - top - 100
 }
