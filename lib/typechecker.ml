@@ -951,9 +951,14 @@ and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
       (extend_var env nspan name t, T.TBinding (kind, sym env nspan, t, te))
   | Return None ->
       (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
-      if env.ret_ty <> TVoid && not env.in_main then
+      if env.ret_ty = TNever then
+        add_error env s.span "a never function cannot return"
+      else if env.ret_ty <> TVoid && not env.in_main then
         add_error env s.span "empty return in non-void function";
       (env, T.TReturn None)
+  | Return (Some e) when env.ret_ty = TNever ->
+      add_error env s.span "a never function cannot return";
+      (env, T.TReturn (Some (synth env e)))
   | Return (Some e) ->
       let te = check env e env.ret_ty in
       (match Escape.return_escapes te with
