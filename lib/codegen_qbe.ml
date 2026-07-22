@@ -165,7 +165,10 @@ let sym_addr ctx (s : Symbol.t) : string =
       | Some slot -> "%" ^ slot
       | None -> "%" ^ s.name)
 
-let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
+let emit ctx fmt =
+  if !(ctx.terminated) then Printf.ifprintf !(ctx.buf) fmt
+  else Printf.bprintf !(ctx.buf) fmt
+
 let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
 
 (* the data pointer sits at offset 0 in the fat pointer *)
@@ -201,8 +204,8 @@ let emit_panic ctx msg =
 
 (* start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
-  emit ctx "%s\n" lbl;
-  ctx.terminated := false
+  ctx.terminated := false;
+  emit ctx "%s\n" lbl
 
 (* jmp/jnz end a block so anything emitted after until the next label is dropped *)
 let emit_jmp ctx lbl =
@@ -1085,6 +1088,8 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part = match tfd.ret_ty with TVoid -> "" | t -> qbe_ty t ^ " " in
+  (* the previous function ended terminated so clear it before this header *)
+  ctx.terminated := false;
   (* TODO(572b): export pub functions *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
@@ -1121,6 +1126,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       (* unreachable but QBE needs every block terminated *)
     else emit ctx "    hlt\n";
   (* TODO(aa3a): error in typechecker for non-void functions missing a return on all paths *)
+  ctx.terminated := false;
   emit ctx "}\n\n"
 
 let rec qbe_ext_ty (t : ty) : string =
