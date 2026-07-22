@@ -166,6 +166,10 @@ and dump_expr (e : Ripe.Ast.expr) =
              (fun (f, _, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")")
              fields)
       ^ ")"
+  | BlockExpr (stmts, value) ->
+      "(block "
+      ^ string_of_int (List.length stmts)
+      ^ " " ^ dump_expr value ^ ")"
 
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =

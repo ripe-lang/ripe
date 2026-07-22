@@ -242,6 +242,32 @@ let rec slice_return_escapes (te : T.texpr) : bool =
       | _ -> array_storage_escapes base)
   | _ -> false
 
+(* a break inside an inner loop stops that loop and not this one *)
+let rec loop_has_break stmts = List.exists stmt_has_break stmts
+
+and stmt_has_break s =
+  match s.sdesc with
+  | Break -> true
+  | Block body -> loop_has_break body
+  | If (branches, else_body) ->
+      loop_has_break else_body
+      || List.exists (fun (_, b) -> loop_has_break b) branches
+  | _ -> false
+
+(* every path through the stmts ends in a return *)
+let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
+
+and stmt_returns (s : stmt) : bool =
+  match s.sdesc with
+  | Return _ -> true
+  | Block body -> stmts_return body
+  | If (branches, else_body) ->
+      else_body <> [] && stmts_return else_body
+      && List.for_all (fun (_, body) -> stmts_return body) branches
+  (* a while true with no break loops forever so the code after it never runs *)
+  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
+  | _ -> false
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   | Named name -> (
@@ -440,6 +466,20 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | _ ->
           emit env (Error.undefined_name name_span "struct" name);
           dummy_texpr)
+  | BlockExpr (body, e) ->
+      let inner = push_scope env in
+      let final_inner, tbody = check_stmts inner body in
+      let te = synth final_inner e in
+      (* the body diverges so control never reaches the block's value *)
+      if
+        List.exists
+          (fun s ->
+            stmt_returns s
+            || match s.sdesc with Break | Continue -> true | _ -> false)
+          body
+      then add_warning env e.span "unreachable code";
+      warn_unused_in_scope final_inner;
+      T.mk te.T.ty (T.TBlockExpr (tbody, te))
 
 (* MUST be this type *)
 and check (env : env) (e : expr) (want : ty) : T.texpr =
@@ -895,112 +935,7 @@ and eval_array_size (env : env) (e : expr) : int =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-(* main implicitly returns i32 for the C runtime and everything else is void *)
-let ret_ty_of (env : env) (fd : func_def) : ty =
-  match fd.ret with
-  | Some t -> ty_of_ast env t
-  | None -> if fd.name = "main" then TInt I32 else TVoid
-
-(* First pass collecting signatures so that the compiler
-   can handle forward references *)
-let collect_func (env : env) (fd : func_def) : unit =
-  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
-  let ret_ty = ret_ty_of env fd in
-  Hashtbl.replace env.funcs fd.name
-    { param_tys; ret_ty; variadic = fd.variadic }
-
-(* every kind of type name shares one namespace *)
-let existing_type_kind (env : env) (name : string) : string option =
-  if List.mem_assoc name builtin_tys then Some "a builtin type"
-  else
-    match Hashtbl.find_opt env.types name with
-    | Some (DStruct _) -> Some "a struct"
-    | Some (DNewtype _) -> Some "a newtype"
-    | Some (DAlias _) -> Some "an alias"
-    | None -> None
-
-let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
-    =
-  match existing_type_kind env name with
-  | Some kind ->
-      emit env (Error.named span ("already defined as " ^ kind) name);
-      true
-  | None -> false
-
-(* TODO(d1ec): Support forward reference between structs *)
-(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
-(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
-let collect_struct (env : env) (sd : struct_def) : unit =
-  if not (reject_taken_type_name env sd.span sd.name) then (
-    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
-    let field_tys =
-      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
-    in
-    let seen = Hashtbl.create 8 in
-    List.iter
-      (fun (f : field) ->
-        if Hashtbl.mem seen f.name then
-          emit env (Error.named f.span "duplicate field" f.name)
-        else Hashtbl.add seen f.name ())
-      sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys });
-    Hashtbl.replace env.struct_fields sd.name field_tys)
-
-let collect_alias (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DAlias t)
-
-let collect_newtype (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DNewtype t)
-
-let collect_global (env : env) (gd : global_def) : unit =
-  (if gd.init = None then
-     match gd.kind with
-     | Var -> ()
-     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
-     | Const ->
-         emit env (Error.named gd.span "const without initializer" gd.name));
-  let t = ty_of_ast env gd.typ in
-  Hashtbl.replace env.globals gd.name (t, gd.kind)
-
-let collect_decl (env : env) (decl : decl) : unit =
-  match decl with
-  | Struct sd -> collect_struct env sd
-  | Func fd | Extern fd -> collect_func env fd
-  | Global gd -> collect_global env gd
-  | TypeAlias td -> collect_alias env td
-  | Newtype td -> collect_newtype env td
-
-(* a break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break stmts = List.exists stmt_has_break stmts
-
-and stmt_has_break s =
-  match s.sdesc with
-  | Break -> true
-  | Block body -> loop_has_break body
-  | If (branches, else_body) ->
-      loop_has_break else_body
-      || List.exists (fun (_, b) -> loop_has_break b) branches
-  | _ -> false
-
-(* every path through the stmts ends in a return *)
-let rec stmts_return (stmts : stmt list) : bool = List.exists stmt_returns stmts
-
-and stmt_returns (s : stmt) : bool =
-  match s.sdesc with
-  | Return _ -> true
-  | Block body -> stmts_return body
-  | If (branches, else_body) ->
-      else_body <> [] && stmts_return else_body
-      && List.for_all (fun (_, body) -> stmts_return body) branches
-  (* a while true with no break loops forever so the code after it never runs *)
-  | While ({ desc = Bool true; _ }, body) -> not (loop_has_break body)
-  | _ -> false
-
-let rec check_stmt (env : env) (s : stmt) : env * T.tstmt =
+and check_stmt (env : env) (s : stmt) : env * T.tstmt =
   let env', tsdesc = check_stmt_desc env s in
   (env', { T.tsdesc; span = s.span })
 
@@ -1124,6 +1059,85 @@ and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
   in
   (final_env, List.rev tstmts_reversed)
 
+(* main implicitly returns i32 for the C runtime and everything else is void *)
+let ret_ty_of (env : env) (fd : func_def) : ty =
+  match fd.ret with
+  | Some t -> ty_of_ast env t
+  | None -> if fd.name = "main" then TInt I32 else TVoid
+
+(* First pass collecting signatures so that the compiler
+   can handle forward references *)
+let collect_func (env : env) (fd : func_def) : unit =
+  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
+  let ret_ty = ret_ty_of env fd in
+  Hashtbl.replace env.funcs fd.name
+    { param_tys; ret_ty; variadic = fd.variadic }
+
+(* every kind of type name shares one namespace *)
+let existing_type_kind (env : env) (name : string) : string option =
+  if List.mem_assoc name builtin_tys then Some "a builtin type"
+  else
+    match Hashtbl.find_opt env.types name with
+    | Some (DStruct _) -> Some "a struct"
+    | Some (DNewtype _) -> Some "a newtype"
+    | Some (DAlias _) -> Some "an alias"
+    | None -> None
+
+let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
+    =
+  match existing_type_kind env name with
+  | Some kind ->
+      emit env (Error.named span ("already defined as " ^ kind) name);
+      true
+  | None -> false
+
+(* TODO(d1ec): Support forward reference between structs *)
+(* This will fail if Struct A has a field of type Struct B and B is defined after A *)
+(* FIXME(5b12): Add DFS cycle detection to prevent infinite recursion*)
+let collect_struct (env : env) (sd : struct_def) : unit =
+  if not (reject_taken_type_name env sd.span sd.name) then (
+    (* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+    let field_tys =
+      List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+    in
+    let seen = Hashtbl.create 8 in
+    List.iter
+      (fun (f : field) ->
+        if Hashtbl.mem seen f.name then
+          emit env (Error.named f.span "duplicate field" f.name)
+        else Hashtbl.add seen f.name ())
+      sd.fields;
+    Hashtbl.replace env.types sd.name (DStruct { field_tys });
+    Hashtbl.replace env.struct_fields sd.name field_tys)
+
+let collect_alias (env : env) (td : type_alias_def) : unit =
+  if not (reject_taken_type_name env td.span td.name) then
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.types td.name (DAlias t)
+
+let collect_newtype (env : env) (td : type_alias_def) : unit =
+  if not (reject_taken_type_name env td.span td.name) then
+    let t = ty_of_ast env td.typ in
+    Hashtbl.replace env.types td.name (DNewtype t)
+
+let collect_global (env : env) (gd : global_def) : unit =
+  (if gd.init = None then
+     match gd.kind with
+     | Var -> ()
+     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
+     | Const ->
+         emit env (Error.named gd.span "const without initializer" gd.name));
+  let t = ty_of_ast env gd.typ in
+  Hashtbl.replace env.globals gd.name (t, gd.kind)
+
+let collect_decl (env : env) (decl : decl) : unit =
+  match decl with
+  | Struct sd -> collect_struct env sd
+  | Func fd | Extern fd -> collect_func env fd
+  | Global gd -> collect_global env gd
+  | TypeAlias td -> collect_alias env td
+  | Newtype td -> collect_newtype env td
+
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* the collected signature is reused so a bad array size errors once *)
   let collected = Hashtbl.find_opt env.funcs fd.name in
@@ -1193,7 +1207,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* never compile-time by design *)
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ ->
+  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlockExpr _ ->
       false
   | TUndef -> true
 

@@ -417,6 +417,9 @@ let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_struct_lit_into ctx slot sname tfields;
       slot
+  | T.CBlockExpr (stmts, value) ->
+      emit_scoped ctx stmts;
+      emit_expr ctx value
 
 and emit_unop ctx op e t =
   match op with

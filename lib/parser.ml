@@ -419,6 +419,22 @@ and parse_primary st =
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
+(* the last statement is the block's value, e.g. let x = { var y = 2 y + 1 } *)
+and parse_block_expr st =
+  let lo = cur_pos st in
+  let body = parse_block st in
+  match List.rev body with
+  | { sdesc = Expr e; _ } :: rest -> mk lo st (BlockExpr (List.rev rest, e))
+  | _ ->
+      raise
+        (ParseError
+           Diagnostic.(
+             error "block expression must end with a value"
+             |> at { lo; hi = st.prev_end }))
+
+and parse_value st =
+  if at st LBRACE then parse_block_expr st else parse_expr st 1
+
 (* x: 3, y: 4 *)
 and parse_struct_lit_fields st =
   in_brackets st (fun () ->
@@ -461,10 +477,10 @@ and parse_simple_stmt st =
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (parse_expr st 1))
+          Some (parse_value st))
         else if at st ASSIGN then (
           advance st;
-          Some (parse_expr st 1))
+          Some (parse_value st))
         else None
       in
       mks lo st (Binding (kind, name, nspan, ann, e))
@@ -480,7 +496,7 @@ and parse_simple_stmt st =
       if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
         mks lo st (Return None)
       else
-        let e = parse_expr st 1 in
+        let e = parse_value st in
         mks lo st (Return (Some e))
   | _ ->
       let e = parse_expr st 1 in

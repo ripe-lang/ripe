@@ -72,10 +72,9 @@ let run ~(emit : Diagnostic.t -> unit)
     | T.TStructLit (name, fields) ->
         mk
           (T.TStructLit (name, List.map (fun (f, e) -> (f, sub_expr e)) fields))
-  in
-
+    | T.TBlockExpr (body, e) -> mk (T.TBlockExpr (sub_stmts body, sub_expr e))
   (* a const binding folded while checking so it just vanishes from the tree *)
-  let rec sub_stmt (st : T.tstmt) : T.tstmt option =
+  and sub_stmt (st : T.tstmt) : T.tstmt option =
     let keep tsdesc = Some { st with T.tsdesc } in
     match st.T.tsdesc with
     | T.TBinding (Ast.Const, _, _, _) -> None
