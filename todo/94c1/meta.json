@@ -6,8 +6,8 @@
   "id": "94c1",
   "priority": "low",
   "source": "lib/ty_pred.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
   "title": "Add rawptr/void*",
-  "updated_at": "2026-07-21 13:05:09.460861"
+  "updated_at": "2026-07-21 22:30:49.081367"
 }
