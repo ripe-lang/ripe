@@ -1,0 +1,14 @@
+extern func exit(code: i32) never
+
+func pick(a: bool, b: bool) i32 {
+  let y = if a {
+    if b { 10 } else { exit(1) }
+  } else {
+    20
+  }
+  return y
+}
+
+func main() i32 {
+  return pick(true, true)
+}

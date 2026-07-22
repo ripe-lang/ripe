@@ -3444,3 +3444,35 @@ let%expect_test "typecheck: bare opaque as a var is rejected" =
                           ^~~~~~
     help: use *opaque for an untyped pointer
     |}]
+
+let%expect_test "typecheck: if-expr never arm bends to the other arm" =
+  run_src
+    "extern func exit(c: i32) never\n\
+     func f() i32 { let y = if true { 10 } else { exit(1) } return y }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: if-expr arm type is order independent" =
+  run_src
+    "func f() i32 { var x: i64 = 5\n\
+    \ let y = if true { x } else { 10 } return y as i32 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: all-never if-expr binds as never" =
+  run_src
+    "extern func exit(c: i32) never\n\
+     func f() i32 { let _y = if true { exit(3) } else { exit(4) } return 0 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
+  run_src
+    "extern func exit(c: i32) never\n\
+     func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else \
+     { 20 } return y }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
+  run_src
+    "func f() i32 { var x: i64 = 7\n\
+    \ let y = if true { if false { x } else { 5 } } else { 10 } return y as \
+     i32 }";
+  [%expect {| ok |}]

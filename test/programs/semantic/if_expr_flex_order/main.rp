@@ -1,0 +1,5 @@
+func main() i32 {
+  var x: i64 = 5
+  let y = if true { x } else { 10 }
+  return y as i32
+}
