@@ -176,12 +176,6 @@ func main() i32 {
 }
 ```
 
-### Public functions
-
-```ripe
-public func api() i32 { return 0 }
-```
-
 ### Inline functions
 
 ```ripe
