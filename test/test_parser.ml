@@ -699,3 +699,13 @@ let%expect_test "parse: if with no else has no else block" =
 let%expect_test "parse: a bare tail expression is an implicit return" =
   run_src "func sq(x: i32) i32 { x * x }";
   [%expect {| ok |}]
+
+let%expect_test "parse: a bad char literal does not cascade" =
+  run_src "func f() i32 { return 'AA' as i32 }";
+  [%expect
+    {|
+    error: character literal must be a single character
+      at <test>:1:23
+        func f() i32 { return 'AA' as i32 }
+                              ^~~~
+    |}]

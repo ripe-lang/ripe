@@ -424,8 +424,11 @@ let%expect_test "lexer: max scalar U+10FFFF" =
 
 let%expect_test "lexer: empty char literal is an error" =
   dump_tokens "''\n";
-  [%expect {|
+  [%expect
+    {|
     ERROR empty character literal
+    '\u{0}'
+    SEMI
     EOF
     |}]
 
@@ -434,6 +437,8 @@ let%expect_test "lexer: two chars in a literal is an error" =
   [%expect
     {|
     ERROR character literal must be a single character
+    '\u{0}'
+    SEMI
     EOF
     |}]
 
@@ -442,6 +447,8 @@ let%expect_test "lexer: two scalars in a literal is an error" =
   [%expect
     {|
     ERROR character literal must be a single character
+    '\u{0}'
+    SEMI
     EOF
     |}]
 
@@ -449,5 +456,17 @@ let%expect_test "lexer: unknown char escape is an error" =
   dump_tokens {|'\q'|};
   [%expect {|
     ERROR unknown escape: '\q'
+    '\u{0}'
+    EOF
+    |}]
+
+let%expect_test "lexer: unterminated char literal is an error" =
+  dump_tokens "'a\n";
+  [%expect
+    {|
+    ERROR unterminated character literal
+    '\u{0}'
+    IDENT a
+    SEMI
     EOF
     |}]
