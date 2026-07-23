@@ -1,7 +1,18 @@
+#!/usr/bin/env python3
+""" """
+
 import random
 from pathlib import Path
 import sys
 import subprocess
+import argparse
+
+EPILOG = """\
+
+
+Examples:
+    fuzz.py
+"""
 
 
 class Gen:
@@ -22,7 +33,20 @@ def find_compiler():
     return root / "_build" / "default" / "bin" / "main.exe"
 
 
+def parse_args(argv):
+    p = argparse.ArgumentParser(
+        prog="fuzz.py",
+        description="Generate random valid ripe programs",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    args = p.parse_args(argv)
+
+
 def main():
+    parse_args(sys.argv[1:])
+
     compiler = find_compiler()
     if not compiler.exists():
         print("fuzz.py: compiler not built, run `dune build` first\n")
