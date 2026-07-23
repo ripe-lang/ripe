@@ -1000,7 +1000,7 @@ and narrow_int_to ctx v target_ty =
       emit ctx "    %s =w %s %s\n" tmp instr v;
       tmp
 
-(* TODO(bdc9): `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
+(* TODO: `as` silently loses data like C. Add a safe cast that catches bad conversions at runtime. *)
 and emit_checked_cast_guard ctx v src_ty target_ty =
   let src_k = int_kind_of src_ty in
   let tgt_k = int_kind_of target_ty in

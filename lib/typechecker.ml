@@ -1136,7 +1136,7 @@ let reserve_struct_name (env : env) (sd : struct_def) : unit =
     Hashtbl.replace env.types sd.name (DStruct { field_tys = [] });
     Hashtbl.replace env.struct_fields sd.name [])
 
-(* TODO(9b1e): Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
+(* TODO: Add a rawptr/voidptr keyword for untyped pointers (C's void pointer) *)
 let resolve_struct_fields (env : env) (sd : struct_def) : unit =
   match Hashtbl.find_opt env.types sd.name with
   | Some (DStruct _) ->
