@@ -3604,3 +3604,50 @@ let%expect_test "collapse: nested value block anchors its type" =
   run_src
     "func f() i64 { let x: i64 = { let a: i64 = 3\n { a + 1 } }\n return x }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: char is distinct from i32" =
+  run_src "func f() { var x: i32 = 'A' }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: i32 = 'A' }
+                       ^
+    help: prefix with an underscore: _x
+    error: type mismatch
+      at <test>:1:25
+        func f() { var x: i32 = 'A' }
+                                ^~~ expected i32, found char
+    |}]
+
+let%expect_test "typecheck: no arithmetic on a char" =
+  run_src "func f() i32 { return ('A' + 1) as i32 }";
+  [%expect
+    {|
+    error: cannot apply `+` to char
+      at <test>:1:24
+        func f() i32 { return ('A' + 1) as i32 }
+                               ^~~
+    error: type mismatch
+      at <test>:1:30
+        func f() i32 { return ('A' + 1) as i32 }
+                                     ^ expected char, found i32
+    |}]
+
+let%expect_test "typecheck: char casts to and from an integer" =
+  run_src "func f() i32 { var c: char = 65 as char return c as i32 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: chars compare for equality and order" =
+  run_src "func f() bool { return 'A' == 'B' && 'A' < 'B' }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: char does not cast to a float" =
+  run_src "func f() f32 { return 'A' as f32 }";
+  [%expect
+    {|
+    error: invalid cast
+      at <test>:1:23
+        func f() f32 { return 'A' as f32 }
+                              ^~~~~~~~~~ cannot cast char to f32
+    |}]

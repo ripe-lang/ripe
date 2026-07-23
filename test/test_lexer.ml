@@ -384,3 +384,70 @@ let%expect_test "lexer: unexpected character is an error" =
     ERROR unexpected character: @
     EOF
     |}]
+
+let%expect_test "lexer: char literal is one code point" =
+  dump_tokens "'A'\n";
+  [%expect {|
+    '\u{41}'
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: char escapes" =
+  dump_tokens {|'\0' '\n' '\t' '\\' '\''|};
+  [%expect
+    {|
+    '\u{0}'
+    '\u{A}'
+    '\u{9}'
+    '\u{5C}'
+    '\u{27}'
+    EOF
+    |}]
+
+let%expect_test "lexer: multibyte char literals decode to a scalar" =
+  dump_tokens "'\xc3\xa9' '\xf0\x9f\x98\x80'\n";
+  [%expect {|
+    '\u{E9}'
+    '\u{1F600}'
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: max scalar U+10FFFF" =
+  dump_tokens "'\xf4\x8f\xbf\xbf'\n";
+  [%expect {|
+    '\u{10FFFF}'
+    SEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: empty char literal is an error" =
+  dump_tokens "''\n";
+  [%expect {|
+    ERROR empty character literal
+    EOF
+    |}]
+
+let%expect_test "lexer: two chars in a literal is an error" =
+  dump_tokens "'ab'\n";
+  [%expect
+    {|
+    ERROR character literal must be a single character
+    EOF
+    |}]
+
+let%expect_test "lexer: two scalars in a literal is an error" =
+  dump_tokens "'\xf0\x9f\x98\x80\xf0\x9f\x98\x80'\n";
+  [%expect
+    {|
+    ERROR character literal must be a single character
+    EOF
+    |}]
+
+let%expect_test "lexer: unknown char escape is an error" =
+  dump_tokens {|'\q'|};
+  [%expect {|
+    ERROR unknown escape: '\q'
+    EOF
+    |}]
