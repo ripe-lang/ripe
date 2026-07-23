@@ -1,0 +1,9 @@
+func first_ge(threshold: i32) i32 {
+  var i: i32 = 0
+  while i < 100 {
+    let keep: i32 = if i >= threshold { i } else { i = i + 1  continue }
+    return keep
+  }
+  return -1
+}
+func main() i32 { return first_ge(7) }

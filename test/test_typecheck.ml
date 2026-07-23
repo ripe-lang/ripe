@@ -1992,10 +1992,10 @@ let%expect_test "typecheck: missing return on a path" =
   run_src "func f(n: i32) i32 { if n > 0 { return 1 } }";
   [%expect
     {|
-    error: missing return: f
-      at <test>:1:16
+    error: type mismatch
+      at <test>:1:22
         func f(n: i32) i32 { if n > 0 { return 1 } }
-                       ^~~
+                             ^~~~~~~~~~~~~~~~~~~~~ expected i32, found void
     |}]
 
 let%expect_test "typecheck: if and else both return ok" =
@@ -2010,10 +2010,10 @@ let%expect_test "typecheck: while true with break still needs a return" =
   run_src "func f() i32 { while true { break } }";
   [%expect
     {|
-    error: missing return: f
-      at <test>:1:10
+    error: type mismatch
+      at <test>:1:16
         func f() i32 { while true { break } }
-                 ^~~
+                       ^~~~~~~~~~~~~~~~~~~~ expected i32, found void
     |}]
 
 let%expect_test "typecheck: inner loop break does not exit outer" =
@@ -2024,10 +2024,10 @@ let%expect_test "typecheck: break under if still needs a return" =
   run_src "func f() i32 { var c: bool = true\n while true { if c { break } } }";
   [%expect
     {|
-    error: missing return: f
-      at <test>:1:10
-        func f() i32 { var c: bool = true
-                 ^~~
+    error: type mismatch
+      at <test>:2:2
+         while true { if c { break } } }
+         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ expected i32, found void
     |}]
 
 let%expect_test "typecheck: struct literal" =
@@ -3475,4 +3475,132 @@ let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
     "func f() i32 { var x: i64 = 7\n\
     \ let y = if true { if false { x } else { 5 } } else { 10 } return y as \
      i32 }";
+  [%expect {| ok |}]
+
+(* Expression oriented collapse edge cases *)
+
+let%expect_test "collapse: trailing if is an implicit return" =
+  run_src "func abs(x: i32) i32 { if x < 0 { -x } else { x } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: trailing block is an implicit return" =
+  run_src "func f(x: i32) i32 { { let a = x * 2\n a + 1 } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: nested block tail flows to the return" =
+  run_src "func f() i32 { { let a: i32 = 1\n { a + 2 } } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: deeply nested implicit return" =
+  run_src
+    "func f(x: i32) i32 { if x > 0 { { if x > 10 { 1 } else { 2 } } } else { 3 \
+     } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: a binding is not a value operand" =
+  run_src "func f() i32 { let x: i32 = let y: i32 = 5\n return x }";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:29
+        func f() i32 { let x: i32 = let y: i32 = 5
+                                    ^~~ found let
+    |}]
+
+let%expect_test "collapse: a block ending in a binding is void" =
+  run_src "func f() i32 { let x: i32 = { var a: i32 = 1 }\n return x }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:31
+        func f() i32 { let x: i32 = { var a: i32 = 1 }
+                                      ^~~~~~~~~~~~~~ expected i32, found void
+    warning: unused variable: a
+      at <test>:1:35
+        func f() i32 { let x: i32 = { var a: i32 = 1 }
+                                          ^
+    help: prefix with an underscore: _a
+    |}]
+
+let%expect_test "collapse: value if arms must agree" =
+  run_src
+    "func f(c: bool) i32 { let x: i32 = if c { 1 } else { true }\n return x }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:54
+        func f(c: bool) i32 { let x: i32 = if c { 1 } else { true }
+                                                             ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "collapse: a never arm coerces to the live arm" =
+  run_src
+    "func f(c: bool) i32 { let x: i32 = if c { 1 } else { return 0 }\n\
+    \ return x }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: value if without else is void" =
+  run_src "func f(c: bool) i32 { let x: i32 = if c { 1 }\n return x }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:36
+        func f(c: bool) i32 { let x: i32 = if c { 1 }
+                                           ^~~~~~~~~~ expected i32, found void
+    |}]
+
+let%expect_test "collapse: while true with no break is never" =
+  run_src "func f() i32 { while true { } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: never function may loop forever" =
+  run_src "func spin() never { while true { } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: break in a value arm inside a loop" =
+  run_src
+    "func f() i32 { while true { let x: i32 = if false { 1 } else { break }\n\
+    \ return x } return 0 }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: continue as a value runs the step" =
+  run_src
+    "func f() i32 { var i: i32 = 0\n\
+    \ while i < 3 { let x: i32 = if i == 2 { i } else { i = i + 1\n\
+    \ continue }\n\
+    \ return x } return 9 }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: a discarded value in statement position is ok" =
+  run_src "func f() i32 { 1 + 2\n return 5 }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: implicit return of a wrong tail type" =
+  run_src "func f() i32 { true }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:16
+        func f() i32 { true }
+                       ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "collapse: return if with diverging arms" =
+  run_src "func f(c: bool) i32 { return if c { return 1 } else { return 2 } }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: break as a value outside a loop still errors" =
+  run_src
+    "func f() i32 { let x: i32 = if true { 1 } else { break }\n return x }";
+  [%expect
+    {|
+    error: break outside loop
+      at <test>:1:50
+        func f() i32 { let x: i32 = if true { 1 } else { break }
+                                                         ^~~~~
+    |}]
+
+let%expect_test "collapse: nested value block anchors its type" =
+  run_src
+    "func f() i64 { let x: i64 = { let a: i64 = 3\n { a + 1 } }\n return x }";
   [%expect {| ok |}]

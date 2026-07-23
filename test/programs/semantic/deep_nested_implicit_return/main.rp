@@ -1,0 +1,17 @@
+func deep(x: i32) i32 {
+  {
+    if x > 0 {
+      {
+        if x > 5 {
+          let a = x * 2
+          { a + 1 }
+        } else {
+          x
+        }
+      }
+    } else {
+      { -x }
+    }
+  }
+}
+func main() i32 { return deep(3) + deep(8) + deep(-4) }

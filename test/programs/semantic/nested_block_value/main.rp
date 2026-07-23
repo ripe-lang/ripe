@@ -1,0 +1,11 @@
+func main() i32 {
+  let x = {
+    let a = 2
+    let b = {
+      let c = a * 3
+      c + 1
+    }
+    b * 2
+  }
+  return x
+}

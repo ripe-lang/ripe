@@ -1,0 +1,10 @@
+func square(x: i32) i32 { x * x }
+
+func add(a: i32, b: i32) i32 {
+  let s = a + b
+  s
+}
+
+func main() i32 {
+  return square(5) + add(3, 4)
+}

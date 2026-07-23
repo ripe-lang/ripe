@@ -141,31 +141,46 @@ and dump_expr (e : Ripe.Ast.expr) =
              (fun (f, _, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")")
              fields)
       ^ ")"
-  | BlockExpr (stmts, value) ->
-      "(block "
-      ^ string_of_int (List.length stmts)
-      ^ " " ^ dump_expr value ^ ")"
-  | IfExpr (branches, else_e) ->
-      let arm (c, e) = "(" ^ dump_expr c ^ " " ^ dump_expr e ^ ")" in
+  | Block body -> dump_block body
+  | If (branches, else_body) ->
+      let arm (c, body) = "(" ^ dump_expr c ^ " " ^ dump_block body ^ ")" in
       "(if "
       ^ String.concat " " (List.map arm branches)
-      ^ " " ^ dump_expr else_e ^ ")"
+      ^ (match else_body with Some b -> " " ^ dump_block b | None -> "")
+      ^ ")"
+  | While (c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
+  | For (name, _, iter, body) ->
+      "(for " ^ name ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
+  | Binding (_, name, _, _, init) ->
+      "(let " ^ name
+      ^ (match init with Some e -> " " ^ dump_expr e | None -> "")
+      ^ ")"
+  | Return e ->
+      "(return"
+      ^ (match e with Some e -> " " ^ dump_expr e | None -> "")
+      ^ ")"
+  | Break -> "(break)"
+  | Continue -> "(continue)"
 
-(* a compact core statement dump where the flat list is the whole point *)
-let rec dump_cstmt (st : C.cstmt) : string =
-  match st.C.tsdesc with
+and dump_block (body : Ripe.Ast.block) : string =
+  "(block " ^ String.concat " " (List.map dump_expr body) ^ ")"
+
+(* a compact core dump where the flat list is the whole point *)
+let rec dump_cstmt (e : C.cexpr) : string =
+  match e.C.desc with
   | C.CBinding (_, s, _, _) -> "bind " ^ s.Ripe.Symbol.name
-  | C.CExpr _ -> "expr"
   | C.CReturn _ -> "return"
   | C.CBreak -> "break"
   | C.CContinue -> "continue"
-  | C.CIf (branches, else_body) ->
+  | C.CIf (branches, else_body) -> (
       let arm (_, body) = "if " ^ dump_cstmts body in
       String.concat " " (List.map arm branches)
-      ^ " else " ^ dump_cstmts else_body
+      ^ match else_body with Some b -> " else " ^ dump_cstmts b | None -> "")
   | C.CLoop body -> "loop " ^ dump_cstmts body
+  | C.CBlock body -> "block " ^ dump_cstmts body
+  | _ -> "expr"
 
-and dump_cstmts (stmts : C.cstmt list) : string =
+and dump_cstmts (stmts : C.cblock) : string =
   "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
 
 let all_kinds =
@@ -200,7 +215,7 @@ let parse_expr src =
   let wrapped = "func _f() { return " ^ src ^ " }" in
   try
     match parse wrapped with
-    | [ Ripe.Ast.Func { body = [ { sdesc = Return (Some e); _ } ]; _ } ] ->
+    | [ Ripe.Ast.Func { body = [ { desc = Return (Some e); _ } ]; _ } ] ->
         print_endline (dump_expr e)
     | _ -> print_endline "<parse_expr: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (render wrapped) diags

@@ -1,0 +1,17 @@
+func compute() i32 {
+  var total: i32 = 0
+  for i in 0..3 {
+    let sub: i32 = {
+      var s: i32 = 0
+      for j in 0..3 {
+        if (i + j) % 2 == 0 {
+          s = s + 1
+        }
+      }
+      s
+    }
+    total = total + sub
+  }
+  return total
+}
+func main() i32 { return compute() }

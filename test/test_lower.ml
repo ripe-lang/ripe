@@ -14,7 +14,7 @@ func f() i32 {
   return x
 }
 |};
-  [%expect {| f { bind x bind y expr return } |}]
+  [%expect {| f { bind x block { bind y expr } return } |}]
 
 let%expect_test "lower: compound assignment splices flat" =
   run_lower "func f() i32 { var x: i32 = 1 x += 2 return x }";
