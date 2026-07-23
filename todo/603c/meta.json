@@ -6,8 +6,8 @@
   "id": "603c",
   "priority": "low",
   "source": "lib/typechecker.ml",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "revisit once I decide how implicit and explicit returns work",
-  "updated_at": "2026-07-12 08:23:02.156733"
+  "updated_at": "2026-07-22 16:41:43.221361"
 }

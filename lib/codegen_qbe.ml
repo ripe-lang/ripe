@@ -334,7 +334,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           (String.concat ", " arg_strs);
         tmp
   | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.CIfExpr (cond, then_e, else_e) -> emit_if_expr ctx cond then_e else_e t
+  | T.CIf (branches, else_body) -> emit_if ctx branches else_body t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
   | T.CCast (e, checked) ->
@@ -419,9 +419,61 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
       emit_struct_lit_into ctx slot sname tfields;
       slot
-  | T.CBlockExpr (stmts, value) ->
-      emit_scoped ctx stmts;
-      emit_expr ctx value
+  | T.CBlock body -> emit_block_value ctx body
+  | T.CLoop body ->
+      emit_loop ctx body;
+      ""
+  | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
+      ignore (emit_expr ctx e);
+      ""
+  | T.CBinding (_kind, s, t, e) ->
+      (* stack slot sized by type (struct sizes resolved from context) *)
+      let slot = bind_local ctx s in
+      emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
+      (match e.T.desc with
+      | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
+      | T.CUndef -> ()
+      | T.CArrayLit elems ->
+          let elem = array_elem_ty ~span:e.T.span e.T.ty in
+          emit_array_lit_into ctx ("%" ^ slot) elems elem
+      | T.CStructLit (sname, tfields) ->
+          emit_struct_lit_into ctx ("%" ^ slot) sname tfields
+      | _ when is_aggregate t ->
+          let src = emit_expr ctx e in
+          emit_aggregate_copy ctx ("%" ^ slot) src (ty_size ctx.structs t)
+      | _ ->
+          let v = emit_expr ctx e in
+          emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot);
+      ""
+  (* a return here should leave the pasted body, not the function it was pasted into *)
+  | T.CReturn e_opt when !(ctx.inline_stack) <> [] ->
+      let frame = List.hd !(ctx.inline_stack) in
+      (match (e_opt, frame.res_slot) with
+      | Some e, Some slot ->
+          let v = emit_expr ctx e in
+          if not !(ctx.terminated) then
+            emit ctx "    %s %s, %s\n" (qbe_store frame.ret_ty) v slot
+      | Some e, None -> ignore (emit_expr ctx e)
+      | None, _ -> ());
+      emit_jmp ctx frame.end_lbl;
+      ""
+  | T.CReturn None ->
+      (* a bare return in main exits with 0 like falling off the end *)
+      if not !(ctx.terminated) then
+        if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
+      ctx.terminated := true;
+      ""
+  | T.CReturn (Some e) ->
+      let v = emit_expr ctx e in
+      if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
+      ctx.terminated := true;
+      ""
+  | T.CBreak ->
+      (match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ());
+      ""
+  | T.CContinue ->
+      (match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ());
+      ""
 
 and emit_unop ctx op e t =
   match op with
@@ -729,43 +781,72 @@ and emit_store_into ctx ty addr r =
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
   | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
-  | T.CIfExpr (cond, then_e, else_e) ->
+  (* a short-circuit and/or lowers to a single-arm if so branch through it directly *)
+  | T.CIf ([ (c, then_body) ], Some else_body) ->
       let id = fresh_id ctx in
       let then_lbl = Printf.sprintf "@sel.then%d" id in
       let else_lbl = Printf.sprintf "@sel.else%d" id in
-      emit_branch ctx cond then_lbl else_lbl;
+      emit_branch ctx c then_lbl else_lbl;
       emit_label ctx then_lbl;
-      emit_branch ctx then_e true_lbl false_lbl;
+      emit_branch_block ctx then_body true_lbl false_lbl;
       emit_label ctx else_lbl;
-      emit_branch ctx else_e true_lbl false_lbl
+      emit_branch_block ctx else_body true_lbl false_lbl
   | T.CUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
   | _ ->
       let v = emit_expr ctx e in
       emit_jnz ctx v true_lbl false_lbl
 
-(* only the taken arm runs, so in let ok = a && b the b side never runs when a is false *)
-and emit_if_expr ctx cond then_e else_e ty =
+and emit_branch_block ctx (body : T.cblock) true_lbl false_lbl =
+  match List.rev body with
+  | last :: rev_init ->
+      List.iter (fun e -> ignore (emit_expr ctx e)) (List.rev rev_init);
+      emit_branch ctx last true_lbl false_lbl
+  | [] -> emit_jmp ctx true_lbl
+
+(* only the taken arm runs and a value comes back unless the if is void *)
+and emit_if ctx (branches : (T.cexpr * T.cblock) list)
+    (else_body : T.cblock option) ty =
   let id = fresh_id ctx in
-  let then_lbl = Printf.sprintf "@sel.then%d" id in
-  let else_lbl = Printf.sprintf "@sel.else%d" id in
-  let join_lbl = Printf.sprintf "@sel.join%d" id in
-  (* a diverging if has no result so it never names a slot or qbe type *)
+  let n = List.length branches in
+  let cond_lbls = List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i) in
+  let then_lbls = List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i) in
+  let else_lbl = Printf.sprintf "@if.else%d" id in
+  let end_lbl = Printf.sprintf "@if.end%d" id in
   let never = ty = TNever in
-  let res = if never then "" else fresh ctx in
-  let qt = if never then "" else qbe_ty ty in
-  let emit_arm lbl (arm : T.cexpr) =
+  let is_value = (not never) && ty <> TVoid in
+  let res = if is_value then fresh ctx else "" in
+  let qt = if is_value then qbe_ty ty else "" in
+  let emit_arm lbl body =
     emit_label ctx lbl;
-    let v = emit_expr ctx arm in
-    (* a never arm already terminated so only a live arm copies out and joins *)
-    if arm.T.ty <> TNever then (
-      emit ctx "    %s =%s copy %s\n" res qt v;
-      emit_jmp ctx join_lbl)
+    if is_value then (
+      let v = emit_block_value ctx body in
+      (* a never arm already terminated so only a live arm copies out and joins *)
+      if not !(ctx.terminated) then (
+        emit ctx "    %s =%s copy %s\n" res qt v;
+        emit_jmp ctx end_lbl))
+    else (
+      emit_block ctx body;
+      emit_jmp ctx end_lbl)
   in
-  emit_branch ctx cond then_lbl else_lbl;
-  emit_arm then_lbl then_e;
-  emit_arm else_lbl else_e;
-  emit_label ctx join_lbl;
-  (* both arms diverged so the join is unreachable but still needs a terminator *)
+  (match branches with
+  | [] -> ( match else_body with Some b -> emit_block ctx b | None -> ())
+  | _ -> (
+      List.iteri
+        (fun i (cond, body) ->
+          let next_lbl =
+            if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
+          in
+          emit_label ctx (List.nth cond_lbls i);
+          emit_branch ctx cond (List.nth then_lbls i) next_lbl;
+          emit_arm (List.nth then_lbls i) body)
+        branches;
+      match else_body with
+      | Some b -> emit_arm else_lbl b
+      | None ->
+          emit_label ctx else_lbl;
+          emit_jmp ctx end_lbl));
+  emit_label ctx end_lbl;
+  (* every arm diverged so the join is unreachable but still needs a terminator *)
   if never then (
     emit ctx "    hlt\n";
     ctx.terminated := true);
@@ -1011,102 +1092,31 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_stmt (ctx : ctx) (s : T.cstmt) : unit =
-  match s.T.tsdesc with
-  | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
-      ignore (emit_expr ctx e)
-  | T.CBinding (_kind, s, t, e) -> (
-      (* stack slot sized by type (struct sizes resolved from context) *)
-      let slot = bind_local ctx s in
-      emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
-      match e.T.desc with
-      | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
-      | T.CUndef -> ()
-      | T.CArrayLit elems ->
-          let elem = array_elem_ty ~span:e.T.span e.T.ty in
-          emit_array_lit_into ctx ("%" ^ slot) elems elem
-      | T.CStructLit (sname, tfields) ->
-          emit_struct_lit_into ctx ("%" ^ slot) sname tfields
-      | _ when is_aggregate t ->
-          let src = emit_expr ctx e in
-          emit_aggregate_copy ctx ("%" ^ slot) src (ty_size ctx.structs t)
-      | _ ->
-          let v = emit_expr ctx e in
-          emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot)
-  (* a return here should leave the pasted body, not the function it was pasted into *)
-  | T.CReturn e_opt when !(ctx.inline_stack) <> [] ->
-      let frame = List.hd !(ctx.inline_stack) in
-      (match (e_opt, frame.res_slot) with
-      | Some e, Some slot ->
-          let v = emit_expr ctx e in
-          if not !(ctx.terminated) then
-            emit ctx "    %s %s, %s\n" (qbe_store frame.ret_ty) v slot
-      | Some e, None -> ignore (emit_expr ctx e)
-      | None, _ -> ());
-      emit_jmp ctx frame.end_lbl
-  | T.CReturn None ->
-      (* a bare return in main exits with 0 like falling off the end *)
-      if not !(ctx.terminated) then
-        if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
-      ctx.terminated := true
-  | T.CReturn (Some e) ->
-      let v = emit_expr ctx e in
-      if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
-      ctx.terminated := true
-  (* TODO(d6df): emit_expr in statement position emits dead loads for idents *)
-  | T.CExpr e ->
-      let _ = emit_expr ctx e in
-      ()
-  | T.CLoop body -> emit_loop ctx body
-  | T.CIf (branches, else_body) -> (
-      let id = fresh_id ctx in
-      let n = List.length branches in
-      let cond_lbls =
-        List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i)
-      in
-      let then_lbls =
-        List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i)
-      in
-      let else_lbl = Printf.sprintf "@if.else%d" id in
-      let end_lbl = Printf.sprintf "@if.end%d" id in
-      match branches with
-      | [] -> emit_scoped ctx else_body
-      | _ ->
-          List.iteri
-            (fun i (cond, body) ->
-              let next_lbl =
-                if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
-              in
-              emit_label ctx (List.nth cond_lbls i);
-              emit_branch ctx cond (List.nth then_lbls i) next_lbl;
-              emit_label ctx (List.nth then_lbls i);
-              emit_scoped ctx body;
-              emit_jmp ctx end_lbl)
-            branches;
-          emit_label ctx else_lbl;
-          emit_scoped ctx else_body;
-          emit_label ctx end_lbl)
-  | T.CBreak -> (
-      match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ())
-  | T.CContinue -> (
-      match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ())
-
 and emit_loop ctx body =
   let id = fresh_id ctx in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
   emit_label ctx body_lbl;
   ctx.loops := (body_lbl, end_lbl) :: !(ctx.loops);
-  emit_stmts ctx body;
+  emit_block ctx body;
   ctx.loops := List.tl !(ctx.loops);
   emit_jmp ctx body_lbl;
   emit_label ctx end_lbl
 
-and emit_stmts ctx stmts = List.iter (emit_stmt ctx) stmts
+(* a block in statement position runs each element only for its effect *)
+and emit_block ctx (body : T.cblock) : unit =
+  List.iter (fun e -> ignore (emit_expr ctx e)) body
 
-(* Binder ids are unique so slots never collide and scopes don't need save
-   and restore. *)
-and emit_scoped ctx stmts = emit_stmts ctx stmts
+(* a block in value position yields its last element and is void when empty *)
+and emit_block_value ctx (body : T.cblock) : string =
+  let rec go = function
+    | [] -> ""
+    | [ last ] -> emit_expr ctx last
+    | e :: rest ->
+        ignore (emit_expr ctx e);
+        go rest
+  in
+  go body
 
 (* the callee body takes the place of the call and its returns write into a slot the join block reads back *)
 and emit_inline_call ctx (tfd : T.cfunc_def) (args : T.cexpr list) : string =
@@ -1137,7 +1147,7 @@ and emit_inline_call ctx (tfd : T.cfunc_def) (args : T.cexpr list) : string =
         emit_aggregate_copy ctx ("%" ^ slot) v (ty_size ctx.structs pt)
       else emit ctx "    %s %s, %%%s\n" (qbe_store pt) v slot)
     tfd.params arg_vals;
-  emit_stmts ctx tfd.body;
+  emit_block ctx tfd.body;
   (* a body that just runs off the end still has to land on the join *)
   emit_jmp ctx end_lbl;
   emit_label ctx end_lbl;
@@ -1200,14 +1210,13 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp slot)
     param_tmps;
 
-  emit_stmts ctx tfd.body;
+  emit_block ctx tfd.body;
 
   ctx.buf := out;
   Buffer.add_buffer out !(ctx.entry);
   Buffer.add_buffer out body;
 
   (* close the final block if control can still fall off the end *)
-  (* TODO(978e): Emit implicit return for non-void functions where the last expression is the return value. *)
   if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n"

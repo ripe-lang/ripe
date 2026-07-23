@@ -357,6 +357,17 @@ let%expect_test "parse: else if hints elseif" =
     help: the keyword is elseif, one word
     |}]
 
+let%expect_test "parse: dangling else has no matching if" =
+  run_src "func f() i32 { { if 1 > 0 { 1 } } else { 2 } }";
+  [%expect
+    {|
+    error: `else` without a matching `if`
+      at <test>:1:35
+        func f() i32 { { if 1 > 0 { 1 } } else { 2 } }
+                                          ^~~~ found else
+    help: an `if` used as a value closes at its `}`
+    |}]
+
 let%expect_test "parse: while condition is not a struct literal" =
   run_src "func f(x: bool) { while x { return } }";
   [%expect {| ok |}]
@@ -537,7 +548,7 @@ let%expect_test "parse: expression body desugars to return" =
            ];
          ret = (Some { tdesc = (Named "i32"); span = (20,23) });
          body =
-         [{ sdesc =
+         [{ desc =
             (Return
                (Some { desc =
                        (BinOp (Mul, { desc = (Ident "x"); span = (26,27) },
@@ -634,19 +645,57 @@ let%expect_test "parse: block expression needs a trailing value" =
   run_src "func f() i32 { let x = { var a = 1 } return x }";
   [%expect
     {|
-    error: block expression must end with a value
-      at <test>:1:24
+    warning: unused variable: a
+      at <test>:1:30
         func f() i32 { let x = { var a = 1 } return x }
-                               ^~~~~~~~~~~~~
+                                     ^
+    help: prefix with an underscore: _a
+    error: type mismatch
+      at <test>:1:45
+        func f() i32 { let x = { var a = 1 } return x }
+                                                    ^ expected i32, found void
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
   run_src "func f() i32 { let x = if true { 1 } return x }";
   [%expect
     {|
-    error: if expression needs an else branch
-      at <test>:1:24
+    error: type mismatch
+      at <test>:1:45
         func f() i32 { let x = if true { 1 } return x }
-                               ^~~~~~~~~~~~~
-    help: add an else branch that yields a value
+                                                    ^ expected i32, found void
     |}]
+
+let%expect_test "parse: an early exit block yields a value" =
+  parse_expr "{ return 5 }";
+  [%expect {| (block (return 5)) |}]
+
+let%expect_test "parse: an if with diverging arms is a value" =
+  parse_expr "if c { return 1 } else { break }";
+  [%expect {| (if (c (block (return 1))) (block (break))) |}]
+
+(* Expression oriented collapse: parse shapes *)
+
+let%expect_test "parse: value if binding shape" =
+  parse_expr "if c { 1 } else { 2 }";
+  [%expect {| (if (c (block 1)) (block 2)) |}]
+
+let%expect_test "parse: elseif chain shape" =
+  parse_expr "if a { 1 } elseif b { 2 } else { 3 }";
+  [%expect {| (if (a (block 1)) (b (block 2)) (block 3)) |}]
+
+let%expect_test "parse: block with a tail value" =
+  parse_expr "{ let a = 1\n a + 2 }";
+  [%expect {| (block (let a 1) (+ a 2)) |}]
+
+let%expect_test "parse: nested block" =
+  parse_expr "{ { 5 } }";
+  [%expect {| (block (block 5)) |}]
+
+let%expect_test "parse: if with no else has no else block" =
+  parse_expr "if c { 1 }";
+  [%expect {| (if (c (block 1))) |}]
+
+let%expect_test "parse: a bare tail expression is an implicit return" =
+  run_src "func sq(x: i32) i32 { x * x }";
+  [%expect {| ok |}]

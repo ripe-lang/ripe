@@ -1,0 +1,32 @@
+func main() i32 {
+  var sh: u32 = 40
+  var a: u32 = 1
+  if (a << sh) != 0 { return 1 }
+
+  var b: i32 = -256
+  var s4: u32 = 4
+  if (b >> s4) != -16 { return 2 }
+
+  var c: u8 = 200
+  var s2: u32 = 2
+  if (c >> s2) != 50 { return 3 }
+
+  var d: i32 = -7
+  if (d / 2) != -3 { return 4 }
+  if (d % 2) != -1 { return 5 }
+
+  var e: i32 = 7
+  if (e % -2) != 1 { return 6 }
+
+  var f: u8 = 250
+  if (f + 10) != 4 { return 7 }
+
+  var g: i8 = 120
+  if (g + 20) != -116 { return 8 }
+
+  var h: i32 = 1
+  var s31: u32 = 31
+  if ((h << s31) as i64) != -2147483648 { return 9 }
+
+  return 0
+}

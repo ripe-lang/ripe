@@ -1,0 +1,4 @@
+func fact(n: i32) i32 {
+  if n <= 1 { 1 } else { n * fact(n - 1) }
+}
+func main() i32 { return fact(5) }

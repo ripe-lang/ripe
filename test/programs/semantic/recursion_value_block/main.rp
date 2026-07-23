@@ -1,0 +1,11 @@
+func collatz_steps(n: i32) i32 {
+  if n == 1 {
+    0
+  } else {
+    let next = {
+      if n % 2 == 0 { n / 2 } else { 3 * n + 1 }
+    }
+    1 + collatz_steps(next)
+  }
+}
+func main() i32 { return collatz_steps(6) }

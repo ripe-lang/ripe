@@ -6,8 +6,8 @@
   "id": "978e",
   "priority": "low",
   "source": "lib/codegen_qbe.ml",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "Emit implicit return for non-void functions where the last expression is the return value.",
-  "updated_at": "2026-07-19 08:50:33.073799"
+  "updated_at": "2026-07-22 15:11:25.260083"
 }

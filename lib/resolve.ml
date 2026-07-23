@@ -103,18 +103,29 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit (_, _, fields) ->
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
-  | BlockExpr (body, e) ->
-      push_scope st;
-      List.iter (resolve_stmt st) body;
-      resolve_expr st e;
-      pop_scope st
-  | IfExpr (branches, else_e) ->
+  | Block body -> resolve_block st body
+  | If (branches, else_body) ->
       List.iter
-        (fun (c, e) ->
-          resolve_expr st c;
-          resolve_expr st e)
+        (fun (cond, body) ->
+          resolve_expr st cond;
+          resolve_block st body)
         branches;
-      resolve_expr st else_e
+      Option.iter (resolve_block st) else_body
+  | While (cond, body) ->
+      resolve_expr st cond;
+      resolve_block st body
+  | For (name, nspan, iter, body) ->
+      resolve_expr st iter;
+      push_scope st;
+      declare_local st Symbol.ForVar name nspan;
+      List.iter (resolve_expr st) body;
+      pop_scope st
+  | Binding (kind, name, nspan, ann, e) ->
+      Option.iter (resolve_typ st) ann;
+      Option.iter (resolve_expr st) e;
+      declare_local st (Symbol.Local kind) name nspan
+  | Return e -> Option.iter (resolve_expr st) e
+  | Break | Continue -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
 
 (* an array size expression may name constants *)
@@ -130,36 +141,9 @@ and resolve_typ (st : state) (t : typ) : unit =
       List.iter (resolve_typ st) ps;
       Option.iter (resolve_typ st) ret
 
-and resolve_stmt (st : state) (s : stmt) : unit =
-  match s.sdesc with
-  | Binding (kind, name, nspan, ann, e) ->
-      Option.iter (resolve_typ st) ann;
-      Option.iter (resolve_expr st) e;
-      declare_local st (Symbol.Local kind) name nspan
-  | Return e -> Option.iter (resolve_expr st) e
-  | Expr e -> resolve_expr st e
-  | If (branches, else_body) ->
-      List.iter
-        (fun (cond, body) ->
-          resolve_expr st cond;
-          resolve_block st body)
-        branches;
-      resolve_block st else_body
-  | While (cond, body) ->
-      resolve_expr st cond;
-      resolve_block st body
-  | For (name, nspan, iter, body) ->
-      resolve_expr st iter;
-      push_scope st;
-      declare_local st Symbol.ForVar name nspan;
-      List.iter (resolve_stmt st) body;
-      pop_scope st
-  | Block body -> resolve_block st body
-  | Break | Continue -> ()
-
-and resolve_block (st : state) (body : stmt list) : unit =
+and resolve_block (st : state) (body : block) : unit =
   push_scope st;
-  List.iter (resolve_stmt st) body;
+  List.iter (resolve_expr st) body;
   pop_scope st
 
 (* Body binders can redeclare freely but params can't repeat. *)
@@ -179,7 +163,7 @@ let resolve_func (st : state) (fd : func_def) : unit =
       declare_param st p)
     fd.params;
   Option.iter (resolve_typ st) fd.ret;
-  List.iter (resolve_stmt st) fd.body;
+  List.iter (resolve_expr st) fd.body;
   pop_scope st
 
 let resolve (decls : decl list) : t =

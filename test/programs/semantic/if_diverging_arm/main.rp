@@ -1,0 +1,8 @@
+func clamp_low(x: i32) i32 {
+  let y: i32 = if x < 0 { return 7 } else { x }
+  return y + 1
+}
+
+func main() i32 {
+  return clamp_low(-4) + clamp_low(5)
+}

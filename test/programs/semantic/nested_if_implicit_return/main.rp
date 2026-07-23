@@ -1,0 +1,10 @@
+func classify(x: i32) i32 {
+  if x < 0 {
+    if x < -10 { 1 } else { 2 }
+  } else {
+    if x > 10 { 3 } else { 4 }
+  }
+}
+func main() i32 {
+  return classify(-20) + classify(-5) + classify(5) + classify(20)
+}

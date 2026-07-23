@@ -6,8 +6,8 @@
   "id": "f0b0",
   "priority": "low",
   "source": "lib/ast.ml",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "blocks are statement only right now, make them usable as expressions like var p = { ... }",
-  "updated_at": "2026-07-12 08:23:02.154108"
+  "updated_at": "2026-07-22 15:11:25.260424"
 }

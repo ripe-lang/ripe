@@ -1,0 +1,7 @@
+func choose(c: bool) i32 {
+  return if c { return 7 } else { return 11 }
+}
+
+func main() i32 {
+  return choose(true)
+}

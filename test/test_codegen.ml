@@ -419,6 +419,7 @@ func f(a: i32, b: bool) i32 {
         %t5 =w neg %t4
         ret %t5
     @if.else2
+        jmp @if.end2
     @if.end2
         %t6 =w loadsw %a
         ret %t6
@@ -470,6 +471,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t4 =w loadsw %i
         %t5 =w add %t4, 1
@@ -504,9 +506,11 @@ let%expect_test "codegen: nested if" =
     @if.then5_0
         ret 1
     @if.else5
+        jmp @if.end5
     @if.end5
         jmp @if.end2
     @if.else2
+        jmp @if.end2
     @if.end2
         ret 0
     }
@@ -897,6 +901,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t5 =l copy %sum
         storel %t5, %compound.p.0
@@ -957,6 +962,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t5 =l copy %sum
         storel %t5, %compound.p.0
@@ -986,6 +992,7 @@ func f() i32 {
     @if.then15_0
         jmp @loop.end0
     @if.else15
+        jmp @if.end15
     @if.end15
         %t19 =w loadsw %i
         %t20 =w add %t19, 1
@@ -1036,6 +1043,7 @@ func f() i32 {
     @if.then3_0
         jmp @loop.end2
     @if.else3
+        jmp @if.end3
     @if.end3
         %t7 =l loadl %for.p.1
         %t8 =l loadl %for.i.3
@@ -1106,6 +1114,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
     @if.cond5_0
         %t6 =w loadsw %i
@@ -1117,6 +1126,7 @@ func f() i32 {
         storew %t9, %i
         jmp @loop.body0
     @if.else5
+        jmp @if.end5
     @if.end5
     @if.cond10_0
         %t11 =w loadsw %i
@@ -1125,6 +1135,7 @@ func f() i32 {
     @if.then10_0
         jmp @loop.end0
     @if.else10
+        jmp @if.end10
     @if.end10
         %t13 =l copy %sum
         storel %t13, %compound.p.0
@@ -1181,6 +1192,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
     @if.cond2_0
         %t3 =w loadsw %i
@@ -1189,6 +1201,7 @@ func f() i32 {
     @if.then2_0
         jmp @loop.end0
     @if.else2
+        jmp @if.end2
     @if.end2
         %t5 =l copy %i
         storel %t5, %compound.p.0
@@ -1449,6 +1462,7 @@ func sum(xs: []i32) i32 {
     @if.then5_0
         jmp @loop.end4
     @if.else5
+        jmp @if.end5
     @if.end5
         %t9 =l loadl %for.p.2
         %t10 =l loadl %for.i.4
@@ -1712,6 +1726,7 @@ func f() i32 {
     @if.then4_0
         jmp @loop.end3
     @if.else4
+        jmp @if.end4
     @if.end4
         %t8 =l loadl %for.p.1
         %t9 =l loadl %for.i.3
@@ -1824,6 +1839,7 @@ func f() i32 {
     @if.then4_0
         jmp @loop.end3
     @if.else4
+        jmp @if.end4
     @if.end4
         %t8 =l loadl %for.p.1
         %t9 =l loadl %for.i.3
@@ -2250,6 +2266,7 @@ func f(c: bool) {
         storew %t4, %g
         jmp @if.end1
     @if.else1
+        jmp @if.end1
     @if.end1
         storew 10, $g
         ret
@@ -2313,6 +2330,7 @@ func f() i32 {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t5 =w loadsw %i.2
         storew %t5, %y
@@ -2356,6 +2374,7 @@ func f(n: i32) i32 {
     @if.then2_0
         jmp @loop.end1
     @if.else2
+        jmp @if.end2
     @if.end2
         storew 100, %x.3
         %t6 =w loadsw %x.3
@@ -2537,6 +2556,7 @@ func check(p: *i32) i32 {
     @if.then1_0
         ret 1
     @if.else1
+        jmp @if.end1
     @if.end1
         ret 0
     }
@@ -2556,16 +2576,17 @@ func any(a: bool, b: bool) bool {
         storeb %t0, %a
         %b =l alloc4 1
         storeb %t1, %b
+    @if.cond2_0
         %t4 =w loadub %a
-        jnz %t4, @sel.then2, @sel.else2
-    @sel.then2
+        jnz %t4, @if.then2_0, @if.else2
+    @if.then2_0
         %t3 =w copy 1
-        jmp @sel.join2
-    @sel.else2
+        jmp @if.end2
+    @if.else2
         %t5 =w loadub %b
         %t3 =w copy %t5
-        jmp @sel.join2
-    @sel.join2
+        jmp @if.end2
+    @if.end2
         ret %t3
     }
     |}]
@@ -2604,6 +2625,7 @@ func f(a: bool, b: bool, c: bool) i32 {
     @if.then3_0
         ret 1
     @if.else3
+        jmp @if.end3
     @if.end3
         ret 0
     }
@@ -2626,25 +2648,27 @@ func f(a: bool, b: bool, c: bool) bool {
         storeb %t1, %b
         %c =l alloc4 1
         storeb %t2, %c
+    @if.cond3_0
         %t5 =w loadub %a
-        jnz %t5, @sel.then3, @sel.else3
-    @sel.then3
+        jnz %t5, @if.then3_0, @if.else3
+    @if.then3_0
         %t4 =w copy 1
-        jmp @sel.join3
-    @sel.else3
+        jmp @if.end3
+    @if.else3
+    @if.cond6_0
         %t8 =w loadub %b
-        jnz %t8, @sel.then6, @sel.else6
-    @sel.then6
+        jnz %t8, @if.then6_0, @if.else6
+    @if.then6_0
         %t9 =w loadub %c
         %t7 =w copy %t9
-        jmp @sel.join6
-    @sel.else6
+        jmp @if.end6
+    @if.else6
         %t7 =w copy 0
-        jmp @sel.join6
-    @sel.join6
+        jmp @if.end6
+    @if.end6
         %t4 =w copy %t7
-        jmp @sel.join3
-    @sel.join3
+        jmp @if.end3
+    @if.end3
         ret %t4
     }
     |}]
@@ -2676,6 +2700,7 @@ func f(a: bool, b: bool) i32 {
     @if.then2_0
         ret 1
     @if.else2
+        jmp @if.end2
     @if.end2
         ret 0
     }
@@ -2707,6 +2732,7 @@ func f(a: bool, b: bool) {
     @if.then3_0
         jmp @loop.end2
     @if.else3
+        jmp @if.end3
     @if.end3
         ret
     @loop.end2
@@ -2732,16 +2758,17 @@ func f(a: bool, b: bool) i32 {
         storeb %t0, %a
         %b =l alloc4 1
         storeb %t1, %b
+    @if.cond2_0
         %t4 =w loadub %a
-        jnz %t4, @sel.then2, @sel.else2
-    @sel.then2
+        jnz %t4, @if.then2_0, @if.else2
+    @if.then2_0
         %t5 =w loadub %b
         %t3 =w copy %t5
-        jmp @sel.join2
-    @sel.else2
+        jmp @if.end2
+    @if.else2
         %t3 =w copy 0
-        jmp @sel.join2
-    @sel.join2
+        jmp @if.end2
+    @if.end2
         storeb %t3, %ok
     @if.cond6_0
         %t7 =w loadub %ok
@@ -2749,6 +2776,7 @@ func f(a: bool, b: bool) i32 {
     @if.then6_0
         ret 1
     @if.else6
+        jmp @if.end6
     @if.end6
         ret 0
     }
@@ -3790,6 +3818,7 @@ func f(x: i32) {
     @if.then1_0
         ret
     @if.else1
+        jmp @if.end1
     @if.end1
         %t4 =w loadsw %x
         %t5 =w add %t4, 1
@@ -4359,6 +4388,7 @@ func main() i32 { return rec_sum(3) }
     @if.then1_0
         ret 0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t4 =w loadsw %n
         %t6 =w loadsw %n
@@ -4373,6 +4403,7 @@ func main() i32 { return rec_sum(3) }
         storew 0, %inl.res5
         jmp @inline.end5
     @if.else8
+        jmp @if.end8
     @if.end8
         %t11 =w loadsw %n.2.inl5
         %t12 =w loadsw %n.2.inl5
@@ -4400,6 +4431,7 @@ func main() i32 { return rec_sum(3) }
         storew 0, %inl.res0
         jmp @inline.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t4 =w loadsw %n.2.inl0
         %t5 =w loadsw %n.2.inl0
@@ -4509,6 +4541,7 @@ func f() {
     @if.then1_0
         jmp @loop.end0
     @if.else1
+        jmp @if.end1
     @if.end1
         %t4 =w loadsw %i
         storew %t4, %x

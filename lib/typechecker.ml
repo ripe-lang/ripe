@@ -133,15 +133,6 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
-(* a call to a never function is a terminator so reachability treats it like a return *)
-let is_never_call (env : env) (e : expr) : bool =
-  match e.desc with
-  | Call ({ desc = Ident name; _ }, _) -> (
-      match Hashtbl.find_opt env.funcs name with
-      | Some s -> s.ret_ty = TNever
-      | None -> false)
-  | _ -> false
-
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   (* never is the return type of a function that can't return so no value ever has it *)
@@ -312,31 +303,64 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | _ ->
           emit env (Error.undefined_name name_span "struct" name);
           dummy_texpr)
-  | BlockExpr (body, e) -> check_block_expr env body e None
-  | IfExpr (branches, else_e) ->
-      let rty = reconcile_if_result env branches else_e in
-      check_desc env e rty
+  | Block body ->
+      let tb, ty = check_scoped_block env e.span body None false in
+      T.mk ty (T.TBlock tb)
+  | If (branches, else_body) -> check_if env e.span branches else_body None
+  | While (cond, body) ->
+      let tc = check env cond TBool in
+      let tb, _ = check_scoped_block env e.span body None true in
+      (* a while true with no break loops forever so it never yields control *)
+      let diverges =
+        match cond.desc with
+        | Bool true -> not (Reachability.loop_has_break body)
+        | _ -> false
+      in
+      T.mk (if diverges then TNever else TVoid) (T.TWhile (tc, tb))
+  | For (name, nspan, iter, body) -> synth_for env e.span name nspan iter body
+  | Binding (kind, name, nspan, ann, init) ->
+      snd (check_binding env kind name nspan ann init)
+  | Return init -> synth_return env e.span init
+  | Break ->
+      if not env.in_loop then add_error env e.span "break outside loop";
+      T.mk TNever T.TBreak
+  | Continue ->
+      if not env.in_loop then add_error env e.span "continue outside loop";
+      T.mk TNever T.TContinue
 
-(* A literal tail bends to a sibling so it can't anchor the type *)
-and arm_is_flexible (a : expr) : bool =
-  match a.desc with
+(* the value of a block is its last element and void when the block is empty *)
+and tblock_ty (tb : T.tblock) : ty =
+  match List.rev tb with te :: _ -> te.T.ty | [] -> TVoid
+
+(* a literal or diverging tail bends to a sibling so it can't anchor the type *)
+and arm_is_flexible (e : expr) : bool =
+  match e.desc with
   | Int (_, None) | Float _ -> true
   | UnOp (Neg, inner) -> arm_is_flexible inner
-  | BlockExpr (_, tail) -> arm_is_flexible tail
-  | IfExpr (branches, else_e) ->
-      List.for_all (fun (_, arm) -> arm_is_flexible arm) branches
-      && arm_is_flexible else_e
+  | Block body -> block_is_flexible body
+  | If (branches, else_body) ->
+      Option.is_some else_body
+      && List.for_all (fun (_, body) -> block_is_flexible body) branches
+      && Option.fold ~none:false ~some:block_is_flexible else_body
   | _ -> false
 
-(* Probe with diagnostics muted so a concrete arm can anchor the type *)
-and reconcile_if_result (env : env) (branches : (expr * expr) list)
-    (else_e : expr) : ty =
+and block_is_flexible (body : block) : bool =
+  match List.rev body with last :: _ -> arm_is_flexible last | [] -> false
+
+(* probe a block's result type with diagnostics muted so a sibling can anchor it *)
+and block_result_ty (env : env) (body : block) : ty =
   let quiet = { env with diags = Diagnostic.sink () } in
-  let arms = List.map snd branches @ [ else_e ] in
-  let probes = List.map (fun a -> (a, (synth quiet a).T.ty)) arms in
+  let inner = push_scope quiet in
+  let _, tb = check_block inner Ast.dummy_span body None in
+  tblock_ty tb
+
+and reconcile_if_result (env : env) (branches : (expr * block) list)
+    (else_b : block) : ty =
+  let arms = List.map snd branches @ [ else_b ] in
+  let probes = List.map (fun body -> (body, block_result_ty env body)) arms in
   let rigid =
     List.find_opt
-      (fun (a, t) -> (not (arm_is_flexible a)) && t <> TNever)
+      (fun (body, t) -> (not (block_is_flexible body)) && t <> TNever)
       probes
   in
   match rigid with
@@ -346,26 +370,186 @@ and reconcile_if_result (env : env) (branches : (expr * expr) list)
       | Some (_, t) -> t
       | None -> TNever)
 
-(* The block's value is its tail so a wanted type flows straight there *)
-and check_block_expr (env : env) (body : stmt list) (e : expr)
-    (want : ty option) : T.texpr =
-  let inner = push_scope env in
-  let final_inner, tbody = check_stmts inner body in
-  let te =
-    match want with
-    | Some w -> check final_inner e w
-    | None -> synth final_inner e
+(* thread env so a binding is visible to later elements then check the tail
+   against want and discard the rest *)
+and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
+    : env * T.tblock =
+  let rec go env diverged acc (elems : expr list) =
+    match elems with
+    | [] ->
+        (match want with
+        | Some w when strip_alias w <> TVoid ->
+            emit env
+              (Error.type_mismatch span ~expected:(show_ty w)
+                 ~found:(show_ty TVoid))
+        | _ -> ());
+        (env, List.rev acc)
+    | [ last ] ->
+        (* a dead tail keeps only its warning and its type need not match *)
+        let tail_want = if diverged then None else want in
+        if diverged then add_warning env last.span "unreachable code";
+        let env, te = check_elem env last tail_want in
+        (env, List.rev (te :: acc))
+    | e :: rest ->
+        if diverged then add_warning env e.span "unreachable code";
+        let env, te = check_elem env e None in
+        go env (diverged || te.T.ty = TNever) (te :: acc) rest
   in
-  (* the body diverges so control never reaches the block's value *)
-  if
-    List.exists
-      (fun s ->
-        Reachability.stmt_returns (is_never_call env) s
-        || match s.sdesc with Break | Continue -> true | _ -> false)
-      body
-  then add_warning env e.span "unreachable code";
+  go env false [] body
+
+and check_elem (env : env) (e : expr) (want : ty option) : env * T.texpr =
+  match e.desc with
+  | Binding (kind, name, nspan, ann, init) ->
+      let env', tb = check_binding env kind name nspan ann init in
+      (match want with
+      | Some w when strip_alias w <> TVoid ->
+          emit env
+            (Error.type_mismatch e.span ~expected:(show_ty w)
+               ~found:(show_ty TVoid))
+      | _ -> ());
+      (env', tb)
+  | _ ->
+      let te =
+        match want with Some w -> check env e w | None -> synth env e
+      in
+      (env, te)
+
+(* push a scope for the block then flag any leftover bindings *)
+and check_scoped_block (env : env) (span : Ast.span) (body : block)
+    (want : ty option) (in_loop : bool) : T.tblock * ty =
+  let base = if in_loop then { env with in_loop = true } else env in
+  let inner = push_scope base in
+  let final_inner, tb = check_block inner span body want in
   warn_unused_in_scope final_inner;
-  T.mk te.T.ty (T.TBlockExpr (tbody, te))
+  (tb, tblock_ty tb)
+
+and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
+    (nspan : Ast.span) (ann : typ option) (init : expr option) : env * T.texpr =
+  let t, te =
+    match (ann, init) with
+    | Some a, Some e ->
+        let want = ty_of_ast env a in
+        let te = check ~adopt:true env e want in
+        (want, te)
+    | None, Some e ->
+        let te = synth env e in
+        (te.T.ty, te)
+    | Some a, None ->
+        let want = ty_of_ast env a in
+        (want, T.mk want T.TZero)
+    | None, None ->
+        emit env (Error.named nspan "cannot infer type" name);
+        (TInt I32, dummy_texpr)
+  in
+  if kind = Const then (
+    check_const_scalar env nspan t;
+    Hashtbl.replace env.l_vals (sym env nspan).id
+      (fold_num_or env dummy_const_num te));
+  ( extend_var env nspan name t,
+    T.mk TVoid (T.TBinding (kind, sym env nspan, t, te)) )
+
+and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
+  match init with
+  | None ->
+      if env.ret_ty = TNever then
+        add_error env span "a never function cannot return"
+      else if env.ret_ty <> TVoid && not env.in_main then
+        add_error env span "empty return in non-void function";
+      T.mk TNever (T.TReturn None)
+  | Some e when env.ret_ty = TNever ->
+      add_error env span "a never function cannot return";
+      T.mk TNever (T.TReturn (Some (synth env e)))
+  | Some e ->
+      let te = check env e env.ret_ty in
+      (match Escape.return_escapes te with
+      | Some kind ->
+          let noun =
+            match kind with
+            | Escape.Slice -> "slice of a local"
+            | Escape.Address -> "address of a local"
+          in
+          emit env
+            (Diagnostic.error (noun ^ " escapes")
+            |> Diagnostic.at e.span
+            |> Diagnostic.label "points into freed stack memory")
+      | None -> ());
+      T.mk TNever (T.TReturn (Some te))
+
+and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
+    (iter : expr) (body : block) : T.texpr =
+  let titer, elem_ty =
+    match iter.desc with
+    | Range (lo, hi) | RangeInclusive (lo, hi) ->
+        let tlo, thi, t = check_range_bounds env lo hi in
+        let node =
+          match iter.desc with
+          | RangeInclusive _ -> T.mk t (T.TRangeInclusive (tlo, thi))
+          | _ -> T.mk t (T.TRange (tlo, thi))
+        in
+        (node, t)
+    | _ -> (
+        let ti = synth env iter in
+        match strip_alias ti.T.ty with
+        | TArray (elem, _) | TSlice elem -> (ti, elem)
+        | t ->
+            emit env
+              (Error.named iter.span "cannot iterate over type" (show_ty t));
+            (ti, TInt I32))
+  in
+  let inner = push_scope { env with in_loop = true } in
+  let inner = extend_var inner nspan name elem_ty in
+  let final_inner, tb = check_block inner span body None in
+  warn_unused_in_scope final_inner;
+  T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
+
+(* one if handles both a value and a plain statement and want None means synthesize *)
+and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
+    (else_body : block option) (want : ty option) : T.texpr =
+  match want with
+  | None -> (
+      match else_body with
+      | None ->
+          let tbranches =
+            List.map
+              (fun (c, body) ->
+                ( check env c TBool,
+                  fst (check_scoped_block env span body None false) ))
+              branches
+          in
+          T.mk TVoid (T.TIf (tbranches, None))
+      | Some else_b ->
+          let rty = reconcile_if_result env branches else_b in
+          check_if env span branches else_body (Some rty))
+  | Some w ->
+      let tbranches =
+        List.map
+          (fun (c, body) ->
+            ( check env c TBool,
+              fst (check_scoped_block env span body (Some w) false) ))
+          branches
+      in
+      let telse =
+        match else_body with
+        | Some body ->
+            Some (fst (check_scoped_block env span body (Some w) false))
+        | None ->
+            if strip_alias w <> TVoid then
+              emit env
+                (Error.type_mismatch span ~expected:(show_ty w)
+                   ~found:(show_ty TVoid));
+            None
+      in
+      let arm_tys =
+        (match telse with Some tb -> [ tblock_ty tb ] | None -> [])
+        @ List.map (fun (_, tb) -> tblock_ty tb) tbranches
+      in
+      (* every arm diverges so the whole if yields no value *)
+      let ty =
+        if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys
+        then TNever
+        else w
+      in
+      T.mk ty (T.TIf (tbranches, telse))
 
 (* MUST be this type *)
 and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
@@ -461,12 +645,11 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (strip_alias want)
     ->
       T.mk want (T.TBinOp (op, check env l want, synth env r))
-  | BlockExpr (body, e) -> check_block_expr env body e (Some want)
-  | IfExpr (branches, else_e) ->
-      let tbranches =
-        List.map (fun (c, a) -> (check env c TBool, check env a want)) branches
-      in
-      T.mk want (T.TIfExpr (tbranches, check env else_e want))
+  | Block body ->
+      let tb, ty = check_scoped_block env e.span body (Some want) false in
+      T.mk ty (T.TBlock tb)
+  | If (branches, else_body) ->
+      check_if env e.span branches else_body (Some want)
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
@@ -905,141 +1088,7 @@ and eval_array_size (env : env) (e : expr) : int =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-and check_stmt (env : env) (s : stmt) : env * T.tstmt =
-  let env', tsdesc = check_stmt_desc env s in
-  (env', { T.tsdesc; span = s.span })
-
-and check_stmt_desc (env : env) (s : stmt) : env * T.tstmt_desc =
-  match s.sdesc with
-  | Binding (kind, name, nspan, ann, e) ->
-      let t, te =
-        match (ann, e) with
-        | Some a, Some e ->
-            let want = ty_of_ast env a in
-            let te = check ~adopt:true env e want in
-            (want, te)
-        | None, Some e ->
-            let te = synth env e in
-            (te.T.ty, te)
-        | Some a, None ->
-            let want = ty_of_ast env a in
-            (want, T.mk want T.TZero)
-        | None, None ->
-            emit env (Error.named nspan "cannot infer type" name);
-            (TInt I32, dummy_texpr)
-      in
-      if kind = Const then (
-        check_const_scalar env nspan t;
-        Hashtbl.replace env.l_vals (sym env nspan).id
-          (fold_num_or env dummy_const_num te));
-      (extend_var env nspan name t, T.TBinding (kind, sym env nspan, t, te))
-  | Return None ->
-      (* FIXME(603c): revisit once I decide how implicit and explicit returns work *)
-      if env.ret_ty = TNever then
-        add_error env s.span "a never function cannot return"
-      else if env.ret_ty <> TVoid && not env.in_main then
-        add_error env s.span "empty return in non-void function";
-      (env, T.TReturn None)
-  | Return (Some e) when env.ret_ty = TNever ->
-      add_error env s.span "a never function cannot return";
-      (env, T.TReturn (Some (synth env e)))
-  | Return (Some e) ->
-      let te = check env e env.ret_ty in
-      (match Escape.return_escapes te with
-      | Some kind ->
-          let noun =
-            match kind with
-            | Escape.Slice -> "slice of a local"
-            | Escape.Address -> "address of a local"
-          in
-          emit env
-            (Diagnostic.error (noun ^ " escapes")
-            |> Diagnostic.at e.span
-            |> Diagnostic.label "points into freed stack memory")
-      | None -> ());
-      (env, T.TReturn (Some te))
-  | Expr e ->
-      let te = synth env e in
-      (env, T.TExpr te)
-  | If (branches, else_body) ->
-      let tbranches =
-        List.map
-          (fun (cond, body) ->
-            let tc = check env cond TBool in
-            let inner = push_scope env in
-            let final_inner, tbody = check_stmts inner body in
-            warn_unused_in_scope final_inner;
-            (tc, tbody))
-          branches
-      in
-      let inner = push_scope env in
-      let final_inner, telse = check_stmts inner else_body in
-      warn_unused_in_scope final_inner;
-      (env, T.TIf (tbranches, telse))
-  | While (cond, body) ->
-      let tc = check env cond TBool in
-      let inner = push_scope { env with in_loop = true } in
-      let final_inner, tbody = check_stmts inner body in
-      warn_unused_in_scope final_inner;
-      (env, T.TWhile (tc, tbody))
-  | For (name, nspan, iter, body) ->
-      (* a range binds the loop var to the bound type and an array binds it to the
-         element type. ranges are handled here since they are not first-class values *)
-      let titer, elem_ty =
-        match iter.desc with
-        | Range (lo, hi) | RangeInclusive (lo, hi) ->
-            let tlo, thi, t = check_range_bounds env lo hi in
-            let node =
-              match iter.desc with
-              | RangeInclusive _ -> T.mk t (T.TRangeInclusive (tlo, thi))
-              | _ -> T.mk t (T.TRange (tlo, thi))
-            in
-            (node, t)
-        | _ -> (
-            let ti = synth env iter in
-            match strip_alias ti.T.ty with
-            | TArray (elem, _) | TSlice elem -> (ti, elem)
-            | t ->
-                emit env
-                  (Error.named iter.span "cannot iterate over type" (show_ty t));
-                (ti, TInt I32))
-      in
-      let inner = push_scope { env with in_loop = true } in
-      let inner = extend_var inner nspan name elem_ty in
-      let final_inner, tbody = check_stmts inner body in
-      warn_unused_in_scope final_inner;
-      (env, T.TFor (sym env nspan, elem_ty, titer, tbody))
-  | Break ->
-      if not env.in_loop then add_error env s.span "break outside loop";
-      (env, T.TBreak)
-  | Continue ->
-      if not env.in_loop then add_error env s.span "continue outside loop";
-      (env, T.TContinue)
-  | Block stmts ->
-      let inner = push_scope env in
-      let final_inner, tstmts = check_stmts inner stmts in
-      warn_unused_in_scope final_inner;
-      (env, T.TBlock tstmts)
-
 (* TODO(0c77): push/pop scope for match arms when match is implemented *)
-
-(* Performance critical since this pass walks every statement *)
-and check_stmts (env : env) (stmts : stmt list) : env * T.tstmt list =
-  let final_env, tstmts_reversed, _, _ =
-    List.fold_left
-      (fun (current_env, acc, returned, warned) (s : stmt) ->
-        if returned && not warned then
-          add_warning current_env s.span "unreachable code";
-        let next_env, ts = check_stmt current_env s in
-        (* break and continue end the block just like a returning if does *)
-        let terminates =
-          Reachability.stmt_returns (is_never_call current_env) s
-          || match s.sdesc with Break | Continue -> true | _ -> false
-        in
-        (next_env, ts :: acc, returned || terminates, warned || returned))
-      (env, [], false, false) stmts
-  in
-  (final_env, List.rev tstmts_reversed)
 
 (* main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
@@ -1188,16 +1237,22 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
       func_env params_typed
   in
 
-  let final_env, tbody = check_stmts param_env fd.body in
-  warn_unused_in_scope final_env;
-
-  if
+  (* a non-void body's trailing value is its return value so it flows against
+     the declared return type while main and void bodies just run for effect *)
+  let implicit_return =
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
-    && not (Reachability.stmts_return (is_never_call env) fd.body)
-  then begin
-    let span = match fd.ret with Some t -> t.span | None -> fd.span in
-    emit env (Error.named span "missing return" fd.name)
-  end;
+  in
+  let want_tail = if implicit_return then Some ret_ty else None in
+  let final_env, tbody0 = check_block param_env fd.span fd.body want_tail in
+  warn_unused_in_scope final_env;
+  let tbody =
+    match (implicit_return, List.rev tbody0) with
+    (* a live value tail returns while a diverging tail already left on its own *)
+    | true, last :: rest when last.T.ty = ret_ty && ret_ty <> TNever ->
+        let ret = T.mk ~span:last.T.span TNever (T.TReturn (Some last)) in
+        List.rev (ret :: rest)
+    | _ -> tbody0
+  in
 
   {
     T.name = fd.name;
@@ -1225,7 +1280,8 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* never compile-time by design *)
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlockExpr _ | TIfExpr _ ->
+  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlock _ | TIf _ | TWhile _
+  | TFor _ | TBinding _ | TReturn _ | TBreak | TContinue ->
       false
   | TUndef -> true
 

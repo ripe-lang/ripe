@@ -1,0 +1,13 @@
+func is_even(n: i32) bool {
+  if n == 0 { true } else { is_odd(n - 1) }
+}
+func is_odd(n: i32) bool {
+  if n == 0 { false } else { is_even(n - 1) }
+}
+func main() i32 {
+  var count: i32 = 0
+  for i in 0..10 {
+    if is_even(i) { count = count + 1 }
+  }
+  return count
+}

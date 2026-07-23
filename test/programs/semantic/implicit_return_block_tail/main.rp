@@ -1,0 +1,7 @@
+func f(x: i32) i32 {
+  {
+    let a = x * 2
+    a + 1
+  }
+}
+func main() i32 { return f(10) }

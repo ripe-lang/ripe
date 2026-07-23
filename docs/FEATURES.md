@@ -147,6 +147,16 @@ func main() i32 { return apply(f, 4) }
 func add(a: i32, b: i32) i32 { return a + b }
 ```
 
+### Implicit return
+
+```ripe
+func square(x: i32) i32 { x * x }
+
+func abs(x: i32) i32 {
+  if x < 0 { -x } else { x }
+}
+```
+
 ### Bare return
 
 ```ripe
@@ -200,6 +210,27 @@ func classify(x: i32) i32 {
   if x < 0 { return 0 }
   elseif x == 0 { return 1 }
   else { return 2 }
+}
+```
+
+### if as a value
+
+```ripe
+func main() i32 {
+  let big: i32 = if 3 > 2 { 10 } else { 20 }
+  return big
+}
+```
+
+### Block as a value
+
+```ripe
+func main() i32 {
+  let x: i32 = {
+    let a: i32 = 2
+    a * 3
+  }
+  return x
 }
 ```
 
