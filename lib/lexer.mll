@@ -36,8 +36,15 @@ let int_token st lexbuf ?suf text =
       Queue.push (INT (0L, suf), lexbuf_span lexbuf) st.token_queue;
       ERROR "integer literal out of range"
 
+let char_token inner =
+  let d = String.get_utf_8_uchar inner 0 in
+  if not (Uchar.utf_decode_is_valid d) then ERROR "invalid character literal"
+  else if Uchar.utf_decode_length d <> String.length inner then
+    ERROR "character literal must be a single character"
+  else CHAR (Uchar.to_int (Uchar.utf_decode_uchar d))
+
 let can_end_stmt = function
-  | IDENT _ | INT _ | FLOAT _ | STRING _
+  | IDENT _ | INT _ | FLOAT _ | STRING _ | CHAR _
   | TRUE | FALSE | NULL | UNDEFINED
   | BREAK | CONTINUE | RETURN
   | RPAREN | RBRACE | RBRACKET -> true
@@ -126,7 +133,14 @@ rule read_main st = parse
   | ':'  { COLON }
   | ','  { COMMA }
   | '^'  { CARET }
-  (* TODO: char literal *)
+  | "'\\0'"  { CHAR 0 }
+  | "'\\n'"  { CHAR (Char.code '\n') }
+  | "'\\t'"  { CHAR (Char.code '\t') }
+  | "'\\\\'" { CHAR (Char.code '\\') }
+  | "'\\''"  { CHAR (Char.code '\'') }
+  | '\'' '\\' _ '\''  { ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf) }
+  | '\'' ([^ '\'' '\\' '\r' '\n']+ as inner) '\''  { char_token inner }
+  | "''"  { ERROR "empty character literal" }
   | '"'  { let str_start = lexbuf.Lexing.lex_start_p in
            Buffer.clear st.buf;
            let tok = read_string st lexbuf in

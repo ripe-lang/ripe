@@ -272,7 +272,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CFloat f -> float_lit t f
   | T.CBool b -> if b then "1" else "0"
   | T.CNull -> "0"
-  | T.CChar c -> string_of_int (Char.code c)
+  | T.CChar cp -> string_of_int cp
   (* aggregate: the slot itself is the value so yield its address *)
   | T.CIdent s when is_aggregate t -> sym_addr ctx s
   | T.CIdent s ->

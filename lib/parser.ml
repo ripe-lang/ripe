@@ -370,6 +370,9 @@ and parse_primary st =
   | INT (n, suf) ->
       advance st;
       mk lo st (Int (n, suf))
+  | CHAR c ->
+      advance st;
+      mk lo st (Char c)
   | FLOAT f ->
       advance st;
       mk lo st (Float f)
