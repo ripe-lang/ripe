@@ -70,7 +70,7 @@ let is_numeric t =
 
 (* a pointer is just an address so p < q asks which one sits earlier in memory *)
 let is_ordered t =
-  match strip_alias t with TPointer _ -> true | _ -> is_numeric t
+  match strip_alias t with TPointer _ | TChar -> true | _ -> is_numeric t
 
 let is_integer t =
   match strip_alias t with TInt _ | TError -> true | _ -> false
@@ -78,8 +78,8 @@ let is_integer t =
 (* a newtype hides every operation of its base *)
 (* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
 let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TCStr | TPointer _ | TOpaquePtr | TNull | TError
-    ->
+  | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
+  | TError ->
       true
   | TAlias (_, base) -> is_comparable base
   | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ ->
@@ -92,7 +92,7 @@ type cast_class = Numeric | Ptr | Aggregate
 
 let cast_class t =
   match resolve_ty t with
-  | TInt _ | TFloat _ | TBool -> Numeric
+  | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
   | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
@@ -101,6 +101,10 @@ let cast_class t =
 let cast_ok src tgt =
   match (resolve_ty src, resolve_ty tgt) with
   | s, TBool -> s = TBool
+  (* char is a distinct scalar so it only converts to and from integers *)
+  | TChar, TChar -> true
+  | TChar, TInt _ | TInt _, TChar -> true
+  | TChar, _ | _, TChar -> false
   | _ -> (
       match (cast_class src, cast_class tgt) with
       | Aggregate, _ | _, Aggregate ->
