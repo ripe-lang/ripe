@@ -1,1 +1,0 @@
-Casting a string or function const to a number crashes the compiler with `Int64.of_string`, hits every int width and bool and cstr in const arithmetic, function address reports "cyclic constant", make both a clean diagnostic or fold properly
