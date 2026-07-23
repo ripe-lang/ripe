@@ -2,7 +2,5 @@
 *.install
 /_opam/
 /main
-/lib/debug.ml
 predocs
-/test/fuzz/
 __pycache__/
