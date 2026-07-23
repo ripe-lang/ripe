@@ -218,7 +218,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Bool b -> T.mk TBool (T.TBool b)
   | Null -> T.mk TNull T.TNull
   | String s -> T.mk (TPointer (TInt I8)) (T.TCStr s)
-  | Char c -> T.mk (TInt I32) (T.TChar c)
+  | Char c -> T.mk TChar (T.TChar c)
   | Ident name ->
       let t = lookup_var env e.span name in
       T.mk t (T.TIdent (sym env e.span))

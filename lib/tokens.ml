@@ -5,6 +5,7 @@ type token =
   | FLOAT of float
   | IDENT of string
   | STRING of string
+  | CHAR of int
   | PLUS
   | MINUS
   | STAR
@@ -114,6 +115,7 @@ let show_token = function
   | FLOAT f -> string_of_float f
   | IDENT s -> s
   | STRING s -> "\"" ^ s ^ "\""
+  | CHAR c -> Printf.sprintf "'\\u{%X}'" c
   | PLUS -> "+"
   | MINUS -> "-"
   | STAR -> "*"

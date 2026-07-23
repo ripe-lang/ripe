@@ -8,7 +8,7 @@ type texpr_desc =
   | TBool of bool
   | TNull
   | TCStr of string
-  | TChar of char
+  | TChar of int
   | TIdent of Symbol.t
   | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr

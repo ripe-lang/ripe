@@ -86,7 +86,7 @@ type expr_desc =
   | Float of float
   | Bool of bool
   | Null
-  | Char of char
+  | Char of int
   | String of string
   | Ident of string
   | Call of expr * expr list

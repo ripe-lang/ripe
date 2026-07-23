@@ -55,7 +55,7 @@ let rec fold_const_num ~sizeof
   match te.T.desc with
   | T.TInt n -> wrap_const te.T.ty n
   | T.TBool b -> const_bool b
-  | T.TChar c -> Ni32 (Int32.of_int (Char.code c))
+  | T.TChar cp -> Ni32 (Int32.of_int cp)
   | T.TFloat f -> Nf f
   | T.TSizeOf t -> wrap_const te.T.ty (Int64.of_int (sizeof t))
   | T.TIdent s -> (

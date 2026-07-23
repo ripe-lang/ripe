@@ -1,0 +1,12 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var a: char = 'A'
+  var newline: char = '\n'
+  var emoji: char = '😀'
+  var lo: char = '\0'
+  printf("%d %d %d %d\n", a as i32, newline as i32, emoji as i32, lo as i32)
+  if a == 'A' { printf("eq\n") }
+  if a < 'B' { printf("lt\n") }
+  return a as i32
+}

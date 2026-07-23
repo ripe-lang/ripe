@@ -9,6 +9,7 @@ type ty =
   | TInt of int_kind
   | TFloat of float_kind
   | TBool
+  | TChar
   | TCStr
   | TVoid
   | TNever
@@ -52,7 +53,7 @@ let builtin_tys =
   @ List.map
       (fun k -> (String.lowercase_ascii (show_float_kind k), TFloat k))
       float_kinds
-  @ [ ("bool", TBool); ("cstr", TCStr); ("never", TNever) ]
+  @ [ ("bool", TBool); ("char", TChar); ("cstr", TCStr); ("never", TNever) ]
 
 let int_kind_of_string s =
   List.find_opt
@@ -63,6 +64,7 @@ let rec show_ty = function
   | TInt k -> String.lowercase_ascii (show_int_kind k)
   | TFloat k -> String.lowercase_ascii (show_float_kind k)
   | TBool -> "bool"
+  | TChar -> "char"
   | TCStr -> "cstr"
   | TVoid -> "void"
   | TNever -> "never"
@@ -128,6 +130,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
+  | TChar -> 4
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no alignment"
   | TNever -> Error.ice "TNever has no alignment"
@@ -153,6 +156,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
   | TBool -> 1
+  | TChar -> 4
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
   | TVoid -> Error.ice "TVoid has no size"
   | TNever -> Error.ice "TNever has no size"
@@ -184,7 +188,7 @@ let is_aggregate t =
 (* a const is a compile-time value so only types the folder can compute are allowed *)
 let is_scalar t =
   match resolve_ty t with
-  | TInt _ | TFloat _ | TBool | TError -> true
+  | TInt _ | TFloat _ | TBool | TChar | TError -> true
   | _ -> false
 
 (* the 8 byte value classes, so constant folding picks a 64 bit result *)

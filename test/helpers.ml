@@ -110,7 +110,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Float f -> string_of_float f
   | Bool b -> string_of_bool b
   | Null -> "null"
-  | Char c -> "'" ^ String.make 1 c ^ "'"
+  | Char c -> Printf.sprintf "'\\u{%X}'" c
   | String s -> "\"" ^ s ^ "\""
   | Ident s -> s
   | Call (callee, args) ->
