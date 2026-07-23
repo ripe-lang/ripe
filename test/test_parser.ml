@@ -359,7 +359,8 @@ let%expect_test "parse: else if hints elseif" =
 
 let%expect_test "parse: dangling else has no matching if" =
   run_src "func f() i32 { { if 1 > 0 { 1 } } else { 2 } }";
-  [%expect {|
+  [%expect
+    {|
     error: `else` without a matching `if`
       at <test>:1:35
         func f() i32 { { if 1 > 0 { 1 } } else { 2 } }
