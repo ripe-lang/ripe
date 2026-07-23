@@ -26,8 +26,8 @@ opam install . --deps-only
 ## Usage
 
 ```
-dune build                            # Compile
-dune exec ripec -- <file.rp>          # Run on a file
+dune build
+dune exec ripec -- <file.rp>
 ```
 
 ## Contributing
@@ -37,4 +37,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 Ripe is licensed under GPL-2.0-only. See [COPYRIGHT.md](COPYRIGHT.md) for details.
-
