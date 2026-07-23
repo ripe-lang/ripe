@@ -28,25 +28,19 @@ type texpr_desc =
   | TZero
   | TUndef
   | TStructLit of string * (string * texpr) list
-  | TBlockExpr of tstmt list * texpr
-  | TIfExpr of (texpr * texpr) list * texpr
+  | TBlock of tblock
+  | TIf of (texpr * tblock) list * tblock option
+  | TWhile of texpr * tblock
+  | TFor of Symbol.t * ty * texpr * tblock
+  | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
+  | TReturn of texpr option
+  | TBreak
+  | TContinue
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
-and tstmt_desc =
-  | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
-  | TReturn of texpr option
-  | TIf of (texpr * tstmt list) list * tstmt list
-  | TWhile of texpr * tstmt list
-  | TFor of Symbol.t * ty * texpr * tstmt list
-  | TBreak
-  | TContinue
-  | TExpr of texpr
-  | TBlock of tstmt list
-
-and tstmt = { tsdesc : tstmt_desc; span : Ast.span }
-[@@deriving show { with_path = false }]
+and tblock = texpr list [@@deriving show { with_path = false }]
 
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }
@@ -55,7 +49,7 @@ type tfunc_def = {
   name : string;
   params : (Symbol.t * ty) list;
   ret_ty : ty;
-  body : tstmt list;
+  body : tblock;
   modifiers : Ast.modifier list;
   variadic : bool;
 }

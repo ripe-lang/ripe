@@ -87,7 +87,6 @@ let comma_sep st stop parse_one =
   List.rev !items
 
 let mk lo st desc = { desc; span = { lo; hi = st.prev_end } }
-let mks lo st sdesc = { sdesc; span = { lo; hi = st.prev_end } }
 let mkt lo st tdesc = { tdesc; span = { lo; hi = st.prev_end } }
 
 let expect_field_sep st =
@@ -417,59 +416,27 @@ and parse_primary st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
+  | ELSE | ELSEIF ->
+      raise
+        (ParseError
+           Diagnostic.(
+             error
+               (Printf.sprintf "`%s` without a matching `if`"
+                  (show_token st.tok))
+             |> at (cur_span st)
+             |> label (Printf.sprintf "found %s" (show_token st.tok))
+             |> help "an `if` used as a value closes at its `}`"))
   | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
-(* A trailing if or block is a value too so its arms count as values *)
-and value_of_stmt (s : stmt) : expr option =
-  match s.sdesc with
-  | Expr e -> Some e
-  | Block body -> block_value body s.span
-  | If (branches, else_body) when else_body <> [] ->
-      let arm (c, body) =
-        Option.map (fun v -> (c, v)) (block_value body s.span)
-      in
-      let arms =
-        List.fold_right
-          (fun b acc ->
-            match (arm b, acc) with
-            | Some a, Some rest -> Some (a :: rest)
-            | _ -> None)
-          branches (Some [])
-      in
-      Option.bind arms (fun branches' ->
-          Option.map
-            (fun else_v -> { desc = IfExpr (branches', else_v); span = s.span })
-            (block_value else_body s.span))
-  | If _ | Binding _ | Return _ | While _ | For _ | Break | Continue -> None
-
-(* The block's value is its last statement and the rest stays a plain block *)
-and block_value (body : stmt list) (span : span) : expr option =
-  match List.rev body with
-  | last :: rest ->
-      Option.map
-        (fun v -> { desc = BlockExpr (List.rev rest, v); span })
-        (value_of_stmt last)
-  | [] -> None
-
-(* the last statement is the block's value, e.g. let x = { var y = 2 y + 1 } *)
-and parse_block_expr st =
-  let lo = cur_pos st in
-  let body = parse_block st in
-  match block_value body { lo; hi = st.prev_end } with
-  | Some e -> e
-  | None ->
-      raise
-        (ParseError
-           Diagnostic.(
-             error "block expression must end with a value"
-             |> at { lo; hi = st.prev_end }))
-
+(* if and block are values too and where they sit decides if the value is used *)
 and parse_value st =
-  if at st IF then parse_if_expr st
-  else if at st LBRACE then parse_block_expr st
-  else parse_expr st 1
+  let lo = cur_pos st in
+  match st.tok with
+  | IF -> parse_if st
+  | LBRACE -> mk lo st (Block (parse_block st))
+  | _ -> parse_expr st 1
 
 (* x: 3, y: 4 *)
 and parse_struct_lit_fields st =
@@ -519,24 +486,22 @@ and parse_simple_stmt st =
           Some (parse_value st))
         else None
       in
-      mks lo st (Binding (kind, name, nspan, ann, e))
+      mk lo st (Binding (kind, name, nspan, ann, e))
   | BREAK ->
       advance st;
-      mks lo st Break
+      mk lo st Break
   | CONTINUE ->
       advance st;
-      mks lo st Continue
+      mk lo st Continue
   | RETURN ->
       (* return with no value ends at a newline or closing brace *)
       advance st;
       if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
-        mks lo st (Return None)
+        mk lo st (Return None)
       else
         let e = parse_value st in
-        mks lo st (Return (Some e))
-  | _ ->
-      let e = parse_expr st 1 in
-      mks lo st (Expr e)
+        mk lo st (Return (Some e))
+  | _ -> parse_expr st 1
 
 (* { return a + b } *)
 and parse_block st =
@@ -564,7 +529,7 @@ and parse_stmt st =
   | FOR -> parse_for st
   | LBRACE ->
       let body = parse_block st in
-      mks lo st (Block body)
+      mk lo st (Block body)
   | _ ->
       let s = parse_simple_stmt st in
       (* ends with a semicolon, clean up *)
@@ -602,30 +567,11 @@ and parse_if st =
                |> label "found if"
                |> help "the keyword is elseif, one word"));
       skip_semi st;
-      parse_block st
+      Some (parse_block st)
     end
-    else [] (* no else branch, uniform with body type *)
+    else None
   in
-  mks lo st (If ((cond, body) :: elseifs, else_body))
-
-(* A value if is just a statement if whose arms become tail values *)
-and parse_if_expr st =
-  let s = parse_if st in
-  match value_of_stmt s with
-  | Some e -> e
-  | None ->
-      let err =
-        match s.sdesc with
-        | If (_, []) ->
-            Diagnostic.(
-              error "if expression needs an else branch"
-              |> at s.span
-              |> help "add an else branch that yields a value")
-        | _ ->
-            Diagnostic.(
-              error "block expression must end with a value" |> at s.span)
-      in
-      raise (ParseError err)
+  mk lo st (If ((cond, body) :: elseifs, else_body))
 
 (* while i < len { } *)
 and parse_while st =
@@ -635,7 +581,7 @@ and parse_while st =
   let cond = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
-  mks lo st (While (cond, body))
+  mk lo st (While (cond, body))
 
 (* for i in 0..len { } *)
 and parse_for st =
@@ -647,7 +593,7 @@ and parse_for st =
   let iter = parse_header_expr st in
   skip_semi st;
   let body = parse_block st in
-  mks lo st (For (name, nspan, iter, body))
+  mk lo st (For (name, nspan, iter, body))
 
 (* func NAME(params) ret *)
 let parse_signature st =
@@ -666,7 +612,7 @@ let parse_func st mods =
       let slo = cur_pos st in
       advance st;
       let e = parse_expr st 1 in
-      [ mks slo st (Return (Some e)) ]
+      [ mk slo st (Return (Some e)) ]
     end
     else begin
       skip_semi st;

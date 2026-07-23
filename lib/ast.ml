@@ -101,12 +101,21 @@ type expr_desc =
   | Index of expr * expr
   | Undefined
   | StructLit of string * span * (string * span * expr) list
-  | BlockExpr of stmt list * expr
-  | IfExpr of (expr * expr) list * expr
+  | Block of block
+  | If of (expr * block) list * block option
+  | While of expr * block
+  | For of string * span * expr * block
+  (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
+  | Binding of binding_kind * string * span * typ option * expr option
+  | Return of expr option
+  | Break
+  | Continue
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
+
+and block = expr list [@@deriving show { with_path = false }]
 
 and typ_desc =
   | Named of string
@@ -117,22 +126,6 @@ and typ_desc =
 [@@deriving show { with_path = false }]
 
 and typ = { tdesc : typ_desc; span : span }
-[@@deriving show { with_path = false }]
-
-(* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
-and stmt_desc =
-  | Binding of binding_kind * string * span * typ option * expr option
-  | Return of expr option
-  | If of (expr * stmt list) list * stmt list
-  | While of expr * stmt list
-  | For of string * span * expr * stmt list
-  | Break
-  | Continue
-  | Expr of expr
-  | Block of stmt list
-[@@deriving show { with_path = false }]
-
-and stmt = { sdesc : stmt_desc; span : span }
 [@@deriving show { with_path = false }]
 
 type modifier = Pub | Inline [@@deriving show { with_path = false }]
@@ -152,7 +145,7 @@ type func_def = {
   name : string;
   params : param list;
   ret : typ option;
-  body : stmt list;
+  body : block;
   modifiers : modifier list;
   variadic : bool;
   span : span;

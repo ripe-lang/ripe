@@ -12,7 +12,6 @@ type cexpr_desc =
   | CIdent of Symbol.t
   | CCall of cexpr * cexpr list * int option
   | CBinOp of Ast.binop * cexpr * cexpr
-  | CIfExpr of cexpr * cexpr * cexpr
   | CUnOp of Ast.unop * cexpr
   | CFieldAccess of cexpr * string
   (* target type is the node type *)
@@ -27,21 +26,16 @@ type cexpr_desc =
   | CZero
   | CUndef
   | CStructLit of string * (string * cexpr) list
-  | CBlockExpr of cstmt list * cexpr
-
-and cexpr = { desc : cexpr_desc; ty : ty; span : Ast.span }
-
-and cstmt_desc =
+  | CBlock of cblock
+  | CIf of (cexpr * cblock) list * cblock option
+  | CLoop of cblock
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
-  | CIf of (cexpr * cstmt list) list * cstmt list
-  | CLoop of cstmt list
   | CBreak
   | CContinue
-  | CExpr of cexpr
 
-and cstmt = { tsdesc : cstmt_desc; span : Ast.span }
-[@@deriving show { with_path = false }]
+and cexpr = { desc : cexpr_desc; ty : ty; span : Ast.span }
+and cblock = cexpr list [@@deriving show { with_path = false }]
 
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : cexpr_desc) : cexpr =
   { desc; ty; span }
@@ -50,7 +44,7 @@ type cfunc_def = {
   name : string;
   params : (Symbol.t * ty) list;
   ret_ty : ty;
-  body : cstmt list;
+  body : cblock;
   modifiers : Ast.modifier list;
   variadic : bool;
 }

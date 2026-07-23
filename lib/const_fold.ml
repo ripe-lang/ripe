@@ -72,32 +72,26 @@ let run ~(emit : Diagnostic.t -> unit)
     | T.TStructLit (name, fields) ->
         mk
           (T.TStructLit (name, List.map (fun (f, e) -> (f, sub_expr e)) fields))
-    | T.TBlockExpr (body, e) -> mk (T.TBlockExpr (sub_stmts body, sub_expr e))
-    | T.TIfExpr (branches, else_e) ->
-        mk
-          (T.TIfExpr
-             ( List.map (fun (c, a) -> (sub_expr c, sub_expr a)) branches,
-               sub_expr else_e ))
-  (* a const binding folded while checking so it just vanishes from the tree *)
-  and sub_stmt (st : T.tstmt) : T.tstmt option =
-    let keep tsdesc = Some { st with T.tsdesc } in
-    match st.T.tsdesc with
-    | T.TBinding (Ast.Const, _, _, _) -> None
-    | T.TBinding (kind, s, t, e) -> keep (T.TBinding (kind, s, t, sub_expr e))
-    | T.TReturn e -> keep (T.TReturn (Option.map sub_expr e))
+    | T.TBlock body -> mk (T.TBlock (sub_block body))
     | T.TIf (branches, els) ->
-        keep
+        mk
           (T.TIf
-             ( List.map (fun (c, body) -> (sub_expr c, sub_stmts body)) branches,
-               sub_stmts els ))
-    | T.TWhile (c, body) -> keep (T.TWhile (sub_expr c, sub_stmts body))
+             ( List.map (fun (c, body) -> (sub_expr c, sub_block body)) branches,
+               Option.map sub_block els ))
+    | T.TWhile (c, body) -> mk (T.TWhile (sub_expr c, sub_block body))
     | T.TFor (s, t, iter, body) ->
-        keep (T.TFor (s, t, sub_expr iter, sub_stmts body))
-    | (T.TBreak | T.TContinue) as d -> keep d
-    | T.TExpr e -> keep (T.TExpr (sub_expr e))
-    | T.TBlock body -> keep (T.TBlock (sub_stmts body))
-  and sub_stmts (body : T.tstmt list) : T.tstmt list =
-    List.filter_map sub_stmt body
+        mk (T.TFor (s, t, sub_expr iter, sub_block body))
+    | T.TBinding (kind, s, t, e) -> mk (T.TBinding (kind, s, t, sub_expr e))
+    | T.TReturn e -> mk (T.TReturn (Option.map sub_expr e))
+    | T.TBreak | T.TContinue -> te
+  (* a const binding folded while checking so it just vanishes from the block *)
+  and sub_block (body : T.tblock) : T.tblock =
+    List.filter_map
+      (fun e ->
+        match e.T.desc with
+        | T.TBinding (Ast.Const, _, _, _) -> None
+        | _ -> Some (sub_expr e))
+      body
   in
 
   (* scalars must be finished values for QBE data and the rest stays symbolic *)
@@ -138,6 +132,6 @@ let run ~(emit : Diagnostic.t -> unit)
             | None -> None
           in
           Some (T.TGlobal { gd with T.init })
-      | T.TFunc fd -> Some (T.TFunc { fd with T.body = sub_stmts fd.T.body })
+      | T.TFunc fd -> Some (T.TFunc { fd with T.body = sub_block fd.T.body })
       | d -> Some d)
     tdecls

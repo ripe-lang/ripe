@@ -16,39 +16,51 @@ let fresh_sym name : Symbol.t =
     span = Ast.dummy_span;
   }
 
-let mkstmt (desc : D.cstmt_desc) : D.cstmt =
-  { D.tsdesc = desc; span = Ast.dummy_span }
-
+let voidc (desc : D.cexpr_desc) : D.cexpr = D.mk Types.TVoid desc
+let neverc (desc : D.cexpr_desc) : D.cexpr = D.mk Types.TNever desc
 let ident ty sym = D.mk ty (D.CIdent sym)
 let int ty n = D.mk ty (D.CInt n)
 let binop ty op a b = D.mk ty (D.CBinOp (op, a, b))
-let bind sym ty e = mkstmt (D.CBinding (Ast.Var, sym, ty, e))
-
-let assign (lhs : D.cexpr) rhs =
-  mkstmt (D.CExpr (binop lhs.D.ty Ast.Assign lhs rhs))
-
-let if_then cond body = mkstmt (D.CIf ([ (cond, body) ], []))
+let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
+let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
+let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
 
 (* a for-loop continue still has to run the step, so drop a copy in front of each one *)
 (* nested loops aren't touched here since their continues belong to them *)
-let rec paste_step step (stmts : D.cstmt list) : D.cstmt list =
-  let on_stmt (st : D.cstmt) =
-    match st.D.tsdesc with
+let rec paste_step step (stmts : D.cblock) : D.cblock =
+  let on_stmt (st : D.cexpr) =
+    match st.D.desc with
     | D.CContinue -> step @ [ st ]
-    | D.CIf (branches, else_body) ->
-        let branches =
-          List.map (fun (c, body) -> (c, paste_step step body)) branches
-        in
-        [ { st with D.tsdesc = D.CIf (branches, paste_step step else_body) } ]
+    (* a nested loop owns its own continues *)
+    | D.CLoop _ -> [ st ]
+    | D.CReturn (Some e) ->
+        [ { st with D.desc = D.CReturn (Some (paste_in_expr step e)) } ]
+    | D.CIf _ | D.CBlock _ | D.CBinding _ -> [ paste_in_expr step st ]
     | _ -> [ st ]
   in
   List.concat_map on_stmt stmts
 
-let loop ~init ~cond ~step ~body : D.cstmt list =
+(* a continue can hide in a value if that a binding or return holds *)
+and paste_in_expr step (e : D.cexpr) : D.cexpr =
+  match e.D.desc with
+  | D.CIf (branches, else_body) ->
+      let branches =
+        List.map (fun (c, body) -> (c, paste_step step body)) branches
+      in
+      {
+        e with
+        D.desc = D.CIf (branches, Option.map (paste_step step) else_body);
+      }
+  | D.CBlock body -> { e with D.desc = D.CBlock (paste_step step body) }
+  | D.CBinding (k, s, t, init) ->
+      { e with D.desc = D.CBinding (k, s, t, paste_in_expr step init) }
+  | _ -> e
+
+let loop ~init ~cond ~step ~body : D.cblock =
   let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
-  let guard = if_then not_cond [ mkstmt D.CBreak ] in
+  let guard = if_then not_cond [ neverc D.CBreak ] in
   let body = if step = [] then body else paste_step step body @ step in
-  let bare = mkstmt (D.CLoop (guard :: body)) in
+  let bare = voidc (D.CLoop (guard :: body)) in
   init @ [ bare ]
 
 let rec lower_expr (te : S.texpr) : D.cexpr =
@@ -65,9 +77,13 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TCall (f, args, variadic_start) ->
         D.CCall (lower_expr f, List.map lower_expr args, variadic_start)
     | S.TBinOp (Ast.And, l, r) ->
-        D.CIfExpr (lower_expr l, lower_expr r, D.mk ~span ty (D.CBool false))
+        D.CIf
+          ( [ (lower_expr l, [ lower_expr r ]) ],
+            Some [ D.mk ~span ty (D.CBool false) ] )
     | S.TBinOp (Ast.Or, l, r) ->
-        D.CIfExpr (lower_expr l, D.mk ~span ty (D.CBool true), lower_expr r)
+        D.CIf
+          ( [ (lower_expr l, [ D.mk ~span ty (D.CBool true) ]) ],
+            Some [ lower_expr r ] )
     | S.TBinOp (op, l, r) -> D.CBinOp (op, lower_expr l, lower_expr r)
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
@@ -86,17 +102,35 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TUndef -> D.CUndef
     | S.TStructLit (name, fields) ->
         D.CStructLit (name, List.map (fun (n, e) -> (n, lower_expr e)) fields)
-    | S.TBlockExpr (body, e) -> D.CBlockExpr (lower_stmts body, lower_expr e)
-    | S.TIfExpr (branches, else_e) ->
-        let folded =
-          List.fold_right
-            (fun (cond, arm) acc ->
-              D.mk ~span ty (D.CIfExpr (lower_expr cond, lower_expr arm, acc)))
-            branches (lower_expr else_e)
-        in
-        folded.D.desc
+    | S.TBlock body -> D.CBlock (lower_block body)
+    | S.TIf (branches, else_body) ->
+        D.CIf
+          ( List.map (fun (c, body) -> (lower_expr c, lower_block body)) branches,
+            Option.map lower_block else_body )
+    (* while and for are void so they only reach here from an unused value slot *)
+    | S.TWhile (cond, body) -> D.CBlock (lower_while cond body)
+    | S.TFor (sym, elem_ty, iter, body) ->
+        D.CBlock (lower_for sym elem_ty iter body)
+    | S.TBinding (kind, sym, t, e) -> D.CBinding (kind, sym, t, lower_expr e)
+    | S.TReturn e -> D.CReturn (Option.map lower_expr e)
+    | S.TBreak -> D.CBreak
+    | S.TContinue -> D.CContinue
   in
   { D.desc; ty; span }
+
+(* a block element in statement position may expand to several core statements *)
+and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
+
+and lower_elem (te : S.texpr) : D.cblock =
+  match te.S.desc with
+  | S.TWhile (cond, body) -> lower_while cond body
+  | S.TFor (sym, elem_ty, iter, body) -> lower_for sym elem_ty iter body
+  | S.TBinOp (op, l, r) when base_binop_of op <> None ->
+      lower_compound_assign op l r
+  | _ -> [ lower_expr te ]
+
+and lower_while cond body : D.cblock =
+  loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_block body)
 
 (* x op= r runs as x = x op r, and likewise for every other compound form *)
 and base_binop_of = function
@@ -113,7 +147,7 @@ and base_binop_of = function
   | _ -> None
 
 (* the target's address is taken once so an index or base with side effects doesn't run twice *)
-and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
+and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cblock =
   let elem = l.S.ty in
   let ptr_ty = Types.TPointer elem in
   let span = l.S.span in
@@ -129,7 +163,7 @@ and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cstmt list =
   let updated = binop elem base place (lower_expr r) in
   [ bind psym ptr_ty addr; assign place updated ]
 
-and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
+and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
   let ivar = ident elem_ty sym in
   let hisym = fresh_sym "for.hi" in
   let hivar = ident elem_ty hisym in
@@ -142,13 +176,13 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cstmt list =
   let step =
     if inclusive then
       [
-        if_then (binop Types.TBool Ast.Eq ivar hivar) [ mkstmt D.CBreak ]; incr;
+        if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc D.CBreak ]; incr;
       ]
     else [ incr ]
   in
   loop ~init ~cond ~step ~body
 
-and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
+and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
   (* a slice is snapshotted so its pointer and length come from one evaluation *)
@@ -177,50 +211,22 @@ and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cstmt list =
   let body = bind sym elem_ty elem :: body in
   loop ~init ~cond ~step:[ incr ] ~body
 
-and lower_for sym elem_ty iter body : D.cstmt list =
+and lower_for sym elem_ty iter body : D.cblock =
   match iter.S.desc with
   | S.TRange (lo, hi) ->
       lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
-        ~inclusive:false body
+        ~inclusive:false (lower_block body)
   | S.TRangeInclusive (lo, hi) ->
       lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
-        ~inclusive:true body
-  | _ -> lower_each_for sym elem_ty (lower_expr iter) body
-
-and lower_stmt (st : S.tstmt) : D.cstmt list =
-  let span = st.S.span in
-  let one tsdesc = [ { D.tsdesc; span } ] in
-  match st.S.tsdesc with
-  | S.TBinding (kind, sym, ty, e) ->
-      one (D.CBinding (kind, sym, ty, lower_expr e))
-  | S.TReturn e -> one (D.CReturn (Option.map lower_expr e))
-  | S.TIf (branches, else_body) ->
-      one
-        (D.CIf
-           ( List.map
-               (fun (c, body) -> (lower_expr c, lower_stmts body))
-               branches,
-             lower_stmts else_body ))
-  | S.TWhile (cond, body) ->
-      loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_stmts body)
-  | S.TFor (sym, elem_ty, iter, body) ->
-      lower_for sym elem_ty iter (lower_stmts body)
-  | S.TBreak -> one D.CBreak
-  | S.TContinue -> one D.CContinue
-  | S.TExpr { S.desc = S.TBinOp (op, l, r); _ } when base_binop_of op <> None ->
-      lower_compound_assign op l r
-  | S.TExpr e -> one (D.CExpr (lower_expr e))
-  | S.TBlock body -> lower_stmts body
-
-and lower_stmts (stmts : S.tstmt list) : D.cstmt list =
-  List.concat_map lower_stmt stmts
+        ~inclusive:true (lower_block body)
+  | _ -> lower_each_for sym elem_ty (lower_expr iter) (lower_block body)
 
 let lower_func (fd : S.tfunc_def) : D.cfunc_def =
   {
     D.name = fd.S.name;
     params = fd.S.params;
     ret_ty = fd.S.ret_ty;
-    body = lower_stmts fd.S.body;
+    body = lower_block fd.S.body;
     modifiers = fd.S.modifiers;
     variadic = fd.S.variadic;
   }

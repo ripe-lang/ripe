@@ -6,8 +6,8 @@
   "id": "d6df",
   "priority": "low",
   "source": "lib/codegen_qbe.ml",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "emit_expr in statement position emits dead loads for idents",
-  "updated_at": "2026-07-19 08:50:33.073663"
+  "updated_at": "2026-07-22 16:41:43.221015"
 }
