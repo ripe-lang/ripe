@@ -11,8 +11,10 @@ let fresh_sym name : Symbol.t =
   incr sym_counter;
   {
     Symbol.id = -1 - c;
+    module_id = -1;
     name = Printf.sprintf "%s.%d" name c;
     kind = Symbol.Local Ast.Var;
+    visibility = Symbol.Private;
     span = Ast.dummy_span;
   }
 

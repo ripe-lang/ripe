@@ -7,6 +7,7 @@ type t = { syms : (Ast.span, Symbol.t) Hashtbl.t }
 
 type state = {
   out : t;
+  module_id : Symbol.module_id;
   globals : (string, Symbol.t) Hashtbl.t;
   types : (string, Symbol.t) Hashtbl.t;
   mutable scopes : (string, Symbol.t) Hashtbl.t list;
@@ -29,11 +30,13 @@ let sym_at (r : t) (span : Ast.span) : Symbol.t =
   | Some s -> s
   | None -> Error.ice ~span "no symbol resolved here"
 
-let mint (st : state) (kind : Symbol.kind) (name : string) (span : Ast.span) :
-    Symbol.t =
+let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
+    (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
   st.next_id <- id + 1;
-  let sym = { Symbol.id; name; kind; span } in
+  let sym =
+    { Symbol.id; module_id = st.module_id; name; kind; visibility; span }
+  in
   Hashtbl.replace st.out.syms span sym;
   sym
 
@@ -50,18 +53,18 @@ let declare_local (st : state) kind name span : unit =
   | scope :: _ -> Hashtbl.replace scope name sym
   | [] -> assert false
 
-let declare_global (st : state) kind name span : unit =
+let declare_global (st : state) kind visibility name span : unit =
   match Hashtbl.find_opt st.globals name with
   | Some prev ->
       Diagnostic.emit st.diags
         (Error.redefinition span ~prev:prev.Symbol.span name)
   | None ->
-      let sym = mint st kind name span in
+      let sym = mint ~visibility st kind name span in
       Hashtbl.replace st.globals name sym
 
-let declare_type (st : state) name span : unit =
+let declare_type (st : state) visibility name span : unit =
   if not (Hashtbl.mem st.types name) then
-    Hashtbl.replace st.types name (mint st Symbol.Type name span)
+    Hashtbl.replace st.types name (mint ~visibility st Symbol.Type name span)
 
 let use_type (st : state) name span : unit =
   if not (List.mem_assoc name Types.builtin_tys) then
@@ -169,10 +172,14 @@ let resolve_func (st : state) (fd : func_def) : unit =
   List.iter (resolve_expr st) fd.body;
   pop_scope st
 
-let resolve (decls : decl list) : t =
+let visibility modifiers =
+  if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
+
+let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
   let st =
     {
       out = { syms = Hashtbl.create 256 };
+      module_id;
       globals = Hashtbl.create 64;
       types = Hashtbl.create 64;
       scopes = [];
@@ -184,11 +191,16 @@ let resolve (decls : decl list) : t =
      reference. *)
   List.iter
     (function
-      | Func fd -> declare_global st Symbol.Func fd.name fd.span
-      | Extern fd -> declare_global st Symbol.Extern fd.name fd.span
-      | Global gd -> declare_global st Symbol.Global gd.name gd.span
-      | Struct sd -> declare_type st sd.name sd.span
-      | TypeAlias td | Newtype td -> declare_type st td.name td.span)
+      | Func fd ->
+          declare_global st Symbol.Func (visibility fd.modifiers) fd.name
+            fd.span
+      | Extern fd ->
+          declare_global st Symbol.Extern Symbol.Private fd.name fd.span
+      | Global gd ->
+          declare_global st Symbol.Global Symbol.Private gd.name gd.span
+      | Struct sd -> declare_type st (visibility sd.modifiers) sd.name sd.span
+      | TypeAlias td | Newtype td ->
+          declare_type st Symbol.Private td.name td.span)
     decls;
   List.iter
     (function

@@ -124,7 +124,7 @@ let compile ~stage ~backend ~out ~filename =
     stop_at Tokens (fun () -> output_text (dump_tokens read lexbuf));
     let decls = Parser.parse read lexbuf in
     stop_at Ast (fun () -> output_text (show_decls decls));
-    let uses = Resolve.resolve decls in
+    let uses = Resolve.resolve ~module_id:0 decls in
     stop_at Resolve (fun () -> output_text (Resolve.dump uses));
     let tdecls, warns = Typechecker.typecheck uses decls in
     render_all ctx warns;
