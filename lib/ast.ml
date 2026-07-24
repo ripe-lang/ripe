@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type span = Span.t = { lo : int; hi : int }
+type span = Span.t = { file : Span.file_id; lo : int; hi : int }
 
 let pp_span = Span.pp
 let show_span = Span.show

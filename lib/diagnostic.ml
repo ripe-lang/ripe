@@ -55,7 +55,9 @@ let warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
 (* sorted into source order and ties keep emission order *)
 let drain (s : sink) : t list =
-  let pos d = match d.primary with Some sp -> sp.Ast.lo | None -> 0 in
+  let pos d =
+    match d.primary with Some sp -> (sp.Ast.file, sp.lo) | None -> (-1, 0)
+  in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
 
 (* rendering *)

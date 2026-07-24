@@ -2,8 +2,8 @@
 
 module C = Ripe.Core
 
-let parse src =
-  let st = Ripe.Lexer.make_state () in
+let parse ?(file = 0) src =
+  let st = Ripe.Lexer.make_state file in
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
 
@@ -16,9 +16,9 @@ let off src sub =
   go 0
 
 let span src sub =
-  { Ripe.Ast.lo = off src sub; hi = off src sub + String.length sub }
+  Ripe.Span.make 0 (off src sub) (off src sub + String.length sub)
 
-let point src sub = { Ripe.Ast.lo = off src sub; hi = off src sub }
+let point src sub = Ripe.Span.make 0 (off src sub) (off src sub)
 
 let replace s old rep =
   let olen = String.length old in
@@ -197,7 +197,7 @@ let all_kinds =
     ]
 
 let dump_tokens src =
-  let st = Ripe.Lexer.make_state () in
+  let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Lexing.from_string src in
   let rec go () =
     let t, _ = Ripe.Lexer.read st lexbuf in

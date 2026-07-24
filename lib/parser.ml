@@ -78,8 +78,9 @@ let comma_sep st stop parse_one =
   end;
   List.rev !items
 
-let mk lo st desc = { desc; span = { lo; hi = st.prev_end } }
-let mkt lo st tdesc = { tdesc; span = { lo; hi = st.prev_end } }
+let make_span st lo hi = Span.make st.tok_span.file lo hi
+let mk lo st desc = { desc; span = make_span st lo st.prev_end }
+let mkt lo st tdesc = { tdesc; span = make_span st lo st.prev_end }
 
 let expect_field_sep st =
   (match st.tok with
@@ -217,7 +218,7 @@ and parse_struct st mods =
   expect st RBRACE;
   let hi = st.prev_end in
   skip_semi st;
-  Struct { name; fields; modifiers = mods; span = { lo; hi } }
+  Struct { name; fields; modifiers = mods; span = make_span st lo hi }
 
 (* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
 and parse_params st =
@@ -230,7 +231,7 @@ and parse_params st =
     expect st COLON;
     let t = parse_typ st in
     let hi = st.prev_end in
-    ({ name; typ = t; span = { lo; hi } } : param)
+    ({ name; typ = t; span = make_span st lo hi } : param)
   in
   if st.tok <> RPAREN then begin
     params := [ parse_one () ];
@@ -616,7 +617,15 @@ let parse_func st mods =
   in
   let hi = st.prev_end in
   Func
-    { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
+    {
+      name;
+      params;
+      ret;
+      body;
+      modifiers = mods;
+      variadic;
+      span = make_span st lo hi;
+    }
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
@@ -636,7 +645,7 @@ let parse_global st =
   in
   let hi = st.prev_end in
   skip_semi st;
-  Global { name; typ; init; kind; span = { lo; hi } }
+  Global { name; typ; init; kind; span = make_span st lo hi }
 
 (* type binop = (i32, i32) i32 *)
 let parse_type_alias st =
@@ -648,7 +657,7 @@ let parse_type_alias st =
   let typ = parse_typ st in
   let hi = st.prev_end in
   skip_semi st;
-  Ast.TypeAlias { name; typ; span = { lo; hi } }
+  Ast.TypeAlias { name; typ; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
 let parse_newtype st =
@@ -660,7 +669,7 @@ let parse_newtype st =
   let typ = parse_typ st in
   let hi = st.prev_end in
   skip_semi st;
-  Ast.Newtype { name; typ; span = { lo; hi } }
+  Ast.Newtype { name; typ; span = make_span st lo hi }
 
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
@@ -678,7 +687,7 @@ let parse_extern st =
       body = [];
       modifiers = [];
       variadic;
-      span = { lo; hi };
+      span = make_span st lo hi;
     }
 
 let parse_decl st =

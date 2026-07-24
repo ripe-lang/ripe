@@ -18,7 +18,7 @@ type state = {
 let dump (r : t) : string =
   Hashtbl.to_seq r.syms |> List.of_seq
   |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) ->
-      compare (a.lo, a.hi) (b.lo, b.hi))
+      compare (a.file, a.lo, a.hi) (b.file, b.lo, b.hi))
   |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
       Printf.sprintf "(%d,%d) -> #%d %s %s\n" sp.lo sp.hi s.id
         (Symbol.show_kind s.kind) s.name)

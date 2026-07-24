@@ -774,3 +774,12 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
                                   func f() { ( [
                                                ^
                               |}]
+
+let%expect_test "parse: spans from different files are distinct" =
+  let function_span file =
+    match parse ~file "func f() {}" with
+    | [ Ripe.Ast.Func fd ] -> fd.span
+    | _ -> failwith "expected one function"
+  in
+  Printf.printf "%b" (function_span 0 = function_span 1);
+  [%expect {| false |}]

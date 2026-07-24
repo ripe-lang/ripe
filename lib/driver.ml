@@ -90,7 +90,7 @@ let load filename =
     die (Printf.sprintf "%s: not valid UTF-8" filename);
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
-  let read = Lexer.read (Lexer.make_state ()) in
+  let read = Lexer.read (Lexer.make_state 0) in
   let ctx =
     {
       Diagnostic.sm = Source_map.create src;
