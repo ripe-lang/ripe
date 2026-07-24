@@ -9,8 +9,7 @@ exception ParseError of Diagnostic.t
 type state = {
   mutable tok : token;
   mutable tok_span : span;
-  lexbuf : Lexing.lexbuf;
-  read : Lexing.lexbuf -> token * span;
+  read : unit -> token * span;
   diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
   mutable prev_end : int;
@@ -21,17 +20,11 @@ type assoc = Left | Right | NonAssoc
 (* span of the current lookahead token so the caret lands under it *)
 let cur_span st = st.tok_span
 
-let rec advance st =
+let advance st =
   st.prev_end <- st.tok_span.hi;
-  let tok, span = st.read st.lexbuf in
+  let tok, span = st.read () in
   st.tok <- tok;
-  st.tok_span <- span;
-  match st.tok with
-  (* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
-  | ERROR msg ->
-      Diagnostic.error_at st.diags st.tok_span msg;
-      advance st
-  | _ -> ()
+  st.tok_span <- span
 
 let at st t = st.tok = t
 
@@ -725,15 +718,44 @@ let parse_program st =
   done;
   List.rev !decls
 
+(* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
+let tokenize_all read lexbuf diags =
+  let toks = ref [] in
+  let rec scan stack =
+    match read lexbuf with
+    | ERROR msg, sp ->
+        Diagnostic.error_at diags sp msg;
+        scan stack
+    | (t, sp) as pair -> (
+        toks := pair :: !toks;
+        match Bracket_check.step diags stack t sp with
+        | Bracket_check.Done -> ()
+        | Bracket_check.Stray | Bracket_check.Other -> scan stack
+        | Bracket_check.Open ->
+            scan ((t, sp) :: stack);
+            scan stack)
+  in
+  scan [];
+  Array.of_list (List.rev !toks)
+
+let replay_of (tokens : (Tokens.token * Ast.span) array) =
+  let last = Array.length tokens - 1 in
+  let idx = ref 0 in
+  fun () ->
+    let pair = tokens.(!idx) in
+    if !idx < last then incr idx;
+    pair
+
 let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
     (lexbuf : Lexing.lexbuf) : Ast.decl list =
+  let diags = Diagnostic.sink () in
+  let tokens = tokenize_all read lexbuf diags in
   let st =
     {
       tok = EOF;
       tok_span = dummy_span;
-      lexbuf;
-      read;
-      diags = Diagnostic.sink ();
+      read = replay_of tokens;
+      diags;
       no_struct_lit = false;
       prev_end = 0;
     }

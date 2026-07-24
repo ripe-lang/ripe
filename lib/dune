@@ -9,6 +9,7 @@
   error
   tokens
   lexer
+  bracket_check
   parser
   types
   symbol
