@@ -1,5 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
-(* errors: "expected X but found Y" *)
+(* Errors: "expected X but found Y" *)
 
 open Tokens
 open Ast
@@ -17,7 +17,7 @@ type state = {
 
 type assoc = Left | Right | NonAssoc
 
-(* span of the current lookahead token so the caret lands under it *)
+(* Span of the current lookahead token so the caret lands under it *)
 let cur_span st = st.tok_span
 
 let advance st =
@@ -28,7 +28,7 @@ let advance st =
 
 let at st t = st.tok = t
 
-(* start of the current lookahead token *)
+(* Start of the current lookahead token *)
 let cur_pos st = st.tok_span.lo
 
 let fail st headline =
@@ -43,7 +43,7 @@ let fail_found st headline =
 
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
-(* newlines lex as SEMI *)
+(* Newlines lex as SEMI *)
 let skip_semi st =
   while st.tok = SEMI do
     advance st
@@ -184,7 +184,6 @@ and parse_modifiers st =
     | INLINE ->
         advance st;
         go (Ast.Inline :: acc)
-    (* TODO(74d8): not entirely sure yet. static? public? *)
     | PUBLIC ->
         advance st;
         go (Ast.Pub :: acc)
@@ -196,7 +195,6 @@ and parse_modifiers st =
 and parse_fields st =
   let fields = ref [] in
   while st.tok <> RBRACE do
-    (* TODO(9ee0): parse modifiers *)
     let name, nspan = expect_ident_span st in
     expect st COLON;
     let t = parse_typ st in
@@ -253,13 +251,13 @@ and parse_ret_type st =
   | LBRACE | SEMI | EOF | ASSIGN -> None
   | _ -> Some (parse_typ st)
 
-(* Postfix binds tighter than any infix: a.b + c means (a.b) + c. *)
+(* Postfix binds tighter than infix so a.b + c means (a.b) + c *)
 
 and parse_expr st min_prec =
   let lo = cur_pos st in
   let lhs = ref (parse_prefix st) in
 
-  (* precedence climbing for infix ops *)
+  (* Precedence climbing for infix ops *)
   let loop = ref true in
   while !loop do
     match prec_of st.tok with
@@ -296,8 +294,8 @@ and parse_expr st min_prec =
           let op = binop_of op_tok in
           lhs := mk lo st (BinOp (op, !lhs, rhs))
         end;
-        (* reject a < b < c, 0..5..10, etc *)
-        (* TODO(a300): better message, point at both operators *)
+        (* Reject chained comparisons like a < b < c and 0..5..10 *)
+        (* TODO(a300): better message and point at both operators *)
         match (assoc, prec_of st.tok) with
         | NonAssoc, Some (p, _) when p = prec ->
             fail st
@@ -330,7 +328,7 @@ and parse_prefix st =
   | STAR ->
       advance st;
       mk lo st (UnOp (Deref, parse_prefix st))
-  (* postfix binds tighter than any prefix operator, so the primary takes its
+  (* Postfix binds tighter than any prefix operator, so the primary takes its
      postfix here at the leaf and prefix operators stack around the result:
      `-arr[0]` is `-(arr[0])` and `&s.x` is `&(s.x)` *)
   | _ -> parse_postfix st (parse_primary st)
@@ -423,7 +421,7 @@ and parse_primary st =
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
-(* if and block are values too and where they sit decides if the value is
+(* If and block are values too and where they sit decides if the value is
    used *)
 and parse_value st =
   let lo = cur_pos st in
@@ -466,14 +464,14 @@ and parse_simple_stmt st =
         | _ -> Ast.Var
       in
       let name, nspan = expect_ident_span st in
-      (* optional type annotation since the typechecker can infer it *)
+      (* Optional type annotation since the typechecker can infer it *)
       let ann =
         if at st COLON then (
           advance st;
           Some (parse_typ st))
         else None
       in
-      (* only var may omit the value *)
+      (* Only var may omit the value *)
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
@@ -491,7 +489,7 @@ and parse_simple_stmt st =
       advance st;
       mk lo st Continue
   | RETURN ->
-      (* return with no value ends at a newline or closing brace *)
+      (* Return with no value ends at a newline or closing brace *)
       advance st;
       if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
         mk lo st (Return None)
@@ -529,7 +527,7 @@ and parse_stmt st =
       mk lo st (Block body)
   | _ ->
       let s = parse_simple_stmt st in
-      (* ends with a semicolon, clean up *)
+      (* Ends with a semicolon so clean up *)
       if st.tok = SEMI then advance st;
       s
 
@@ -739,7 +737,7 @@ let parse_module st =
   done;
   { imports = List.rev !imports; decls = List.rev !decls }
 
-(* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
+(* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =
   let toks = ref [] in
   let rec scan stack =

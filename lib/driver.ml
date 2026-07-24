@@ -23,7 +23,7 @@ let run cmd =
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
-(* lower IL through qbe and return the emitted asm path *)
+(* Lower IL through qbe and return the emitted asm path *)
 let run_qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
@@ -71,7 +71,7 @@ let show_cdecls cdecls =
 let render_all ctx diags =
   List.iter (fun d -> Printf.eprintf "%s" (Diagnostic.render ctx d)) diags
 
-(* the C runtime we link calls main, so refuse before the linker leaks its own
+(* The C runtime we link calls main, so refuse before the linker leaks its own
    error *)
 let check_has_main tdecls =
   let is_main decl =
@@ -85,12 +85,11 @@ let check_has_main tdecls =
            |> Diagnostic.help "add a `func main() i32` entry point";
          ])
 
-(* read the source and build a fresh lexer plus the diagnostic context *)
+(* Read the source and build a fresh lexer plus the diagnostic context *)
 let load filename =
   if not (Sys.file_exists filename) then
     die (Printf.sprintf "no such file %s" filename);
   let abs_filename = Unix.realpath filename in
-  (* TODO(5d10): emit paths relative to project root *)
   let src = read_file filename in
   if not (String.is_valid_utf_8 src) then
     die (Printf.sprintf "%s: not valid UTF-8" filename);
@@ -107,7 +106,7 @@ let load filename =
   (read, lexbuf, ctx)
 
 let compile ~stage ~backend ~out ~filename =
-  (* write to -o if set, else stdout *)
+  (* Write to -o if set or stdout *)
   let output_text s =
     if out = "" then print_string s
     else Out_channel.with_open_text out (fun oc -> output_string oc s)
@@ -120,7 +119,7 @@ let compile ~stage ~backend ~out ~filename =
     compile_binary base il
   in
   let read, lexbuf, ctx = load filename in
-  (* each stage is a possible stopping point, so bail once we hit the target *)
+  (* Each stage is a possible stopping point so bail once we hit the target *)
   let stop_at target emit =
     if stage = target then (
       emit ();

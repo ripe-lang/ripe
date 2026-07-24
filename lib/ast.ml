@@ -82,6 +82,8 @@ let show_unop_sym = function
 type binding_kind = Var | Let | Comptime
 [@@deriving show { with_path = false }]
 
+type modifier = Pub | Inline [@@deriving show { with_path = false }]
+
 type expr_desc =
   | Int of int64 * string option
   | Float of float
@@ -106,8 +108,6 @@ type expr_desc =
   | If of (expr * block) list * block option
   | While of expr * block
   | For of string * span * expr * block
-  (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) =
-     (x, y) *)
   | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
   | Break
@@ -129,8 +129,6 @@ and typ_desc =
 
 and typ = { tdesc : typ_desc; span : span }
 [@@deriving show { with_path = false }]
-
-type modifier = Pub | Inline [@@deriving show { with_path = false }]
 
 type param = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]
@@ -162,6 +160,9 @@ type struct_def = {
 }
 [@@deriving show { with_path = false }]
 
+type type_alias_def = { name : string; typ : typ; span : span }
+[@@deriving show { with_path = false }]
+
 type global_def = {
   name : string;
   typ : typ;
@@ -169,9 +170,6 @@ type global_def = {
   kind : binding_kind;
   span : span;
 }
-[@@deriving show { with_path = false }]
-
-type type_alias_def = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]
 
 type decl =

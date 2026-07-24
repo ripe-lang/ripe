@@ -6,7 +6,7 @@ open Tokens
 let next_line lexbuf =
   Lexing.new_line lexbuf
 
-(* per lex session state so multiple lexbufs can be live at once *)
+(* Per lex session state so multiple lexbufs can be live at once *)
 type state = {
   file : Span.file_id;
   buf : Buffer.t; (* auto buffer resize *)
@@ -14,7 +14,7 @@ type state = {
     new error w/ newlines forever on unclosed parens *)
   mutable paren_depth : int;
   token_queue : (Tokens.token * Span.t) Queue.t;
-  (* trying to emulate go semicolons *)
+  (* Trying to emulate go semicolons *)
   mutable last_token : Tokens.token option;
 }
 
@@ -38,7 +38,7 @@ let int_token st lexbuf ?suf text =
       Queue.push (INT (0L, suf), lexbuf_span st lexbuf) st.token_queue;
       ERROR "integer literal out of range"
 
-(* the replacement char keeps the parser from raising a second error *)
+(* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
   Queue.push (CHAR 0, lexbuf_span st lexbuf) st.token_queue;
   ERROR msg
@@ -133,7 +133,7 @@ rule read_main st = parse
   | '='  { ASSIGN }
   | '('  { st.paren_depth <- st.paren_depth + 1; LPAREN }
   | ')'  { st.paren_depth <- max 0 (st.paren_depth - 1); RPAREN }
-  (* brackets bump paren_depth so array literals can span lines *)
+  (* Brackets bump paren_depth so array literals can span lines *)
   | '['  { st.paren_depth <- st.paren_depth + 1; LBRACKET }
   | ']'  { st.paren_depth <- max 0 (st.paren_depth - 1); RBRACKET }
   | '{'  { LBRACE }
@@ -153,7 +153,7 @@ rule read_main st = parse
   | '"'  { let str_start = lexbuf.Lexing.lex_start_p in
            Buffer.clear st.buf;
            let tok = read_string st lexbuf in
-           (* the string token spans the whole literal, quotes included *)
+           (* The string token spans the whole literal with quotes included *)
            lexbuf.Lexing.lex_start_p <- str_start;
            tok }
   | eof  { EOF }
@@ -174,10 +174,10 @@ and read_string st = parse
                       (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span)
                       st.token_queue;
                     read_string st lexbuf }
-  (* FIXME allow raw newlines for now, revisit them in the future *)
+  (* FIXME(2151): allow raw newlines for now, revisit them in the future *)
   | newline { next_line lexbuf; Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
   | [^ '"' '\\' '\r' '\n']+  { Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
-  (* recover so the parser sees a closed string plus an error *)
+  (* Recover so the parser sees a closed string plus an error *)
   | eof  { let s = Buffer.contents st.buf in
            Buffer.clear st.buf;
            let here = end_pos lexbuf in

@@ -4,7 +4,7 @@
 
 type t = {
   src : string;
-  line_starts : int array; (* sorted byte offsets where each line begins *)
+  line_starts : int array; (* Sorted byte offsets where each line begins *)
 }
 
 (* Only scan source text once to save the line start *)
@@ -24,7 +24,6 @@ let rec search starts pos lo hi =
     if starts.(mid) <= pos then search starts pos mid hi
     else search starts pos lo (mid - 1)
 
-(* 1 based array index (line, col) *)
 let lookup t pos =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
@@ -36,7 +35,7 @@ let span_to_locs t (span : Ast.span) =
   let end_line, end_col = lookup t span.hi in
   (start_line, start_col, end_line, end_col)
 
-(* byte offsets of the line containing pos, newline excluded *)
+(* Byte offsets of the line containing pos with newline excluded *)
 let line_bounds t pos =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   let start = t.line_starts.(i) in

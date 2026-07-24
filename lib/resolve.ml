@@ -2,7 +2,7 @@
 
 open Ast
 
-(* The binder/use is keyed by its span. *)
+(* The binder and use share a span *)
 type t = { syms : (Ast.span, Symbol.t) Hashtbl.t }
 
 type state = {
@@ -15,7 +15,7 @@ type state = {
   diags : Diagnostic.sink;
 }
 
-(* The `--emit resolve` output. *)
+(* This is the `--emit resolve` output *)
 let dump (r : t) : string =
   Hashtbl.to_seq r.syms |> List.of_seq
   |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) ->
@@ -46,7 +46,7 @@ let pop_scope (st : state) =
   st.scopes <-
     (match st.scopes with _ :: scopes -> scopes | [] -> assert false)
 
-(* The innermost scope holds params with the top level body binders. *)
+(* The innermost scope holds params and top level body binders *)
 let declare_local (st : state) kind name span : unit =
   let sym = mint st kind name span in
   match st.scopes with
@@ -134,7 +134,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Break | Continue -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
 
-(* an array size expression may name constants *)
+(* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
   | Named "opaque" -> ()
@@ -152,7 +152,7 @@ and resolve_block (st : state) (body : block) : unit =
   List.iter (resolve_expr st) body;
   pop_scope st
 
-(* Body binders can redeclare freely but params can't repeat. *)
+(* Body binders can redeclare but params can't repeat *)
 let declare_param (st : state) (p : param) : unit =
   let scope = match st.scopes with scope :: _ -> scope | [] -> assert false in
   match Hashtbl.find_opt scope p.name with

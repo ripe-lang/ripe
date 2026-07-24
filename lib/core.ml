@@ -14,7 +14,7 @@ type cexpr_desc =
   | CBinOp of Ast.binop * cexpr * cexpr
   | CUnOp of Ast.unop * cexpr
   | CFieldAccess of cexpr * string
-  (* target type is the node type *)
+  (* Target type is the node type *)
   | CCast of cexpr * bool
   | CSizeOf of Types.ty
   | CArrayLit of cexpr list
@@ -61,7 +61,7 @@ type cglobal_def = {
 type cdecl =
   | CFunc of cfunc_def
   | CStruct of string * (string * ty) list * Ast.modifier list
-    (* name, typed fields, modifiers *)
+    (* This has a name typed fields and modifiers *)
   | CExtern of cfunc_def
   | CGlobal of cglobal_def
   | CTypeAlias of string * ty

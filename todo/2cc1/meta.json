@@ -8,6 +8,6 @@
   "source": "lib/codegen_qbe.ml",
   "status": "open",
   "tags": [],
-  "title": "the local arithmetic always emits instructions instead of",
-  "updated_at": "2026-07-19 08:50:33.073597"
+  "title": "the local arithmetic always emits instructions instead of folding",
+  "updated_at": "2026-07-24 12:58:45.614847"
 }
