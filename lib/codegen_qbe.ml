@@ -1,19 +1,15 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* https://c9x.me/compile/doc/il.html *)
+(* Https://c9x.me/compile/doc/il.html *)
 open Types
 open Const_eval
 module T = Core
-
-(* TODO(7e23): I need to think about the layout/offset/padding of Structs
-   because C++ treats empty structs as size 1. *)
 
 type qbe_base = W | L | S | D
 
 let qbe_base (t : ty) : qbe_base =
   match resolve_ty t with
   | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool | TChar -> W
-  (* FIXME(d969): Null terminated strings? Idk yet. *)
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       L
@@ -28,7 +24,7 @@ let qbe_base (t : ty) : qbe_base =
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
-(* the QBE mnemonic prefix, u for unsigned int types and pointers, s
+(* The QBE mnemonic prefix, u for unsigned int types and pointers, s
    otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
@@ -38,7 +34,8 @@ let signedness (t : ty) : string =
 let div_overflows_at_reg_width (t : ty) : bool =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
 
-(* past this many bytes a libc call beats emitting one instruction per word *)
+(* This is the hard limit where libc call stops emitting one instruction per
+   word *)
 let bulk_mem_threshold = 64
 
 (* s_ for single, d_ for double *)
@@ -54,7 +51,6 @@ let format_const_num (ty : ty) (n : const_num) : string =
   | Ni64 n -> Int64.to_string n
   | Nf f -> float_lit ty f
 
-(* TODO(1aff): maybe look into escape analysis *)
 let rec alloc_instr (t : ty) : string =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
@@ -120,19 +116,19 @@ type ctx = {
   in_main : bool ref;
 }
 
-(* Get fresh temporaries: %t0, %t1, ... *)
+(* Fresh temps use names like %t0 and %t1 *)
 let fresh ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
   Printf.sprintf "%%t%d" n
 
-(* Fresh label ID but counter is shared *)
+(* Labels get fresh ids but share the counter *)
 let fresh_id ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
   n
 
-(* A binder named t0 or t1 would collide with the temps. *)
+(* This is to handle collisions because t0 or t1 would collide with the temps *)
 let spelled_like_temp name =
   String.length name > 1
   && name.[0] = 't'
@@ -140,8 +136,7 @@ let spelled_like_temp name =
        (function '0' .. '9' -> true | _ -> false)
        (String.sub name 1 (String.length name - 1))
 
-(* The slot keeps its source name so the IL stays readable and ids are unique
-   anyway so only a second binder with the same name needs a suffix. *)
+(* Keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_local ctx (s : Symbol.t) : string =
   let slot =
     if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
@@ -168,13 +163,13 @@ let emit ctx fmt =
 
 let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
 
-(* the data pointer sits at offset 0 in the fat pointer *)
+(* The data pointer sits at offset 0 in the fat pointer *)
 let load_slice_ptr ctx addr =
   let ptr = fresh ctx in
   emit ctx "    %s =l loadl %s\n" ptr addr;
   ptr
 
-(* the length sits at offset 8 in the fat pointer *)
+(* The length sits at offset 8 in the fat pointer *)
 let load_slice_len ctx addr =
   let lenp = fresh ctx in
   emit ctx "    %s =l add %s, 8\n" lenp addr;
@@ -199,7 +194,7 @@ let emit_panic ctx msg =
   emit ctx "    hlt\n";
   ctx.terminated := true
 
-(* start a new basic block and clear the terminated flag *)
+(* Start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
   ctx.terminated := false;
   emit ctx "%s\n" lbl
@@ -225,8 +220,8 @@ let field_offset structs fields fname =
   in
   go 0 fields
 
-(* bytes between consecutive elements (element size rounded up to its
-   alignment) *)
+(* The number of bytes from one element to the next after rounding to its
+   alignment *)
 let stride structs elem =
   align_to (ty_size structs elem) (ty_align structs elem)
 
@@ -247,7 +242,7 @@ let array_elem_ty ~span t =
 
 let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
   let v = emit_expr_desc ctx e in
-  (* A never value diverges so it ends the block and can't be consumed *)
+  (* A `never` value ends the block and can't be used *)
   if e.T.ty = TNever && not !(ctx.terminated) then (
     emit ctx "    hlt\n";
     ctx.terminated := true);
@@ -261,7 +256,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CBool b -> if b then "1" else "0"
   | T.CNull -> "0"
   | T.CChar cp -> string_of_int cp
-  (* aggregate: the slot itself is the value so yield its address *)
+  (* Aggregate: the slot itself is the value so yield its address *)
   | T.CIdent s when is_aggregate t -> sym_addr ctx s
   | T.CIdent s ->
       if Symbol.is_func s.kind then "$" ^ s.name
@@ -273,8 +268,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CCStr s -> intern_string ctx s
   | T.CCall (_, args, _)
     when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
-      (* the call is dead once a never argument diverges so only the args up to
-         it get emitted *)
+      (* The call is dead once a `never` argument diverges so only the args up
+         to it get emitted *)
       let rec emit_until = function
         | [] -> ()
         | (a : T.cexpr) :: rest ->
@@ -292,7 +287,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
                Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
              args)
       in
-      (* the ... marker between fixed and variadic args tells QBE to set the
+      (* The ... marker between fixed and variadic args tells QBE to set the
          vararg register count on amd64 SysV *)
       let arg_strs =
         match fixed_count with
@@ -302,7 +297,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
             fixed @ ("..." :: rest)
         | None -> arg_strs
       in
-      (* a plain function name calls direct otherwise the callee holds a fn
+      (* A plain function name calls direct otherwise the callee holds a fn
          ptr *)
       let callee =
         match callee.T.desc with
@@ -328,7 +323,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CFieldAccess (e, field) ->
       let ft = t in
       let ptr = emit_field_addr ctx e field in
-      (* aggregate field: its address is the value like TIndex below *)
+      (* An aggregate field gives its address like TIndex below *)
       if is_aggregate ft then ptr
       else
         let tmp = fresh ctx in
@@ -337,8 +332,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CIndex (base, idx) ->
       let elem = t in
       let addr = emit_index_addr ctx base idx elem in
-      (* nested array: the element is itself an aggregate so yield its
-         address *)
+      (* The element is an aggregate so yield its address *)
       if is_aggregate elem then addr
       else
         let tmp = fresh ctx in
@@ -358,7 +352,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       | TSlice _ ->
           let addr = emit_expr ctx e in
           load_slice_ptr ctx addr
-      (* an array's base address is already the pointer to its first element *)
+      (* An array's base address is already the pointer to its first element *)
       | TArray _ -> emit_expr ctx e
       | t ->
           Error.ice ~span:e.T.span
@@ -372,7 +366,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
             Error.ice ~span:arr.T.span
               (Printf.sprintf "cannot coerce to slice: %s" (show_ty t))
       in
-      (* build a { ptr = &arr[0], len = n } fat pointer on the stack *)
+      (* Build a { ptr = &arr[0], len = n } fat pointer on the stack *)
       let slot = fresh ctx in
       emit_entry ctx "    %s =l alloc8 16\n" slot;
       emit ctx "    storel %s, %s\n" arr_addr slot;
@@ -382,8 +376,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       slot
   | T.CSliceExpr (base, lo, hi) -> emit_slice_expr ctx e.T.span base lo hi t
   | T.CArrayLit elems ->
-      (* as a value: materialize into a fresh stack slot and yield its
-         address *)
+      (* A fresh stack slot holds the materialized value so its address can be
+         yielded *)
       let elem = array_elem_ty ~span:e.T.span t in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
@@ -413,7 +407,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       ignore (emit_expr ctx e);
       ""
   | T.CBinding (_kind, s, t, e) ->
-      (* stack slot sized by type (struct sizes resolved from context) *)
+      (* Stack slot sized by type (struct sizes resolved from context) *)
       let slot = bind_local ctx s in
       emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
       (match e.T.desc with
@@ -432,7 +426,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot);
       ""
   | T.CReturn None ->
-      (* a bare return in main exits with 0 like falling off the end *)
+      (* A bare return in main exits with 0 like falling off the end *)
       if not !(ctx.terminated) then
         if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
       ctx.terminated := true;
@@ -451,7 +445,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
 
 and emit_unop ctx op e t =
   match op with
-  (* dereferencing a struct pointer just yields its address, same as any other
+  (* Dereferencing a struct pointer just yields its address like any other
      aggregate lvalue *)
   | Ast.Deref when is_aggregate t ->
       let ptr = emit_expr ctx e in
@@ -464,7 +458,7 @@ and emit_unop ctx op e t =
       (match op with
       | Ast.Neg -> emit ctx "    %s =%s neg %s\n" tmp qt ev
       | Ast.Not ->
-          (* operand is always bool (w) after typechecking *)
+          (* Operand is always bool (w) after typechecking *)
           emit ctx "    %s =w ceqw %s, 0\n" tmp ev
       | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
       | Ast.Deref ->
@@ -478,7 +472,7 @@ and emit_unop ctx op e t =
       emit ctx "    %s =l copy %s\n" tmp addr;
       tmp
 
-(* pointer math is 64-bit so widen a word-sized value to a long *)
+(* Pointer math is 64-bit so widen a word-sized value to a long *)
 and widen_to_l ctx v ty =
   if qbe_base ty = L then v
   else
@@ -487,8 +481,7 @@ and widen_to_l ctx v ty =
     emit ctx "    %s =l %s %s\n" t ins v;
     t
 
-(* pointer to the first element: an array's own address, or a slice's ptr
-   field *)
+(* The first element pointer is the array's address of the slice's ptr field *)
 and data_ptr ctx base =
   let addr = emit_expr ctx base in
   match resolve_ty base.T.ty with
@@ -498,7 +491,7 @@ and data_ptr ctx base =
       p
   | _ -> addr
 
-(* address of arr[idx]: storage + idx * stride(elem) *)
+(* Address of arr[idx]: storage + idx * stride(elem) *)
 and emit_slice_expr ctx (span : Ast.span) base lo hi t =
   let elem =
     match t with
@@ -550,7 +543,7 @@ and emit_index_addr ctx base idx elem =
   emit ctx "    %s =l add %s, %s\n" addr storage off;
   addr
 
-(* every runtime check jumps to a panic when cond is nonzero and otherwise falls
+(* Every runtime check jumps to a panic when cond is nonzero and otherwise falls
    into the ok block *)
 and emit_guard ctx ~tag ~cond ~panic =
   let id = fresh_id ctx in
@@ -620,7 +613,7 @@ and emit_negshift_check ctx count count_qt =
   emit_guard ctx ~tag:"negshift" ~cond:neg ~panic:(fun () ->
       emit ctx "    call $ripe_panic_shift()\n")
 
-(* address of any lvalue, for &e: a name's own slot/global, or the same address
+(* Address of any lvalue, for &e: a name's own slot/global, or the same address
    computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.cexpr) =
   match e.T.desc with
@@ -632,7 +625,7 @@ and emit_lvalue_addr ctx (e : T.cexpr) =
   | T.CUnOp (Ast.Deref, inner) -> emit_expr ctx inner
   | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
-(* address of e.field: base address (or loaded pointer, if base is a pointer) +
+(* Address of e.field: base address (or loaded pointer, if base is a pointer) +
    field offset *)
 and emit_field_addr ctx base field =
   let addr = emit_expr ctx base in
@@ -650,7 +643,7 @@ and emit_field_addr ctx base field =
   let offset = field_offset ctx.structs fields field in
   offset_addr ctx addr offset
 
-(* write a zero value of type t into the slot at dest *)
+(* Write a zero value of type t to dest *)
 and emit_zero_into ctx dest t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ ->
@@ -672,25 +665,27 @@ and emit_zero_into ctx dest t =
       end
   | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
 
-(* copy size bytes from src to dest for by-value aggregate (slice) moves *)
+(* An aggregate suhc as a slice is moved by copying size bytes from src to
+   dest *)
 and emit_aggregate_copy ctx dest src size =
   if size > bulk_mem_threshold then
     emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
   else emit ctx "    blit %s, %s, %d\n" src dest size
 
-(* store each element of a literal into an already-allocated array at base *)
+(* Each literal element is written to the allocated array at base *)
 and emit_array_lit_into ctx base elems elem =
   let strd = stride ctx.structs elem in
   List.iteri
     (fun i el ->
       let addr = offset_addr ctx base (i * strd) in
       match el.T.desc with
-      (* nested literal (multi-dimensional array): recurse into the sub-array *)
+      (* Nested literal represent multidimensional arrays and are wrtiten
+         recursively *)
       | T.CArrayLit sub ->
           let subelem = array_elem_ty ~span:el.T.span el.T.ty in
           emit_array_lit_into ctx addr sub subelem
       | _ when is_aggregate elem ->
-          (* element is an aggregate value: copy its bytes into place *)
+          (* Aggregate elements are copied in place *)
           let src = emit_expr ctx el in
           emit_aggregate_copy ctx addr src (ty_size ctx.structs elem)
       | _ ->
@@ -721,7 +716,7 @@ and emit_struct_lit_into ctx base sname tfields =
           emit ctx "    %s %s, %s\n" (qbe_store ft) v addr)
     tfields
 
-(* split from emit_binop so the lhs is not re-evaluated into dead loads *)
+(* Split from emit_binop so the lhs is not re-evaluated into dead loads *)
 and emit_assign ctx l r _t =
   match l.T.desc with
   | T.CIndex (base, idx) ->
@@ -757,11 +752,11 @@ and emit_store_into ctx ty addr r =
     emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
     rv
 
-(* a condition that's itself a branch just jumps to its arms directly *)
+(* A condition that's itself a branch just jumps to its arms directly *)
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
   | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
-  (* a short-circuit and/or lowers to a single-arm if so branch through it
+  (* A short-circuit and/or lowers to a single-arm if so branch through it
      directly *)
   | T.CIf ([ (c, then_body) ], Some else_body) ->
       let id = fresh_id ctx in
@@ -784,7 +779,7 @@ and emit_branch_block ctx (body : T.cblock) true_lbl false_lbl =
       emit_branch ctx last true_lbl false_lbl
   | [] -> emit_jmp ctx true_lbl
 
-(* only the taken arm runs and a value comes back unless the if is void *)
+(* Only the taken arm runs and a value comes back unless the if is void *)
 and emit_if ctx (branches : (T.cexpr * T.cblock) list)
     (else_body : T.cblock option) ty =
   let id = fresh_id ctx in
@@ -801,7 +796,7 @@ and emit_if ctx (branches : (T.cexpr * T.cblock) list)
     emit_label ctx lbl;
     if is_value then (
       let v = emit_block_value ctx body in
-      (* a never arm already terminated so only a live arm copies out and
+      (* A never arm already terminated so only a live arm copies out and
          joins *)
       if not !(ctx.terminated) then (
         emit ctx "    %s =%s copy %s\n" res qt v;
@@ -828,7 +823,7 @@ and emit_if ctx (branches : (T.cexpr * T.cblock) list)
           emit_label ctx else_lbl;
           emit_jmp ctx end_lbl));
   emit_label ctx end_lbl;
-  (* every arm diverged so the join is unreachable but still needs a
+  (* Every arm diverged so the join is unreachable but still needs a
      terminator *)
   if never then (
     emit ctx "    hlt\n";
@@ -875,10 +870,10 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
       else if div_overflows_at_reg_width lty then
         emit_div_overflow_guard ctx ~instr:"rem" ~qt ~op_qt ~dest:tmp lv rv
       else emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
-  (* floats: ceqs, ceqd / ints: ceqw, ceql *)
+  (* Floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
   | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
-  (* floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
+  (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
   | Ast.Lt ->
       if is_float lty then emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
@@ -899,7 +894,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
   | _ -> tmp
 
-(* this rebuilds the go result where an oversized count clears every bit since
+(* This rebuilds the go result where an oversized count clears every bit since
    qbe only masks the count like x86 *)
 and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
@@ -918,14 +913,14 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
         | None -> is_unsigned count_ty
       in
       if not known_nonneg then emit_negshift_check ctx rv (qbe_ty count_ty);
-      (* the range check runs in the count width so a huge count is caught
+      (* The range check runs in the count width so a huge count is caught
          before the truncation *)
       let in_range = fresh ctx in
       emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
       let count = word_count ctx count_ty rv in
       match op with
       | Ast.Rshift when not unsigned ->
-          (* an out of range count is forced to all ones so sar keeps filling
+          (* An out of range count is forced to all ones so sar keeps filling
              with the sign bit *)
           let spill = fresh ctx in
           emit ctx "    %s =w sub %s, 1\n" spill in_range;
@@ -939,7 +934,7 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
           let instr = if is_lshift then "shl" else "shr" in
           let raw = fresh ctx in
           emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
-          (* an out of range count makes the mask all zeros so the result drops
+          (* An out of range count makes the mask all zeros so the result drops
              to 0 *)
           let res = fresh ctx in
           emit ctx "    %s =%s and %s, %s\n" res qt raw
@@ -947,7 +942,7 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
           if is_lshift then narrow_int_to ctx res ty else res
       | _ -> Error.ice "emit_shift on non-shift op")
 
-(* the shift wants a word count so a long one drops to its low word *)
+(* The shift wants a word count so a long one drops to its low word *)
 and word_count ctx count_ty rv =
   match qbe_base count_ty with
   | L ->
@@ -956,7 +951,7 @@ and word_count ctx count_ty rv =
       w
   | _ -> rv
 
-(* the in range flag spreads across the whole type so 1 becomes all ones and 0
+(* The in range flag spreads across the whole type so 1 becomes all ones and 0
    becomes all zeros *)
 and shift_mask ctx ty flag =
   let neg = fresh ctx in
@@ -968,7 +963,7 @@ and shift_mask ctx ty flag =
       wide
   | _ -> neg
 
-(* the extend that masks a narrow integer target back down to its width *)
+(* The extend that masks a narrow integer target back down to its width *)
 and narrow_int_instr t =
   match resolve_ty t with
   | TInt I8 -> Some "extsb"
@@ -977,7 +972,7 @@ and narrow_int_instr t =
   | TInt U16 -> Some "extuh"
   | _ -> None
 
-(* a narrow int only fills the low bits of its w register so a cast has to mask
+(* A narrow int only fills the low bits of its w register so a cast has to mask
    it back down *)
 and narrow_int_to ctx v target_ty =
   match narrow_int_instr target_ty with
@@ -991,7 +986,7 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
   let src_k = int_kind_of src_ty in
   let tgt_k = int_kind_of target_ty in
   if cast_int_needs_check src_k tgt_k then begin
-    (* the value moves up to 64 bits so both bounds fit and the compare sees its
+    (* The value moves up to 64 bits so both bounds fit and the compare sees its
        true value *)
     let v64 =
       if qbe_base src_ty = W then begin
@@ -1003,7 +998,7 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
       else v
     in
     let target_is_u64 = match tgt_k with U64 | Usize -> true | _ -> false in
-    (* an unsigned source is never below zero so it can only overflow the top *)
+    (* An unsigned source is never below zero so it can only overflow the top *)
     let underflow =
       if is_unsigned src_ty then None
       else begin
@@ -1013,7 +1008,7 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
         Some t
       end
     in
-    (* nothing at 64 bits overflows a u64 so that top bound never trips *)
+    (* Nothing at 64 bits overflows a u64 so that top bound never trips *)
     let overflow =
       if target_is_u64 then None
       else begin
@@ -1040,24 +1035,24 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
   if checked then emit_checked_cast_guard ctx v src_ty target_ty;
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
-  (* the extend already truncates so the copy would be redundant *)
+  (* The extend already truncates so the copy would be redundant *)
   match (narrow_int_instr target_ty, qbe_base src_ty) with
   | Some instr, (W | L) ->
       emit ctx "    %s =w %s %s\n" tmp instr v;
       tmp
   | _ ->
       (match (qbe_base src_ty, qbe_base target_ty) with
-      (* the same base type is a plain bit copy *)
+      (* The same base type is a plain bit copy *)
       | W, W | L, L | S, S | D, D -> emit ctx "    %s =%s copy %s\n" tmp tgt v
-      (* word widens to long, long truncates to word *)
+      (* Word widens to long, long truncates to word *)
       | W, L ->
           let instr = if is_unsigned src_ty then "extuw" else "extsw" in
           emit ctx "    %s =l %s %s\n" tmp instr v
       | L, W -> emit ctx "    %s =w copy %s\n" tmp v
-      (* single and double swap precision *)
+      (* Single and double swap precision *)
       | S, D -> emit ctx "    %s =d exts %s\n" tmp v
       | D, S -> emit ctx "    %s =s truncd %s\n" tmp v
-      (* an integer turns into a float *)
+      (* An integer turns into a float *)
       | (W | L), (S | D) ->
           let instr =
             match (qbe_base src_ty, is_unsigned src_ty) with
@@ -1067,7 +1062,7 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
             | _, false -> "sltof"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v
-      (* a float turns into an integer *)
+      (* A float turns into an integer *)
       | (S | D), (W | L) ->
           let instr =
             match (qbe_base src_ty, is_unsigned target_ty) with
@@ -1091,11 +1086,11 @@ and emit_loop ctx body =
   emit_jmp ctx body_lbl;
   emit_label ctx end_lbl
 
-(* a block in statement position runs each element only for its effect *)
+(* A block in statement position runs each element only for its effect *)
 and emit_block ctx (body : T.cblock) : unit =
   List.iter (fun e -> ignore (emit_expr ctx e)) body
 
-(* a block in value position yields its last element and is void when empty *)
+(* A block in value position yields its last element and is void when empty *)
 and emit_block_value ctx (body : T.cblock) : string =
   let rec go = function
     | [] -> ""
@@ -1107,12 +1102,12 @@ and emit_block_value ctx (body : T.cblock) : string =
   go body
 
 let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
-  (* temporaries and locals are function scoped *)
+  (* Temporaries and locals are function scoped *)
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
   Hashtbl.clear ctx.used_slots;
 
-  (* Use temporary names for params to spill them to stack slots *)
+  (* Params use temp names first so they can spill to stack slots *)
   let param_tmps =
     List.map
       (fun (s, t) ->
@@ -1126,32 +1121,30 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       param_tmps
   in
 
-  (* TODO(6e33): Create a custom _start. *)
   let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part =
     match tfd.ret_ty with TVoid | TNever -> "" | t -> qbe_ty t ^ " "
   in
-  (* the previous function ended terminated so clear it before this header *)
+  (* The previous function ended terminated so clear it before this header *)
   ctx.terminated := false;
-  (* TODO(572b): export pub functions *)
   emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
     (String.concat ", " params_strs);
   emit_label ctx "@start";
 
-  (* divert the body so hoisted @start allocs land ahead of it *)
+  (* Divert the body so hoisted @start allocs land ahead of it *)
   let out = !(ctx.buf) in
   let body = Buffer.create 256 in
   ctx.buf := body;
   ctx.entry := Buffer.create 64;
 
-  (* Spill params to stack slots so they can be reassigned *)
+  (* Params go in stack slots so they can be reassigned *)
   List.iter
     (fun (s, t, tmp) ->
       let slot = bind_local ctx s in
       emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
-      (* aggregates arrive as a pointer so copy the value into the local slot *)
+      (* Aggregates arrive as a pointer so copy the value into the local slot *)
       if is_aggregate t then
         emit_aggregate_copy ctx ("%" ^ slot) tmp (ty_size ctx.structs t)
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp slot)
@@ -1163,14 +1156,12 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   Buffer.add_buffer out !(ctx.entry);
   Buffer.add_buffer out body;
 
-  (* close the final block if control can still fall off the end *)
+  (* Close the final block if control can still fall off the end *)
   if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
     else if tfd.ret_ty = TVoid then emit ctx "    ret\n"
-      (* unreachable but QBE needs every block terminated *)
+      (* Unreachable but QBE needs every block terminated *)
     else emit ctx "    hlt\n";
-  (* TODO(aa3a): error in typechecker for non-void functions missing a return on
-     all paths *)
   ctx.terminated := false;
   emit ctx "}\n\n"
 
@@ -1179,16 +1170,16 @@ let rec qbe_ext_ty (t : ty) : string =
   | TInt (I8 | U8) | TBool -> "b"
   | TInt (I16 | U16) -> "h"
   | TInt (I32 | U32) | TChar -> "w"
-  (* null is a pointer no type but all pointers are 64-bit *)
+  (* Null is a pointer no type but all pointers are 64-bit *)
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
   | TStruct (sn, _) -> ":" ^ sn
-  (* QBE repeats a field type n times: { w 3 } is three words *)
+  (* QBE repeats a field type so { w 3 } means three words *)
   | TArray (e, n) ->
-      (* a QBE field cannot nest counts, so every dimension collapses into
+      (* A QBE field cannot nest counts, so every dimension collapses into
          one *)
       let rec flatten t reps =
         match resolve_ty t with
@@ -1198,7 +1189,7 @@ let rec qbe_ext_ty (t : ty) : string =
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
-  (* fat pointer stored inline as two longs *)
+  (* Fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Error.ice "TVoid has no extended type"
@@ -1209,7 +1200,7 @@ let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
   emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
 
-(* the typechecker already folded everything so this only formats values *)
+(* The typechecker already folded everything so this only formats values *)
 let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
   match te.T.desc with
   | T.CInt n -> Int64.to_string n
@@ -1223,7 +1214,7 @@ let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
       "$" ^ s.name
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
-(* QBE data fields for a constant array literal, e.g. "w 1, w 2, w 3" *)
+(* QBE data for a constant array looks like "w 1, w 2, w 3" *)
 let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
   match te.T.desc with
   | T.CArrayLit elems ->
@@ -1309,20 +1300,16 @@ let emit_qbe (tdecls : T.cdecl list) : string =
       | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.name () | _ -> ())
     tdecls;
 
-  (* TODO(ead2): enforce pub visibility on struct fields *)
   List.iter
     (function
       | T.CStruct (name, fields, _) -> emit_struct_type ctx name fields
       | _ -> ())
     tdecls;
-  (* new line after struct(s) for clean emit output *)
   let has_structs =
     List.exists (function T.CStruct _ -> true | _ -> false) tdecls
   in
-  (* No benefit only format *)
   if has_structs then emit ctx "\n";
 
-  (* globals *)
   List.iter
     (function T.CGlobal gd -> emit_global_data ctx gd | _ -> ())
     tdecls;
@@ -1331,7 +1318,6 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   in
   if has_globals then emit ctx "\n";
 
-  (* Function defs (externs no body) *)
   List.iter
     (function
       | T.CFunc tfd -> emit_func ctx tfd
@@ -1340,7 +1326,6 @@ let emit_qbe (tdecls : T.cdecl list) : string =
           ())
     tdecls;
 
-  (* String literals (data sections) *)
   List.iter
     (fun (lbl, content) -> emit_string_data ctx lbl content)
     (List.rev !(ctx.strings));

@@ -4,7 +4,7 @@ open Ast
 open Types
 module T = Typed_ast
 
-(* Exact equality but NULL is compatible with any pointer *)
+(* Types need exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
@@ -13,18 +13,18 @@ let rec compatible (want : ty) (got : ty) : bool =
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
-  (* a fixed array coerces to a slice of the same element type *)
+  (* A fixed array coerces to a slice of the same element type *)
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1), TFunc (p2, r2) ->
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
-  (* a struct matches nominally by name and its type arguments must match
+  (* A struct matches nominally by name and its type arguments must match
      exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
-  (* a newtype is its own type and never matches its base *)
+  (* A newtype is its own type and never matches its base *)
   | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
   | s_want, s_got -> ty_equal s_want s_got
 
@@ -47,7 +47,7 @@ let is_lvalue (te : T.texpr) : bool =
   | TContinue ->
       false
 
-(* a deref stops the walk since the pointee isn't owned by this binding *)
+(* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_binding (te : T.texpr) : Symbol.t option =
   match te.T.desc with
   | TIdent s -> Some s
@@ -60,7 +60,7 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | TBreak | TContinue ->
       None
 
-(* going through a pointer or slice lands on memory this binding doesn't own *)
+(* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through (base : T.texpr) : Symbol.t option =
   match strip_alias base.T.ty with
   | TPointer _ | TSlice _ -> None
@@ -69,7 +69,7 @@ and root_through (base : T.texpr) : Symbol.t option =
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
 
-(* a pointer is just an address so p < q asks which one sits earlier in
+(* A pointer is just an address so p < q asks which one sits earlier in
    memory *)
 let is_ordered t =
   match strip_alias t with TPointer _ | TChar -> true | _ -> is_numeric t
@@ -77,8 +77,7 @@ let is_ordered t =
 let is_integer t =
   match strip_alias t with TInt _ | TError -> true | _ -> false
 
-(* a newtype hides every operation of its base *)
-(* TODO(70f0): let a newtype opt back into operators like haskell deriving *)
+(* A newtype hides every operation of its base *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
   | TError ->
@@ -99,11 +98,11 @@ let cast_class t =
   | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
-(* a pointer bit pattern is not a float and an aggregate only casts to itself *)
+(* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
   match (resolve_ty src, resolve_ty tgt) with
   | s, TBool -> s = TBool
-  (* char is a distinct scalar so it only converts to and from integers *)
+  (* Char is a distinct scalar so it only converts to and from integers *)
   | TChar, TChar -> true
   | TChar, TInt _ | TInt _, TChar -> true
   | TChar, _ | _, TChar -> false

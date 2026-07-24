@@ -44,21 +44,21 @@ let report_unclosed diags (open_tok, open_span) =
   Diagnostic.emit diags
     Diagnostic.(error ("unclosed " ^ opener_repr open_tok) |> at open_span)
 
-(* classifies one token against the stack of delimiters open above it, innermost
-   first *)
+(* This checks the token against open delimiters from the inside out *)
 let step diags stack tok span =
   if is_closer tok then (
     match stack with
     | (open_tok, _) :: _ when closer_of open_tok = Some tok -> Done
     | (open_tok, open_span) :: _ ->
         report_mismatch diags span tok open_span open_tok;
-        (* a mismatch desyncs everything after it so stop before the cascade *)
+        (* This mismatch throws everything off so stop before the cascade *)
         raise (Diagnostic.Errors (Diagnostic.drain diags))
     | [] ->
         report_stray diags span tok;
         Stray)
   else if tok = EOF then
     if stack <> [] then begin
+      (* The stack is reversed so errors show up in source order *)
       List.iter (report_unclosed diags) (List.rev stack);
       raise (Diagnostic.Errors (Diagnostic.drain diags))
     end

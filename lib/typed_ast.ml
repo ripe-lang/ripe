@@ -14,7 +14,7 @@ type texpr_desc =
   | TBinOp of Ast.binop * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * string
-  (* target type is the node type *)
+  (* Target type is the node type *)
   | TCast of texpr * bool
   | TSizeOf of Types.ty
   | TRange of texpr * texpr
@@ -66,7 +66,7 @@ type tglobal_def = {
 type tdecl =
   | TFunc of tfunc_def
   | TStruct of string * (string * ty) list * Ast.modifier list
-    (* name, typed fields, modifiers *)
+    (* This has a name typed fields and modifiers *)
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
   | TTypeAlias of string * ty
