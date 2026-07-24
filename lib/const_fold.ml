@@ -3,7 +3,7 @@
 open Types
 module T = Typed_ast
 
-(* every constant folds to a value here so codegen never resolves a name. the
+(* Every constant folds to a value here so codegen never resolves a name. the
    typechecker owns the const tables so lookups come in as closures *)
 let run ~(emit : Diagnostic.t -> unit)
     ~(force_const : Ast.span -> string -> unit)
@@ -11,7 +11,7 @@ let run ~(emit : Diagnostic.t -> unit)
     ~(global_value : string -> Const_eval.const_num option)
     ~(fold_num : T.texpr -> Const_eval.const_num) (tdecls : T.tdecl list) :
     T.tdecl list =
-  (* fold every global const up front so an unused bad one still errors *)
+  (* Fold every global const up front so an unused bad one still errors *)
   List.iter
     (function
       | T.TGlobal { T.name; init = Some init; kind = Ast.Comptime; _ } -> (
@@ -31,7 +31,7 @@ let run ~(emit : Diagnostic.t -> unit)
     { te with T.desc }
   in
 
-  (* a failed fold reports and hands back a default so checking continues *)
+  (* A failed fold reports and hands back a default so checking continues *)
   let fold_num_or (default : Const_eval.const_num) (te : T.texpr) :
       Const_eval.const_num =
     if not (Const_eval.foldable te) then default
@@ -42,7 +42,7 @@ let run ~(emit : Diagnostic.t -> unit)
         default
   in
 
-  (* function bodies stay runtime code and only const uses become literals *)
+  (* Function bodies stay runtime code and only const uses become literals *)
   let rec sub_expr (te : T.texpr) : T.texpr =
     let mk desc = { te with T.desc } in
     match te.T.desc with
@@ -84,7 +84,7 @@ let run ~(emit : Diagnostic.t -> unit)
     | T.TBinding (kind, s, t, e) -> mk (T.TBinding (kind, s, t, sub_expr e))
     | T.TReturn e -> mk (T.TReturn (Option.map sub_expr e))
     | T.TBreak | T.TContinue -> te
-  (* a const binding folded while checking so it just vanishes from the block *)
+  (* A const binding folded while checking so it just vanishes from the block *)
   and sub_block (body : T.tblock) : T.tblock =
     List.filter_map
       (fun e ->
@@ -94,7 +94,7 @@ let run ~(emit : Diagnostic.t -> unit)
       body
   in
 
-  (* scalars must be finished values for QBE data and the rest stays symbolic *)
+  (* QBE data needs scalar literals while aggregates keep their shape *)
   let fold_scalar (te : T.texpr) : T.texpr =
     match te.T.desc with
     | T.TInt _ | T.TFloat _ | T.TBool _ -> te
@@ -119,7 +119,7 @@ let run ~(emit : Diagnostic.t -> unit)
     | _ -> fold_scalar te
   in
 
-  (* a const global vanishes and every other global keeps folded data *)
+  (* A const global vanishes and every other global keeps folded data *)
   List.filter_map
     (function
       | T.TGlobal { T.kind = Ast.Comptime; _ } -> None

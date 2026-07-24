@@ -3,7 +3,7 @@
 module S = Typed_ast
 module D = Core
 
-(* negative ids never clash with the resolver's, which count up from zero *)
+(* This keeps negative ids away from resolver ids *)
 let sym_counter = ref 0
 
 let fresh_sym name : Symbol.t =
@@ -25,13 +25,13 @@ let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
 let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
 let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
 
-(* a for-loop continue still has to run the step, so drop a copy in front of each one *)
-(* nested loops aren't touched here since their continues belong to them *)
+(* A for-loop continue still has to run the step so drop a copy in front of each one *)
+(* Nested loops aren't touched here since their continues belong to them *)
 let rec paste_step step (stmts : D.cblock) : D.cblock =
   let on_stmt (st : D.cexpr) =
     match st.D.desc with
     | D.CContinue -> step @ [ st ]
-    (* a nested loop owns its own continues *)
+    (* A nested loop owns its own continues *)
     | D.CLoop _ -> [ st ]
     | D.CReturn (Some e) ->
         [ { st with D.desc = D.CReturn (Some (paste_in_expr step e)) } ]
@@ -40,7 +40,7 @@ let rec paste_step step (stmts : D.cblock) : D.cblock =
   in
   List.concat_map on_stmt stmts
 
-(* a continue can hide in a value if that a binding or return holds *)
+(* A continue can hide inside a value from a binding or return *)
 and paste_in_expr step (e : D.cexpr) : D.cexpr =
   match e.D.desc with
   | D.CIf (branches, else_body) ->
@@ -107,7 +107,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
         D.CIf
           ( List.map (fun (c, body) -> (lower_expr c, lower_block body)) branches,
             Option.map lower_block else_body )
-    (* while and for are void so they only reach here from an unused value
+    (* While and for are void so they only reach here from an unused value
        slot *)
     | S.TWhile (cond, body) -> D.CBlock (lower_while cond body)
     | S.TFor (sym, elem_ty, iter, body) ->
@@ -119,7 +119,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   in
   { D.desc; ty; span }
 
-(* a block element in statement position may expand to several core
+(* A block element in statement position may expand to several core
    statements *)
 and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
 
@@ -134,7 +134,7 @@ and lower_elem (te : S.texpr) : D.cblock =
 and lower_while cond body : D.cblock =
   loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_block body)
 
-(* x op= r runs as x = x op r, and likewise for every other compound form *)
+(* X op= r runs as x = x op r and likewise for every other compound form *)
 and base_binop_of = function
   | Ast.AddAssign -> Some Ast.Add
   | Ast.SubAssign -> Some Ast.Sub
@@ -148,7 +148,7 @@ and base_binop_of = function
   | Ast.RshiftAssign -> Some Ast.Rshift
   | _ -> None
 
-(* the target's address is taken once so an index or base with side effects
+(* The target's address is taken once so an index or base with side effects
    doesn't run twice *)
 and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cblock =
   let elem = l.S.ty in
@@ -175,7 +175,7 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
     binop Types.TBool (if inclusive then Ast.Lte else Ast.Lt) ivar hivar
   in
   let incr = assign ivar (binop elem_ty Ast.Add ivar (int elem_ty 1L)) in
-  (* the guard keeps an inclusive range from incrementing past the type's max *)
+  (* The guard keeps an inclusive range from incrementing past the type's max *)
   let step =
     if inclusive then
       [
@@ -188,7 +188,7 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
 and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
-  (* a slice is snapshotted so its pointer and length come from one
+  (* A slice is snapshotted so its pointer and length come from one
      evaluation *)
   let pre, src =
     match Types.resolve_ty iter.D.ty with

@@ -1,29 +1,24 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* Bidirectional type checker *)
-
 open Ast
 open Types
 open Ty_pred
 module T = Typed_ast
 
-(* lvalue - has a presis address in memory e.g. variable,s array elements, struct fields, etc *)
-(* rvalue - temp value that doesn't have presis memory e.g literals, result of math, etc *)
-
 type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
 type struct_info = { field_tys : (string * ty) list }
 
-(* structs newtypes and aliases share one namespace of type names *)
+(* Structs newtypes and aliases share one namespace of type names *)
 type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
-(* the typed and value fields only ever go from None to Some so nothing rolls
+(* The typed and value fields only ever go from None to Some so nothing rolls
    back *)
 type gstate = {
   def : global_def;
   mutable typed : T.texpr option;
   mutable value : Const_eval.const_num option;
-  (* busy means this global is mid evaluation so a self demand is a cycle *)
+  (* Busy means this global is mid evaluation so a self demand is a cycle *)
   mutable busy : bool;
 }
 
@@ -31,11 +26,11 @@ type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   types : (string, type_def) Hashtbl.t;
-  (* struct field layouts mirror the DStruct entries in types so ty_size need
+  (* Struct field layouts mirror the DStruct entries in types so ty_size need
      not rebuild them *)
   struct_fields : (string, (string * ty) list) Hashtbl.t;
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
-  (* constants evaluate on demand so an array size may name a later const *)
+  (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (string, gstate) Hashtbl.t;
   l_vals : (Symbol.id, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
@@ -75,7 +70,7 @@ let warn_unused_in_scope (env : env) : unit =
   | scope :: _ ->
       List.iter
         (fun (name, info) ->
-          (* variables prefixed with '_' suppress unused warnings *)
+          (* Variables prefixed with '_' suppress unused warnings *)
           if (not !(info.used)) && name.[0] <> '_' then
             emit env
               (Diagnostic.warning (Printf.sprintf "unused variable: %s" name)
@@ -88,7 +83,7 @@ let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
     (t : ty) : env =
   let info = { ty = t; used = ref used; span } in
   match env.vars with
-  | [] -> assert false (* no active scope *)
+  | [] -> assert false (* No active scope *)
   | scope :: rest -> { env with vars = ((name, info) :: scope) :: rest }
 
 let lookup_var_opt (env : env) (name : string) : ty option =
@@ -137,7 +132,7 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
-  (* never is the return type of a function that can't return so no value ever
+  (* Never is the return type of a function that can't return so no value ever
      has it *)
   | Named "never" ->
       emit env
@@ -175,13 +170,13 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
   match lookup_var_opt env name with
   | Some t -> t
   | None -> (
-      (* locals shadow globals shadow functions *)
+      (* Locals shadow globals shadow functions *)
       match Hashtbl.find_opt env.globals name with
       | Some (t, _) -> t
       | None -> (
-          (* an array size may name a global not collected yet so type it now *)
+          (* An array size may name a global not collected yet so type it now *)
           match Hashtbl.find_opt env.g_state name with
-          (* a global whose own size names it would loop forever *)
+          (* A global whose own size names it would loop forever *)
           | Some st when st.busy ->
               emit env (Error.named span "cyclic constant" name);
               TError
@@ -192,7 +187,7 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
               Hashtbl.replace env.globals name (t, st.def.kind);
               t
           | None -> (
-              (* fall back to function table so function names can be used as
+              (* Fall back to function table so function names can be used as
                  values *)
               match Hashtbl.find_opt env.funcs name with
               | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
@@ -200,9 +195,9 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
                   emit env (Error.undefined_name span "variable" name);
                   TInt I32)))
 
-(* Second pass doing the bidirectional type checking *)
+(* This pass does the bidirectional type checking *)
 
-(* stamp the source span here so the mk sites underneath stay span free *)
+(* Stamp the source span here so the mk sites underneath stay span free *)
 and synth (env : env) (e : expr) : T.texpr =
   { (synth_desc env e) with T.span = e.span }
 
@@ -230,9 +225,6 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  (* TODO this trapping `as!` could be moved to the standard library in the
-     future once sum types and generics land, then `as!` could switch to meaning
-     force the conversion *)
   | Cast (operand, t, checked) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
@@ -254,8 +246,6 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       else if checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
         | TInt _, TInt _ -> ()
-        (* TODO(9eb1): let `as!` cover float casts too once I add a loss check
-           for floats *)
         | _ ->
             emit env
               (Diagnostic.error "checked cast only supports integers"
@@ -265,7 +255,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         end;
       T.mk ty (T.TCast (te, checked))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
-  (* ranges are not first-class values and only work as for-loop iterators or
+  (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
   | Range _ | RangeInclusive _ ->
       add_error env e.span "range is only valid in a for loop or slice";
@@ -294,7 +284,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
                 emit env (Error.named fspan "duplicate field" fname)
               else Hashtbl.replace seen fname ())
             inits;
-          (* omitted fields are zero-initialized *)
+          (* Omitted fields are zero-initialized *)
           let tfields =
             List.map
               (fun (fname, ft) ->
@@ -318,7 +308,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | While (cond, body) ->
       let tc = check env cond TBool in
       let tb, _ = check_scoped_block env e.span body None true in
-      (* a while true with no break loops forever so it never yields control *)
+      (* A while true with no break loops forever so it never yields control *)
       let diverges =
         match cond.desc with
         | Bool true -> not (Reachability.loop_has_break body)
@@ -336,11 +326,11 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       if not env.in_loop then add_error env e.span "continue outside loop";
       T.mk TNever T.TContinue
 
-(* the value of a block is its last element and void when the block is empty *)
+(* The value of a block is its last element and void when the block is empty *)
 and tblock_ty (tb : T.tblock) : ty =
   match List.rev tb with te :: _ -> te.T.ty | [] -> TVoid
 
-(* a literal or diverging tail bends to a sibling so it can't anchor the type *)
+(* A literal or diverging tail bends to a sibling so it can't anchor the type *)
 and arm_is_flexible (e : expr) : bool =
   match e.desc with
   | Int (_, None) | Float _ -> true
@@ -355,7 +345,7 @@ and arm_is_flexible (e : expr) : bool =
 and block_is_flexible (body : block) : bool =
   match List.rev body with last :: _ -> arm_is_flexible last | [] -> false
 
-(* probe a block's result type with diagnostics muted so a sibling can anchor
+(* Probe a block's result type with diagnostics muted so a sibling can anchor
    it *)
 and block_result_ty (env : env) (body : block) : ty =
   let quiet = { env with diags = Diagnostic.sink () } in
@@ -379,7 +369,7 @@ and reconcile_if_result (env : env) (branches : (expr * block) list)
       | Some (_, t) -> t
       | None -> TNever)
 
-(* thread env so a binding is visible to later elements then check the tail
+(* Thread env so a binding is visible to later elements then check the tail
    against want and discard the rest *)
 and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
     : env * T.tblock =
@@ -394,7 +384,7 @@ and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
         | _ -> ());
         (env, List.rev acc)
     | [ last ] ->
-        (* a dead tail keeps only its warning and its type need not match *)
+        (* A dead tail keeps only its warning and its type need not match *)
         let tail_want = if diverged then None else want in
         if diverged then add_warning env last.span "unreachable code";
         let env, te = check_elem env last tail_want in
@@ -423,7 +413,7 @@ and check_elem (env : env) (e : expr) (want : ty option) : env * T.texpr =
       in
       (env, te)
 
-(* push a scope for the block then flag any leftover bindings *)
+(* Push a scope for the block then flag any leftover bindings *)
 and check_scoped_block (env : env) (span : Ast.span) (body : block)
     (want : ty option) (in_loop : bool) : T.tblock * ty =
   let base = if in_loop then { env with in_loop = true } else env in
@@ -514,7 +504,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
   warn_unused_in_scope final_inner;
   T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
 
-(* one if handles both a value and a plain statement and want None means
+(* One if handles both a value and a plain statement and want None means
    synthesize *)
 and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
     (else_body : block option) (want : ty option) : T.texpr =
@@ -556,7 +546,7 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
         (match telse with Some tb -> [ tblock_ty tb ] | None -> [])
         @ List.map (fun (_, tb) -> tblock_ty tb) tbranches
       in
-      (* every arm diverges so the whole if yields no value *)
+      (* Every arm diverges so the whole if yields no value *)
       let ty =
         if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys
         then TNever
@@ -564,13 +554,13 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
       in
       T.mk ty (T.TIf (tbranches, telse))
 
-(* MUST be this type *)
+(* This has to be this type *)
 and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   { (check_desc ~adopt env e want) with T.span = e.span }
 
 and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   let target = if adopt then resolve_ty want else strip_alias want in
-  (* synthesize then check the result matches want *)
+  (* Synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
     let got = te.T.ty in
@@ -588,13 +578,13 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       te)
     else
       match (strip_alias want, strip_alias got) with
-      (* materialize the fat pointer when a fixed array coerces to a slice *)
+      (* Materialize the fat pointer when a fixed array coerces to a slice *)
       | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
       | _ -> te
   in
   match e.desc with
   | Int (_, Some _) ->
-      (* the suffix already picked the type so a wrong target is an error not a
+      (* The suffix already picked the type so a wrong target is an error not a
          quiet coercion *)
       let te = synth_desc env e in
       if strip_alias want <> te.T.ty then
@@ -603,7 +593,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
              ~found:(show_ty te.T.ty));
       te
   | Int (n, None) -> (
-      (* an untyped literal adopts a newtype over an int and checks its base *)
+      (* An untyped literal adopts a newtype over an int and checks its base *)
       match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
@@ -611,7 +601,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
               (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
-      (* want is not an integer type at all e.g. let y: bool = 20 *)
+      (* Want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
           emit env
             (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
@@ -669,12 +659,13 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
 
 and check_range_bounds (env : env) (lo : expr) (hi : expr) =
   let tlo, thi, t =
-    (* lone literal on the left, typed on the right: bend the literal to hi *)
+    (* This bends a lone literal on the left toward the typed value on the
+       right *)
     if is_int_literal lo && not (is_int_literal hi) then
       let thi = synth env hi in
       let t = thi.T.ty in
       (check env lo t, thi, t)
-      (* otherwise anchor on lo and check hi against it (also covers two
+      (* Otherwise anchor on lo and check hi against it (also covers two
          literals) *)
     else
       let tlo = synth env lo in
@@ -699,7 +690,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
     else
       let fixed = List.filteri (fun i _ -> i < n_params) args in
       let rest = List.filteri (fun i _ -> i >= n_params) args in
-      (* c reads a float vararg as a double so widen it first *)
+      (* C reads a float vararg as a double so widen it first *)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
@@ -723,7 +714,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       if not (is_numeric t) then
         emit env
           (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
-      (* qbe has no float remainder instruction *)
+      (* QBE has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
       then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty t));
       let tr = check env r t in
@@ -760,7 +751,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tr =
         match op with
-        (* the count keeps its own integer type since it is only a number of
+        (* The count keeps its own integer type since it is only a number of
            positions *)
         | Lshift | Rshift ->
             let tr = synth env r in
@@ -797,7 +788,7 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
     match op with
     | Assign -> true
     | AddAssign | SubAssign | MulAssign | DivAssign -> is_numeric t
-    (* qbe has no float remainder instruction *)
+    (* QBE has no float remainder instruction *)
     | ModAssign ->
         is_numeric t
         && not (match strip_alias t with TFloat _ -> true | _ -> false)
@@ -809,7 +800,7 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
     emit env (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
   let tr =
     match op with
-    (* the count keeps its own type since it's just how far to shift *)
+    (* The count keeps its own type since it's just how far to shift *)
     | LshiftAssign | RshiftAssign ->
         let tr = synth env r in
         if not (is_integer tr.T.ty) then
@@ -869,7 +860,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
             add_error env e.span "cannot take address of expression");
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
-(* Synthesize the type of a field access expression. *)
+(* This figures out the type of a field access *)
 and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
     T.texpr =
   let te = synth env e in
@@ -937,7 +928,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
       in
       T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
   | _ -> (
-      (* the callee is a value holding a fn ptr so call through it *)
+      (* The callee is a value holding a fn ptr so call through it *)
       let callee_texpr = synth env callee in
       match resolve_ty callee_texpr.T.ty with
       | TFunc (param_tys, ret_ty) ->
@@ -959,7 +950,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
   match strip_alias tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
       match idx.desc with
-      (* arr[lo..hi] produces a slice that borrows into the same storage;
+      (* Arr[lo..hi] produces a slice that borrows into the same storage;
          arr[lo..=hi] desugars to arr[lo..hi+1] *)
       | Range (lo, hi) | RangeInclusive (lo, hi) ->
           let inclusive =
@@ -989,10 +980,8 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
       emit env (Error.named span "cannot index type" (show_ty t));
       dummy_texpr
 
-(* TODO(ccf6): Validate that the operand is a numeric type *)
-(* TODO(b5ae): Better error messages *)
-(* an array size can demand a const before its decl is checked so values
-   resolve on demand from here and fold_consts below shares this resolver *)
+(* An array size can demand a const before its decl is checked so values resolve
+   on demand from here and fold_consts below shares this resolver *)
 and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
   Const_eval.fold_const_num
     ~sizeof:(ty_size env.struct_fields)
@@ -1024,7 +1013,7 @@ and global_const_num (env : env) (span : Ast.span) (name : string) :
       let te =
         match global_typed_init env span name with
         | te -> te
-        (* a dummy lands on failure so the error reports only once *)
+        (* A dummy lands on failure so the error reports only once *)
         | exception e ->
             st.value <- Some dummy_const_num;
             raise e
@@ -1045,7 +1034,7 @@ and global_const_num (env : env) (span : Ast.span) (name : string) :
       st.value <- Some v;
       v
 
-(* typing shares the busy flag so a self demand mid typing is a cycle *)
+(* Typing shares the busy flag so a self demand mid typing is a cycle *)
 and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
   let st =
     match Hashtbl.find_opt env.g_state name with
@@ -1074,7 +1063,7 @@ and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
       st.typed <- Some te;
       te
 
-(* a failed fold reports and hands back a dummy so checking continues *)
+(* A failed fold reports and hands back a dummy so checking continues *)
 and fold_num_or (env : env) (default : Const_eval.const_num) (te : T.texpr) :
     Const_eval.const_num =
   if not (Const_eval.foldable te) then default
@@ -1084,7 +1073,7 @@ and fold_num_or (env : env) (default : Const_eval.const_num) (te : T.texpr) :
       List.iter (emit env) ds;
       default
 
-(* the folded size fixes dropped suffixes and silent wraps on huge counts *)
+(* The folded size fixes dropped suffixes and silent wraps on huge counts *)
 and eval_array_size (env : env) (e : expr) : int =
   let bad msg =
     add_error env e.span msg;
@@ -1095,7 +1084,7 @@ and eval_array_size (env : env) (e : expr) : int =
   else
     let v = fold_num_or env dummy_const_num te in
     let n = Const_eval.const_to_int64 te.T.ty v in
-    (* the source may be an expression so the message shows the folded value *)
+    (* The source may be an expression so the message shows the folded value *)
     let shown =
       if is_unsigned te.T.ty then Printf.sprintf "%Lu" n else Int64.to_string n
     in
@@ -1106,9 +1095,7 @@ and eval_array_size (env : env) (e : expr) : int =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-(* TODO(0c77): push/pop scope for match arms when match is implemented *)
-
-(* main implicitly returns i32 for the C runtime and everything else is void *)
+(* Main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some { tdesc = Named "never"; _ } -> TNever
@@ -1123,7 +1110,7 @@ let collect_func (env : env) (fd : func_def) : unit =
   Hashtbl.replace env.funcs fd.name
     { param_tys; ret_ty; variadic = fd.variadic }
 
-(* every kind of type name shares one namespace *)
+(* Every kind of type name shares one namespace *)
 let existing_type_kind (env : env) (name : string) : string option =
   if List.mem_assoc name builtin_tys then Some "a builtin type"
   else
@@ -1141,7 +1128,7 @@ let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
       true
   | None -> false
 
-(* the name goes in first so a field can name this struct or one defined
+(* The name goes in first so a field can name this struct or one defined
    later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
   if not (reject_taken_type_name env sd.span sd.name) then (
@@ -1165,7 +1152,7 @@ let resolve_struct_fields (env : env) (sd : struct_def) : unit =
       Hashtbl.replace env.struct_fields sd.name field_tys
   | _ -> ()
 
-(* a pointer or slice field is just an address so it can't grow the struct *)
+(* A pointer or slice field is just an address so it can't grow the struct *)
 let check_struct_cycle (env : env) (sd : struct_def) : unit =
   let fields_of name =
     Option.value ~default:[] (Hashtbl.find_opt env.struct_fields name)
@@ -1223,7 +1210,7 @@ let collect_decl (env : env) (decl : decl) : unit =
   | Newtype td -> collect_newtype env td
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
-  (* the collected signature is reused so a bad array size errors once *)
+  (* The collected signature is reused so a bad array size errors once *)
   let collected = Hashtbl.find_opt env.funcs fd.name in
   let param_tys =
     match collected with
@@ -1239,7 +1226,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
-  (* main always returns a 32 bit integer so any other type the user writes is
+  (* Main always returns a 32 bit integer so any other type the user writes is
      rejected *)
   if fd.name = "main" && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
@@ -1249,14 +1236,14 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   end;
 
   let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
-  (* an extern has no body so its params can't be used and stay quiet *)
+  (* An extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
       (fun e (name, t, span) -> extend_var ~used:is_extern e span name t)
       func_env params_typed
   in
 
-  (* a non-void body's trailing value is its return value so it flows against
+  (* A non-void body's trailing value is its return value so it flows against
      the declared return type while main and void bodies just run for effect *)
   let implicit_return =
     (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
@@ -1266,7 +1253,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    (* a live value tail returns while a diverging tail already left on its
+    (* A live value tail returns while a diverging tail already left on its
        own *)
     | true, last :: rest when last.T.ty = ret_ty && ret_ty <> TNever ->
         let ret = T.mk ~span:last.T.span TNever (T.TReturn (Some last)) in
@@ -1286,19 +1273,19 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   match te.T.desc with
   | TInt _ | TFloat _ | TBool _ | TNull | TChar _ | TCStr _ | TSizeOf _ -> true
-  (* A function address is a link time constant. *)
+  (* A function address is a link time constant *)
   | TIdent s -> Symbol.is_func s.kind || is_const_global env s.name
-  (* the address of a global is a link time constant *)
+  (* The address of a global is a link time constant *)
   | TUnOp (Ast.AddressOf, { desc = TIdent s; _ }) -> Symbol.is_global s.kind
   | TUnOp (_, e) -> is_const_texpr env e
   | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
   | TCast (e, _) -> is_const_texpr env e
   | TZero -> true
-  (* an array literal is constant when all its elements are *)
+  (* An array literal is constant when all its elements are *)
   | TArrayLit elems -> List.for_all (is_const_texpr env) elems
   | TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
-  (* never compile-time by design *)
+  (* Never compile-time by design *)
   | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
   | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlock _ | TIf _ | TWhile _
   | TFor _ | TBinding _ | TReturn _ | TBreak | TContinue ->
@@ -1306,7 +1293,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | TUndef -> true
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
-  (* the collected type is reused so a bad array size errors once *)
+  (* The collected type is reused so a bad array size errors once *)
   let t =
     match Hashtbl.find_opt env.globals gd.name with
     | Some (t, _) -> t
@@ -1346,7 +1333,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       let tfd = check_func ~is_extern:true env fd in
       T.TExtern tfd
   | Struct sd ->
-      (* a rejected duplicate never landed in the table and its fields are read
+      (* A rejected duplicate never landed in the table and its fields are read
          directly *)
       let field_tys =
         match Hashtbl.find_opt env.types sd.name with
@@ -1358,7 +1345,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       in
       T.TStruct (sd.name, field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
-  (* a rejected duplicate never landed in the table and falls back to the
+  (* A rejected duplicate never landed in the table and falls back to the
      written type *)
   | TypeAlias td ->
       let t =
@@ -1387,11 +1374,11 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
       else None)
     ~fold_num:(fold_num env) tdecls
 
-(* hands warnings back for the edge to render and blows up on any error *)
+(* Hands warnings back for the edge to render and blows up on any error *)
 let typecheck (uses : Resolve.t) (decls : decl list) :
     T.tdecl list * Diagnostic.t list =
   let env = make_env uses in
-  (* an early array size can demand any later const so defs go in first *)
+  (* An early array size can demand any later const so defs go in first *)
   List.iter
     (function
       | Global ({ kind = Let | Comptime; _ } as gd) ->

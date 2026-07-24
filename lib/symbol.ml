@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* TODO(1323): A counter is fine since I only compile one file but when I add
-   modules I will need mangled names for the linker+ABI on top of the ids*)
 type id = int [@@deriving show { with_path = false }]
 
 type kind =

@@ -8,6 +8,6 @@
   "source": "lib/typechecker.ml",
   "status": "open",
   "tags": [],
-  "title": "dedicated \"cannot chain comparison operators\" message by checking if l is a comparison node",
-  "updated_at": "2026-07-12 08:23:02.156494"
+  "title": "dedicated \"cannot chain comparison operators\" message by",
+  "updated_at": "2026-07-24 12:58:45.612264"
 }

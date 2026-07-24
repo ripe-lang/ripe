@@ -45,7 +45,7 @@ let int_kind_neg_limit = function
   | I64 | Isize -> Int64.min_int
   | U8 | U16 | U32 | U64 | Usize -> 0L
 
-(* single source for builtin type names used by both parsing and printing *)
+(* Single source for builtin type names used by both parsing and printing *)
 let builtin_tys =
   List.map
     (fun k -> (String.lowercase_ascii (show_int_kind k), TInt k))
@@ -84,7 +84,7 @@ let rec show_ty = function
       Printf.sprintf "(%s)%s" p_str r_str
   | TError -> "<error>"
 
-(* sees through a newtype or alias to the concrete representation codegen must
+(* Sees through a newtype or alias to a representation tat the codegen can
    use *)
 let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
@@ -97,7 +97,7 @@ let is_unsigned t =
   | TInt (U8 | U16 | U32 | U64 | Usize) -> true
   | _ -> false
 
-(* byte size of each integer kind: bit width / 8 *)
+(* A byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
   | I8 | U8 -> 1
   | I16 | U16 -> 2
@@ -111,7 +111,7 @@ let int_kind_of (t : ty) : int_kind =
   | TInt k -> k
   | _ -> Error.ice "expected an integer type"
 
-(* the value fits unless the target range can't hold every source value *)
+(* The value fits UNLESS the target range can't hold every source value *)
 let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   let bits k = 8 * int_kind_size k in
   let src_unsigned = is_unsigned (TInt src) in
@@ -120,10 +120,6 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | false, true -> true
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
-
-(* C ABI alignment and padding rules *)
-(* TODO(4287): Reordering struct fields by alignment to minimize padding  *)
-(* TODO(8969): Add a packed attr to strip padding for exact memory layout *)
 
 let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
     int =
@@ -148,7 +144,7 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TSlice _ -> 8
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
-(* n and a must be non-negative *)
+(* `n` and `a` MUST be non-negative *)
 let align_to n a = (n + a - 1) / a * a
 
 let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
@@ -178,23 +174,22 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
       | None ->
           Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
-  (* fat pointer: { ptr, len } *)
+  (* Fat pointer: { ptr, len } *)
   | TSlice _ -> 16
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
-(* aggregates are addressed by pointer: an ident of this type is its base
+(* Aggregates are addressed by pointer: an ident of this type is its base
    address *)
 let is_aggregate t =
   match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
 
-(* a const is a compile-time value so only types the folder can compute are
-   allowed *)
+(* A const can only use types the folder knows how to compute *)
 let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
   | _ -> false
 
-(* the 8 byte value classes, so constant folding picks a 64 bit result *)
+(* Wide values use 8 bytes so constant folding uses a 64 bit result *)
 let is_wide_ty t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
@@ -204,8 +199,8 @@ let is_wide_ty t =
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
-(* an alias is just another name for its base type so it never makes two types
-   different *)
+(* An alias is just another name for its base type so it doesn't make two
+   types *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
   | TPointer t -> TPointer (erase_aliases t)

@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* Compiler diagnostics ported from ceramic's diagnostic.{hpp,cpp} *)
+(* These diagnostics came from ceramic *)
 
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
@@ -8,15 +8,15 @@ type span_label = { span : Ast.span; message : string }
 type t = {
   severity : severity;
   headline : string;
-  primary : Ast.span option; (* caret snippet target *)
-  primary_label : string option; (* inline text after the caret *)
-  labels : span_label list; (* secondary snippets *)
+  primary : Ast.span option; (* Caret snippet target *)
+  primary_label : string option; (* Inline text after the caret *)
+  labels : span_label list; (* Secondary snippets *)
   notes : t list; (* "note:" sub diagnostics *)
-  detail : string option; (* verbatim block after the snippet *)
-  suggestion : string option; (* closing "help:" line *)
+  detail : string option; (* Verbatim block after the snippet *)
+  suggestion : string option; (* Closing "help:" line *)
 }
 
-(* any pass raises this to abort with a batch of diagnostics *)
+(* Any pass raises this to abort with a batch of diagnostics *)
 exception Errors of t list
 
 let make severity headline =
@@ -31,7 +31,7 @@ let make severity headline =
     suggestion = None;
   }
 
-(* builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
+(* Builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
 let error headline = make Error headline
 let warning headline = make Warning headline
 let note headline = make Note headline
@@ -45,7 +45,7 @@ let add_note n d = { d with notes = d.notes @ [ n ] }
 let detail s d = { d with detail = Some s }
 let help s d = { d with suggestion = Some s }
 
-(* where a pass dumps diagnostics and the edge drains it to render *)
+(* Where a pass dumps diagnostics and the edge drains it to render *)
 type sink = t list ref
 
 let sink () : sink = ref []
@@ -53,12 +53,12 @@ let emit (s : sink) (d : t) : unit = s := d :: !s
 let error_at (s : sink) span msg = emit s (error msg |> at span)
 let warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
-(* sorted into source order and ties keep emission order *)
+(* Sorted into source order and ties keep emission order *)
 let drain (s : sink) : t list =
   let pos d = match d.primary with Some sp -> sp.Ast.lo | None -> 0 in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
 
-(* rendering *)
+(* Rendering *)
 
 type ctx = { sm : Source_map.t; filename : string; color : bool }
 
@@ -85,10 +85,11 @@ let severity_label color sev =
   if color then severity_ansi sev ^ severity_word sev ^ reset
   else severity_word sev
 
-(* utf8 continuation bytes do not advance a column *)
+(* UTF8 continuation bytes don't advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
-(* visual columns from line_start to pos, tabs expanded, cont bytes skipped *)
+(* This gets visual columns from line_start to pos with tabs expanded and cont
+   bytes skipped *)
 let visual_col src line_start pos =
   let col = ref 0 in
   for i = line_start to pos - 1 do
@@ -131,7 +132,7 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   | None -> ());
   Buffer.add_char buf '\n'
 
-(* headline, primary block, then each secondary label as its own block *)
+(* This prints the headline then the primary block then each secondary label *)
 let render_one ctx buf d =
   Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
   Buffer.add_string buf ": ";
