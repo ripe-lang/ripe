@@ -64,13 +64,15 @@ type ctx = { sm : Source_map.t; filename : string; color : bool }
 
 let tab_width = 8
 
-let severity_word = function
+let severity_word (severity : severity) =
+  match severity with
   | Error -> "error"
   | Warning -> "warning"
   | Note -> "note"
   | Help -> "help"
 
-let severity_ansi = function
+let severity_ansi (severity : severity) =
+  match severity with
   | Error -> "\027[1;31m"
   | Warning -> "\027[1;33m"
   | Note -> "\027[1;36m"

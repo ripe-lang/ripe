@@ -84,7 +84,8 @@ let rec show_ty = function
       Printf.sprintf "(%s)%s" p_str r_str
   | TError -> "<error>"
 
-(* sees through a newtype or alias to the concrete representation codegen must use *)
+(* sees through a newtype or alias to the concrete representation codegen must
+   use *)
 let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
   | t -> t
@@ -181,11 +182,13 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TSlice _ -> 16
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
-(* aggregates are addressed by pointer: an ident of this type is its base address *)
+(* aggregates are addressed by pointer: an ident of this type is its base
+   address *)
 let is_aggregate t =
   match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
 
-(* a const is a compile-time value so only types the folder can compute are allowed *)
+(* a const is a compile-time value so only types the folder can compute are
+   allowed *)
 let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
@@ -201,7 +204,8 @@ let is_wide_ty t =
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
-(* an alias is just another name for its base type so it never makes two types different *)
+(* an alias is just another name for its base type so it never makes two types
+   different *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
   | TPointer t -> TPointer (erase_aliases t)

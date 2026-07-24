@@ -3,8 +3,8 @@
 open Types
 module T = Typed_ast
 
-(* every constant folds to a value here so codegen never resolves a name.
-   the typechecker owns the const tables so lookups come in as closures *)
+(* every constant folds to a value here so codegen never resolves a name. the
+   typechecker owns the const tables so lookups come in as closures *)
 let run ~(emit : Diagnostic.t -> unit)
     ~(force_const : Ast.span -> string -> unit)
     ~(local_value : Symbol.id -> Const_eval.const_num option)

@@ -32,15 +32,14 @@ let at st t = st.tok = t
 let cur_pos st = st.tok_span.lo
 
 let fail st headline =
-  raise (ParseError Diagnostic.(error headline |> at (cur_span st)))
+  raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
 
 let fail_found st headline =
   raise
     (ParseError
-       Diagnostic.(
-         error headline
-         |> at (cur_span st)
-         |> label (Printf.sprintf "found %s" (show_token st.tok))))
+       (Diagnostic.error headline
+       |> Diagnostic.at (cur_span st)
+       |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))))
 
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
@@ -279,10 +278,9 @@ and parse_expr st min_prec =
           if is_postfix_tok st.tok then
             raise
               (ParseError
-                 Diagnostic.(
-                   error "postfix operator applied to a cast"
-                   |> at (cur_span st)
-                   |> help "parenthesize the cast: `(x as T)[...]`"))
+                 (Diagnostic.error "postfix operator applied to a cast"
+                 |> Diagnostic.at (cur_span st)
+                 |> Diagnostic.help "parenthesize the cast: `(x as T)[...]`"))
         end
         else if op_tok = DOTDOT then begin
           let rhs = parse_expr st next_min_prec in
@@ -415,18 +413,17 @@ and parse_primary st =
   | ELSE | ELSEIF ->
       raise
         (ParseError
-           Diagnostic.(
-             error
-               (Printf.sprintf "`%s` without a matching `if`"
-                  (show_token st.tok))
-             |> at (cur_span st)
-             |> label (Printf.sprintf "found %s" (show_token st.tok))
-             |> help "an `if` used as a value closes at its `}`"))
+           (Diagnostic.error
+              (Printf.sprintf "`%s` without a matching `if`" (show_token st.tok))
+           |> Diagnostic.at (cur_span st)
+           |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))
+           |> Diagnostic.help "an `if` used as a value closes at its `}`"))
   | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
-(* if and block are values too and where they sit decides if the value is used *)
+(* if and block are values too and where they sit decides if the value is
+   used *)
 and parse_value st =
   let lo = cur_pos st in
   match st.tok with
@@ -560,11 +557,10 @@ and parse_if st =
       if st.tok = IF then
         raise
           (ParseError
-             Diagnostic.(
-               error "expected block after else"
-               |> at (cur_span st)
-               |> label "found if"
-               |> help "the keyword is elseif, one word"));
+             (Diagnostic.error "expected block after else"
+             |> Diagnostic.at (cur_span st)
+             |> Diagnostic.label "found if"
+             |> Diagnostic.help "the keyword is elseif, one word"));
       skip_semi st;
       Some (parse_block st)
     end

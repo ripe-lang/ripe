@@ -44,7 +44,8 @@ let report_unclosed diags (open_tok, open_span) =
   Diagnostic.emit diags
     Diagnostic.(error ("unclosed " ^ opener_repr open_tok) |> at open_span)
 
-(* classifies one token against the stack of delimiters open above it, innermost first *)
+(* classifies one token against the stack of delimiters open above it, innermost
+   first *)
 let step diags stack tok span =
   if is_closer tok then (
     match stack with

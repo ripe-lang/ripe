@@ -106,7 +106,8 @@ type expr_desc =
   | If of (expr * block) list * block option
   | While of expr * block
   | For of string * span * expr * block
-  (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) = (x, y) *)
+  (* TODO(68e6): Support tuple destructuring in var bindings e.g. var (a, b) =
+     (x, y) *)
   | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
   | Break

@@ -29,10 +29,8 @@ let lookup t pos =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
 
-(* A basic wrapper for lookup to get the span e.g.
-   file.rp:1:5: type mismatch
-     let x = "hello" + 5
-             ^~~~~~~~~~~ *)
+(* A basic wrapper for lookup to get the span e.g. file.rp:1:5: type mismatch
+   let x = "hello" + 5 ^~~~~~~~~~~ *)
 let span_to_locs t (span : Ast.span) =
   let start_line, start_col = lookup t span.lo in
   let end_line, end_col = lookup t span.hi in

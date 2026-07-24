@@ -17,7 +17,8 @@ type struct_info = { field_tys : (string * ty) list }
 type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
-(* the typed and value fields only ever go from None to Some so nothing rolls back *)
+(* the typed and value fields only ever go from None to Some so nothing rolls
+   back *)
 type gstate = {
   def : global_def;
   mutable typed : T.texpr option;
@@ -30,7 +31,8 @@ type env = {
   vars : (string * var_info) list list;
   funcs : (string, func_sig) Hashtbl.t;
   types : (string, type_def) Hashtbl.t;
-  (* struct field layouts mirror the DStruct entries in types so ty_size need not rebuild them *)
+  (* struct field layouts mirror the DStruct entries in types so ty_size need
+     not rebuild them *)
   struct_fields : (string, (string * ty) list) Hashtbl.t;
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
   (* constants evaluate on demand so an array size may name a later const *)
@@ -135,7 +137,8 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
-  (* never is the return type of a function that can't return so no value ever has it *)
+  (* never is the return type of a function that can't return so no value ever
+     has it *)
   | Named "never" ->
       emit env
         Diagnostic.(
@@ -189,7 +192,8 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
               Hashtbl.replace env.globals name (t, st.def.kind);
               t
           | None -> (
-              (* fall back to function table so function names can be used as values *)
+              (* fall back to function table so function names can be used as
+                 values *)
               match Hashtbl.find_opt env.funcs name with
               | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
               | None ->
@@ -226,7 +230,9 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  (* TODO this trapping `as!` could be moved to the standard library in the future once sum types and generics land, then `as!` could switch to meaning force the conversion *)
+  (* TODO this trapping `as!` could be moved to the standard library in the
+     future once sum types and generics land, then `as!` could switch to meaning
+     force the conversion *)
   | Cast (operand, t, checked) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
@@ -248,7 +254,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       else if checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
         | TInt _, TInt _ -> ()
-        (* TODO(9eb1): let `as!` cover float casts too once I add a loss check for floats *)
+        (* TODO(9eb1): let `as!` cover float casts too once I add a loss check
+           for floats *)
         | _ ->
             emit env
               (Diagnostic.error "checked cast only supports integers"
@@ -258,7 +265,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         end;
       T.mk ty (T.TCast (te, checked))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
-  (* ranges are not first-class values and only work as for-loop iterators or slice bounds *)
+  (* ranges are not first-class values and only work as for-loop iterators or
+     slice bounds *)
   | Range _ | RangeInclusive _ ->
       add_error env e.span "range is only valid in a for loop or slice";
       dummy_texpr
@@ -347,7 +355,8 @@ and arm_is_flexible (e : expr) : bool =
 and block_is_flexible (body : block) : bool =
   match List.rev body with last :: _ -> arm_is_flexible last | [] -> false
 
-(* probe a block's result type with diagnostics muted so a sibling can anchor it *)
+(* probe a block's result type with diagnostics muted so a sibling can anchor
+   it *)
 and block_result_ty (env : env) (body : block) : ty =
   let quiet = { env with diags = Diagnostic.sink () } in
   let inner = push_scope quiet in
@@ -505,7 +514,8 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
   warn_unused_in_scope final_inner;
   T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
 
-(* one if handles both a value and a plain statement and want None means synthesize *)
+(* one if handles both a value and a plain statement and want None means
+   synthesize *)
 and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
     (else_body : block option) (want : ty option) : T.texpr =
   match want with
@@ -583,8 +593,9 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | _ -> te
   in
   match e.desc with
-  | Int (_, Some s) ->
-      (* the suffix already picked the type so a wrong target is an error not a quiet coercion *)
+  | Int (_, Some _) ->
+      (* the suffix already picked the type so a wrong target is an error not a
+         quiet coercion *)
       let te = synth_desc env e in
       if strip_alias want <> te.T.ty then
         emit env
@@ -663,7 +674,8 @@ and check_range_bounds (env : env) (lo : expr) (hi : expr) =
       let thi = synth env hi in
       let t = thi.T.ty in
       (check env lo t, thi, t)
-      (* otherwise anchor on lo and check hi against it (also covers two literals) *)
+      (* otherwise anchor on lo and check hi against it (also covers two
+         literals) *)
     else
       let tlo = synth env lo in
       let t = tlo.T.ty in
@@ -717,7 +729,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
-      (* TODO(b5ca): dedicated "cannot chain comparison operators" message by checking if l is a comparison node *)
+      (* TODO(b5ca): dedicated "cannot chain comparison operators" message by
+         checking if l is a comparison node *)
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then
@@ -747,7 +760,8 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
       let tr =
         match op with
-        (* the count keeps its own integer type since it is only a number of positions *)
+        (* the count keeps its own integer type since it is only a number of
+           positions *)
         | Lshift | Rshift ->
             let tr = synth env r in
             if not (is_integer tr.T.ty) then
@@ -769,7 +783,8 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   | TIdent s when Symbol.is_func s.kind ->
       emit env (Error.named l.span "cannot assign to function" s.name)
   | TIdent _ | TFieldAccess _ | TIndex _ -> (
-      (* This catches assignment to an immutable binding whether it's local or global. *)
+      (* This catches assignment to an immutable binding whether it's local or
+         global. *)
       match root_binding tl with
       | Some s
         when Symbol.is_immutable s.kind
@@ -1100,8 +1115,8 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
   | Some t -> ty_of_ast env t
   | None -> if fd.name = "main" then TInt I32 else TVoid
 
-(* First pass collecting signatures so that the compiler
-   can handle forward references *)
+(* First pass collecting signatures so that the compiler can handle forward
+   references *)
 let collect_func (env : env) (fd : func_def) : unit =
   let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
   let ret_ty = ret_ty_of env fd in
@@ -1126,7 +1141,8 @@ let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
       true
   | None -> false
 
-(* the name goes in first so a field can name this struct or one defined later *)
+(* the name goes in first so a field can name this struct or one defined
+   later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
   if not (reject_taken_type_name env sd.span sd.name) then (
     let seen = Hashtbl.create 8 in
@@ -1223,7 +1239,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
-  (* main always returns a 32 bit integer so any other type the user writes is rejected *)
+  (* main always returns a 32 bit integer so any other type the user writes is
+     rejected *)
   if fd.name = "main" && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env
@@ -1249,7 +1266,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    (* a live value tail returns while a diverging tail already left on its own *)
+    (* a live value tail returns while a diverging tail already left on its
+       own *)
     | true, last :: rest when last.T.ty = ret_ty && ret_ty <> TNever ->
         let ret = T.mk ~span:last.T.span TNever (T.TReturn (Some last)) in
         List.rev (ret :: rest)
@@ -1328,7 +1346,8 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       let tfd = check_func ~is_extern:true env fd in
       T.TExtern tfd
   | Struct sd ->
-      (* a rejected duplicate never landed in the table and its fields are read directly *)
+      (* a rejected duplicate never landed in the table and its fields are read
+         directly *)
       let field_tys =
         match Hashtbl.find_opt env.types sd.name with
         | Some (DStruct info) -> info.field_tys
@@ -1339,7 +1358,8 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       in
       T.TStruct (sd.name, field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
-  (* a rejected duplicate never landed in the table and falls back to the written type *)
+  (* a rejected duplicate never landed in the table and falls back to the
+     written type *)
   | TypeAlias td ->
       let t =
         match Hashtbl.find_opt env.types td.name with
