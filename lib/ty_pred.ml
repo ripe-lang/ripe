@@ -20,7 +20,8 @@ let rec compatible (want : ty) (got : ty) : bool =
       List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
-  (* a struct matches nominally by name and its type arguments must match exactly *)
+  (* a struct matches nominally by name and its type arguments must match
+     exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
   (* a newtype is its own type and never matches its base *)
@@ -68,7 +69,8 @@ and root_through (base : T.texpr) : Symbol.t option =
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
 
-(* a pointer is just an address so p < q asks which one sits earlier in memory *)
+(* a pointer is just an address so p < q asks which one sits earlier in
+   memory *)
 let is_ordered t =
   match strip_alias t with TPointer _ | TChar -> true | _ -> is_numeric t
 

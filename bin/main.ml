@@ -15,8 +15,6 @@ let emit_stages =
     ("asm", Driver.Asm, "the target assembly");
   ]
 
-let stage_names = String.concat ", " (List.map (fun (n, _, _) -> n) emit_stages)
-
 let stage_help =
   String.concat "\n"
     (List.map

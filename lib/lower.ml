@@ -107,7 +107,8 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
         D.CIf
           ( List.map (fun (c, body) -> (lower_expr c, lower_block body)) branches,
             Option.map lower_block else_body )
-    (* while and for are void so they only reach here from an unused value slot *)
+    (* while and for are void so they only reach here from an unused value
+       slot *)
     | S.TWhile (cond, body) -> D.CBlock (lower_while cond body)
     | S.TFor (sym, elem_ty, iter, body) ->
         D.CBlock (lower_for sym elem_ty iter body)
@@ -118,7 +119,8 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   in
   { D.desc; ty; span }
 
-(* a block element in statement position may expand to several core statements *)
+(* a block element in statement position may expand to several core
+   statements *)
 and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
 
 and lower_elem (te : S.texpr) : D.cblock =
@@ -146,7 +148,8 @@ and base_binop_of = function
   | Ast.RshiftAssign -> Some Ast.Rshift
   | _ -> None
 
-(* the target's address is taken once so an index or base with side effects doesn't run twice *)
+(* the target's address is taken once so an index or base with side effects
+   doesn't run twice *)
 and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cblock =
   let elem = l.S.ty in
   let ptr_ty = Types.TPointer elem in
@@ -185,7 +188,8 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
 and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
-  (* a slice is snapshotted so its pointer and length come from one evaluation *)
+  (* a slice is snapshotted so its pointer and length come from one
+     evaluation *)
   let pre, src =
     match Types.resolve_ty iter.D.ty with
     | Types.TSlice _ ->

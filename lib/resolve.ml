@@ -38,7 +38,10 @@ let mint (st : state) (kind : Symbol.kind) (name : string) (span : Ast.span) :
   sym
 
 let push_scope (st : state) = st.scopes <- Hashtbl.create 8 :: st.scopes
-let pop_scope (st : state) = st.scopes <- List.tl st.scopes
+
+let pop_scope (st : state) =
+  st.scopes <-
+    (match st.scopes with _ :: scopes -> scopes | [] -> assert false)
 
 (* The innermost scope holds params with the top level body binders. *)
 let declare_local (st : state) kind name span : unit =
@@ -148,7 +151,7 @@ and resolve_block (st : state) (body : block) : unit =
 
 (* Body binders can redeclare freely but params can't repeat. *)
 let declare_param (st : state) (p : param) : unit =
-  let scope = List.hd st.scopes in
+  let scope = match st.scopes with scope :: _ -> scope | [] -> assert false in
   match Hashtbl.find_opt scope p.name with
   | Some prev ->
       Diagnostic.emit st.diags
@@ -177,8 +180,8 @@ let resolve (decls : decl list) : t =
       diags = Diagnostic.sink ();
     }
   in
-  (* Declare every top level name first so bodies and initializers can
-     forward reference. *)
+  (* Declare every top level name first so bodies and initializers can forward
+     reference. *)
   List.iter
     (function
       | Func fd -> declare_global st Symbol.Func fd.name fd.span

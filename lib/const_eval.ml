@@ -8,7 +8,8 @@ type const_num = Ni32 of Int32.t | Ni64 of Int64.t | Nf of float
 
 let const_bool b = Ni32 (if b then 1l else 0l)
 
-(* the source signedness says whether the new high bits are zeros or the sign bit *)
+(* the source signedness says whether the new high bits are zeros or the sign
+   bit *)
 let const_to_int64 (src_ty : ty) (n : const_num) : Int64.t =
   match n with
   | Ni64 n -> n
@@ -23,7 +24,8 @@ let const_to_float (n : const_num) : float =
   | Ni64 n -> Int64.to_float n
   | Nf f -> f
 
-(* the narrow kinds get masked back to width so the value wraps like the target *)
+(* the narrow kinds get masked back to width so the value wraps like the
+   target *)
 let wrap_const (ty : ty) (n : Int64.t) : const_num =
   match resolve_ty ty with
   | TInt (I64 | U64 | Isize | Usize) -> Ni64 n
@@ -45,9 +47,12 @@ let unsupported_const span =
     |> at span
     |> help "constant initializers must fold to a compile-time value")
 
-(* TODO(6676): once functions can be evaluated at compile time here bound the recursion depth and number of steps so a runaway evaluation cannot hang the compiler *)
+(* TODO(6676): once functions can be evaluated at compile time here bound the
+   recursion depth and number of steps so a runaway evaluation cannot hang the
+   compiler *)
 
-(* [resolve] yields the value of a named constant so cycle handling stays in the caller *)
+(* [resolve] yields the value of a named constant so cycle handling stays in the
+   caller *)
 let rec fold_const_num ~sizeof
     ~(resolve : Symbol.t -> ty -> Ast.span -> const_num) (te : T.texpr) :
     const_num =
@@ -133,7 +138,8 @@ and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
       | Ast.BitAnd -> wrap (Int64.logand x y)
       | Ast.BitOr -> wrap (Int64.logor x y)
       | Ast.BitXor -> wrap (Int64.logxor x y)
-      (* the count is capped since ocaml leaves a shift past 64 bits undefined while go shifts every bit out *)
+      (* the count is capped since ocaml leaves a shift past 64 bits undefined
+         while go shifts every bit out *)
       | Ast.Lshift | Ast.Rshift -> (
           let oversized = Int64.unsigned_compare y 64L >= 0 in
           let n = Int64.to_int y in
