@@ -8,10 +8,13 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: expected expression
+    error: expected `)`
       at <test>:1:15
         func f() { g( }
                       ^ found }
+      at <test>:1:13
+        func f() { g( }
+                    ^ unclosed `(`
     |}]
 
 let%expect_test "parse: stray token" =
@@ -28,14 +31,14 @@ let%expect_test "parse: unterminated string" =
   run_src "func f() { let s = \"oops";
   [%expect
     {|
+    error: unclosed `{`
+      at <test>:1:10
+        func f() { let s = "oops
+                 ^
     error: unterminated string
       at <test>:1:25
         func f() { let s = "oops
                                 ^
-    error: expected }
-      at <test>:1:25
-        func f() { let s = "oops
-                                ^ found <eof>
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -399,10 +402,13 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: expected expression
+    error: expected `}`
       at <test>:1:12
         func f() { ) }
                    ^ found )
+      at <test>:1:10
+        func f() { ) }
+                 ^ unclosed `{`
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -709,3 +715,62 @@ let%expect_test "parse: a bad char literal does not cascade" =
         func f() i32 { return 'AA' as i32 }
                               ^~~~
     |}]
+
+let%expect_test "parse: unclosed paren in a while condition points at the paren"
+    =
+  run_src "func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }";
+  [%expect
+    {|
+    error: expected `)`
+      at <test>:1:59
+        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
+                                                                  ^ found }
+      at <test>:1:28
+        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
+                                   ^ unclosed `(`
+    |}]
+
+let%expect_test "parse: unclosed bracket in an index points at the bracket" =
+  run_src "func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
+  [%expect
+    {|
+    error: expected `]`
+      at <test>:1:48
+        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+                                                       ^ found }
+      at <test>:1:39
+        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+                                              ^ unclosed `[`
+    |}]
+
+let%expect_test "parse: stray closing paren with nothing open" =
+  run_src ")";
+  [%expect
+    {|
+                 error: unexpected closing delimiter
+                   at <test>:1:1
+                     )
+                     ^ found )
+                 error: expected declaration
+                   at <test>:1:1
+                     )
+                     ^ found )
+                 |}]
+
+let%expect_test "parse: multiple unclosed delimiters at eof" =
+  run_src "func f() { ( [";
+  [%expect
+    {|
+                              error: unclosed `{`
+                                at <test>:1:10
+                                  func f() { ( [
+                                           ^
+                              error: unclosed `(`
+                                at <test>:1:12
+                                  func f() { ( [
+                                             ^
+                              error: unclosed `[`
+                                at <test>:1:14
+                                  func f() { ( [
+                                               ^
+                              |}]
