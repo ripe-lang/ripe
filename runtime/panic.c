@@ -14,14 +14,14 @@ void ripe_panic(const char *msg) {
     abort();
 }
 
-void ripe_panic_bounds(long idx, long len) {
-    fprintf(stderr, "%s index %ld is out of range for length %ld\n",
+void ripe_panic_bounds(unsigned long idx, unsigned long len) {
+    fprintf(stderr, "%s index %lu is out of range for length %lu\n",
             panic_prefix(), idx, len);
     abort();
 }
 
-void ripe_panic_slice_bounds(long lo, long hi, long len) {
-    fprintf(stderr, "%s slice bounds [%ld:%ld] out of range for length %ld\n",
+void ripe_panic_slice_bounds(unsigned long lo, unsigned long hi, unsigned long len) {
+    fprintf(stderr, "%s slice bounds [%lu:%lu] out of range for length %lu\n",
             panic_prefix(), lo, hi, len);
     abort();
 }
