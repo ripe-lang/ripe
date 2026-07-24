@@ -1,19 +1,19 @@
 extern func printf(fmt: cstr, ...) i32
 
-const N: i32 = 4
-const M: i32 = N * 2 + 1
-const LATER: i32 = LAST - 1
-const LAST: i32 = 100
+comptime N: i32 = 4
+comptime M: i32 = N * 2 + 1
+comptime LATER: i32 = LAST - 1
+comptime LAST: i32 = 100
 let STORED: i32 = M + 1
 
 struct pt { x: i32, y: i32 }
-const SIZE: i64 = sizeof(pt)
+comptime SIZE: i64 = sizeof(pt)
 
 func main() i32 {
-  const local: i32 = M * 10
+  comptime local: i32 = M * 10
   var sum: i32 = 0
   for _i in 0..N {
-    const step: i32 = 2
+    comptime step: i32 = 2
     sum = sum + step
   }
   printf("%d %d %d %d %d %d %d\n", N, M, LATER, STORED, SIZE as i32, local, sum)

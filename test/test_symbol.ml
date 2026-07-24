@@ -11,7 +11,7 @@ let%expect_test "symbol: is_func covers only func and extern" =
     Extern true
     Global false
     (Local Let) false
-    (Local Const) false
+    (Local Comptime) false
     (Local Var) false
     Param false
     ForVar false
@@ -25,7 +25,7 @@ let%expect_test "symbol: is_global covers only global" =
     Extern false
     Global true
     (Local Let) false
-    (Local Const) false
+    (Local Comptime) false
     (Local Var) false
     Param false
     ForVar false

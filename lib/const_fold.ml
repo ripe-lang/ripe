@@ -14,7 +14,7 @@ let run ~(emit : Diagnostic.t -> unit)
   (* fold every global const up front so an unused bad one still errors *)
   List.iter
     (function
-      | T.TGlobal { T.name; init = Some init; kind = Ast.Const; _ } -> (
+      | T.TGlobal { T.name; init = Some init; kind = Ast.Comptime; _ } -> (
           try force_const init.T.span name
           with Diagnostic.Errors ds -> List.iter emit ds)
       | _ -> ())
@@ -89,7 +89,7 @@ let run ~(emit : Diagnostic.t -> unit)
     List.filter_map
       (fun e ->
         match e.T.desc with
-        | T.TBinding (Ast.Const, _, _, _) -> None
+        | T.TBinding (Ast.Comptime, _, _, _) -> None
         | _ -> Some (sub_expr e))
       body
   in
@@ -122,7 +122,7 @@ let run ~(emit : Diagnostic.t -> unit)
   (* a const global vanishes and every other global keeps folded data *)
   List.filter_map
     (function
-      | T.TGlobal { T.kind = Ast.Const; _ } -> None
+      | T.TGlobal { T.kind = Ast.Comptime; _ } -> None
       | T.TGlobal gd ->
           let init =
             match gd.T.init with

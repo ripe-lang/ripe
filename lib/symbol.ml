@@ -21,7 +21,7 @@ let is_func = function Func | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
 
 let is_immutable = function
-  | Local (Ast.Let | Ast.Const) | ForVar -> true
+  | Local (Ast.Let | Ast.Comptime) | ForVar -> true
   | _ -> false
 
-let is_comptime = function Local Ast.Const -> true | _ -> false
+let is_comptime = function Local Ast.Comptime -> true | _ -> false

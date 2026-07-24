@@ -37,7 +37,7 @@ type token =
   | LSHIFT_ASSIGN
   | RSHIFT_ASSIGN
   | LET
-  | CONST
+  | COMPTIME
   | VAR
   | RETURN
   | IF
@@ -81,7 +81,7 @@ type token =
 let keywords =
   [
     ("let", LET);
-    ("const", CONST);
+    ("comptime", COMPTIME);
     ("var", VAR);
     ("return", RETURN);
     ("if", IF);
@@ -162,7 +162,7 @@ let show_token = function
   | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | ( LET | CONST | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN | TRUE
-    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
-    | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED ) as t ->
+  | ( LET | COMPTIME | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN
+    | TRUE | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT
+    | INLINE | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
