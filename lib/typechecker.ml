@@ -433,7 +433,10 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
         (want, te)
     | None, Some e ->
         let te = synth env e in
-        (te.T.ty, te)
+        if te.T.ty = TVoid then (
+          emit env (Error.named e.span "cannot bind void value" name);
+          (TError, te))
+        else (te.T.ty, te)
     | Some a, None ->
         let want = ty_of_ast env a in
         (want, T.mk want T.TZero)

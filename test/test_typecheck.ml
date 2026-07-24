@@ -3652,3 +3652,18 @@ let%expect_test "typecheck: char does not cast to a float" =
         func f() f32 { return 'A' as f32 }
                               ^~~~~~~~~~ cannot cast char to f32
     |}]
+
+let%expect_test "typecheck: binding a void call is rejected" =
+  run_src "func foo() { } func f() { var x = foo() }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:31
+        func foo() { } func f() { var x = foo() }
+                                      ^
+    help: prefix with an underscore: _x
+    error: cannot bind void value: x
+      at <test>:1:35
+        func foo() { } func f() { var x = foo() }
+                                          ^~~~~
+    |}]

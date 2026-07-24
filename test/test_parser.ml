@@ -651,25 +651,25 @@ let%expect_test "parse: block expression needs a trailing value" =
   run_src "func f() i32 { let x = { var a = 1 } return x }";
   [%expect
     {|
+    error: cannot bind void value: x
+      at <test>:1:24
+        func f() i32 { let x = { var a = 1 } return x }
+                               ^~~~~~~~~~~~~
     warning: unused variable: a
       at <test>:1:30
         func f() i32 { let x = { var a = 1 } return x }
                                      ^
     help: prefix with an underscore: _a
-    error: type mismatch
-      at <test>:1:45
-        func f() i32 { let x = { var a = 1 } return x }
-                                                    ^ expected i32, found void
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
   run_src "func f() i32 { let x = if true { 1 } return x }";
   [%expect
     {|
-    error: type mismatch
-      at <test>:1:45
+    error: cannot bind void value: x
+      at <test>:1:24
         func f() i32 { let x = if true { 1 } return x }
-                                                    ^ expected i32, found void
+                               ^~~~~~~~~~~~~
     |}]
 
 let%expect_test "parse: an early exit block yields a value" =
