@@ -79,7 +79,8 @@ let show_unop_sym = function
   | Deref -> "*"
   | AddressOf -> "&"
 
-type binding_kind = Var | Let | Const [@@deriving show { with_path = false }]
+type binding_kind = Var | Let | Comptime
+[@@deriving show { with_path = false }]
 
 type expr_desc =
   | Int of int64 * string option

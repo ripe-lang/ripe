@@ -466,10 +466,13 @@ and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
   (* let x: i32 = 42 / const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
-  | (LET | CONST | VAR) as tok ->
+  | (LET | COMPTIME | VAR) as tok ->
       advance st;
       let kind =
-        match tok with LET -> Ast.Let | CONST -> Ast.Const | _ -> Ast.Var
+        match tok with
+        | LET -> Ast.Let
+        | COMPTIME -> Ast.Comptime
+        | _ -> Ast.Var
       in
       let name, nspan = expect_ident_span st in
       (* optional type annotation since the typechecker can infer it *)
@@ -630,7 +633,7 @@ let parse_func st mods =
 let parse_global st =
   let lo = cur_pos st in
   let kind =
-    match st.tok with LET -> Ast.Let | CONST -> Ast.Const | _ -> Ast.Var
+    match st.tok with LET -> Ast.Let | COMPTIME -> Ast.Comptime | _ -> Ast.Var
   in
   advance st;
   let name = expect_ident st in
@@ -696,7 +699,7 @@ let parse_decl st =
   | _, STRUCT -> parse_struct st mods
   | _, FUNC -> parse_func st mods
   | [], EXTERN -> parse_extern st
-  | [], (LET | CONST | VAR) -> parse_global st
+  | [], (LET | COMPTIME | VAR) -> parse_global st
   | [], TYPE -> parse_type_alias st
   | [], NEWTYPE -> parse_newtype st
   | _ -> err ()

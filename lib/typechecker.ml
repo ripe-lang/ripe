@@ -110,19 +110,19 @@ let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
 
 let is_const_global (env : env) (name : string) : bool =
   match Hashtbl.find_opt env.globals name with
-  | Some (_, (Let | Const)) -> true
+  | Some (_, (Let | Comptime)) -> true
   | _ -> false
 
 let is_comptime_global (env : env) (name : string) : bool =
   match Hashtbl.find_opt env.globals name with
-  | Some (_, Const) -> true
+  | Some (_, Comptime) -> true
   | _ -> false
 
 let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
   if not (is_scalar t) then
     emit env
       Diagnostic.(
-        error ("const must be a scalar, found " ^ show_ty t)
+        error ("comptime must be a scalar, found " ^ show_ty t)
         |> at span
         |> help "use let for values that need storage")
 
@@ -441,7 +441,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
         emit env (Error.named nspan "cannot infer type" name);
         (TInt I32, dummy_texpr)
   in
-  if kind = Const then (
+  if kind = Comptime then (
     check_const_scalar env nspan t;
     Hashtbl.replace env.l_vals (sym env nspan).id
       (fold_num_or env dummy_const_num te));
@@ -983,7 +983,7 @@ and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
 and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
     Const_eval.const_num =
   match s.kind with
-  | Symbol.Local Ast.Const -> (
+  | Symbol.Local Ast.Comptime -> (
       match Hashtbl.find_opt env.l_vals s.id with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
@@ -1184,8 +1184,8 @@ let collect_global (env : env) (gd : global_def) : unit =
      match gd.kind with
      | Var -> ()
      | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
-     | Const ->
-         emit env (Error.named gd.span "const without initializer" gd.name));
+     | Comptime ->
+         emit env (Error.named gd.span "comptime without initializer" gd.name));
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals gd.name (t, gd.kind)
 
@@ -1291,14 +1291,14 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     | Some (t, _) -> t
     | None -> ty_of_ast env gd.typ
   in
-  if gd.kind = Const then check_const_scalar env gd.span t;
+  if gd.kind = Comptime then check_const_scalar env gd.span t;
   let tinit =
     match gd.init with
     | None -> None
-    | Some { desc = Undefined; span } when gd.kind = Const ->
+    | Some { desc = Undefined; span } when gd.kind = Comptime ->
         emit env
           Diagnostic.(
-            error "const cannot be undefined"
+            error "comptime cannot be undefined"
             |> at span
             |> help "use let for values that need storage");
         None
@@ -1371,7 +1371,7 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
   (* an early array size can demand any later const so defs go in first *)
   List.iter
     (function
-      | Global ({ kind = Let | Const; _ } as gd) ->
+      | Global ({ kind = Let | Comptime; _ } as gd) ->
           Hashtbl.replace env.g_state gd.name
             { def = gd; typed = None; value = None; busy = false }
       | _ -> ())
