@@ -182,3 +182,9 @@ type decl =
   | TypeAlias of type_alias_def
   | Newtype of type_alias_def
 [@@deriving show { with_path = false }]
+
+type import = { path : string list; span : span }
+[@@deriving show { with_path = false }]
+
+type module_ = { imports : import list; decls : decl list }
+[@@deriving show { with_path = false }]

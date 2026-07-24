@@ -2,10 +2,12 @@
 
 module C = Ripe.Core
 
-let parse ?(file = 0) src =
+let parse_module ?(file = 0) src =
   let st = Ripe.Lexer.make_state file in
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
+
+let parse ?(file = 0) src = (parse_module ~file src).decls
 
 (* substring offset so a test can point a span at a snippet *)
 let off src sub =
@@ -44,6 +46,21 @@ let ctx src =
   }
 
 let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
+
+let compare_file_spans src =
+  let first_span file =
+    match parse ~file src with
+    | Ripe.Ast.Func fd :: _ -> fd.span
+    | _ -> failwith "expected a function"
+  in
+  Printf.printf "%b" (first_span 0 = first_span 1)
+
+let show_parsed_module src =
+  let module_ = parse_module src in
+  List.iter
+    (fun import ->
+      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
+    module_.imports
 
 let resolve_src module_id src =
   let decls = parse src in

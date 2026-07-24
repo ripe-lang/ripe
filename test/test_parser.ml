@@ -776,10 +776,15 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
                               |}]
 
 let%expect_test "parse: spans from different files are distinct" =
-  let function_span file =
-    match parse ~file "func f() {}" with
-    | [ Ripe.Ast.Func fd ] -> fd.span
-    | _ -> failwith "expected one function"
-  in
-  Printf.printf "%b" (function_span 0 = function_span 1);
+  compare_file_spans "func f() {}";
   [%expect {| false |}]
+
+let%expect_test "parse: module imports" =
+  show_parsed_module {|
+import io
+import math.vector
+|};
+  [%expect {|
+    import io
+    import math.vector
+    |}]

@@ -702,26 +702,42 @@ let parse_decl st =
   | [], NEWTYPE -> parse_newtype st
   | _ -> err ()
 
+(* import math.vector *)
+let parse_import st =
+  let lo = cur_pos st in
+  advance st;
+  let path = ref [ expect_ident st ] in
+  while st.tok = DOT do
+    advance st;
+    path := expect_ident st :: !path
+  done;
+  let hi = st.prev_end in
+  skip_semi st;
+  { path = List.rev !path; span = make_span st lo hi }
+
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
-let rec sync_to_decl st =
+let rec sync_to_item st =
   match st.tok with
-  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE -> ()
+  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT ->
+      ()
   | _ ->
       advance st;
-      sync_to_decl st
+      sync_to_item st
 
-let parse_program st =
+let parse_module st =
+  let imports = ref [] in
   let decls = ref [] in
   skip_semi st;
   while st.tok <> EOF do
     try
-      decls := parse_decl st :: !decls;
+      if st.tok = IMPORT then imports := parse_import st :: !imports
+      else decls := parse_decl st :: !decls;
       skip_semi st
     with ParseError d ->
       Diagnostic.emit st.diags d;
-      sync_to_decl st
+      sync_to_item st
   done;
-  List.rev !decls
+  { imports = List.rev !imports; decls = List.rev !decls }
 
 (* TODO(5689): cap at 20 errors then bail, with a flag to list the rest *)
 let tokenize_all read lexbuf diags =
@@ -752,7 +768,7 @@ let replay_of (tokens : (Tokens.token * Ast.span) array) =
     pair
 
 let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
-    (lexbuf : Lexing.lexbuf) : Ast.decl list =
+    (lexbuf : Lexing.lexbuf) : Ast.module_ =
   let diags = Diagnostic.sink () in
   let tokens = tokenize_all read lexbuf diags in
   let st =
@@ -766,7 +782,7 @@ let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
     }
   in
   advance st;
-  let decls = parse_program st in
+  let module_ = parse_module st in
   match Diagnostic.drain st.diags with
-  | [] -> decls
+  | [] -> module_
   | ds -> raise (Diagnostic.Errors ds)
