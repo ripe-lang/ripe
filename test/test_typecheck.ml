@@ -418,30 +418,30 @@ let%expect_test "typecheck: let requires initializer" =
         ^~~~~~~~~~
     |}]
 
-let%expect_test "typecheck: const requires initializer" =
-  run_src "const X: i32";
+let%expect_test "typecheck: comptime requires initializer" =
+  run_src "comptime X: i32";
   [%expect
     {|
-    error: const without initializer: X
+    error: comptime without initializer: X
       at <test>:1:1
-        const X: i32
-        ^~~~~~~~~~~~
+        comptime X: i32
+        ^~~~~~~~~~~~~~~
     |}]
 
-let%expect_test "typecheck: const cannot be undefined" =
-  run_src "const N: i32 = undefined";
+let%expect_test "typecheck: comptime cannot be undefined" =
+  run_src "comptime N: i32 = undefined";
   [%expect
     {|
-    error: const cannot be undefined
-      at <test>:1:16
-        const N: i32 = undefined
-                       ^~~~~~~~~
+    error: comptime cannot be undefined
+      at <test>:1:19
+        comptime N: i32 = undefined
+                          ^~~~~~~~~
     help: use let for values that need storage
     |}]
 
-let%expect_test "typecheck: cannot take address of a const global" =
+let%expect_test "typecheck: cannot take address of a comptime global" =
   run_src {|
-const N: i32 = 4
+comptime N: i32 = 4
 func f() *i32 { return &N }
 |};
   [%expect
@@ -453,10 +453,10 @@ func f() *i32 { return &N }
     help: a const has no storage, use let
     |}]
 
-let%expect_test "typecheck: cannot take address of a local const" =
+let%expect_test "typecheck: cannot take address of a local comptime" =
   run_src {|
 func f() {
-  const c: i32 = 2
+  comptime c: i32 = 2
   var p: *i32 = &c
 }
 |};
@@ -474,74 +474,74 @@ func f() {
     help: a const has no storage, use let
     |}]
 
-let%expect_test "typecheck: const must be a scalar" =
+let%expect_test "typecheck: comptime must be a scalar" =
   run_src {|
 func f() {
-  const a: [2]i32 = [1, 2]
+  comptime a: [2]i32 = [1, 2]
 }
 |};
   [%expect
     {|
-    error: const must be a scalar, found [2]i32
-      at <test>:3:9
-          const a: [2]i32 = [1, 2]
-                ^
+    error: comptime must be a scalar, found [2]i32
+      at <test>:3:12
+          comptime a: [2]i32 = [1, 2]
+                   ^
     help: use let for values that need storage
     warning: unused variable: a
-      at <test>:3:9
-          const a: [2]i32 = [1, 2]
-                ^
+      at <test>:3:12
+          comptime a: [2]i32 = [1, 2]
+                   ^
     help: prefix with an underscore: _a
     |}]
 
-let%expect_test "typecheck: const cstr is not a scalar" =
+let%expect_test "typecheck: comptime cstr is not a scalar" =
   run_src {|
-const S: cstr = "x"
+comptime S: cstr = "x"
 |};
   [%expect
     {|
-    error: const must be a scalar, found cstr
+    error: comptime must be a scalar, found cstr
       at <test>:2:1
-        const S: cstr = "x"
-        ^~~~~~~~~~~~~~~~~~~
+        comptime S: cstr = "x"
+        ^~~~~~~~~~~~~~~~~~~~~~
     help: use let for values that need storage
     |}]
 
-let%expect_test "typecheck: local const initializer must fold" =
+let%expect_test "typecheck: local comptime initializer must fold" =
   run_src
     {|
 func g() i32 { return 3 }
 func f() i32 {
-  const c: i32 = g()
+  comptime c: i32 = g()
   return c
 }
 |};
   [%expect
     {|
     error: unsupported constant expression
-      at <test>:4:18
-          const c: i32 = g()
-                         ^~~
+      at <test>:4:21
+          comptime c: i32 = g()
+                            ^~~
     help: constant initializers must fold to a compile-time value
     |}]
 
 let%expect_test "typecheck: mutually referential consts are a cycle" =
   run_src {|
-const A: i32 = B
-const B: i32 = A
+comptime A: i32 = B
+comptime B: i32 = A
 |};
   [%expect
     {|
     error: cyclic constant: A
-      at <test>:3:16
-        const B: i32 = A
-                       ^
+      at <test>:3:19
+        comptime B: i32 = A
+                          ^
     |}]
 
-let%expect_test "typecheck: cannot assign to a const" =
+let%expect_test "typecheck: cannot assign to a comptime" =
   run_src {|
 func f() i32 {
-  const c: i32 = 2
+  comptime c: i32 = 2
   c = 3
   return c
 }
@@ -554,22 +554,22 @@ func f() i32 {
           ^
     |}]
 
-let%expect_test "typecheck: local const reads an earlier const" =
+let%expect_test "typecheck: local comptime reads an earlier comptime" =
   run_src
     {|
 func f() i32 {
-  const a: i32 = 2
-  const b: i32 = a * 3
+  comptime a: i32 = 2
+  comptime b: i32 = a * 3
   return b
 }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: array size from a later const" =
+let%expect_test "typecheck: array size from a later comptime" =
   run_src
     {|
 var a: [N]i32 = undefined
-const N: i32 = 3
+comptime N: i32 = 3
 func f() i32 { return a[0] }
 |};
   [%expect {| ok |}]
@@ -577,7 +577,7 @@ func f() i32 { return a[0] }
 let%expect_test "typecheck: array size expression" =
   run_src
     {|
-const N: i32 = 4
+comptime N: i32 = 4
 func f() i32 {
   var a: [N * 2 + 1]i32 = undefined
   a[8] = 1
@@ -595,20 +595,20 @@ func f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: struct field sized by a later const" =
+let%expect_test "typecheck: struct field sized by a later comptime" =
   run_src
     {|
 struct S { buf: [N]i32 }
-const N: i32 = 2
+comptime N: i32 = 2
 func f(s: S) i32 { return s.buf[1] }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: local const sizes a local array" =
+let%expect_test "typecheck: local comptime sizes a local array" =
   run_src
     {|
 func f() i32 {
-  const n: i32 = 3
+  comptime n: i32 = 3
   var a: [n]i32 = [1, 2, 3]
   return a[2]
 }
@@ -709,24 +709,25 @@ var a: [g()]i32 = undefined
     |}]
 
 let%expect_test "typecheck: cycle through an array size" =
-  run_src {|
-const N: i32 = sizeof([M]i32)
-const M: i32 = sizeof([N]i32)
+  run_src
+    {|
+comptime N: i32 = sizeof([M]i32)
+comptime M: i32 = sizeof([N]i32)
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:2:16
-        const N: i32 = sizeof([M]i32)
-                       ^~~~~~~~~~~~~~ expected i32, found i64
+      at <test>:2:19
+        comptime N: i32 = sizeof([M]i32)
+                          ^~~~~~~~~~~~~~ expected i32, found i64
     error: type mismatch
-      at <test>:3:16
-        const M: i32 = sizeof([N]i32)
-                       ^~~~~~~~~~~~~~ expected i32, found i64
+      at <test>:3:19
+        comptime M: i32 = sizeof([N]i32)
+                          ^~~~~~~~~~~~~~ expected i32, found i64
     error: cyclic constant: N
-      at <test>:3:24
-        const M: i32 = sizeof([N]i32)
-                               ^
+      at <test>:3:27
+        comptime M: i32 = sizeof([N]i32)
+                                  ^
     |}]
 
 let%expect_test "typecheck: int arithmetic ok" =

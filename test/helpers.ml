@@ -190,7 +190,7 @@ let all_kinds =
       Extern;
       Global;
       Local Ripe.Ast.Let;
-      Local Ripe.Ast.Const;
+      Local Ripe.Ast.Comptime;
       Local Ripe.Ast.Var;
       Param;
       ForVar;

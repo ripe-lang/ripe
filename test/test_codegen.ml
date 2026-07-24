@@ -2863,9 +2863,9 @@ func f() i32 { return A }
                      ^
     |}]
 
-let%expect_test "codegen: const global inlines with no data" =
+let%expect_test "codegen: comptime global inlines with no data" =
   run_codegen {|
-const N: i32 = 4
+comptime N: i32 = 4
 func f() i32 { return N }
 |};
   [%expect {|
@@ -2875,11 +2875,11 @@ func f() i32 { return N }
     }
     |}]
 
-let%expect_test "codegen: const expression folds at the use site" =
+let%expect_test "codegen: comptime expression folds at the use site" =
   run_codegen
     {|
-const N: i32 = 4
-const M: i32 = N * 2 + 1
+comptime N: i32 = 4
+comptime M: i32 = N * 2 + 1
 func f() i32 { return M }
 |};
   [%expect {|
@@ -2889,10 +2889,10 @@ func f() i32 { return M }
     }
     |}]
 
-let%expect_test "codegen: local const gets no slot" =
+let%expect_test "codegen: local comptime gets no slot" =
   run_codegen {|
 func f() i32 {
-  const c: i32 = 2
+  comptime c: i32 = 2
   return c
 }
 |};
@@ -2903,11 +2903,11 @@ func f() i32 {
     }
     |}]
 
-let%expect_test "codegen: const forward reference" =
+let%expect_test "codegen: comptime forward reference" =
   run_codegen
     {|
-const B: i32 = A + 1
-const A: i32 = 4
+comptime B: i32 = A + 1
+comptime A: i32 = 4
 func f() i32 { return B }
 |};
   [%expect {|
@@ -2917,11 +2917,11 @@ func f() i32 { return B }
     }
     |}]
 
-let%expect_test "codegen: const reads a let global" =
+let%expect_test "codegen: comptime reads a let global" =
   run_codegen
     {|
 let L: i32 = 10
-const C: i32 = L * 2
+comptime C: i32 = L * 2
 func f() i32 { return C }
 |};
   [%expect
@@ -2934,10 +2934,10 @@ func f() i32 { return C }
     }
     |}]
 
-let%expect_test "codegen: let initialized from a const" =
+let%expect_test "codegen: let initialized from a comptime" =
   run_codegen
     {|
-const N: i32 = 4
+comptime N: i32 = 4
 let L: i32 = N + 1
 func f() i32 { return L }
 |};
@@ -2952,11 +2952,11 @@ func f() i32 { return L }
     }
     |}]
 
-let%expect_test "codegen: sizeof folds in a const" =
+let%expect_test "codegen: sizeof folds in a comptime" =
   run_codegen
     {|
 struct pt { x: i32, y: i32 }
-const S: i64 = sizeof(pt)
+comptime S: i64 = sizeof(pt)
 func f() i64 { return S }
 |};
   [%expect
@@ -2969,10 +2969,10 @@ func f() i64 { return S }
     }
     |}]
 
-let%expect_test "codegen: const sizes a global array" =
+let%expect_test "codegen: comptime sizes a global array" =
   run_codegen
     {|
-const N: i32 = 3
+comptime N: i32 = 3
 let A: [N]i32 = [1, 2, 3]
 func f() i32 { return A[1] }
 |};
@@ -2996,10 +2996,10 @@ func f() i32 { return A[1] }
     }
     |}]
 
-let%expect_test "codegen: const sizes a local array" =
+let%expect_test "codegen: comptime sizes a local array" =
   run_codegen
     {|
-const N: i32 = 2
+comptime N: i32 = 2
 func f() i32 {
   var a: [N]i32 = [7, 8]
   return a[0]
@@ -3030,7 +3030,7 @@ func f() i32 {
 let%expect_test "codegen: expression array size" =
   run_codegen
     {|
-const N: i32 = 3
+comptime N: i32 = 3
 func f() i64 { return sizeof([N * 2 + 1]i32) }
 |};
   [%expect {|
@@ -3051,11 +3051,11 @@ func f() i64 { return sizeof([2u8]i32) }
     }
     |}]
 
-let%expect_test "codegen: sizeof of a const sized array folds" =
+let%expect_test "codegen: sizeof of a comptime sized array folds" =
   run_codegen
     {|
-const N: i32 = 4
-const S: i64 = sizeof([N]i32)
+comptime N: i32 = 4
+comptime S: i64 = sizeof([N]i32)
 func f() i64 { return S }
 |};
   [%expect {|
@@ -3065,11 +3065,11 @@ func f() i64 { return S }
     }
     |}]
 
-let%expect_test "codegen: struct field sized by a later const" =
+let%expect_test "codegen: struct field sized by a later comptime" =
   run_codegen
     {|
 struct S { buf: [N]i32, tail: i32 }
-const N: i32 = 2
+comptime N: i32 = 2
 func f(s: *S) i32 { return s.tail }
 |};
   [%expect
