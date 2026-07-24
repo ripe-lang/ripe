@@ -284,3 +284,23 @@ func f(a: i32) i32 {
 func main() i32 { return f(1) }
 |};
   [%expect {| ok |}]
+
+let%expect_test "resolve: symbols from different modules are distinct" =
+  compare_module_symbols "func f() {}";
+  [%expect {| 4 9 false |}]
+
+let%expect_test "resolve: declarations carry visibility" =
+  dump_decl_visibilities
+    {|
+public func api() {}
+func helper() {}
+public struct point {}
+struct secret {}
+|};
+  [%expect
+    {|
+    api Public
+    helper Private
+    point Public
+    secret Private
+    |}]

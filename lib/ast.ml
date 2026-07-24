@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type span = Span.t = { lo : int; hi : int }
+type span = Span.t = { file : Span.file_id; lo : int; hi : int }
 
 let pp_span = Span.pp
 let show_span = Span.show
@@ -179,4 +179,10 @@ type decl =
   | Global of global_def
   | TypeAlias of type_alias_def
   | Newtype of type_alias_def
+[@@deriving show { with_path = false }]
+
+type import = { path : string list; span : span }
+[@@deriving show { with_path = false }]
+
+type module_ = { imports : import list; decls : decl list }
 [@@deriving show { with_path = false }]

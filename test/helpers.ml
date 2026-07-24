@@ -2,10 +2,12 @@
 
 module C = Ripe.Core
 
-let parse src =
-  let st = Ripe.Lexer.make_state () in
+let parse_module ?(file = 0) src =
+  let st = Ripe.Lexer.make_state file in
   let lexbuf = Lexing.from_string src in
   Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
+
+let parse ?(file = 0) src = (parse_module ~file src).decls
 
 (* substring offset so a test can point a span at a snippet *)
 let off src sub =
@@ -16,9 +18,9 @@ let off src sub =
   go 0
 
 let span src sub =
-  { Ripe.Ast.lo = off src sub; hi = off src sub + String.length sub }
+  Ripe.Span.make 0 (off src sub) (off src sub + String.length sub)
 
-let point src sub = { Ripe.Ast.lo = off src sub; hi = off src sub }
+let point src sub = Ripe.Span.make 0 (off src sub) (off src sub)
 
 let replace s old rep =
   let olen = String.length old in
@@ -45,10 +47,55 @@ let ctx src =
 
 let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
 
+let compare_file_spans src =
+  let first_span file =
+    match parse ~file src with
+    | Ripe.Ast.Func fd :: _ -> fd.span
+    | _ -> failwith "expected a function"
+  in
+  Printf.printf "%b" (first_span 0 = first_span 1)
+
+let show_parsed_module src =
+  let module_ = parse_module src in
+  List.iter
+    (fun import ->
+      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
+    module_.imports
+
+let resolve_src module_id src =
+  let decls = parse src in
+  (decls, Ripe.Resolve.resolve ~module_id decls)
+
+let decl_name_span = function
+  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
+  | Ripe.Ast.Struct sd -> (sd.name, sd.span)
+  | Ripe.Ast.Global gd -> (gd.name, gd.span)
+  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.name, td.span)
+
+let compare_module_symbols src =
+  let first_symbol module_id =
+    match resolve_src module_id src with
+    | decl :: _, uses ->
+        let _, span = decl_name_span decl in
+        Ripe.Resolve.sym_at uses span
+    | [], _ -> failwith "expected a declaration"
+  in
+  let first = first_symbol 4 in
+  let second = first_symbol 9 in
+  Printf.printf "%d %d %b" first.module_id second.module_id (first = second)
+
+let dump_decl_visibilities src =
+  let decls, uses = resolve_src 0 src in
+  List.iter
+    (fun decl ->
+      let name, span = decl_name_span decl in
+      let sym = Ripe.Resolve.sym_at uses span in
+      Printf.printf "%s %s\n" name (Ripe.Symbol.show_visibility sym.visibility))
+    decls
+
 (* the front of the pipeline every runner shares *)
 let check_src src =
-  let decls = parse src in
-  let uses = Ripe.Resolve.resolve decls in
+  let decls, uses = resolve_src 0 src in
   Ripe.Typechecker.typecheck uses decls
 
 let lower_src src = Ripe.Lower.lower (fst (check_src src))
@@ -197,7 +244,7 @@ let all_kinds =
     ]
 
 let dump_tokens src =
-  let st = Ripe.Lexer.make_state () in
+  let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Lexing.from_string src in
   let rec go () =
     let t, _ = Ripe.Lexer.read st lexbuf in

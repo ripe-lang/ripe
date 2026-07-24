@@ -774,3 +774,17 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
                                   func f() { ( [
                                                ^
                               |}]
+
+let%expect_test "parse: spans from different files are distinct" =
+  compare_file_spans "func f() {}";
+  [%expect {| false |}]
+
+let%expect_test "parse: module imports" =
+  show_parsed_module {|
+import io
+import math.vector
+|};
+  [%expect {|
+    import io
+    import math.vector
+    |}]

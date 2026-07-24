@@ -21,7 +21,7 @@ let%expect_test "multi line" =
 (* "let x = 5\nreturn x" span {4,15} = (1,5)-(2,6) *)
 let%expect_test "span across lines" =
   let sm = Ripe.Source_map.create "let x = 5\nreturn x" in
-  let span = { Ripe.Ast.lo = 4; hi = 15 } in
+  let span = Ripe.Span.make 0 4 15 in
   let sl, sc, el, ec = Ripe.Source_map.span_to_locs sm span in
   Printf.printf "(%d,%d)-(%d,%d)" sl sc el ec;
   [%expect {| (1,5)-(2,6) |}]

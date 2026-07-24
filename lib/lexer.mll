@@ -8,8 +8,9 @@ let next_line lexbuf =
 
 (* Per lex session state so multiple lexbufs can be live at once *)
 type state = {
-  buf : Buffer.t; (* Auto buffer resize *)
-  (* FIXME(641c): fixes multiline expressions in () but
+  file : Span.file_id;
+  buf : Buffer.t; (* auto buffer resize *)
+  (* FIXME: fixes multiline expressions in () but
     new error w/ newlines forever on unclosed parens *)
   mutable paren_depth : int;
   token_queue : (Tokens.token * Span.t) Queue.t;
@@ -17,7 +18,8 @@ type state = {
   mutable last_token : Tokens.token option;
 }
 
-let make_state () = {
+let make_state file = {
+  file;
   buf = Buffer.create 64;
   paren_depth = 0;
   token_queue = Queue.create ();
@@ -26,19 +28,19 @@ let make_state () = {
 
 let start_pos lexbuf = lexbuf.Lexing.lex_start_p.Lexing.pos_cnum
 let end_pos lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
-let lexbuf_span lexbuf = { Span.lo = start_pos lexbuf; hi = end_pos lexbuf }
+let lexbuf_span st lexbuf = Span.make st.file (start_pos lexbuf) (end_pos lexbuf)
 
 let int_token st lexbuf ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
   | None ->
-      (* The zero keeps the parser from raising a second error *)
-      Queue.push (INT (0L, suf), lexbuf_span lexbuf) st.token_queue;
+      (* the zero keeps the parser from raising a second error *)
+      Queue.push (INT (0L, suf), lexbuf_span st lexbuf) st.token_queue;
       ERROR "integer literal out of range"
 
 (* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
-  Queue.push (CHAR 0, lexbuf_span lexbuf) st.token_queue;
+  Queue.push (CHAR 0, lexbuf_span st lexbuf) st.token_queue;
   ERROR msg
 
 let char_token st lexbuf inner =
@@ -166,8 +168,8 @@ and read_string st = parse
   | '\\' 't'      { Buffer.add_char st.buf '\t'; read_string st lexbuf }
   | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
-  (* Skip the bad escape and keep lexing so the string still closes *)
-  | '\\' _        { let span = { Span.lo = start_pos lexbuf + 1; hi = end_pos lexbuf } in
+  (* skip the bad escape and keep lexing so the string still closes *)
+  | '\\' _        { let span = Span.make st.file (start_pos lexbuf + 1) (end_pos lexbuf) in
                     Queue.push
                       (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span)
                       st.token_queue;
@@ -180,7 +182,7 @@ and read_string st = parse
            Buffer.clear st.buf;
            let here = end_pos lexbuf in
            Queue.push
-             (ERROR "unterminated string", { Span.lo = here; hi = here })
+             (ERROR "unterminated string", Span.make st.file here here)
              st.token_queue;
            STRING s }
 
@@ -198,7 +200,7 @@ let read st lexbuf =
     if not (Queue.is_empty st.token_queue) then Queue.pop st.token_queue
     else
       let t = read_main st lexbuf in
-      (t, lexbuf_span lexbuf)
+      (t, lexbuf_span st lexbuf)
   in
   st.last_token <- Some tok;
   (tok, span)

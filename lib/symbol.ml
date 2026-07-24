@@ -1,6 +1,8 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 type id = int [@@deriving show { with_path = false }]
+type module_id = int [@@deriving show { with_path = false }]
+type visibility = Private | Public [@@deriving show { with_path = false }]
 
 type kind =
   | Func
@@ -12,7 +14,14 @@ type kind =
   | ForVar
 [@@deriving show { with_path = false }]
 
-type t = { id : id; name : string; kind : kind; span : Ast.span }
+type t = {
+  id : id;
+  module_id : module_id;
+  name : string;
+  kind : kind;
+  visibility : visibility;
+  span : Ast.span;
+}
 [@@deriving show { with_path = false }]
 
 let is_func = function Func | Extern -> true | _ -> false

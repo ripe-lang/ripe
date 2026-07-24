@@ -78,8 +78,9 @@ let comma_sep st stop parse_one =
   end;
   List.rev !items
 
-let mk lo st desc = { desc; span = { lo; hi = st.prev_end } }
-let mkt lo st tdesc = { tdesc; span = { lo; hi = st.prev_end } }
+let make_span st lo hi = Span.make st.tok_span.file lo hi
+let mk lo st desc = { desc; span = make_span st lo st.prev_end }
+let mkt lo st tdesc = { tdesc; span = make_span st lo st.prev_end }
 
 let expect_field_sep st =
   (match st.tok with
@@ -215,7 +216,7 @@ and parse_struct st mods =
   expect st RBRACE;
   let hi = st.prev_end in
   skip_semi st;
-  Struct { name; fields; modifiers = mods; span = { lo; hi } }
+  Struct { name; fields; modifiers = mods; span = make_span st lo hi }
 
 (* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
 and parse_params st =
@@ -228,7 +229,7 @@ and parse_params st =
     expect st COLON;
     let t = parse_typ st in
     let hi = st.prev_end in
-    ({ name; typ = t; span = { lo; hi } } : param)
+    ({ name; typ = t; span = make_span st lo hi } : param)
   in
   if st.tok <> RPAREN then begin
     params := [ parse_one () ];
@@ -614,7 +615,15 @@ let parse_func st mods =
   in
   let hi = st.prev_end in
   Func
-    { name; params; ret; body; modifiers = mods; variadic; span = { lo; hi } }
+    {
+      name;
+      params;
+      ret;
+      body;
+      modifiers = mods;
+      variadic;
+      span = make_span st lo hi;
+    }
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
@@ -634,7 +643,7 @@ let parse_global st =
   in
   let hi = st.prev_end in
   skip_semi st;
-  Global { name; typ; init; kind; span = { lo; hi } }
+  Global { name; typ; init; kind; span = make_span st lo hi }
 
 (* type binop = (i32, i32) i32 *)
 let parse_type_alias st =
@@ -646,7 +655,7 @@ let parse_type_alias st =
   let typ = parse_typ st in
   let hi = st.prev_end in
   skip_semi st;
-  Ast.TypeAlias { name; typ; span = { lo; hi } }
+  Ast.TypeAlias { name; typ; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
 let parse_newtype st =
@@ -658,7 +667,7 @@ let parse_newtype st =
   let typ = parse_typ st in
   let hi = st.prev_end in
   skip_semi st;
-  Ast.Newtype { name; typ; span = { lo; hi } }
+  Ast.Newtype { name; typ; span = make_span st lo hi }
 
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
@@ -676,7 +685,7 @@ let parse_extern st =
       body = [];
       modifiers = [];
       variadic;
-      span = { lo; hi };
+      span = make_span st lo hi;
     }
 
 let parse_decl st =
@@ -691,26 +700,42 @@ let parse_decl st =
   | [], NEWTYPE -> parse_newtype st
   | _ -> err ()
 
-(* TODO(fa20): finer recovery inside blocks and sync to next stmt boundary *)
-let rec sync_to_decl st =
+(* import math.vector *)
+let parse_import st =
+  let lo = cur_pos st in
+  advance st;
+  let path = ref [ expect_ident st ] in
+  while st.tok = DOT do
+    advance st;
+    path := expect_ident st :: !path
+  done;
+  let hi = st.prev_end in
+  skip_semi st;
+  { path = List.rev !path; span = make_span st lo hi }
+
+(* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
+let rec sync_to_item st =
   match st.tok with
-  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE -> ()
+  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT ->
+      ()
   | _ ->
       advance st;
-      sync_to_decl st
+      sync_to_item st
 
-let parse_program st =
+let parse_module st =
+  let imports = ref [] in
   let decls = ref [] in
   skip_semi st;
   while st.tok <> EOF do
     try
-      decls := parse_decl st :: !decls;
+      if st.tok = IMPORT then imports := parse_import st :: !imports
+      else decls := parse_decl st :: !decls;
       skip_semi st
     with ParseError d ->
       Diagnostic.emit st.diags d;
-      sync_to_decl st
+      sync_to_item st
   done;
-  List.rev !decls
+  { imports = List.rev !imports; decls = List.rev !decls }
 
 (* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =
@@ -741,7 +766,7 @@ let replay_of (tokens : (Tokens.token * Ast.span) array) =
     pair
 
 let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
-    (lexbuf : Lexing.lexbuf) : Ast.decl list =
+    (lexbuf : Lexing.lexbuf) : Ast.module_ =
   let diags = Diagnostic.sink () in
   let tokens = tokenize_all read lexbuf diags in
   let st =
@@ -755,7 +780,7 @@ let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
     }
   in
   advance st;
-  let decls = parse_program st in
+  let module_ = parse_module st in
   match Diagnostic.drain st.diags with
-  | [] -> decls
+  | [] -> module_
   | ds -> raise (Diagnostic.Errors ds)

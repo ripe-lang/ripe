@@ -54,7 +54,13 @@ let dump_tokens read lexbuf =
   loop ();
   Buffer.contents buf
 
-let show_decls decls = String.concat "\n" (List.map Ast.show_decl decls) ^ "\n"
+let show_module (module_ : Ast.module_) =
+  let imports =
+    List.map
+      (fun import -> "import " ^ String.concat "." import.Ast.path)
+      module_.imports
+  in
+  String.concat "\n" (imports @ List.map Ast.show_decl module_.decls) ^ "\n"
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"
@@ -89,7 +95,7 @@ let load filename =
     die (Printf.sprintf "%s: not valid UTF-8" filename);
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf abs_filename;
-  let read = Lexer.read (Lexer.make_state ()) in
+  let read = Lexer.read (Lexer.make_state 0) in
   let ctx =
     {
       Diagnostic.sm = Source_map.create src;
@@ -121,9 +127,10 @@ let compile ~stage ~backend ~out ~filename =
   in
   try
     stop_at Tokens (fun () -> output_text (dump_tokens read lexbuf));
-    let decls = Parser.parse read lexbuf in
-    stop_at Ast (fun () -> output_text (show_decls decls));
-    let uses = Resolve.resolve decls in
+    let module_ = Parser.parse read lexbuf in
+    let decls = module_.Ast.decls in
+    stop_at Ast (fun () -> output_text (show_module module_));
+    let uses = Resolve.resolve ~module_id:0 decls in
     stop_at Resolve (fun () -> output_text (Resolve.dump uses));
     let tdecls, warns = Typechecker.typecheck uses decls in
     render_all ctx warns;

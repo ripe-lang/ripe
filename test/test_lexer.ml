@@ -209,7 +209,8 @@ let%expect_test "lexer: keyword versus identifier" =
 let%expect_test "lexer: all keywords" =
   dump_tokens
     "let var return if elseif else while for in true false break continue as \
-     sizeof null extern struct inline public func type newtype undefined\n";
+     sizeof null extern struct inline public func type newtype undefined\n\
+     import\n";
   [%expect
     {|
     KW let
@@ -237,6 +238,7 @@ let%expect_test "lexer: all keywords" =
     KW newtype
     KW undefined
     SEMI
+    KW import
     EOF
     |}]
 

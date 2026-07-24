@@ -28,9 +28,9 @@ let%expect_test "error: undefined name" =
 
 let%expect_test "error: redefinition points at the previous binder" =
   let src = "var x = 1\nvar x = 2\n" in
-  let prev = { Ast.lo = off src "x"; hi = off src "x" + 1 } in
+  let prev = Span.make 0 (off src "x") (off src "x" + 1) in
   let second = off src "x" + String.length "var x = 1\nvar " in
-  render src (Error.redefinition { Ast.lo = second; hi = second + 1 } ~prev "x");
+  render src (Error.redefinition (Span.make 0 second (second + 1)) ~prev "x");
   [%expect
     {|
     error: already defined: x
