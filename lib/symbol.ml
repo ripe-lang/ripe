@@ -24,11 +24,20 @@ type t = {
 }
 [@@deriving show { with_path = false }]
 
-let is_func = function Func | Extern -> true | _ -> false
-let is_global = function Global -> true | _ -> false
+let is_func = function
+  | Func | Extern -> true
+  | Global | Type | Local _ | Param | ForVar -> false
+
+let is_global = function
+  | Global -> true
+  | Func | Extern | Type | Local _ | Param | ForVar -> false
 
 let is_immutable = function
   | Local (Ast.Let | Ast.Comptime) | ForVar -> true
-  | _ -> false
+  | Func | Extern | Global | Type | Local Ast.Var | Param -> false
 
-let is_comptime = function Local Ast.Comptime -> true | _ -> false
+let is_comptime = function
+  | Local Ast.Comptime -> true
+  | Func | Extern | Global | Type | Local (Ast.Var | Ast.Let) | Param | ForVar
+    ->
+      false
