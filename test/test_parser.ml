@@ -210,10 +210,14 @@ let%expect_test "parse: comparison non-associative" =
   parse_expr "a < b < c";
   [%expect
     {|
-    error: cannot chain non-associative operator <
+    error: comparison operators cannot be chained
       at <test>:1:26
         func _f() { return a < b < c }
-                                 ^
+                                 ^ second comparison operator
+      at <test>:1:22
+        func _f() { return a < b < c }
+                             ^ first comparison operator
+    help: split the chain into separate comparisons joined with `&&`
     |}]
 
 let%expect_test "parse: unary minus and not" =
@@ -252,10 +256,56 @@ let%expect_test "parse: range non-associative" =
   parse_expr "0..5..10";
   [%expect
     {|
-    error: cannot chain non-associative operator ..
+    error: range operators cannot be chained
       at <test>:1:24
         func _f() { return 0..5..10 }
-                               ^~
+                               ^~ second range operator
+      at <test>:1:21
+        func _f() { return 0..5..10 }
+                            ^~ first range operator
+    help: parenthesize a range if nesting is intended
+    |}]
+
+let%expect_test "parse: mixed comparison operators cannot be chained" =
+  parse_expr "a < b == c";
+  [%expect
+    {|
+    error: comparison operators cannot be chained
+      at <test>:1:26
+        func _f() { return a < b == c }
+                                 ^~ second comparison operator
+      at <test>:1:22
+        func _f() { return a < b == c }
+                             ^ first comparison operator
+    help: split the chain into separate comparisons joined with `&&`
+    |}]
+
+let%expect_test "parse: mixed range operators cannot be chained" =
+  parse_expr "0..5..=10";
+  [%expect
+    {|
+    error: range operators cannot be chained
+      at <test>:1:24
+        func _f() { return 0..5..=10 }
+                               ^~~ second range operator
+      at <test>:1:21
+        func _f() { return 0..5..=10 }
+                            ^~ first range operator
+    help: parenthesize a range if nesting is intended
+    |}]
+
+let%expect_test "parse: longer comparison chain" =
+  parse_expr "a < b < c < d";
+  [%expect
+    {|
+    error: comparison operators cannot be chained
+      at <test>:1:26
+        func _f() { return a < b < c < d }
+                                 ^ second comparison operator
+      at <test>:1:22
+        func _f() { return a < b < c < d }
+                             ^ first comparison operator
+    help: split the chain into separate comparisons joined with `&&`
     |}]
 
 let%expect_test "parse: array literal" =
