@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if ! dune build @fmt >/dev/null 2>&1; then
+    echo "Commit blocked. Run dune fmt." >&2
+    exit 1
+fi
