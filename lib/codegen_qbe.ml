@@ -32,7 +32,13 @@ let signedness (t : ty) : string =
   | t -> if is_unsigned t then "u" else "s"
 
 let div_overflows_at_reg_width (t : ty) : bool =
-  match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
+  match resolve_ty t with
+  | TInt (I32 | I64 | Isize) -> true
+  | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
+  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+  | TAlias _ | TError ->
+      false
 
 (* This is the hard limit where libc call stops emitting one instruction per
    word *)
@@ -997,7 +1003,11 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
       end
       else v
     in
-    let target_is_u64 = match tgt_k with U64 | Usize -> true | _ -> false in
+    let target_is_u64 =
+      match tgt_k with
+      | U64 | Usize -> true
+      | I8 | I16 | I32 | I64 | Isize | U8 | U16 | U32 -> false
+    in
     (* An unsigned source is never below zero so it can only overflow the top *)
     let underflow =
       if is_unsigned src_ty then None
