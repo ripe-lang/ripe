@@ -1135,7 +1135,12 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part =
-    match tfd.ret_ty with TVoid | TNever -> "" | t -> qbe_ty t ^ " "
+    match tfd.ret_ty with
+    | TVoid | TNever -> ""
+    | TInt _ | TFloat _ | TBool | TChar | TCStr | TNull | TPointer _
+    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+    | TAlias _ | TError ->
+        qbe_ty tfd.ret_ty ^ " "
   in
   (* The previous function ended terminated so clear it before this header *)
   ctx.terminated := false;
