@@ -90,12 +90,22 @@ let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
   | t -> t
 
-let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
+let is_float t =
+  match resolve_ty t with
+  | TFloat _ -> true
+  | TInt _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+  | TAlias _ | TError ->
+      false
 
 let is_unsigned t =
   match resolve_ty t with
   | TInt (U8 | U16 | U32 | U64 | Usize) -> true
-  | _ -> false
+  | TInt (I8 | I16 | I32 | I64 | Isize)
+  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+  | TAlias _ | TError ->
+      false
 
 (* A byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
@@ -109,7 +119,10 @@ let float_kind_size = function F32 -> 4 | F64 -> 8
 let int_kind_of (t : ty) : int_kind =
   match resolve_ty t with
   | TInt k -> k
-  | _ -> Error.ice "expected an integer type"
+  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+  | TAlias _ | TError ->
+      Error.ice "expected an integer type"
 
 (* The value fits UNLESS the target range can't hold every source value *)
 let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
@@ -181,13 +194,19 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
 (* Aggregates are addressed by pointer: an ident of this type is its base
    address *)
 let is_aggregate t =
-  match resolve_ty t with TArray _ | TSlice _ | TStruct _ -> true | _ -> false
+  match resolve_ty t with
+  | TArray _ | TSlice _ | TStruct _ -> true
+  | TInt _ | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TFunc _ | TNewtype _ | TAlias _ | TError ->
+      false
 
 (* A const can only use types the folder knows how to compute *)
 let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
-  | _ -> false
+  | TCStr | TVoid | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
+  | TFunc _ | TArray _ | TSlice _ | TNewtype _ | TAlias _ ->
+      false
 
 (* Wide values use 8 bytes so constant folding uses a 64 bit result *)
 let is_wide_ty t =
@@ -195,7 +214,10 @@ let is_wide_ty t =
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
-  | _ -> false
+  | TInt (I8 | I16 | I32 | U8 | U16 | U32)
+  | TFloat _ | TBool | TChar | TVoid | TNever | TStruct _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
+      false
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
