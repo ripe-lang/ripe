@@ -11,6 +11,12 @@
    dune build
    ```
 
+3. Enable the commit hook:
+
+   ```sh
+   git config core.hooksPath .githooks
+   ```
+
 ## Running the Compiler
 
 ```sh
