@@ -53,52 +53,141 @@ let%expect_test "parse: semicolon-free newline-terminated" =
   run_src "func f() i32 {\n  let x: i32 = 1\n  return x\n}";
   [%expect {| ok |}]
 
+let%expect_test "parse: same-line statements require a separator" =
+  run_src "func f(a: i32, b: i32) { var x = 1 x, b = b, a }";
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:36
+        func f(a: i32, b: i32) { var x = 1 x, b = b, a }
+                                           ^ found x
+    |}]
+
+let%expect_test "parse: explicit semicolon separates statements" =
+  run_src "func f() i32 { let x = 1; return x }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: semicolon before an initializer" =
+  run_src "func f() { let x; = 1 }";
+  [%expect
+    {|
+    error: expected =
+      at <test>:1:17
+        func f() { let x; = 1 }
+                        ^ found ;
+    |}]
+
+let%expect_test "parse: newline before an initializer" =
+  run_src "func f() {\n  let x\n  = 1\n}";
+  [%expect
+    {|
+    error: expected =
+      at <test>:2:8
+          let x
+               ^ found ;
+    |}]
+
+let%expect_test "parse: newline after an operator continues" =
+  run_src "func f() i32 {\n  let x = 1 +\n    2\n  return x\n}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: same-line declarations require a separator" =
+  run_src "func f() {} func g() {}";
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:13
+        func f() {} func g() {}
+                    ^~~~ found func
+    |}]
+
+let%expect_test "parse: multiline call requires a trailing comma" =
+  run_src "func g(_x: i32) {}\nfunc f() {\n  g(\n    1\n  )\n}";
+  [%expect
+    {|
+    error: missing `,` before newline
+      at <test>:4:6
+            1
+             ^
+    |}]
+
+let%expect_test "parse: multiline call with a trailing comma" =
+  run_src "func g(_x: i32) {}\nfunc f() {\n  g(\n    1,\n  )\n}";
+  [%expect {| ok |}]
+
+let%expect_test "parse: multiline block comment separates statements" =
+  run_src "func f() {\n  var x = 1 /* first\n  second */ var y = 2\n}";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:2:7
+          var x = 1 /* first
+              ^
+    help: prefix with an underscore: _x
+    warning: unused variable: y
+      at <test>:3:17
+          second */ var y = 2
+                        ^
+    help: prefix with an underscore: _y
+    ok
+    |}]
+
+let%expect_test "parse: newline before a block" =
+  run_src "func f(x: bool) {\n  if x\n  {}\n}";
+  [%expect
+    {|
+    error: expected {
+      at <test>:2:7
+          if x
+              ^ found ;
+    |}]
+
 let%expect_test "parse: recover, two broken decls" =
-  run_src "func f() { @ } func g() { $ }";
+  run_src "func f() { @ }\nfunc g() { $ }";
   [%expect
     {|
     error: unexpected character: @
       at <test>:1:12
-        func f() { @ } func g() { $ }
+        func f() { @ }
                    ^
     error: unexpected character: $
-      at <test>:1:27
-        func f() { @ } func g() { $ }
-                                  ^
+      at <test>:2:12
+        func g() { $ }
+                   ^
     |}]
 
 let%expect_test "parse: recover, broken then good" =
-  run_src "func f() { return + } func g() i32 { return 1 }";
+  run_src "func f() { return + }\nfunc g() i32 { return 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:19
-        func f() { return + } func g() i32 { return 1 }
+        func f() { return + }
                           ^ found +
     |}]
 
 let%expect_test "parse: recover, broken body with local does not cascade" =
-  run_src "func f() { return + var x: i32 = 1 } func g() i32 { return 1 }";
+  run_src "func f() { return + var x: i32 = 1 }\nfunc g() i32 { return 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:19
-        func f() { return + var x: i32 = 1 } func g() i32 { return 1 }
+        func f() { return + var x: i32 = 1 }
                           ^ found +
     |}]
 
 let%expect_test "parse: recover, lex error then grammar error" =
-  run_src "func f() { @ } func g() { return + }";
+  run_src "func f() { @ }\nfunc g() { return + }";
   [%expect
     {|
     error: unexpected character: @
       at <test>:1:12
-        func f() { @ } func g() { return + }
+        func f() { @ }
                    ^
     error: expected expression
-      at <test>:1:34
-        func f() { @ } func g() { return + }
-                                         ^ found +
+      at <test>:2:19
+        func g() { return + }
+                          ^ found +
     |}]
 
 let%expect_test "parse: precedence + vs *" =
@@ -264,7 +353,7 @@ let%expect_test "parse: ptr field access" =
   [%expect {| (. s ptr) |}]
 
 let%expect_test "parse: multiline array literal" =
-  run_src "func f() {\n  var a: [2]i32 = [\n    1,\n    2\n  ]\n}";
+  run_src "func f() {\n  var a: [2]i32 = [\n    1,\n    2,\n  ]\n}";
   [%expect
     {|
     warning: unused variable: a
@@ -339,14 +428,14 @@ let%expect_test "parse: multiline struct literal" =
      func f() i32 {\n\
     \  let p = pt {\n\
     \    x: 1,\n\
-    \    y: 2\n\
+    \    y: 2,\n\
     \  }\n\
     \  return p.x\n\
      }";
   [%expect {| ok |}]
 
 let%expect_test "parse: if condition is not a struct literal" =
-  run_src "func f(x: bool) i32 { if x { return 1 } return 0 }";
+  run_src "func f(x: bool) i32 {\n  if x { return 1 }\n  return 0\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: else if hints elseif" =
@@ -361,13 +450,13 @@ let%expect_test "parse: else if hints elseif" =
     |}]
 
 let%expect_test "parse: dangling else has no matching if" =
-  run_src "func f() i32 { { if 1 > 0 { 1 } } else { 2 } }";
+  run_src "func f() i32 {\n  { if 1 > 0 { 1 } }\n  else { 2 }\n}";
   [%expect
     {|
     error: `else` without a matching `if`
-      at <test>:1:35
-        func f() i32 { { if 1 > 0 { 1 } } else { 2 } }
-                                          ^~~~ found else
+      at <test>:3:3
+          else { 2 }
+          ^~~~ found else
     help: an `if` used as a value closes at its `}`
     |}]
 
@@ -387,7 +476,10 @@ let%expect_test "parse: for iterable is not a struct literal" =
 let%expect_test "parse: parenthesized struct literal in condition" =
   run_src
     "struct pt { x: i32 }\n\
-     func f() i32 { if (pt { x: 1 }).x == 1 { return 1 } return 0 }";
+     func f() i32 {\n\
+    \  if (pt { x: 1 }).x == 1 { return 1 }\n\
+    \  return 0\n\
+     }";
   [%expect {| ok |}]
 
 let%expect_test "parse: braces are literal in a string" =
@@ -534,10 +626,7 @@ let%expect_test "parse: elseif chain with else" =
   run_src
     {|
 func f(x: i32) i32 {
-  if x < 0 { return 0 }
-  elseif x == 0 { return 1 }
-  elseif x < 10 { return 2 }
-  else { return 3 }
+  if x < 0 { return 0 } elseif x == 0 { return 1 } elseif x < 10 { return 2 } else { return 3 }
 }
 |};
   [%expect {| ok |}]
@@ -637,10 +726,20 @@ let%expect_test "parse: struct literal fields need a separator" =
   run_src "func f() { let s = S { x: 1 y: 2 } }";
   [%expect
     {|
-    error: expected `,` or newline between fields
+    error: expected `,` between fields
       at <test>:1:29
         func f() { let s = S { x: 1 y: 2 } }
                                     ^ found y
+    |}]
+
+let%expect_test "parse: multiline struct literal requires a trailing comma" =
+  run_src "struct S { x: i32 }\nfunc f() {\n  let s = S {\n    x: 1\n  }\n}";
+  [%expect
+    {|
+    error: missing `,` before newline
+      at <test>:4:9
+            x: 1
+                ^
     |}]
 
 let%expect_test "parse: never as a return type" =
@@ -648,28 +747,28 @@ let%expect_test "parse: never as a return type" =
   [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =
-  run_src "func f() i32 { let x = { var a = 1 } return x }";
+  run_src "func f() i32 {\n  let x = { var a = 1 }\n  return x\n}";
   [%expect
     {|
     error: cannot bind void value: x
-      at <test>:1:24
-        func f() i32 { let x = { var a = 1 } return x }
-                               ^~~~~~~~~~~~~
+      at <test>:2:11
+          let x = { var a = 1 }
+                  ^~~~~~~~~~~~~
     warning: unused variable: a
-      at <test>:1:30
-        func f() i32 { let x = { var a = 1 } return x }
-                                     ^
+      at <test>:2:17
+          let x = { var a = 1 }
+                        ^
     help: prefix with an underscore: _a
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
-  run_src "func f() i32 { let x = if true { 1 } return x }";
+  run_src "func f() i32 {\n  let x = if true { 1 }\n  return x\n}";
   [%expect
     {|
     error: cannot bind void value: x
-      at <test>:1:24
-        func f() i32 { let x = if true { 1 } return x }
-                               ^~~~~~~~~~~~~
+      at <test>:2:11
+          let x = if true { 1 }
+                  ^~~~~~~~~~~~~
     |}]
 
 let%expect_test "parse: an early exit block yields a value" =
