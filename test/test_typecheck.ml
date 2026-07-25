@@ -3667,3 +3667,41 @@ let%expect_test "typecheck: binding a void call is rejected" =
         func foo() { } func f() { var x = foo() }
                                           ^~~~~
     |}]
+
+let%expect_test "typecheck: pair assignment checks each value" =
+  run_src "func f(a: i32, b: bool) { a, b = b, a }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:34
+        func f(a: i32, b: bool) { a, b = b, a }
+                                         ^ expected i32, found bool
+    error: type mismatch
+      at <test>:1:37
+        func f(a: i32, b: bool) { a, b = b, a }
+                                            ^ expected bool, found i32
+    |}]
+
+let%expect_test "typecheck: pair assignment checks each target" =
+  run_src "func f(a: i32, b: i32) { let x = 1 x, b = b, a }";
+  [%expect
+    {|
+    error: cannot assign to immutable: x
+      at <test>:1:36
+        func f(a: i32, b: i32) { let x = 1 x, b = b, a }
+                                           ^
+    |}]
+
+let%expect_test "typecheck: pair assignment rejects an expression target" =
+  run_src "func f(a: i32, b: i32) { (a + 1), b = b, a }";
+  [%expect
+    {|
+    error: cannot assign to expression
+      at <test>:1:27
+        func f(a: i32, b: i32) { (a + 1), b = b, a }
+                                  ^~~~~
+    |}]
+
+let%expect_test "typecheck: pair assignment allows different target types" =
+  run_src "func f(a: i32, b: bool) { a, b = 1, true }";
+  [%expect {| ok |}]

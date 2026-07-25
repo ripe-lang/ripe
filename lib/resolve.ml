@@ -135,6 +135,11 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Return e -> Option.iter (resolve_expr st) e
   | Break | Continue -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
+  | PairAssign (ft, st', fv, sv) ->
+      resolve_expr st ft;
+      resolve_expr st st';
+      resolve_expr st fv;
+      resolve_expr st sv
 
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =

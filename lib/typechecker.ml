@@ -325,6 +325,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Continue ->
       if not env.in_loop then add_error env e.span "continue outside loop";
       T.mk TNever T.TContinue
+  | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
 
 (* The value of a block is its last element and void when the block is empty *)
 and tblock_ty (tb : T.tblock) : ty =
@@ -768,6 +769,11 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       synth_assign env op l r
 
 and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
+  let tl, tr = check_assign_operands env op l r in
+  T.mk TVoid (T.TBinOp (op, tl, tr))
+
+and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
+    T.texpr * T.texpr =
   let tl = synth env l in
   if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
   (match tl.T.desc with
@@ -812,7 +818,13 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         tr
     | _ -> check env r t
   in
-  T.mk TVoid (T.TBinOp (op, tl, tr))
+  (tl, tr)
+
+and synth_pair_assign (env : env) (ft : expr) (st : expr) (fv : expr)
+    (sv : expr) : T.texpr =
+  let ft, fv = check_assign_operands env Assign ft fv in
+  let st, sv = check_assign_operands env Assign st sv in
+  T.mk TVoid (T.TPairAssign (ft, st, fv, sv))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
@@ -1299,6 +1311,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TContinue ->
       false
   | T.TUndef -> true
+  | T.TPairAssign _ -> false
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
   (* The collected type is reused so a bad array size errors once *)
