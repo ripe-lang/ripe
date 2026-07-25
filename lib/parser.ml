@@ -14,7 +14,9 @@ type state = {
   mutable prev_end : int;
 }
 
-type assoc = Left | Right | NonAssoc
+type chain = Comparison | Range
+type assoc = Left | Right
+type infix = { prec : int; assoc : assoc; chain : chain option }
 
 (* Span of the current lookahead token so the caret lands under it *)
 let cur_span st = st.tok_span
@@ -96,22 +98,26 @@ let expect_literal_field_sep st =
   | RBRACE -> ()
   | _ -> fail_found st "expected `,` between fields"
 
+let left prec = Some { prec; assoc = Left; chain = None }
+let right prec = Some { prec; assoc = Right; chain = None }
+let nonassoc prec chain = Some { prec; assoc = Left; chain = Some chain }
+
 let prec_of = function
   | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN
   | PERCENT_ASSIGN | AMP_ASSIGN | PIPE_ASSIGN | CARET_ASSIGN | LSHIFT_ASSIGN
   | RSHIFT_ASSIGN ->
-      Some (1, Right)
-  | DOTDOT | DOTDOTEQ -> Some (2, NonAssoc)
-  | OR -> Some (3, Left)
-  | AND -> Some (4, Left)
-  | EQ | NEQ | LT | GT | LTE | GTE -> Some (5, NonAssoc)
-  | PIPE -> Some (6, Left)
-  | CARET -> Some (7, Left)
-  | AMP -> Some (8, Left)
-  | LSHIFT | RSHIFT -> Some (9, Left)
-  | PLUS | MINUS -> Some (10, Left)
-  | STAR | SLASH | PERCENT -> Some (11, Left)
-  | AS -> Some (12, Left)
+      right 1
+  | DOTDOT | DOTDOTEQ -> nonassoc 2 Range
+  | OR -> left 3
+  | AND -> left 4
+  | EQ | NEQ | LT | GT | LTE | GTE -> nonassoc 5 Comparison
+  | PIPE -> left 6
+  | CARET -> left 7
+  | AMP -> left 8
+  | LSHIFT | RSHIFT -> left 9
+  | PLUS | MINUS -> left 10
+  | STAR | SLASH | PERCENT -> left 11
+  | AS -> left 12
   | _ -> None
 
 let binop_of = function
@@ -268,12 +274,13 @@ and parse_expr st min_prec =
   while !loop do
     match prec_of st.tok with
     | None -> loop := false
-    | Some (prec, _) when prec < min_prec -> loop := false
-    | Some (prec, assoc) -> (
+    | Some op when op.prec < min_prec -> loop := false
+    | Some op -> (
         let op_tok = st.tok in
+        let op_span = cur_span st in
         advance st;
         let next_min_prec =
-          match assoc with Left | NonAssoc -> prec + 1 | Right -> prec
+          match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
         if op_tok = AS then begin
           let checked = st.tok = BANG in
@@ -300,13 +307,25 @@ and parse_expr st min_prec =
           let op = binop_of op_tok in
           lhs := mk lo st (BinOp (op, !lhs, rhs))
         end;
-        (* Reject chained comparisons like a < b < c and 0..5..10 *)
-        (* TODO(a300): better message and point at both operators *)
-        match (assoc, prec_of st.tok) with
-        | NonAssoc, Some (p, _) when p = prec ->
-            fail st
-              (Printf.sprintf "cannot chain non-associative operator %s"
-                 (show_token st.tok))
+        match (op.chain, prec_of st.tok) with
+        | Some chain, Some next when next.chain = op.chain ->
+            let name, help =
+              match chain with
+              | Comparison ->
+                  ( "comparison",
+                    "split the chain into separate comparisons joined with `&&`"
+                  )
+              | Range -> ("range", "parenthesize a range if nesting is intended")
+            in
+            raise
+              (ParseError
+                 (Diagnostic.error
+                    (Printf.sprintf "%s operators cannot be chained" name)
+                 |> Diagnostic.at (cur_span st)
+                 |> Diagnostic.label (Printf.sprintf "second %s operator" name)
+                 |> Diagnostic.secondary op_span
+                      (Printf.sprintf "first %s operator" name)
+                 |> Diagnostic.help help))
         | _ -> ())
   done;
   !lhs

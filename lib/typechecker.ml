@@ -721,8 +721,6 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
-      (* TODO(b5ca): dedicated "cannot chain comparison operators" message by
-         checking if l is a comparison node *)
       let tl = synth env l in
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then

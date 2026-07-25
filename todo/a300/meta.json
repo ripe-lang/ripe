@@ -6,8 +6,8 @@
   "id": "a300",
   "priority": "low",
   "source": "lib/parser.ml",
-  "status": "open",
+  "status": "resolved",
   "tags": [],
-  "title": "better message, point at both operators",
-  "updated_at": "2026-07-12 08:23:02.154573"
+  "title": "better message and point at both operators",
+  "updated_at": "2026-07-25 17:25:44.883350"
 }
