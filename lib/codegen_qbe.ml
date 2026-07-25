@@ -47,7 +47,13 @@ let bulk_mem_threshold = 64
 (* s_ for single, d_ for double *)
 let float_lit (ty : ty) (f : float) : string =
   let prefix, digits =
-    match resolve_ty ty with TFloat F32 -> ("s_", 9) | _ -> ("d_", 17)
+    match resolve_ty ty with
+    | TFloat F32 -> ("s_", 9)
+    | TFloat F64 -> ("d_", 17)
+    | TInt _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+    | TAlias _ | TError ->
+        Error.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
