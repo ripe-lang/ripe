@@ -158,7 +158,7 @@ let local_slot ctx (id : Symbol.id) = Hashtbl.find_opt ctx.locals id
 let sym_addr ctx (s : Symbol.t) : string =
   match s.kind with
   | Global -> "$" ^ s.name
-  | _ -> (
+  | Func | Extern | Type | Local _ | Param | ForVar -> (
       match local_slot ctx s.id with
       | Some slot -> "%" ^ slot
       | None -> "%" ^ s.name)
