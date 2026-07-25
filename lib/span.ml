@@ -3,7 +3,10 @@
 type file_id = int
 type t = { file : file_id; lo : int; hi : int }
 
-let make file lo hi = { file; lo; hi }
-let pp fmt { lo; hi; _ } = Format.fprintf fmt "(%d,%d)" lo hi
-let show s = Format.asprintf "%a" pp s
-let dummy = make (-1) 0 0
+let make (file : file_id) (lo : int) (hi : int) : t = { file; lo; hi }
+
+let pp (fmt : Format.formatter) ({ lo; hi; _ } : t) : unit =
+  Format.fprintf fmt "(%d,%d)" lo hi
+
+let show (s : t) : string = Format.asprintf "%a" pp s
+let dummy : t = make (-1) 0 0

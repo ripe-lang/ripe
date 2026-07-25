@@ -24,19 +24,23 @@ type t = {
 }
 [@@deriving show { with_path = false }]
 
-let is_func = function
+let is_func (kind : kind) : bool =
+  match kind with
   | Func | Extern -> true
   | Global | Type | Local _ | Param | ForVar -> false
 
-let is_global = function
+let is_global (kind : kind) : bool =
+  match kind with
   | Global -> true
   | Func | Extern | Type | Local _ | Param | ForVar -> false
 
-let is_immutable = function
+let is_immutable (kind : kind) : bool =
+  match kind with
   | Local (Ast.Let | Ast.Comptime) | ForVar -> true
   | Func | Extern | Global | Type | Local Ast.Var | Param -> false
 
-let is_comptime = function
+let is_comptime (kind : kind) : bool =
+  match kind with
   | Local Ast.Comptime -> true
   | Func | Extern | Global | Type | Local (Ast.Var | Ast.Let) | Param | ForVar
     ->

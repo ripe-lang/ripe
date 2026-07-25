@@ -4,27 +4,32 @@ open Tokens
 
 type step = Done | Stray | Open | Other
 
-let opener_repr = function
+let opener_repr (tok : token) : string =
+  match tok with
   | LPAREN -> "`(`"
   | LBRACKET -> "`[`"
   | LBRACE -> "`{`"
   | _ -> ""
 
-let closer_of = function
+let closer_of (tok : token) : token option =
+  match tok with
   | LPAREN -> Some RPAREN
   | LBRACKET -> Some RBRACKET
   | LBRACE -> Some RBRACE
   | _ -> None
 
-let closer_repr = function
+let closer_repr (tok : token) : string =
+  match tok with
   | RPAREN -> "`)`"
   | RBRACKET -> "`]`"
   | RBRACE -> "`}`"
   | _ -> ""
 
-let is_closer = function RPAREN | RBRACKET | RBRACE -> true | _ -> false
+let is_closer (tok : token) : bool =
+  match tok with RPAREN | RBRACKET | RBRACE -> true | _ -> false
 
-let report_mismatch diags span tok open_span open_tok =
+let report_mismatch (diags : Diagnostic.sink) (span : Ast.span) (tok : token)
+    (open_span : Ast.span) (open_tok : token) : unit =
   let want = Option.get (closer_of open_tok) in
   Diagnostic.emit diags
     Diagnostic.(
@@ -33,19 +38,21 @@ let report_mismatch diags span tok open_span open_tok =
       |> label (Printf.sprintf "found %s" (show_token tok))
       |> secondary open_span ("unclosed " ^ opener_repr open_tok))
 
-let report_stray diags span tok =
+let report_stray (diags : Diagnostic.sink) (span : Ast.span) (tok : token) :
+    unit =
   Diagnostic.emit diags
     Diagnostic.(
       error "unexpected closing delimiter"
       |> at span
       |> label (Printf.sprintf "found %s" (show_token tok)))
 
-let report_unclosed diags (open_tok, open_span) =
+let report_unclosed (diags : Diagnostic.sink) (open_tok, open_span) : unit =
   Diagnostic.emit diags
     Diagnostic.(error ("unclosed " ^ opener_repr open_tok) |> at open_span)
 
 (* This checks the token against open delimiters from the inside out *)
-let step diags stack tok span =
+let step (diags : Diagnostic.sink) (stack : (token * Ast.span) list)
+    (tok : token) (span : Ast.span) : step =
   if is_closer tok then (
     match stack with
     | (open_tok, _) :: _ when closer_of open_tok = Some tok -> Done

@@ -27,7 +27,8 @@ let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
 let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
 let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
 
-(* A for-loop continue still has to run the step so drop a copy in front of each one *)
+(* A for-loop continue still has to run the step so drop a copy in front of
+   each one *)
 (* Nested loops aren't touched here since their continues belong to them *)
 let rec paste_step step (stmts : D.cblock) : D.cblock =
   let on_stmt (st : D.cexpr) =

@@ -1,13 +1,13 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-let qbe = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
+let qbe : string = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
 
 (* An installed compiler finds the object through its dune install site *)
-let runtime_in_sites () =
+let runtime_in_sites () : string list =
   List.map (fun dir -> Filename.concat dir "panic.o") Ripe_sites.Sites.runtime
 
 (* A fresh build has no install site so look beside the binary *)
-let runtime_near_exe () =
+let runtime_near_exe () : string list =
   let exe =
     try Unix.realpath Sys.executable_name with _ -> Sys.executable_name
   in
@@ -17,7 +17,7 @@ let runtime_near_exe () =
       (Filename.concat Filename.parent_dir_name "runtime/panic.o");
   ]
 
-let runtime_object () =
+let runtime_object () : string =
   (* An explicit RIPE_RUNTIME wins so a user can force a path *)
   let override =
     match Sys.getenv_opt "RIPE_RUNTIME" with

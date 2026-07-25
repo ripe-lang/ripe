@@ -2,6 +2,8 @@
 
 (* These diagnostics came from ceramic *)
 
+open Span
+
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
 

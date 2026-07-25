@@ -3,6 +3,7 @@
 (* Https://c9x.me/compile/doc/il.html *)
 open Types
 open Const_eval
+open Symbol
 module T = Core
 
 type qbe_base = W | L | S | D
@@ -199,12 +200,6 @@ let intern_string ctx s =
   incr ctx.str_ctr;
   ctx.strings := (lbl, s) :: !(ctx.strings);
   lbl
-
-let emit_panic ctx msg =
-  let lbl = intern_string ctx msg in
-  emit ctx "    call $ripe_panic(l %s)\n" lbl;
-  emit ctx "    hlt\n";
-  ctx.terminated := true
 
 (* Start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
@@ -495,16 +490,6 @@ and widen_to_l ctx v ty =
     let ins = if is_unsigned ty then "extuw" else "extsw" in
     emit ctx "    %s =l %s %s\n" t ins v;
     t
-
-(* The first element pointer is the array's address of the slice's ptr field *)
-and data_ptr ctx base =
-  let addr = emit_expr ctx base in
-  match resolve_ty base.T.ty with
-  | TSlice _ ->
-      let p = fresh ctx in
-      emit ctx "    %s =l loadl %s\n" p addr;
-      p
-  | _ -> addr
 
 (* Address of arr[idx]: storage + idx * stride(elem) *)
 and emit_slice_expr ctx (span : Ast.span) base lo hi t =
@@ -1136,7 +1121,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       (fun (s, t) ->
         let tmp = fresh ctx in
         (s, t, tmp))
-      tfd.params
+      tfd.T.params
   in
   let params_strs =
     List.map
@@ -1144,20 +1129,20 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       param_tmps
   in
 
-  let is_main = tfd.name = "main" && tfd.ret_ty = TInt I32 in
+  let is_main = tfd.T.name = "main" && tfd.T.ret_ty = TInt I32 in
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part =
-    match tfd.ret_ty with
+    match tfd.T.ret_ty with
     | TVoid | TNever -> ""
     | TInt _ | TFloat _ | TBool | TChar | TCStr | TNull | TPointer _
     | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
     | TAlias _ | TError ->
-        qbe_ty tfd.ret_ty ^ " "
+        qbe_ty tfd.T.ret_ty ^ " "
   in
   (* The previous function ended terminated so clear it before this header *)
   ctx.terminated := false;
-  emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.name
+  emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.T.name
     (String.concat ", " params_strs);
   emit_label ctx "@start";
 
@@ -1178,7 +1163,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp slot)
     param_tmps;
 
-  emit_block ctx tfd.body;
+  emit_block ctx tfd.T.body;
 
   ctx.buf := out;
   Buffer.add_buffer out !(ctx.entry);
@@ -1187,7 +1172,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   (* Close the final block if control can still fall off the end *)
   if not !(ctx.terminated) then
     if is_main then emit ctx "    ret 0\n"
-    else if tfd.ret_ty = TVoid then emit ctx "    ret\n"
+    else if tfd.T.ret_ty = TVoid then emit ctx "    ret\n"
       (* Unreachable but QBE needs every block terminated *)
     else emit ctx "    hlt\n";
   ctx.terminated := false;
@@ -1237,7 +1222,7 @@ let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
   | T.CFloat f -> format_const_num te.T.ty (Nf f)
   | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.name
   | T.CCStr s -> intern_string ctx s
-  | T.CUnOp (Ast.AddressOf, { desc = T.CIdent s; _ })
+  | T.CUnOp (Ast.AddressOf, { T.desc = T.CIdent s; _ })
     when Symbol.is_global s.kind ->
       "$" ^ s.name
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
@@ -1269,20 +1254,21 @@ let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
   | _ -> Printf.sprintf "%s %s" (qbe_ext_ty te.T.ty) (fold_const_value ctx te)
 
 let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
-  let align = ty_align ctx.structs gd.ty in
-  match gd.init with
+  let align = ty_align ctx.structs gd.T.ty in
+  match gd.T.init with
   | None ->
-      let size = ty_size ctx.structs gd.ty in
-      emit ctx "data $%s = align %d { z %d }\n" gd.name align size
+      let size = ty_size ctx.structs gd.T.ty in
+      emit ctx "data $%s = align %d { z %d }\n" gd.T.name align size
   | Some te -> (
-      match resolve_ty gd.ty with
+      match resolve_ty gd.T.ty with
       | TArray _ | TStruct _ ->
-          emit ctx "data $%s = align %d { %s }\n" gd.name align
+          emit ctx "data $%s = align %d { %s }\n" gd.T.name align
             (const_array_fields ctx te)
       | _ ->
-          let letter = qbe_ext_ty gd.ty in
+          let letter = qbe_ext_ty gd.T.ty in
           let value = fold_const_value ctx te in
-          emit ctx "data $%s = align %d { %s %s }\n" gd.name align letter value)
+          emit ctx "data $%s = align %d { %s %s }\n" gd.T.name align letter
+            value)
 
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   let buf = Buffer.create (String.length content) in
@@ -1326,7 +1312,7 @@ let emit_qbe (tdecls : T.cdecl list) : string =
 
   List.iter
     (function
-      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.name ()
+      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.T.name ()
       | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;

@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ast
+open Diagnostic
 
 (* The binder and use share a span *)
 type t = { syms : (Ast.span, Symbol.t) Hashtbl.t }
@@ -21,8 +22,9 @@ let dump (r : t) : string =
   |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) ->
       compare (a.file, a.lo, a.hi) (b.file, b.lo, b.hi))
   |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
-      Printf.sprintf "(%d,%d) -> #%d %s %s\n" sp.lo sp.hi s.id
-        (Symbol.show_kind s.kind) s.name)
+      Printf.sprintf "(%d,%d) -> #%d %s %s\n" sp.Ast.lo sp.Ast.hi s.Symbol.id
+        (Symbol.show_kind s.Symbol.kind)
+        s.Symbol.name)
   |> String.concat ""
 
 let sym_at (r : t) (span : Ast.span) : Symbol.t =

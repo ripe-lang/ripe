@@ -5,7 +5,7 @@ module T = Typed_ast
 
 type escape = Slice | Address
 
-let inline_aggregate t =
+let inline_aggregate (t : ty) : bool =
   match strip_alias t with TArray _ | TStruct _ -> true | _ -> false
 
 (* This param array is copied into the frame so refs into it dangle too *)
