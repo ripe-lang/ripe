@@ -6,7 +6,7 @@ module T = Typed_ast
 (* The integers keep their real width so folding wraps like the runtime type *)
 type const_num = Ni32 of Int32.t | Ni64 of Int64.t | Nf of float
 
-let const_bool b = Ni32 (if b then 1l else 0l)
+let const_bool (b : bool) : const_num = Ni32 (if b then 1l else 0l)
 
 (* The source signedness says whether the new high bits are zeros or the sign
    bit *)
@@ -41,7 +41,7 @@ let wrap_const (ty : ty) (n : Int64.t) : const_num =
       Ni32 (Int64.to_int32 fitted)
   | _ -> if is_wide_ty ty then Ni64 n else Ni32 (Int64.to_int32 n)
 
-let unsupported_const span =
+let unsupported_const (span : Ast.span) : Diagnostic.t =
   Diagnostic.(
     error "unsupported constant expression"
     |> at span

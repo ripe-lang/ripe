@@ -2,13 +2,15 @@
 
 (* Converts byte offsets to line/col positions *)
 
+open Span
+
 type t = {
   src : string;
   line_starts : int array; (* Sorted byte offsets where each line begins *)
 }
 
 (* Only scan source text once to save the line start *)
-let create src =
+let create (src : string) : t =
   let len = String.length src in
   let starts = ref [ 0 ] in
   for i = 0 to len - 1 do
@@ -17,26 +19,26 @@ let create src =
   { src; line_starts = Array.of_list (List.rev !starts) }
 
 (* Binary search for the right most entry (the equal case not needed) *)
-let rec search starts pos lo hi =
+let rec search (starts : int array) (pos : int) (lo : int) (hi : int) : int =
   if lo >= hi then lo
   else
     let mid = lo + ((hi - lo + 1) / 2) in
     if starts.(mid) <= pos then search starts pos mid hi
     else search starts pos lo (mid - 1)
 
-let lookup t pos =
+let lookup (t : t) (pos : int) : int * int =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
 
 (* A basic wrapper for lookup to get the span e.g. file.rp:1:5: type mismatch
    let x = "hello" + 5 ^~~~~~~~~~~ *)
-let span_to_locs t (span : Ast.span) =
+let span_to_locs (t : t) (span : Ast.span) : int * int * int * int =
   let start_line, start_col = lookup t span.lo in
   let end_line, end_col = lookup t span.hi in
   (start_line, start_col, end_line, end_col)
 
 (* Byte offsets of the line containing pos with newline excluded *)
-let line_bounds t pos =
+let line_bounds (t : t) (pos : int) : int * int =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   let start = t.line_starts.(i) in
   let stop =

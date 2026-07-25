@@ -58,9 +58,9 @@ let show_module (module_ : Ast.module_) =
   let imports =
     List.map
       (fun import -> "import " ^ String.concat "." import.Ast.path)
-      module_.imports
+      module_.Ast.imports
   in
-  String.concat "\n" (imports @ List.map Ast.show_decl module_.decls) ^ "\n"
+  String.concat "\n" (imports @ List.map Ast.show_decl module_.Ast.decls) ^ "\n"
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"
@@ -75,7 +75,9 @@ let render_all ctx diags =
    error *)
 let check_has_main tdecls =
   let is_main decl =
-    match decl with Typed_ast.TFunc { name; _ } -> name = "main" | _ -> false
+    match decl with
+    | Typed_ast.TFunc fd -> Typed_ast.tfunc_name fd = "main"
+    | _ -> false
   in
   if not (List.exists is_main tdecls) then
     raise

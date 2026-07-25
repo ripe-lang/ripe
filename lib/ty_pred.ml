@@ -5,7 +5,8 @@ open Types
 module T = Typed_ast
 
 (* Types need exact equality but NULL works with any pointer *)
-(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
+(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32
+   (without cast)? *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
   | _, TNever -> true
@@ -37,27 +38,29 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
 
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
-  | TIdent _ | TFieldAccess _ | TIndex _ -> true
-  | TUnOp (Deref, _) -> true
-  | TUnOp _ -> false
-  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
-  | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef | TStructLit _
-  | TBlock _ | TIf _ | TWhile _ | TFor _ | TBinding _ | TReturn _ | TBreak
-  | TContinue ->
+  | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
+  | T.TUnOp (Deref, _) -> true
+  | T.TUnOp _ -> false
+  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
+  | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
+  | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
+  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
+  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
+  | T.TBreak | T.TContinue ->
       false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_binding (te : T.texpr) : Symbol.t option =
   match te.T.desc with
-  | TIdent s -> Some s
-  | TFieldAccess (base, _) -> root_through base
-  | TIndex (base, _) -> root_through base
-  | TInt _ | TFloat _ | TBool _ | TNull | TCStr _ | TChar _ | TCall _ | TBinOp _
-  | TUnOp _ | TCast _ | TSizeOf _ | TRange _ | TRangeInclusive _ | TArrayLit _
-  | TLen _ | TToSlice _ | TSliceExpr _ | TDataPtr _ | TZero | TUndef
-  | TStructLit _ | TBlock _ | TIf _ | TWhile _ | TFor _ | TBinding _ | TReturn _
-  | TBreak | TContinue ->
+  | T.TIdent s -> Some s
+  | T.TFieldAccess (base, _) -> root_through base
+  | T.TIndex (base, _) -> root_through base
+  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
+  | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
+  | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
+  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
+  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
+  | T.TBreak | T.TContinue ->
       None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)

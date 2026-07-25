@@ -28,7 +28,8 @@ let make_state file = {
 
 let start_pos lexbuf = lexbuf.Lexing.lex_start_p.Lexing.pos_cnum
 let end_pos lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
-let lexbuf_span st lexbuf = Span.make st.file (start_pos lexbuf) (end_pos lexbuf)
+let lexbuf_span st lexbuf =
+  Span.make st.file (start_pos lexbuf) (end_pos lexbuf)
 
 let int_token st lexbuf ?suf text =
   match Int64.of_string_opt text with
@@ -146,8 +147,12 @@ rule read_main st = parse
   | "'\\t'"  { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''"  { CHAR (Char.code '\'') }
-  | '\'' '\\' _ '\''  { bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf) }
-  | '\'' ([^ '\'' '\\' '\r' '\n']+ as inner) '\''  { char_token st lexbuf inner }
+  | '\'' '\\' _ '\''  {
+      bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
+    }
+  | '\'' ([^ '\'' '\\' '\r' '\n']+ as inner) '\''  {
+      char_token st lexbuf inner
+    }
   | "''"  { bad_char st lexbuf "empty character literal" }
   | '\''  { bad_char st lexbuf "unterminated character literal" }
   | '"'  { let str_start = lexbuf.Lexing.lex_start_p in
@@ -169,14 +174,25 @@ and read_string st = parse
   | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
   (* skip the bad escape and keep lexing so the string still closes *)
-  | '\\' _        { let span = Span.make st.file (start_pos lexbuf + 1) (end_pos lexbuf) in
-                    Queue.push
-                      (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span)
-                      st.token_queue;
-                    read_string st lexbuf }
+  | '\\' _        {
+      let span =
+        Span.make st.file (start_pos lexbuf + 1) (end_pos lexbuf)
+      in
+      Queue.push
+        (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span)
+        st.token_queue;
+      read_string st lexbuf
+    }
   (* FIXME(2151): allow raw newlines for now, revisit them in the future *)
-  | newline { next_line lexbuf; Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
-  | [^ '"' '\\' '\r' '\n']+  { Buffer.add_string st.buf (Lexing.lexeme lexbuf); read_string st lexbuf }
+  | newline {
+      next_line lexbuf;
+      Buffer.add_string st.buf (Lexing.lexeme lexbuf);
+      read_string st lexbuf
+    }
+  | [^ '"' '\\' '\r' '\n']+  {
+      Buffer.add_string st.buf (Lexing.lexeme lexbuf);
+      read_string st lexbuf
+    }
   (* Recover so the parser sees a closed string plus an error *)
   | eof  { let s = Buffer.contents st.buf in
            Buffer.clear st.buf;

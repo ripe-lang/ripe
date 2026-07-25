@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Types
+open Symbol
 module T = Typed_ast
 
 (* Every constant folds to a value here so codegen never resolves a name. the

@@ -445,7 +445,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
   in
   if kind = Comptime then (
     check_const_scalar env nspan t;
-    Hashtbl.replace env.l_vals (sym env nspan).id
+    Hashtbl.replace env.l_vals (sym env nspan).Symbol.id
       (fold_num_or env dummy_const_num te));
   ( extend_var env nspan name t,
     T.mk TVoid (T.TBinding (kind, sym env nspan, t, te)) )
@@ -771,16 +771,18 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   let tl = synth env l in
   if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
   (match tl.T.desc with
-  | TIdent s when Symbol.is_func s.kind ->
-      emit env (Error.named l.span "cannot assign to function" s.name)
-  | TIdent _ | TFieldAccess _ | TIndex _ -> (
+  | T.TIdent s when Symbol.is_func s.Symbol.kind ->
+      emit env (Error.named l.span "cannot assign to function" s.Symbol.name)
+  | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> (
       (* This catches assignment to an immutable binding whether it's local or
          global. *)
       match root_binding tl with
       | Some s
-        when Symbol.is_immutable s.kind
-             || (Symbol.is_global s.kind && is_const_global env s.name) ->
-          emit env (Error.named l.span "cannot assign to immutable" s.name)
+        when Symbol.is_immutable s.Symbol.kind
+             || Symbol.is_global s.Symbol.kind
+                && is_const_global env s.Symbol.name ->
+          emit env
+            (Error.named l.span "cannot assign to immutable" s.Symbol.name)
       | _ -> ())
   | _ -> ());
   let t = tl.T.ty in
@@ -848,11 +850,12 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       (match te.T.desc with
       | T.TIdent s
-        when Symbol.is_comptime s.kind
-             || (Symbol.is_global s.kind && is_comptime_global env s.name) ->
+        when Symbol.is_comptime s.Symbol.kind
+             || Symbol.is_global s.Symbol.kind
+                && is_comptime_global env s.Symbol.name ->
           emit env
             Diagnostic.(
-              error ("cannot take address of a constant: " ^ s.name)
+              error ("cannot take address of a constant: " ^ s.Symbol.name)
               |> at e.span
               |> help "a const has no storage, use let")
       | _ ->
@@ -916,7 +919,7 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
     : T.texpr =
   match callee.desc with
-  | Ident name when Symbol.is_func (sym env callee.span).kind ->
+  | Ident name when Symbol.is_func (sym env callee.span).Symbol.kind ->
       let fn_sym = sym env callee.span in
       let sig_ = lookup_func env callee.span name in
       let targs = check_args env span sig_ args in
@@ -989,13 +992,13 @@ and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
 
 and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
     Const_eval.const_num =
-  match s.kind with
+  match s.Symbol.kind with
   | Symbol.Local Ast.Comptime -> (
-      match Hashtbl.find_opt env.l_vals s.id with
+      match Hashtbl.find_opt env.l_vals s.Symbol.id with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Hashtbl.mem env.g_state s.name ->
-      global_const_num env span s.name
+  | Symbol.Global when Hashtbl.mem env.g_state s.Symbol.name ->
+      global_const_num env span s.Symbol.name
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
 and global_const_num (env : env) (span : Ast.span) (name : string) :
@@ -1272,25 +1275,30 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
 let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   match te.T.desc with
-  | TInt _ | TFloat _ | TBool _ | TNull | TChar _ | TCStr _ | TSizeOf _ -> true
+  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
+  | T.TSizeOf _ ->
+      true
   (* A function address is a link time constant *)
-  | TIdent s -> Symbol.is_func s.kind || is_const_global env s.name
+  | T.TIdent s ->
+      Symbol.is_func s.Symbol.kind || is_const_global env s.Symbol.name
   (* The address of a global is a link time constant *)
-  | TUnOp (Ast.AddressOf, { desc = TIdent s; _ }) -> Symbol.is_global s.kind
-  | TUnOp (_, e) -> is_const_texpr env e
-  | TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
-  | TCast (e, _) -> is_const_texpr env e
-  | TZero -> true
+  | T.TUnOp (Ast.AddressOf, { T.desc = T.TIdent s; _ }) ->
+      Symbol.is_global s.Symbol.kind
+  | T.TUnOp (_, e) -> is_const_texpr env e
+  | T.TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
+  | T.TCast (e, _) -> is_const_texpr env e
+  | T.TZero -> true
   (* An array literal is constant when all its elements are *)
-  | TArrayLit elems -> List.for_all (is_const_texpr env) elems
-  | TStructLit (_, fields) ->
+  | T.TArrayLit elems -> List.for_all (is_const_texpr env) elems
+  | T.TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* Never compile-time by design *)
-  | TCall _ | TFieldAccess _ | TRange _ | TRangeInclusive _ | TIndex _ | TLen _
-  | TToSlice _ | TSliceExpr _ | TDataPtr _ | TBlock _ | TIf _ | TWhile _
-  | TFor _ | TBinding _ | TReturn _ | TBreak | TContinue ->
+  | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
+  | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
+  | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak
+  | T.TContinue ->
       false
-  | TUndef -> true
+  | T.TUndef -> true
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
   (* The collected type is reused so a bad array size errors once *)
@@ -1392,6 +1400,6 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
   let tdecls = List.map (check_decl env) decls in
   let tdecls = fold_consts env tdecls in
   let all = Diagnostic.drain env.diags in
-  let is_err (d : Diagnostic.t) = d.severity = Diagnostic.Error in
+  let is_err (d : Diagnostic.t) = d.Diagnostic.severity = Diagnostic.Error in
   if List.exists is_err all then raise (Diagnostic.Errors all)
   else (tdecls, List.filter (fun d -> not (is_err d)) all)
