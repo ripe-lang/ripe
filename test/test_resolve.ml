@@ -195,7 +195,10 @@ let%expect_test "resolve: shadow inside if body does not leak" =
     {|
 func main() i32 {
   var x: i32 = 1
-  if x > 0 { var x: i32 = 2  x = x + 1 }
+  if x > 0 {
+    var x: i32 = 2
+    x = x + 1
+  }
   return x
 }
 |};
@@ -206,7 +209,10 @@ let%expect_test "resolve: shadow inside while body does not leak" =
     {|
 func main() i32 {
   var x: i32 = 0
-  while x < 3 { var y: i32 = x  x = y + 1 }
+  while x < 3 {
+    var y: i32 = x
+    x = y + 1
+  }
   return x
 }
 |};
@@ -217,7 +223,10 @@ let%expect_test "resolve: local inside for body does not leak" =
     {|
 func main() i32 {
   var sum: i32 = 0
-  for i in 0..3 { var t: i32 = i  sum = sum + t }
+  for i in 0..3 {
+    var t: i32 = i
+    sum = sum + t
+  }
   return sum
 }
 |};
@@ -250,8 +259,14 @@ func main() i32 { return 0 }
 let%expect_test "resolve: same local name in two functions" =
   run_src
     {|
-func a() i32 { var x: i32 = 1  return x }
-func b() i32 { var x: i32 = 2  return x }
+func a() i32 {
+  var x: i32 = 1
+  return x
+}
+func b() i32 {
+  var x: i32 = 2
+  return x
+}
 func main() i32 { return a() + b() }
 |};
   [%expect {| ok |}]
@@ -279,7 +294,10 @@ let%expect_test "resolve: nested block reads the enclosing param" =
   run_src
     {|
 func f(a: i32) i32 {
-  { var a: i32 = a + 1  return a }
+  {
+    var a: i32 = a + 1
+    return a
+  }
 }
 func main() i32 { return f(1) }
 |};

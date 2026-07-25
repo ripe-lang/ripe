@@ -17,7 +17,7 @@ func f() i32 {
   [%expect {| f { bind x block { bind y expr } return } |}]
 
 let%expect_test "lower: compound assignment splices flat" =
-  run_lower "func f() i32 { var x: i32 = 1 x += 2 return x }";
+  run_lower "func f() i32 {\n  var x: i32 = 1\n  x += 2\n  return x\n}";
   [%expect {| f { bind x bind compound.p.0 expr return } |}]
 
 let%expect_test "lower: pair assignment saves both values before stores" =
