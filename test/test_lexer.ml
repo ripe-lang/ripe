@@ -10,28 +10,31 @@ let%expect_test "lexer: semicolon inserted after expression newline" =
     EOF
     |}]
 
-let%expect_test "lexer: no semicolon without trailing newline" =
+let%expect_test "lexer: semicolon inserted at eof" =
   dump_tokens "x";
   [%expect {|
     IDENT x
+    SEMI
     EOF
     |}]
 
-let%expect_test "lexer: no semicolon inside parens" =
+let%expect_test "lexer: semicolon inserted inside parens" =
   dump_tokens "(\n1\n)\n";
   [%expect {|
     (
     INT 1
+    SEMI
     )
     SEMI
     EOF
     |}]
 
-let%expect_test "lexer: no semicolon inside brackets" =
+let%expect_test "lexer: semicolon inserted inside brackets" =
   dump_tokens "[\n1\n]\n";
   [%expect {|
     [
     INT 1
+    SEMI
     ]
     SEMI
     EOF
@@ -61,6 +64,7 @@ let%expect_test "lexer: string is one token" =
   dump_tokens {|"hello"|};
   [%expect {|
     STRING hello
+    SEMI
     EOF
     |}]
 
@@ -68,6 +72,7 @@ let%expect_test "lexer: empty string" =
   dump_tokens {|""|};
   [%expect {|
     STRING
+    SEMI
     EOF
     |}]
 
@@ -75,6 +80,7 @@ let%expect_test "lexer: braces are literal in a string" =
   dump_tokens {|"a{x}b"|};
   [%expect {|
     STRING a{x}b
+    SEMI
     EOF
     |}]
 
@@ -82,6 +88,7 @@ let%expect_test "lexer: escape sequences" =
   dump_tokens {|"a\nb\tc"|};
   [%expect {|
     STRING a\nb\tc
+    SEMI
     EOF
     |}]
 
@@ -112,10 +119,11 @@ let%expect_test "lexer: block comment stripped" =
     EOF
     |}]
 
-let%expect_test "lexer: multiline block comment stripped" =
+let%expect_test "lexer: multiline block comment inserts semicolon" =
   dump_tokens "x /* one\ntwo */ y\n";
   [%expect {|
     IDENT x
+    SEMI
     IDENT y
     SEMI
     EOF
@@ -404,6 +412,7 @@ let%expect_test "lexer: char escapes" =
     '\u{9}'
     '\u{5C}'
     '\u{27}'
+    SEMI
     EOF
     |}]
 
@@ -456,9 +465,11 @@ let%expect_test "lexer: two scalars in a literal is an error" =
 
 let%expect_test "lexer: unknown char escape is an error" =
   dump_tokens {|'\q'|};
-  [%expect {|
+  [%expect
+    {|
     ERROR unknown escape: '\q'
     '\u{0}'
+    SEMI
     EOF
     |}]
 

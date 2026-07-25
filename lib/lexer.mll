@@ -10,18 +10,13 @@ let next_line lexbuf =
 type state = {
   file : Span.file_id;
   buf : Buffer.t; (* auto buffer resize *)
-  (* FIXME: fixes multiline expressions in () but
-    new error w/ newlines forever on unclosed parens *)
-  mutable paren_depth : int;
   token_queue : (Tokens.token * Span.t) Queue.t;
-  (* Trying to emulate go semicolons *)
   mutable last_token : Tokens.token option;
 }
 
 let make_state file = {
   file;
   buf = Buffer.create 64;
-  paren_depth = 0;
   token_queue = Queue.create ();
   last_token = None;
 }
@@ -74,12 +69,11 @@ let newline = '\r' | '\n' | "\r\n"
 rule read_main st = parse
   | white              { read_main st lexbuf }
   | "//" [^ '\n' '\r']* { read_main st lexbuf }
-  | "/*"               { read_block_comment st 0 lexbuf }
+  | "/*"               { read_block_comment st 0 false lexbuf }
   | newline            { next_line lexbuf;
-                         if st.paren_depth > 0 then read_main st lexbuf
-                         else match st.last_token with
-                              | Some t when can_end_stmt t -> SEMI
-                              | _ -> read_main st lexbuf }
+                         match st.last_token with
+                         | Some t when can_end_stmt t -> SEMI
+                         | _ -> read_main st lexbuf }
   | ('0' ['x' 'X'] hexdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
   | ('0' ['b' 'B'] bindig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
   | ('0' ['o' 'O'] octdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
@@ -132,11 +126,10 @@ rule read_main st = parse
   | '.'  { DOT }
   | ';'  { SEMI }
   | '='  { ASSIGN }
-  | '('  { st.paren_depth <- st.paren_depth + 1; LPAREN }
-  | ')'  { st.paren_depth <- max 0 (st.paren_depth - 1); RPAREN }
-  (* Brackets bump paren_depth so array literals can span lines *)
-  | '['  { st.paren_depth <- st.paren_depth + 1; LBRACKET }
-  | ']'  { st.paren_depth <- max 0 (st.paren_depth - 1); RBRACKET }
+  | '('  { LPAREN }
+  | ')'  { RPAREN }
+  | '['  { LBRACKET }
+  | ']'  { RBRACKET }
   | '{'  { LBRACE }
   | '}'  { RBRACE }
   | ':'  { COLON }
@@ -161,7 +154,11 @@ rule read_main st = parse
            (* The string token spans the whole literal with quotes included *)
            lexbuf.Lexing.lex_start_p <- str_start;
            tok }
-  | eof  { EOF }
+  | eof  {
+      match st.last_token with
+      | Some t when can_end_stmt t -> SEMI
+      | _ -> EOF
+    }
   | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
 
 
@@ -202,13 +199,21 @@ and read_string st = parse
              st.token_queue;
            STRING s }
 
-and read_block_comment st depth = parse
-  | "/*"    { read_block_comment st (depth + 1) lexbuf }
-  | "*/"    { if depth = 0 then read_main st lexbuf
-              else read_block_comment st (depth - 1) lexbuf }
-  | newline { next_line lexbuf; read_block_comment st depth lexbuf }
+and read_block_comment st depth saw_newline = parse
+  | "/*"    { read_block_comment st (depth + 1) saw_newline lexbuf }
+  | "*/"    {
+      if depth = 0 then
+        match st.last_token with
+        | Some t when saw_newline && can_end_stmt t -> SEMI
+        | _ -> read_main st lexbuf
+      else read_block_comment st (depth - 1) saw_newline lexbuf
+    }
+  | newline {
+      next_line lexbuf;
+      read_block_comment st depth true lexbuf
+    }
   | eof     { ERROR "unterminated block comment" }
-  | _       { read_block_comment st depth lexbuf }
+  | _       { read_block_comment st depth saw_newline lexbuf }
 
 {
 let read st lexbuf =
