@@ -476,8 +476,11 @@ and emit_unop ctx op e t =
       | Ast.Deref ->
           emit_null_check ctx ev;
           emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
-      | _ -> Error.ice ~span:e.T.span "unexpected unary operator");
-      match op with Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t | _ -> tmp)
+      | Ast.AddressOf -> Error.ice ~span:e.T.span "unexpected unary operator");
+      match op with
+      | Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t
+      | Ast.Not | Ast.Deref -> tmp
+      | Ast.AddressOf -> Error.ice ~span:e.T.span "unexpected unary operator")
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
       let tmp = fresh ctx in
