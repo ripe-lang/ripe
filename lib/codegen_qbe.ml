@@ -1076,7 +1076,8 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
             | W, false -> "swtof"
             | L, true -> "ultof"
             | L, false -> "sltof"
-            | (S | D), _ -> Error.ice "float to float conversion in integer path"
+            | (S | D), _ ->
+                Error.ice "float to float conversion in integer path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v
       (* A float turns into an integer *)
@@ -1087,7 +1088,8 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
             | S, false -> "stosi"
             | D, true -> "dtoui"
             | D, false -> "dtosi"
-            | (W | L), _ -> Error.ice "integer to integer conversion in float path"
+            | (W | L), _ ->
+                Error.ice "integer to integer conversion in float path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
