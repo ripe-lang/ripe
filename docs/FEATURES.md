@@ -317,6 +317,17 @@ func main() i32 {
 }
 ```
 
+### Swap
+
+```ripe
+func main() i32 {
+  var a: i32 = 1
+  var b: i32 = 2
+  a, b = b, a
+  return a
+}
+```
+
 ### Cast
 
 ```ripe
