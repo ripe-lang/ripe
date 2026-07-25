@@ -1074,8 +1074,9 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
             match (qbe_base src_ty, is_unsigned src_ty) with
             | W, true -> "uwtof"
             | W, false -> "swtof"
-            | _, true -> "ultof"
-            | _, false -> "sltof"
+            | L, true -> "ultof"
+            | L, false -> "sltof"
+            | (S | D), _ -> Error.ice "float to float conversion in integer path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v
       (* A float turns into an integer *)
@@ -1084,8 +1085,9 @@ and emit_cast ctx ?(checked = false) v src_ty target_ty =
             match (qbe_base src_ty, is_unsigned target_ty) with
             | S, true -> "stoui"
             | S, false -> "stosi"
-            | _, true -> "dtoui"
-            | _, false -> "dtosi"
+            | D, true -> "dtoui"
+            | D, false -> "dtosi"
+            | (W | L), _ -> Error.ice "integer to integer conversion in float path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
