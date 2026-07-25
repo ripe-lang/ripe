@@ -1285,7 +1285,8 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   List.iter
     (function
       | T.CStruct (name, fields, _) -> Hashtbl.replace structs name fields
-      | _ -> ())
+      | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
+          ())
     tdecls;
 
   let ctx =
@@ -1307,24 +1308,42 @@ let emit_qbe (tdecls : T.cdecl list) : string =
 
   List.iter
     (function
-      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.name () | _ -> ())
+      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.name ()
+      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _ ->
+          ())
     tdecls;
 
   List.iter
     (function
       | T.CStruct (name, fields, _) -> emit_struct_type ctx name fields
-      | _ -> ())
+      | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
+          ())
     tdecls;
   let has_structs =
-    List.exists (function T.CStruct _ -> true | _ -> false) tdecls
+    List.exists
+      (function
+        | T.CStruct _ -> true
+        | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _
+          ->
+            false)
+      tdecls
   in
   if has_structs then emit ctx "\n";
 
   List.iter
-    (function T.CGlobal gd -> emit_global_data ctx gd | _ -> ())
+    (function
+      | T.CGlobal gd -> emit_global_data ctx gd
+      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _ ->
+          ())
     tdecls;
   let has_globals =
-    List.exists (function T.CGlobal _ -> true | _ -> false) tdecls
+    List.exists
+      (function
+        | T.CGlobal _ -> true
+        | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _
+          ->
+            false)
+      tdecls
   in
   if has_globals then emit ctx "\n";
 
