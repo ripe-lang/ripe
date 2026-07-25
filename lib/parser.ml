@@ -1,5 +1,4 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
-(* Errors: "expected X but found Y" *)
 
 open Tokens
 open Ast
@@ -74,7 +73,8 @@ let comma_sep st stop parse_one =
     while st.tok = COMMA do
       advance st;
       if st.tok <> stop then items := parse_one () :: !items
-    done
+    done;
+    if st.tok = SEMI then fail st "missing `,` before newline"
   end;
   List.rev !items
 
@@ -88,6 +88,13 @@ let expect_field_sep st =
   | SEMI | RBRACE -> ()
   | _ -> fail_found st "expected `,` or newline between fields");
   skip_semi st
+
+let expect_literal_field_sep st =
+  match st.tok with
+  | COMMA -> advance st
+  | SEMI -> fail st "missing `,` before newline"
+  | RBRACE -> ()
+  | _ -> fail_found st "expected `,` between fields"
 
 let prec_of = function
   | ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN
@@ -210,12 +217,10 @@ and parse_struct st mods =
   advance st;
   (* STRUCT *)
   let name = expect_ident st in
-  skip_semi st;
   expect st LBRACE;
   let fields = parse_fields st in
   expect st RBRACE;
   let hi = st.prev_end in
-  skip_semi st;
   Struct { name; fields; modifiers = mods; span = make_span st lo hi }
 
 (* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
@@ -242,6 +247,7 @@ and parse_params st =
     done
   end;
   if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
+  if st.tok = SEMI then fail st "missing `,` before newline";
   expect st RPAREN;
   (List.rev !params, !variadic)
 
@@ -440,7 +446,7 @@ and parse_struct_lit_fields st =
         expect st COLON;
         let e = parse_expr st 1 in
         fields := (name, nspan, e) :: !fields;
-        expect_field_sep st
+        expect_literal_field_sep st
       done;
       List.rev !fields)
 
@@ -519,7 +525,6 @@ and parse_block st =
   expect st LBRACE;
   let body = parse_stmts st in
   expect st RBRACE;
-  skip_semi st;
   body
 
 and parse_stmts st =
@@ -528,7 +533,8 @@ and parse_stmts st =
   while st.tok <> RBRACE && st.tok <> EOF do
     let s = parse_stmt st in
     stmts := s :: !stmts;
-    skip_semi st
+    if st.tok = SEMI then skip_semi st
+    else if st.tok <> RBRACE && st.tok <> EOF then fail_found st "expected `;`"
   done;
   List.rev !stmts
 
@@ -541,11 +547,7 @@ and parse_stmt st =
   | LBRACE ->
       let body = parse_block st in
       mk lo st (Block body)
-  | _ ->
-      let s = parse_simple_stmt st in
-      (* Ends with a semicolon so clean up *)
-      if st.tok = SEMI then advance st;
-      s
+  | _ -> parse_simple_stmt st
 
 (* if x < 0 { return lo } elseif x > 0 { 1 } else { 0 } *)
 and parse_if st =
@@ -553,13 +555,11 @@ and parse_if st =
   advance st;
   (* IF *)
   let cond = parse_header_expr st in
-  skip_semi st;
   let body = parse_block st in
   let rec parse_elseifs acc =
     if st.tok = ELSEIF then begin
       advance st;
       let c = parse_header_expr st in
-      skip_semi st;
       let b = parse_block st in
       parse_elseifs ((c, b) :: acc)
     end
@@ -576,7 +576,6 @@ and parse_if st =
              |> Diagnostic.at (cur_span st)
              |> Diagnostic.label "found if"
              |> Diagnostic.help "the keyword is elseif, one word"));
-      skip_semi st;
       Some (parse_block st)
     end
     else None
@@ -589,7 +588,6 @@ and parse_while st =
   advance st;
   (* WHILE *)
   let cond = parse_header_expr st in
-  skip_semi st;
   let body = parse_block st in
   mk lo st (While (cond, body))
 
@@ -601,7 +599,6 @@ and parse_for st =
   let name, nspan = expect_ident_span st in
   expect st IN;
   let iter = parse_header_expr st in
-  skip_semi st;
   let body = parse_block st in
   mk lo st (For (name, nspan, iter, body))
 
@@ -624,10 +621,7 @@ let parse_func st mods =
       let e = parse_expr st 1 in
       [ mk slo st (Return (Some e)) ]
     end
-    else begin
-      skip_semi st;
-      parse_block st
-    end
+    else parse_block st
   in
   let hi = st.prev_end in
   Func
@@ -658,7 +652,6 @@ let parse_global st =
     else None
   in
   let hi = st.prev_end in
-  skip_semi st;
   Global { name; typ; init; kind; span = make_span st lo hi }
 
 (* type binop = (i32, i32) i32 *)
@@ -670,7 +663,6 @@ let parse_type_alias st =
   expect st ASSIGN;
   let typ = parse_typ st in
   let hi = st.prev_end in
-  skip_semi st;
   Ast.TypeAlias { name; typ; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
@@ -682,7 +674,6 @@ let parse_newtype st =
   expect st ASSIGN;
   let typ = parse_typ st in
   let hi = st.prev_end in
-  skip_semi st;
   Ast.Newtype { name; typ; span = make_span st lo hi }
 
 (* extern func add(a: i32, b: i32) i32 *)
@@ -692,7 +683,6 @@ let parse_extern st =
   (* EXTERN *)
   let name, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
-  skip_semi st;
   Extern
     {
       name;
@@ -726,7 +716,6 @@ let parse_import st =
     path := expect_ident st :: !path
   done;
   let hi = st.prev_end in
-  skip_semi st;
   { path = List.rev !path; span = make_span st lo hi }
 
 (* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
@@ -746,7 +735,8 @@ let parse_module st =
     try
       if st.tok = IMPORT then imports := parse_import st :: !imports
       else decls := parse_decl st :: !decls;
-      skip_semi st
+      if st.tok = SEMI then skip_semi st
+      else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;
       sync_to_item st
