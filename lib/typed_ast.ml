@@ -36,6 +36,7 @@ type texpr_desc =
   | TReturn of texpr option
   | TBreak
   | TContinue
+  | TPairAssign of texpr * texpr * texpr * texpr
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]

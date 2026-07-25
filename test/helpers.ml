@@ -208,6 +208,8 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | Break -> "(break)"
   | Continue -> "(continue)"
+  | PairAssign (ft, st, fv, sv) ->
+      "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"
 
 and dump_block (body : Ripe.Ast.block) : string =
   "(block " ^ String.concat " " (List.map dump_expr body) ^ ")"

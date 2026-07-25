@@ -788,3 +788,51 @@ import math.vector
     import io
     import math.vector
     |}]
+
+let%expect_test "parse: pair assignment" =
+  run_src "func f(a: i32, b: i32) { a, b = b, a }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: pair assignment rejects a third target" =
+  run_src "func f(a: i32, b: i32, c: i32) { a, b, c = b, c, a }";
+  [%expect
+    {|
+    error: pair assignment requires exactly two targets
+      at <test>:1:38
+        func f(a: i32, b: i32, c: i32) { a, b, c = b, c, a }
+                                             ^
+    |}]
+
+let%expect_test "parse: pair assignment rejects a third value" =
+  run_src "func f(a: i32, b: i32, c: i32) { a, b = b, c, a }";
+  [%expect
+    {|
+    error: pair assignment requires exactly two values
+      at <test>:1:45
+        func f(a: i32, b: i32, c: i32) { a, b = b, c, a }
+                                                    ^
+    |}]
+
+let%expect_test "parse: pair assignment rejects four targets" =
+  run_src "func f(a: i32, b: i32, c: i32, d: i32) { a, b, c, d = b, a }";
+  [%expect
+    {|
+    error: pair assignment requires exactly two targets
+      at <test>:1:46
+        func f(a: i32, b: i32, c: i32, d: i32) { a, b, c, d = b, a }
+                                                     ^
+    |}]
+
+let%expect_test "parse: pair assignment rejects four values" =
+  run_src "func f(a: i32, b: i32, c: i32, d: i32) { a, b = b, a, c, d }";
+  [%expect
+    {|
+    error: pair assignment requires exactly two values
+      at <test>:1:53
+        func f(a: i32, b: i32, c: i32, d: i32) { a, b = b, a, c, d }
+                                                            ^
+    |}]
+
+let%expect_test "parse: regular assignment remains accepted" =
+  run_src "func f(a: i32, b: i32) { a = b }";
+  [%expect {| ok |}]

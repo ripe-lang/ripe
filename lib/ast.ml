@@ -112,6 +112,7 @@ type expr_desc =
   | Return of expr option
   | Break
   | Continue
+  | PairAssign of expr * expr * expr * expr
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }

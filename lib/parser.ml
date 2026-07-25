@@ -496,7 +496,23 @@ and parse_simple_stmt st =
       else
         let e = parse_value st in
         mk lo st (Return (Some e))
-  | _ -> parse_expr st 1
+  | _ ->
+      let first = parse_expr st 1 in
+      if at st COMMA then parse_pair_assign st lo first else first
+
+(* a, b = b, a *)
+and parse_pair_assign (state : state) (lo : int) (ft : expr) : expr =
+  expect state COMMA;
+  let st = parse_expr state 2 in
+  if at state COMMA then
+    fail state "pair assignment requires exactly two targets";
+  expect state ASSIGN;
+  let fv = parse_expr state 1 in
+  expect state COMMA;
+  let sv = parse_expr state 1 in
+  if at state COMMA then
+    fail state "pair assignment requires exactly two values";
+  mk lo state (PairAssign (ft, st, fv, sv))
 
 (* { return a + b } *)
 and parse_block st =

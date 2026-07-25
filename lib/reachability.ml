@@ -18,4 +18,5 @@ and expr_has_break (e : expr) : bool =
   | Return e -> Option.fold ~none:false ~some:expr_has_break e
   (* A nested loop owns its own breaks *)
   | While _ | For _ -> false
+  | PairAssign _ -> false
   | _ -> false

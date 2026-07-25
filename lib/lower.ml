@@ -119,6 +119,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TReturn e -> D.CReturn (Option.map lower_expr e)
     | S.TBreak -> D.CBreak
     | S.TContinue -> D.CContinue
+    | S.TPairAssign (ft, st, fv, sv) -> D.CBlock (lower_pair_assign ft st fv sv)
   in
   { D.desc; ty; span }
 
@@ -132,7 +133,21 @@ and lower_elem (te : S.texpr) : D.cblock =
   | S.TFor (sym, elem_ty, iter, body) -> lower_for sym elem_ty iter body
   | S.TBinOp (op, l, r) when base_binop_of op <> None ->
       lower_compound_assign op l r
+  | S.TPairAssign (ft, st, fv, sv) -> lower_pair_assign ft st fv sv
   | _ -> [ lower_expr te ]
+
+and lower_pair_assign (ft : S.texpr) (st : S.texpr) (fv : S.texpr)
+    (sv : S.texpr) : D.cblock =
+  let fv = lower_expr fv in
+  let sv = lower_expr sv in
+  let first_sym = fresh_sym "pair.first" in
+  let second_sym = fresh_sym "pair.second" in
+  [
+    bind first_sym fv.D.ty fv;
+    bind second_sym sv.D.ty sv;
+    assign (lower_expr ft) (ident fv.D.ty first_sym);
+    assign (lower_expr st) (ident sv.D.ty second_sym);
+  ]
 
 and lower_while cond body : D.cblock =
   loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_block body)
