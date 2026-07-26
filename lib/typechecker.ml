@@ -32,7 +32,7 @@ type env = {
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (string, gstate) Hashtbl.t;
-  l_vals : (Symbol.id, Const_eval.const_num) Hashtbl.t;
+  l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   in_main : bool;
@@ -452,7 +452,8 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
   in
   if kind = Comptime then (
     check_const_scalar env nspan t;
-    Hashtbl.replace env.l_vals (sym env nspan).Symbol.id
+    Hashtbl.replace env.l_vals
+      (Symbol.key (sym env nspan))
       (fold_num_or env dummy_const_num te));
   ( extend_var env nspan name t,
     T.mk TVoid (T.TBinding (kind, sym env nspan, t, te)) )
