@@ -5,10 +5,14 @@ open Ast
 
 exception ParseError of Diagnostic.t
 
+type token_info = { token : token; span : span; line : int; depth : int }
+
 type state = {
   mutable tok : token;
   mutable tok_span : span;
-  read : unit -> token * span;
+  mutable tok_line : int;
+  mutable tok_depth : int;
+  read : unit -> token_info;
   diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
   mutable prev_end : int;
@@ -23,9 +27,11 @@ let cur_span st = st.tok_span
 
 let advance st =
   st.prev_end <- st.tok_span.hi;
-  let tok, span = st.read () in
-  st.tok <- tok;
-  st.tok_span <- span
+  let info = st.read () in
+  st.tok <- info.token;
+  st.tok_span <- info.span;
+  st.tok_line <- info.line;
+  st.tok_depth <- info.depth
 
 let at st t = st.tok = t
 
@@ -42,12 +48,32 @@ let fail_found st headline =
        |> Diagnostic.at (cur_span st)
        |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))))
 
-let parse_cast_kind st =
+let is_expr_start (tok : token) : bool =
+  match tok with
+  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
+  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
+    ->
+      true
+  | _ -> false
+
+let require_expr_start st tok span =
+  if not (is_expr_start st.tok) then
+    raise (ParseError (Error.expected_expression_after span (show_token tok)))
+
+let is_type_start (tok : token) : bool =
+  match tok with IDENT _ | STAR | LPAREN | LBRACKET -> true | _ -> false
+
+let expect_type_after st op span =
+  if not (is_type_start st.tok) then
+    raise (ParseError (Error.expected_type_after span op))
+
+let parse_cast_kind st op_span =
   match st.tok with
   | BANG ->
+      let bang_span = cur_span st in
       advance st;
-      Checked
-  | _ -> Normal
+      (Checked, Span.make op_span.file op_span.lo bang_span.hi)
+  | _ -> (Normal, op_span)
 
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
@@ -56,6 +82,31 @@ let skip_semi st =
   while st.tok = SEMI do
     advance st
   done
+
+let is_stmt_start (tok : token) : bool =
+  match tok with
+  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
+  | TILDE | BANG | LET | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK
+  | CONTINUE | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACE | LBRACKET
+  | UNDEFINED ->
+      true
+  | _ -> false
+
+let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
+    : unit =
+  match st.tok with
+  | EOF -> ()
+  | RBRACE when st.tok_depth = depth -> ()
+  | _
+    when st.tok_depth = depth && is_stmt_start st.tok
+         && (after_semi || st.tok_line > line) ->
+      ()
+  | SEMI when st.tok_depth = depth ->
+      advance st;
+      sync_to_stmt st depth line true
+  | _ ->
+      advance st;
+      sync_to_stmt st depth line after_semi
 
 let expect_ident st =
   match st.tok with
@@ -159,12 +210,12 @@ let binop_of = function
   | RSHIFT_ASSIGN -> RshiftAssign
   | _ -> failwith "not a binary operator"
 
-let in_brackets st f =
+let with_struct_lit (st : state) (no_struct_lit : bool) (f : unit -> 'a) : 'a =
   let saved = st.no_struct_lit in
-  st.no_struct_lit <- false;
-  let r = f () in
-  st.no_struct_lit <- saved;
-  r
+  st.no_struct_lit <- no_struct_lit;
+  Fun.protect f ~finally:(fun () -> st.no_struct_lit <- saved)
+
+let in_brackets (st : state) (f : unit -> 'a) : 'a = with_struct_lit st false f
 
 (* i32, *i32, (i32, i32) i32 *)
 let rec parse_typ st =
@@ -286,11 +337,13 @@ and parse_expr st min_prec =
         let op_tok = st.tok in
         let op_span = cur_span st in
         advance st;
+        if op_tok <> AS then require_expr_start st op_tok op_span;
         let next_min_prec =
           match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
         if op_tok = AS then begin
-          let kind = parse_cast_kind st in
+          let kind, cast_op_span = parse_cast_kind st op_span in
+          expect_type_after st (show_cast_op kind) cast_op_span;
           let ty = parse_typ st in
           lhs := mk lo st (Cast (!lhs, ty, kind));
           if is_postfix_tok st.tok then
@@ -339,28 +392,19 @@ and parse_expr st min_prec =
 (* -x *)
 and parse_prefix st =
   let lo = cur_pos st in
+  let unary op desc =
+    let span = cur_span st in
+    advance st;
+    require_expr_start st op span;
+    mk lo st (UnOp (desc, parse_prefix st))
+  in
   match st.tok with
-  | BANG ->
-      advance st;
-      mk lo st (UnOp (Not, parse_prefix st))
-  | PLUS ->
-      advance st;
-      mk lo st (UnOp (Pos, parse_prefix st))
-  | MINUS ->
-      advance st;
-      mk lo st (UnOp (Neg, parse_prefix st))
-  | TILDE ->
-      advance st;
-      mk lo st (UnOp (BitNot, parse_prefix st))
-  | AMP ->
-      advance st;
-      mk lo st (UnOp (AddressOf, parse_prefix st))
-  | STAR ->
-      advance st;
-      mk lo st (UnOp (Deref, parse_prefix st))
-  (* Postfix binds tighter than any prefix operator, so the primary takes its
-     postfix here at the leaf and prefix operators stack around the result:
-     `-arr[0]` is `-(arr[0])` and `&s.x` is `&(s.x)` *)
+  | BANG -> unary BANG Not
+  | PLUS -> unary PLUS Pos
+  | MINUS -> unary MINUS Neg
+  | TILDE -> unary TILDE BitNot
+  | AMP -> unary AMP AddressOf
+  | STAR -> unary STAR Deref
   | _ -> parse_postfix st (parse_primary st)
 
 (* x.field, arr[i], f(args) *)
@@ -475,11 +519,7 @@ and parse_struct_lit_fields st =
       List.rev !fields)
 
 (* IDENT { in an if/while/for header is the body, not a struct literal *)
-and parse_header_expr st =
-  st.no_struct_lit <- true;
-  let e = parse_expr st 1 in
-  st.no_struct_lit <- false;
-  e
+and parse_header_expr st = with_struct_lit st true (fun () -> parse_expr st 1)
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
@@ -553,12 +593,20 @@ and parse_block st =
 
 and parse_stmts st =
   let stmts = ref [] in
+  let depth = st.tok_depth in
   skip_semi st;
   while st.tok <> RBRACE && st.tok <> EOF do
-    let s = parse_stmt st in
-    stmts := s :: !stmts;
-    if st.tok = SEMI then skip_semi st
-    else if st.tok <> RBRACE && st.tok <> EOF then fail_found st "expected `;`"
+    let line = st.tok_line in
+    try
+      let s = parse_stmt st in
+      stmts := s :: !stmts;
+      if st.tok = SEMI then skip_semi st
+      else if st.tok <> RBRACE && st.tok <> EOF then
+        fail_found st "expected `;`"
+    with ParseError d ->
+      Diagnostic.emit st.diags d;
+      sync_to_stmt st depth line false;
+      skip_semi st
   done;
   List.rev !stmts
 
@@ -742,11 +790,17 @@ let parse_import st =
   let hi = st.prev_end in
   { path = List.rev !path; span = make_span st lo hi }
 
-(* TODO(fa20): finer recovery inside blocks, sync to next stmt boundary *)
-let rec sync_to_item st =
+let is_item_start (tok : token) : bool =
+  match tok with
+  | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT | LET
+  | COMPTIME | VAR ->
+      true
+  | _ -> false
+
+let rec sync_to_item (st : state) : unit =
   match st.tok with
-  | EOF | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT ->
-      ()
+  | EOF -> ()
+  | _ when st.tok_depth = 0 && is_item_start st.tok -> ()
   | _ ->
       advance st;
       sync_to_item st
@@ -770,24 +824,32 @@ let parse_module st =
 (* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =
   let toks = ref [] in
-  let rec scan stack =
+  let rec scan stack depth =
     match read lexbuf with
     | ERROR msg, sp ->
         Diagnostic.error_at diags sp msg;
-        scan stack
-    | (t, sp) as pair -> (
-        toks := pair :: !toks;
+        scan stack depth
+    | t, sp -> (
+        let info =
+          {
+            token = t;
+            span = sp;
+            line = lexbuf.Lexing.lex_start_p.Lexing.pos_lnum;
+            depth;
+          }
+        in
+        toks := info :: !toks;
         match Bracket_check.step diags stack t sp with
         | Bracket_check.Done -> ()
-        | Bracket_check.Stray | Bracket_check.Other -> scan stack
+        | Bracket_check.Stray | Bracket_check.Other -> scan stack depth
         | Bracket_check.Open ->
-            scan ((t, sp) :: stack);
-            scan stack)
+            scan ((t, sp) :: stack) (depth + 1);
+            scan stack depth)
   in
-  scan [];
+  scan [] 0;
   Array.of_list (List.rev !toks)
 
-let replay_of (tokens : (Tokens.token * Ast.span) array) =
+let replay_of (tokens : token_info array) =
   let last = Array.length tokens - 1 in
   let idx = ref 0 in
   fun () ->
@@ -803,6 +865,8 @@ let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
     {
       tok = EOF;
       tok_span = dummy_span;
+      tok_line = 1;
+      tok_depth = 0;
       read = replay_of tokens;
       diags;
       no_struct_lit = false;

@@ -33,6 +33,12 @@ let int_out_of_range (span : Ast.span) ~(ty : string) : t =
 let bad_operand (span : Ast.span) ~(op : string) ~(ty : string) : t =
   error (Printf.sprintf "cannot apply `%s` to %s" op ty) |> at span
 
+let expected_expression_after (span : Ast.span) (op : string) : t =
+  error (Printf.sprintf "expected expression after `%s`" op) |> at span
+
+let expected_type_after (span : Ast.span) (op : string) : t =
+  error (Printf.sprintf "expected type after `%s`" op) |> at span
+
 let unsupported (span : Ast.span) (msg : string) : t =
   error (msg ^ " is not yet supported") |> at span
 

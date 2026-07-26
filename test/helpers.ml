@@ -9,18 +9,22 @@ let parse_module ?(file = 0) src =
 
 let parse ?(file = 0) src = (parse_module ~file src).decls
 
-(* substring offset so a test can point a span at a snippet *)
-let off src sub =
+let substring_offset src sub =
   let n = String.length sub and m = String.length src in
   let rec go i =
-    if i + n > m then -1 else if String.sub src i n = sub then i else go (i + 1)
+    if i + n > m then failwith (Printf.sprintf "substring not found: %S" sub)
+    else if String.sub src i n = sub then i
+    else go (i + 1)
   in
   go 0
 
 let span src sub =
-  Ripe.Span.make 0 (off src sub) (off src sub + String.length sub)
+  let lo = substring_offset src sub in
+  Ripe.Span.make 0 lo (lo + String.length sub)
 
-let point src sub = Ripe.Span.make 0 (off src sub) (off src sub)
+let point src sub =
+  let offset = substring_offset src sub in
+  Ripe.Span.make 0 offset offset
 
 let replace s old rep =
   let olen = String.length old in
@@ -200,8 +204,10 @@ let dump_tokens src =
   in
   go ()
 
-let parse_only src =
-  try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
+let run_parse src =
+  try
+    ignore (parse src);
+    print_endline "ok"
   with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
 
 (* wrap src in `return ...` so callers can write bare expressions *)

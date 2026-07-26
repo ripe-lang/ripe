@@ -2,8 +2,6 @@
 
 open Helpers
 
-(* watch https://youtu.be/0c8b7YfsBKs?si=euXz4FdXHS4UXAE8 *)
-
 let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
@@ -87,10 +85,6 @@ let%expect_test "parse: newline before an initializer" =
                ^ found ;
     |}]
 
-let%expect_test "parse: newline after an operator continues" =
-  run_src "func f() i32 {\n  let x = 1 +\n    2\n  return x\n}";
-  [%expect {| ok |}]
-
 let%expect_test "parse: same-line declarations require a separator" =
   run_src "func f() {} func g() {}";
   [%expect
@@ -157,27 +151,27 @@ let%expect_test "parse: recover, two broken decls" =
     |}]
 
 let%expect_test "parse: recover, broken then good" =
-  run_src "func f() { return + }\nfunc g() i32 { return 1 }";
+  run_src "func f() { return / }\nfunc g() i32 { return 1 }";
   [%expect
     {|
     error: expected expression
-      at <test>:1:21
-        func f() { return + }
-                            ^ found }
+      at <test>:1:19
+        func f() { return / }
+                          ^ found /
     |}]
 
 let%expect_test "parse: recover, broken body with local does not cascade" =
-  run_src "func f() { return + var x: i32 = 1 }\nfunc g() i32 { return 1 }";
+  run_src "func f() { return / var x: i32 = 1 }\nfunc g() i32 { return 1 }";
   [%expect
     {|
     error: expected expression
-      at <test>:1:21
-        func f() { return + var x: i32 = 1 }
-                            ^~~ found var
+      at <test>:1:19
+        func f() { return / var x: i32 = 1 }
+                          ^ found /
     |}]
 
 let%expect_test "parse: recover, lex error then grammar error" =
-  run_src "func f() { @ }\nfunc g() { return + }";
+  run_src "func f() { @ }\nfunc g() { return / }";
   [%expect
     {|
     error: unexpected character: @
@@ -185,9 +179,336 @@ let%expect_test "parse: recover, lex error then grammar error" =
         func f() { @ }
                    ^
     error: expected expression
-      at <test>:2:21
-        func g() { return + }
-                            ^ found }
+      at <test>:2:19
+        func g() { return / }
+                          ^ found /
+    |}]
+
+let%expect_test "parse: recover, repeated return after operators" =
+  run_src {|func f() {
+  return /
+  return /
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:2:10
+          return /
+                 ^ found /
+    error: expected expression
+      at <test>:3:10
+          return /
+                 ^ found /
+    error: expected expression
+      at <test>:4:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover, repeated incomplete unary plus" =
+  run_src {|func f() {
+  return +
+  return +
+  return +
+}|};
+  [%expect
+    {|
+    error: expected expression after `+`
+      at <test>:2:10
+          return +
+                 ^
+    error: expected expression after `+`
+      at <test>:3:10
+          return +
+                 ^
+    error: expected expression after `+`
+      at <test>:4:10
+          return +
+                 ^
+    |}]
+
+let%expect_test "parse: unary operator keeps a valid operand across newline" =
+  run_src {|func f() i32 {
+  return +
+  1
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: recover, repeated incomplete binary plus" =
+  run_src {|func f() {
+  return 1 +
+  return 2 +
+  return 3 +
+}|};
+  [%expect
+    {|
+    error: expected expression after `+`
+      at <test>:2:12
+          return 1 +
+                   ^
+    error: expected expression after `+`
+      at <test>:3:12
+          return 2 +
+                   ^
+    error: expected expression after `+`
+      at <test>:4:12
+          return 3 +
+                   ^
+    |}]
+
+let%expect_test "parse: recover, errors in nested blocks" =
+  run_src
+    {|func f() {
+  if true {
+    return /
+    return /
+  }
+  while true {
+    return /
+    return /
+  }
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:3:12
+            return /
+                   ^ found /
+    error: expected expression
+      at <test>:4:12
+            return /
+                   ^ found /
+    error: expected expression
+      at <test>:7:12
+            return /
+                   ^ found /
+    error: expected expression
+      at <test>:8:12
+            return /
+                   ^ found /
+    error: expected expression
+      at <test>:10:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover, errors across top level declarations" =
+  run_src
+    {|let a: = 1
+comptime b: = 2
+var c: = 3
+type A = +
+newtype B = +
+struct S { x: }
+extern func e(x:)
+func f(x:) {}|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:1:8
+        let a: = 1
+               ^ found =
+    error: expected type
+      at <test>:2:13
+        comptime b: = 2
+                    ^ found =
+    error: expected type
+      at <test>:3:8
+        var c: = 3
+               ^ found =
+    error: expected type
+      at <test>:4:10
+        type A = +
+                 ^ found +
+    error: expected type
+      at <test>:5:13
+        newtype B = +
+                    ^ found +
+    error: expected type
+      at <test>:6:15
+        struct S { x: }
+                      ^ found }
+    error: expected type
+      at <test>:7:17
+        extern func e(x:)
+                        ^ found )
+    error: expected type
+      at <test>:8:10
+        func f(x:) {}
+                 ^ found )
+    |}]
+
+let%expect_test "parse: recover, explicit separators on one line" =
+  run_src "func f() { return /; return /; let x =; return / }";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:19
+        func f() { return /; return /; let x =; return / }
+                          ^ found /
+    error: expected expression
+      at <test>:1:29
+        func f() { return /; return /; let x =; return / }
+                                    ^ found /
+    error: expected expression
+      at <test>:1:39
+        func f() { return /; return /; let x =; return / }
+                                              ^ found ;
+    error: expected expression
+      at <test>:1:48
+        func f() { return /; return /; let x =; return / }
+                                                       ^ found /
+    |}]
+
+let%expect_test "parse: recover, skip nested expression tokens" =
+  run_src {|func f() {
+  return call(
+    /
+    return /
+  )
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:3:5
+            /
+            ^ found /
+    error: expected expression
+      at <test>:6:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover, preserve valid multiline expressions" =
+  run_src
+    {|func f() {
+  let x = 1 +
+    2
+  return x +
+    3
+  return /
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:6:10
+          return /
+                 ^ found /
+    error: expected expression
+      at <test>:7:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover, comments preserve physical lines" =
+  run_src
+    {|func f() {
+  return / // first
+  return / /* second
+  line */
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:2:10
+          return / // first
+                 ^ found /
+    error: expected expression
+      at <test>:3:10
+          return / /* second
+                 ^ found /
+    error: expected expression
+      at <test>:5:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover, restore struct literal parsing" =
+  run_src
+    {|struct point { x: i32 }
+func f() {
+  if /
+  let p = point { x: 1 }
+  return /
+}|};
+  [%expect
+    {|
+    error: expected expression
+      at <test>:3:6
+          if /
+             ^ found /
+    error: expected expression
+      at <test>:5:10
+          return /
+                 ^ found /
+    |}]
+
+let%expect_test "parse: recover incomplete cast operators" =
+  let src = {|func f() {
+  return 1 as
+  return 2 as!
+}|} in
+  run_parse src;
+  [%expect
+    {|
+    error: expected type after `as`
+      at <test>:2:12
+          return 1 as
+                   ^~
+    error: expected type after `as!`
+      at <test>:3:12
+          return 2 as!
+                   ^~~
+    |}]
+
+let%expect_test "parse: recover operators across statement forms" =
+  let src =
+    {|func f() {
+  let a = +
+  comptime b = 1 -
+  var c = !
+  if 1 *
+  while 2 /
+  for x in 3 %
+  return 4 ==
+}|}
+  in
+  run_parse src;
+  [%expect
+    {|
+    error: expected expression after `+`
+      at <test>:2:11
+          let a = +
+                  ^
+    error: expected expression after `-`
+      at <test>:3:18
+          comptime b = 1 -
+                         ^
+    error: expected expression after `!`
+      at <test>:4:11
+          var c = !
+                  ^
+    error: expected expression after `*`
+      at <test>:5:8
+          if 1 *
+               ^
+    error: expected expression after `/`
+      at <test>:6:11
+          while 2 /
+                  ^
+    error: expected expression after `%`
+      at <test>:7:14
+          for x in 3 %
+                     ^
+    error: expected expression after `==`
+      at <test>:8:12
+          return 4 ==
+                   ^~
     |}]
 
 let%expect_test "parse: precedence + vs *" =
@@ -490,14 +811,14 @@ let%expect_test "parse: field access on struct literal" =
 
 let%expect_test "parse: multiline struct literal" =
   run_src
-    "struct pt { x: i32, y: i32 }\n\
-     func f() i32 {\n\
-    \  let p = pt {\n\
-    \    x: 1,\n\
-    \    y: 2,\n\
-    \  }\n\
-    \  return p.x\n\
-     }";
+    {|struct pt { x: i32, y: i32 }
+func f() i32 {
+  let p = pt {
+    x: 1,
+    y: 2,
+  }
+  return p.x
+}|};
   [%expect {| ok |}]
 
 let%expect_test "parse: if condition is not a struct literal" =
@@ -532,20 +853,20 @@ let%expect_test "parse: while condition is not a struct literal" =
 
 let%expect_test "parse: for iterable is not a struct literal" =
   run_src
-    "func f(xs: []i32) i32 {\n\
-    \  var s: i32 = 0\n\
-    \  for x in xs { s += x }\n\
-    \  return s\n\
-     }";
+    {|func f(xs: []i32) i32 {
+  var s: i32 = 0
+  for x in xs { s += x }
+  return s
+}|};
   [%expect {| ok |}]
 
 let%expect_test "parse: parenthesized struct literal in condition" =
   run_src
-    "struct pt { x: i32 }\n\
-     func f() i32 {\n\
-    \  if (pt { x: 1 }).x == 1 { return 1 }\n\
-    \  return 0\n\
-     }";
+    {|struct pt { x: i32 }
+func f() i32 {
+  if (pt { x: 1 }).x == 1 { return 1 }
+  return 0
+}|};
   [%expect {| ok |}]
 
 let%expect_test "parse: braces are literal in a string" =
