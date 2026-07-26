@@ -228,9 +228,25 @@ let%expect_test "parse: address-of and deref chain" =
   parse_expr "&*p";
   [%expect {| (& (* p)) |}]
 
-let%expect_test "parse: double address-of splits the and token" =
+let%expect_test "parse: logical and cannot start an expression" =
   parse_expr "&&x";
-  [%expect {| (& (& x)) |}]
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:20
+        func _f() { return &&x }
+                           ^~ found &&
+    |}]
+
+let%expect_test "parse: logical or cannot start an expression" =
+  parse_expr "||x";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:20
+        func _f() { return ||x }
+                           ^~ found ||
+    |}]
 
 let%expect_test "parse: call with args" =
   parse_expr "add(1, 2 * 3)";
