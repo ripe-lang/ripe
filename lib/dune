@@ -25,7 +25,8 @@
   lower
   codegen_qbe
   ripe_sites
-  driver)
+  driver
+  program)
  (libraries unix dune-site)
  (preprocess
   (pps ppx_deriving.show)))
