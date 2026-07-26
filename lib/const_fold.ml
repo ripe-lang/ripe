@@ -8,8 +8,8 @@ module T = Typed_ast
    typechecker owns the const tables so lookups come in as closures *)
 let run ~(emit : Diagnostic.t -> unit)
     ~(force_const : Ast.span -> string -> unit)
-    ~(local_value : Symbol.id -> Const_eval.const_num option)
-    ~(global_value : string -> Const_eval.const_num option)
+    ~(local_value : Symbol.t -> Const_eval.const_num option)
+    ~(global_value : Symbol.t -> Const_eval.const_num option)
     ~(fold_num : T.texpr -> Const_eval.const_num) (tdecls : T.tdecl list) :
     T.tdecl list =
   (* Fold every global const up front so an unused bad one still errors *)
@@ -48,9 +48,9 @@ let run ~(emit : Diagnostic.t -> unit)
     let mk desc = { te with T.desc } in
     match te.T.desc with
     | T.TIdent s when Symbol.is_comptime s.kind -> (
-        match local_value s.id with Some v -> literal_of te v | None -> te)
+        match local_value s with Some v -> literal_of te v | None -> te)
     | T.TIdent s when Symbol.is_global s.kind -> (
-        match global_value s.name with Some v -> literal_of te v | None -> te)
+        match global_value s with Some v -> literal_of te v | None -> te)
     | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
     | T.TIdent _ | T.TSizeOf _ | T.TZero | T.TUndef ->
         te

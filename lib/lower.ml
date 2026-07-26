@@ -13,6 +13,7 @@ let fresh_sym name : Symbol.t =
     Symbol.id = -1 - c;
     module_id = -1;
     name = Printf.sprintf "%s.%d" name c;
+    link_name = Printf.sprintf "%s.%d" name c;
     kind = Symbol.Local Ast.Var;
     visibility = Symbol.Private;
     span = Ast.dummy_span;
