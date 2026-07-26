@@ -8,6 +8,6 @@
   "source": "lib/parser.ml",
   "status": "open",
   "tags": [],
-  "title": "cap at 20 errors then bail, with a flag to list the rest",
-  "updated_at": "2026-07-12 08:23:02.154313"
+  "title": "cap at 20 errors then bail with a flag to list the rest",
+  "updated_at": "2026-07-25 17:20:15.573500"
 }

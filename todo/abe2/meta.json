@@ -8,6 +8,6 @@
   "source": "lib/typechecker.ml",
   "status": "open",
   "tags": [],
-  "title": "In the future allow &(a + b) once I figure out the memory and",
-  "updated_at": "2026-07-25 20:51:24.937269"
+  "title": "In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes",
+  "updated_at": "2026-07-25 21:11:11.571930"
 }
