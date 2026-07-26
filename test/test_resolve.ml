@@ -2,6 +2,33 @@
 
 open Helpers
 
+let decl_name_span = function
+  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
+  | Ripe.Ast.Struct sd -> (sd.name, sd.span)
+  | Ripe.Ast.Global gd -> (gd.name, gd.span)
+  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.name, td.span)
+
+let compare_module_symbols src =
+  let first_symbol module_id =
+    match resolve_src module_id src with
+    | decl :: _, uses ->
+        let _, span = decl_name_span decl in
+        Ripe.Resolve.sym_at uses span
+    | [], _ -> failwith "expected a declaration"
+  in
+  let first = first_symbol 4 in
+  let second = first_symbol 9 in
+  Printf.printf "%d %d %b" first.module_id second.module_id (first = second)
+
+let dump_decl_visibilities src =
+  let decls, uses = resolve_src 0 src in
+  List.iter
+    (fun decl ->
+      let name, span = decl_name_span decl in
+      let sym = Ripe.Resolve.sym_at uses span in
+      Printf.printf "%s %s\n" name (Ripe.Symbol.show_visibility sym.visibility))
+    decls
+
 let%expect_test "resolve: global and function collide" =
   run_src {|
 var x: i32 = 1
