@@ -161,9 +161,9 @@ let%expect_test "parse: recover, broken then good" =
   [%expect
     {|
     error: expected expression
-      at <test>:1:19
+      at <test>:1:21
         func f() { return + }
-                          ^ found +
+                            ^ found }
     |}]
 
 let%expect_test "parse: recover, broken body with local does not cascade" =
@@ -171,9 +171,9 @@ let%expect_test "parse: recover, broken body with local does not cascade" =
   [%expect
     {|
     error: expected expression
-      at <test>:1:19
+      at <test>:1:21
         func f() { return + var x: i32 = 1 }
-                          ^ found +
+                            ^~~ found var
     |}]
 
 let%expect_test "parse: recover, lex error then grammar error" =
@@ -185,9 +185,9 @@ let%expect_test "parse: recover, lex error then grammar error" =
         func f() { @ }
                    ^
     error: expected expression
-      at <test>:2:19
+      at <test>:2:21
         func g() { return + }
-                          ^ found +
+                            ^ found }
     |}]
 
 let%expect_test "parse: precedence + vs *" =
@@ -228,9 +228,25 @@ let%expect_test "parse: address-of and deref chain" =
   parse_expr "&*p";
   [%expect {| (& (* p)) |}]
 
-let%expect_test "parse: double address-of splits the and token" =
+let%expect_test "parse: logical and cannot start an expression" =
   parse_expr "&&x";
-  [%expect {| (& (& x)) |}]
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:20
+        func _f() { return &&x }
+                           ^~ found &&
+    |}]
+
+let%expect_test "parse: logical or cannot start an expression" =
+  parse_expr "||x";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:20
+        func _f() { return ||x }
+                           ^~ found ||
+    |}]
 
 let%expect_test "parse: call with args" =
   parse_expr "add(1, 2 * 3)";
@@ -604,6 +620,14 @@ let%expect_test "parse: double negation" =
 let%expect_test "parse: bitnot" =
   parse_expr "~x";
   [%expect {| (~ x) |}]
+
+let%expect_test "parse: unary plus" =
+  parse_expr "+42";
+  [%expect {| (+ 42) |}]
+
+let%expect_test "parse: unary plus binds tighter than multiply" =
+  parse_expr "+2 * 3";
+  [%expect {| (* (+ 2) 3) |}]
 
 let%expect_test "parse: field access after call" =
   parse_expr "f().x";

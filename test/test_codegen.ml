@@ -426,6 +426,37 @@ func f(a: i32, b: bool) i32 {
     }
     |}]
 
+let%expect_test "codegen: unary plus is an identity" =
+  run_codegen {|
+comptime N: i32 = +4
+func f(a: i32) i32 { return +a + N }
+|};
+  [%expect
+    {|
+    function w $f(w %t0) {
+    @start
+        %a =l alloc4 4
+        storew %t0, %a
+        %t1 =w loadsw %a
+        %t2 =w add %t1, 4
+        ret %t2
+    }
+    |}]
+
+let%expect_test "codegen: unary plus folds a comptime identifier" =
+  run_codegen
+    {|
+comptime A: i32 = 4
+comptime B: i32 = +A
+func f() i32 { return B }
+|};
+  [%expect {|
+    function w $f() {
+    @start
+        ret 4
+    }
+    |}]
+
 let%expect_test "codegen: if/else" =
   run_codegen "func f(a: i32) i32 { if a < 0 { return 0 } else { return a } }";
   [%expect

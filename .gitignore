@@ -2,3 +2,4 @@ _build
 _opam
 __pycache__
 docs/DESIGN.md
+docs/PANICS.md

@@ -70,6 +70,7 @@ let rec fold_const_num ~sizeof
       | TFloat _, _ -> Nf (const_to_float v)
       | _, Nf f -> wrap_const te.T.ty (Int64.of_float f)
       | _, _ -> wrap_const te.T.ty (const_to_int64 e.T.ty v))
+  | T.TUnOp (Ast.Pos, e) -> recur e
   | T.TUnOp (Ast.Neg, e) -> (
       match recur e with
       | Nf f -> Nf (-.f)

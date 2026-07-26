@@ -337,6 +337,9 @@ and parse_prefix st =
   | BANG ->
       advance st;
       mk lo st (UnOp (Not, parse_prefix st))
+  | PLUS ->
+      advance st;
+      mk lo st (UnOp (Pos, parse_prefix st))
   | MINUS ->
       advance st;
       mk lo st (UnOp (Neg, parse_prefix st))
@@ -346,10 +349,6 @@ and parse_prefix st =
   | AMP ->
       advance st;
       mk lo st (UnOp (AddressOf, parse_prefix st))
-  | AND ->
-      advance st;
-      let inner = mk lo st (UnOp (AddressOf, parse_prefix st)) in
-      mk lo st (UnOp (AddressOf, inner))
   | STAR ->
       advance st;
       mk lo st (UnOp (Deref, parse_prefix st))
