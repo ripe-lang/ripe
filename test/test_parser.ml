@@ -185,8 +185,7 @@ let%expect_test "parse: recover, lex error then grammar error" =
     |}]
 
 let%expect_test "parse: recover, repeated return after operators" =
-  run_src
-    {|func f() {
+  run_src {|func f() {
   return /
   return /
   return /
@@ -208,8 +207,7 @@ let%expect_test "parse: recover, repeated return after operators" =
     |}]
 
 let%expect_test "parse: recover, repeated incomplete unary plus" =
-  run_src
-    {|func f() {
+  run_src {|func f() {
   return +
   return +
   return +
@@ -231,16 +229,14 @@ let%expect_test "parse: recover, repeated incomplete unary plus" =
     |}]
 
 let%expect_test "parse: unary operator keeps a valid operand across newline" =
-  run_src
-    {|func f() i32 {
+  run_src {|func f() i32 {
   return +
   1
 }|};
   [%expect {| ok |}]
 
 let%expect_test "parse: recover, repeated incomplete binary plus" =
-  run_src
-    {|func f() {
+  run_src {|func f() {
   return 1 +
   return 2 +
   return 3 +
@@ -367,8 +363,7 @@ let%expect_test "parse: recover, explicit separators on one line" =
     |}]
 
 let%expect_test "parse: recover, skip nested expression tokens" =
-  run_src
-    {|func f() {
+  run_src {|func f() {
   return call(
     /
     return /
@@ -454,12 +449,10 @@ func f() {
     |}]
 
 let%expect_test "parse: recover incomplete cast operators" =
-  let src =
-    {|func f() {
+  let src = {|func f() {
   return 1 as
   return 2 as!
-}|}
-  in
+}|} in
   run_parse src;
   [%expect
     {|

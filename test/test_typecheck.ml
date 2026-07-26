@@ -3763,8 +3763,7 @@ let%expect_test "typecheck: pair assignment allows different target types" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: newline operator continues into void call" =
-  run_src
-    {|func g() {}
+  run_src {|func g() {}
 func f() i32 {
   return 1 +
     g()
@@ -3778,8 +3777,7 @@ func f() i32 {
     |}]
 
 let%expect_test "typecheck: newline operator continues into integer call" =
-  run_src
-    {|func g() i32 { return 2 }
+  run_src {|func g() i32 { return 2 }
 func f() i32 {
   return 1 +
     g()
