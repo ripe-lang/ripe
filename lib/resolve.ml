@@ -206,11 +206,7 @@ let visibility modifiers =
 let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
   let st =
     {
-      out =
-        {
-          syms = Hashtbl.create 256;
-          module_paths = Hashtbl.create 1;
-        };
+      out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };
       module_id;
       globals = Hashtbl.create 64;
       types = Hashtbl.create 64;
