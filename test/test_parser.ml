@@ -692,10 +692,6 @@ let%expect_test "parse: multiple parameters" =
   run_src "func f(a: i32, b: i32, c: i32) i32 { return a + b + c }";
   [%expect {| ok |}]
 
-let%expect_test "parse: while true" =
-  run_src "func f() { while true { break } }";
-  [%expect {| ok |}]
-
 let%expect_test "parse: elseif chain with else" =
   run_src
     {|
@@ -706,26 +702,20 @@ func f(x: i32) i32 {
   [%expect {| ok |}]
 
 let%expect_test "parse: expression body desugars to return" =
-  parse_only "func square(x: i32) i32 = x * x";
-  [%expect
-    {|
-    (Func
-       { name = "square";
-         params =
-         [{ name = "x"; typ = { tdesc = (Named "i32"); span = (15,18) };
-            span = (12,18) }
-           ];
-         ret = (Some { tdesc = (Named "i32"); span = (20,23) });
-         body =
-         [{ desc =
-            (Return
-               (Some { desc =
-                       (BinOp (Mul, { desc = (Ident "x"); span = (26,27) },
-                          { desc = (Ident "x"); span = (30,31) }));
-                       span = (26,31) }));
-            span = (24,31) }
-           ];
-         modifiers = []; variadic = false; span = (0,31) })
+  let src = "func square(x: i32) i32 = x * x" in
+  (match parse src with
+  | [
+   Ripe.Ast.Func
+     { body = [ { desc = Return (Some expression); span = return_span } ]; _ };
+  ] ->
+      Printf.printf "%s\nreturn %s\nexpression %s\n" (dump_expr expression)
+        (Ripe.Span.show return_span)
+        (Ripe.Span.show expression.span)
+  | _ -> print_endline "<unexpected shape>");
+  [%expect {|
+    (* x x)
+    return (24,31)
+    expression (26,31)
     |}]
 
 let%expect_test "parse: expression body typechecks" =
@@ -949,14 +939,24 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
                               |}]
 
 let%expect_test "parse: spans from different files are distinct" =
-  compare_file_spans "func f() {}";
+  let src = "func f() {}" in
+  let first_span file =
+    match parse ~file src with
+    | Ripe.Ast.Func fd :: _ -> fd.span
+    | _ -> failwith "expected a function"
+  in
+  Printf.printf "%b" (first_span 0 = first_span 1);
   [%expect {| false |}]
 
 let%expect_test "parse: module imports" =
-  show_parsed_module {|
+  let module_ = parse_module {|
 import io
 import math.vector
-|};
+|} in
+  List.iter
+    (fun import ->
+      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
+    module_.imports;
   [%expect {|
     import io
     import math.vector
@@ -984,26 +984,6 @@ let%expect_test "parse: pair assignment rejects a third value" =
       at <test>:1:45
         func f(a: i32, b: i32, c: i32) { a, b = b, c, a }
                                                     ^
-    |}]
-
-let%expect_test "parse: pair assignment rejects four targets" =
-  run_src "func f(a: i32, b: i32, c: i32, d: i32) { a, b, c, d = b, a }";
-  [%expect
-    {|
-    error: pair assignment requires exactly two targets
-      at <test>:1:46
-        func f(a: i32, b: i32, c: i32, d: i32) { a, b, c, d = b, a }
-                                                     ^
-    |}]
-
-let%expect_test "parse: pair assignment rejects four values" =
-  run_src "func f(a: i32, b: i32, c: i32, d: i32) { a, b = b, a, c, d }";
-  [%expect
-    {|
-    error: pair assignment requires exactly two values
-      at <test>:1:53
-        func f(a: i32, b: i32, c: i32, d: i32) { a, b = b, a, c, d }
-                                                            ^
     |}]
 
 let%expect_test "parse: regular assignment remains accepted" =

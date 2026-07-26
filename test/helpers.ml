@@ -47,51 +47,9 @@ let ctx src =
 
 let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
 
-let compare_file_spans src =
-  let first_span file =
-    match parse ~file src with
-    | Ripe.Ast.Func fd :: _ -> fd.span
-    | _ -> failwith "expected a function"
-  in
-  Printf.printf "%b" (first_span 0 = first_span 1)
-
-let show_parsed_module src =
-  let module_ = parse_module src in
-  List.iter
-    (fun import ->
-      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
-    module_.imports
-
 let resolve_src module_id src =
   let decls = parse src in
   (decls, Ripe.Resolve.resolve ~module_id decls)
-
-let decl_name_span = function
-  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
-  | Ripe.Ast.Struct sd -> (sd.name, sd.span)
-  | Ripe.Ast.Global gd -> (gd.name, gd.span)
-  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.name, td.span)
-
-let compare_module_symbols src =
-  let first_symbol module_id =
-    match resolve_src module_id src with
-    | decl :: _, uses ->
-        let _, span = decl_name_span decl in
-        Ripe.Resolve.sym_at uses span
-    | [], _ -> failwith "expected a declaration"
-  in
-  let first = first_symbol 4 in
-  let second = first_symbol 9 in
-  Printf.printf "%d %d %b" first.module_id second.module_id (first = second)
-
-let dump_decl_visibilities src =
-  let decls, uses = resolve_src 0 src in
-  List.iter
-    (fun decl ->
-      let name, span = decl_name_span decl in
-      let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n" name (Ripe.Symbol.show_visibility sym.visibility))
-    decls
 
 (* the front of the pipeline every runner shares *)
 let check_src src =
@@ -232,19 +190,6 @@ let rec dump_cstmt (e : C.cexpr) : string =
 and dump_cstmts (stmts : C.cblock) : string =
   "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
 
-let all_kinds =
-  Ripe.Symbol.
-    [
-      Func;
-      Extern;
-      Global;
-      Local Ripe.Ast.Let;
-      Local Ripe.Ast.Comptime;
-      Local Ripe.Ast.Var;
-      Param;
-      ForVar;
-    ]
-
 let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Lexing.from_string src in
@@ -289,11 +234,6 @@ let run_lower src =
       | C.CFunc fd -> print_endline (fd.C.name ^ " " ^ dump_cstmts fd.C.body)
       | _ -> ())
     (lower_src src)
-
-let dump_kinds pred =
-  List.iter
-    (fun k -> Printf.printf "%s %b\n" (Ripe.Symbol.show_kind k) (pred k))
-    all_kinds
 
 let expect_errors f =
   try
