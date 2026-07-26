@@ -444,13 +444,13 @@ func f(a: i32) i32 { return +a + N }
     |}]
 
 let%expect_test "codegen: unary plus folds a comptime identifier" =
-  run_codegen {|
+  run_codegen
+    {|
 comptime A: i32 = 4
 comptime B: i32 = +A
 func f() i32 { return B }
 |};
-  [%expect
-    {|
+  [%expect {|
     function w $f() {
     @start
         ret 4

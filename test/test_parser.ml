@@ -161,9 +161,9 @@ let%expect_test "parse: recover, broken then good" =
   [%expect
     {|
     error: expected expression
-      at <test>:1:19
+      at <test>:1:21
         func f() { return + }
-                          ^ found +
+                            ^ found }
     |}]
 
 let%expect_test "parse: recover, broken body with local does not cascade" =
@@ -171,9 +171,9 @@ let%expect_test "parse: recover, broken body with local does not cascade" =
   [%expect
     {|
     error: expected expression
-      at <test>:1:19
+      at <test>:1:21
         func f() { return + var x: i32 = 1 }
-                          ^ found +
+                            ^~~ found var
     |}]
 
 let%expect_test "parse: recover, lex error then grammar error" =
@@ -185,9 +185,9 @@ let%expect_test "parse: recover, lex error then grammar error" =
         func f() { @ }
                    ^
     error: expected expression
-      at <test>:2:19
+      at <test>:2:21
         func g() { return + }
-                          ^ found +
+                            ^ found }
     |}]
 
 let%expect_test "parse: precedence + vs *" =
