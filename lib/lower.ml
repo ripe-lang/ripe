@@ -13,6 +13,7 @@ let fresh_sym name : Symbol.t =
     Symbol.id = -1 - c;
     module_id = -1;
     name = Printf.sprintf "%s.%d" name c;
+    link_name = Printf.sprintf "%s.%d" name c;
     kind = Symbol.Local Ast.Var;
     visibility = Symbol.Private;
     span = Ast.dummy_span;
@@ -91,7 +92,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TUnOp (Ast.Pos, e) -> (lower_expr e).D.desc
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
-    | S.TCast (e, checked) -> D.CCast (lower_expr e, checked)
+    | S.TCast (e, kind) -> D.CCast (lower_expr e, kind)
     | S.TSizeOf t -> D.CSizeOf t
     | S.TRange _ | S.TRangeInclusive _ ->
         Error.ice ~span "range outside a for loop"

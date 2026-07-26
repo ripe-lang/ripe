@@ -323,9 +323,9 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CIf (branches, else_body) -> emit_if ctx branches else_body t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
   | T.CUnOp (op, e) -> emit_unop ctx op e t
-  | T.CCast (e, checked) ->
+  | T.CCast (e, kind) ->
       let v = emit_expr ctx e in
-      emit_cast ctx ~checked v e.T.ty t
+      emit_cast ctx ~kind v e.T.ty t
   | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.CFieldAccess (e, field) ->
       let ft = t in
@@ -1038,8 +1038,8 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
         emit ctx "    call $ripe_panic_cast()\n")
   end
 
-and emit_cast ctx ?(checked = false) v src_ty target_ty =
-  if checked then emit_checked_cast_guard ctx v src_ty target_ty;
+and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
+  if kind = Ast.Checked then emit_checked_cast_guard ctx v src_ty target_ty;
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
   (* The extend already truncates so the copy would be redundant *)

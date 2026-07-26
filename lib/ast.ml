@@ -84,6 +84,9 @@ type binding_kind = Var | Let | Comptime
 [@@deriving show { with_path = false }]
 
 type modifier = Pub | Inline [@@deriving show { with_path = false }]
+type cast_kind = Normal | Checked [@@deriving show { with_path = false }]
+
+let show_cast_op = function Normal -> "as" | Checked -> "as!"
 
 type expr_desc =
   | Int of int64 * string option
@@ -99,7 +102,7 @@ type expr_desc =
   | Range of expr * expr
   | RangeInclusive of expr * expr
   | FieldAccess of expr * string
-  | Cast of expr * typ * bool
+  | Cast of expr * typ * cast_kind
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr

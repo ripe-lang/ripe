@@ -3,8 +3,10 @@
 open Ast
 open Diagnostic
 
-(* The binder and use share a span *)
-type t = { syms : (Ast.span, Symbol.t) Hashtbl.t }
+type t = {
+  syms : (Ast.span, Symbol.t) Hashtbl.t;
+  module_paths : (Symbol.module_id, string list) Hashtbl.t;
+}
 
 type state = {
   out : t;
@@ -32,12 +34,31 @@ let sym_at (r : t) (span : Ast.span) : Symbol.t =
   | Some s -> s
   | None -> Error.ice ~span "no symbol resolved here"
 
+let qualified_name (path : string list) (name : string) : string =
+  String.concat "." (path @ [ name ])
+
+let internal_name (r : t) (s : Symbol.t) : string =
+  match s.Symbol.kind with
+  | Symbol.Func when s.Symbol.name = "main" && s.Symbol.link_name = "main" ->
+      "main"
+  | _ ->
+      let path = Hashtbl.find r.module_paths s.Symbol.module_id in
+      qualified_name path s.Symbol.name
+
 let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
     (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
   st.next_id <- id + 1;
   let sym =
-    { Symbol.id; module_id = st.module_id; name; kind; visibility; span }
+    {
+      Symbol.id;
+      module_id = st.module_id;
+      name;
+      link_name = name;
+      kind;
+      visibility;
+      span;
+    }
   in
   Hashtbl.replace st.out.syms span sym;
   sym
@@ -185,7 +206,7 @@ let visibility modifiers =
 let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
   let st =
     {
-      out = { syms = Hashtbl.create 256 };
+      out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };
       module_id;
       globals = Hashtbl.create 64;
       types = Hashtbl.create 64;
@@ -194,6 +215,7 @@ let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
       diags = Diagnostic.sink ();
     }
   in
+  Hashtbl.add st.out.module_paths module_id [];
   (* Declare every top level name first so bodies and initializers can forward
      reference. *)
   List.iter

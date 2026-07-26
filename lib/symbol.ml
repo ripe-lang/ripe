@@ -18,11 +18,16 @@ type t = {
   id : id;
   module_id : module_id;
   name : string;
+  link_name : string;
   kind : kind;
   visibility : visibility;
   span : Ast.span;
 }
 [@@deriving show { with_path = false }]
+
+type key = module_id * id
+
+let key (symbol : t) : key = (symbol.module_id, symbol.id)
 
 let is_func (kind : kind) : bool =
   match kind with

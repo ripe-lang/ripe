@@ -15,7 +15,7 @@ type cexpr_desc =
   | CUnOp of Ast.unop * cexpr
   | CFieldAccess of cexpr * string
   (* Target type is the node type *)
-  | CCast of cexpr * bool
+  | CCast of cexpr * Ast.cast_kind
   | CSizeOf of Types.ty
   | CArrayLit of cexpr list
   | CIndex of cexpr * cexpr

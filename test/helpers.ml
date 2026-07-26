@@ -9,18 +9,22 @@ let parse_module ?(file = 0) src =
 
 let parse ?(file = 0) src = (parse_module ~file src).decls
 
-(* substring offset so a test can point a span at a snippet *)
-let off src sub =
+let substring_offset src sub =
   let n = String.length sub and m = String.length src in
   let rec go i =
-    if i + n > m then -1 else if String.sub src i n = sub then i else go (i + 1)
+    if i + n > m then failwith (Printf.sprintf "substring not found: %S" sub)
+    else if String.sub src i n = sub then i
+    else go (i + 1)
   in
   go 0
 
 let span src sub =
-  Ripe.Span.make 0 (off src sub) (off src sub + String.length sub)
+  let lo = substring_offset src sub in
+  Ripe.Span.make 0 lo (lo + String.length sub)
 
-let point src sub = Ripe.Span.make 0 (off src sub) (off src sub)
+let point src sub =
+  let offset = substring_offset src sub in
+  Ripe.Span.make 0 offset offset
 
 let replace s old rep =
   let olen = String.length old in
@@ -47,51 +51,9 @@ let ctx src =
 
 let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
 
-let compare_file_spans src =
-  let first_span file =
-    match parse ~file src with
-    | Ripe.Ast.Func fd :: _ -> fd.span
-    | _ -> failwith "expected a function"
-  in
-  Printf.printf "%b" (first_span 0 = first_span 1)
-
-let show_parsed_module src =
-  let module_ = parse_module src in
-  List.iter
-    (fun import ->
-      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
-    module_.imports
-
 let resolve_src module_id src =
   let decls = parse src in
   (decls, Ripe.Resolve.resolve ~module_id decls)
-
-let decl_name_span = function
-  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
-  | Ripe.Ast.Struct sd -> (sd.name, sd.span)
-  | Ripe.Ast.Global gd -> (gd.name, gd.span)
-  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.name, td.span)
-
-let compare_module_symbols src =
-  let first_symbol module_id =
-    match resolve_src module_id src with
-    | decl :: _, uses ->
-        let _, span = decl_name_span decl in
-        Ripe.Resolve.sym_at uses span
-    | [], _ -> failwith "expected a declaration"
-  in
-  let first = first_symbol 4 in
-  let second = first_symbol 9 in
-  Printf.printf "%d %d %b" first.module_id second.module_id (first = second)
-
-let dump_decl_visibilities src =
-  let decls, uses = resolve_src 0 src in
-  List.iter
-    (fun decl ->
-      let name, span = decl_name_span decl in
-      let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n" name (Ripe.Symbol.show_visibility sym.visibility))
-    decls
 
 (* the front of the pipeline every runner shares *)
 let check_src src =
@@ -171,9 +133,9 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | FieldAccess (e, f) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
-  | Cast (e, t, checked) ->
-      let op = if checked then "as!" else "as" in
-      "(" ^ op ^ " " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
+  | Cast (e, t, kind) ->
+      "(" ^ Ripe.Ast.show_cast_op kind ^ " " ^ dump_expr e ^ " " ^ dump_typ t
+      ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
       "(array"
@@ -232,19 +194,6 @@ let rec dump_cstmt (e : C.cexpr) : string =
 and dump_cstmts (stmts : C.cblock) : string =
   "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
 
-let all_kinds =
-  Ripe.Symbol.
-    [
-      Func;
-      Extern;
-      Global;
-      Local Ripe.Ast.Let;
-      Local Ripe.Ast.Comptime;
-      Local Ripe.Ast.Var;
-      Param;
-      ForVar;
-    ]
-
 let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Lexing.from_string src in
@@ -255,8 +204,10 @@ let dump_tokens src =
   in
   go ()
 
-let parse_only src =
-  try List.iter (fun d -> print_endline (Ripe.Ast.show_decl d)) (parse src)
+let run_parse src =
+  try
+    ignore (parse src);
+    print_endline "ok"
   with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
 
 (* wrap src in `return ...` so callers can write bare expressions *)
@@ -289,11 +240,6 @@ let run_lower src =
       | C.CFunc fd -> print_endline (fd.C.name ^ " " ^ dump_cstmts fd.C.body)
       | _ -> ())
     (lower_src src)
-
-let dump_kinds pred =
-  List.iter
-    (fun k -> Printf.printf "%s %b\n" (Ripe.Symbol.show_kind k) (pred k))
-    all_kinds
 
 let expect_errors f =
   try

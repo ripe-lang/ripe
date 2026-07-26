@@ -3,6 +3,24 @@
 open Ripe
 open Helpers
 
+let all_kinds =
+  [
+    Symbol.Func;
+    Extern;
+    Global;
+    Type;
+    Local Ast.Let;
+    Local Ast.Comptime;
+    Local Ast.Var;
+    Param;
+    ForVar;
+  ]
+
+let dump_kinds pred =
+  List.iter
+    (fun kind -> Printf.printf "%s %b\n" (Symbol.show_kind kind) (pred kind))
+    all_kinds
+
 let%expect_test "symbol: is_func covers only func and extern" =
   dump_kinds Symbol.is_func;
   [%expect
@@ -10,6 +28,7 @@ let%expect_test "symbol: is_func covers only func and extern" =
     Func true
     Extern true
     Global false
+    Type false
     (Local Let) false
     (Local Comptime) false
     (Local Var) false
@@ -24,6 +43,7 @@ let%expect_test "symbol: is_global covers only global" =
     Func false
     Extern false
     Global true
+    Type false
     (Local Let) false
     (Local Comptime) false
     (Local Var) false

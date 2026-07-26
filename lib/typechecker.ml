@@ -32,7 +32,7 @@ type env = {
   globals : (string, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (string, gstate) Hashtbl.t;
-  l_vals : (Symbol.id, Const_eval.const_num) Hashtbl.t;
+  l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
   in_main : bool;
@@ -58,6 +58,10 @@ let make_env (uses : Resolve.t) : env =
 
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
+
+let symbol_name (env : env) (symbol : Symbol.t) : string =
+  Resolve.internal_name env.uses symbol
+
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
 let dummy_texpr = T.mk TError (T.TInt 0L)
@@ -227,7 +231,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  | Cast (operand, t, checked) ->
+  | Cast (operand, t, kind) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
       if not (cast_ok te.T.ty ty) then begin
@@ -245,17 +249,21 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         in
         emit env d
       end
-      else if checked then
+      else if kind = Checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
         | TInt _, TInt _ -> ()
         | _ ->
             emit env
               (Diagnostic.error "checked cast only supports integers"
               |> Diagnostic.at e.span
-              |> Diagnostic.label "`as!` traps on integer overflow only"
-              |> Diagnostic.help "use a plain `as` cast here")
+              |> Diagnostic.label
+                   (Printf.sprintf "`%s` traps on integer overflow only"
+                      (show_cast_op Checked))
+              |> Diagnostic.help
+                   (Printf.sprintf "use a plain `%s` cast here"
+                      (show_cast_op Normal)))
         end;
-      T.mk ty (T.TCast (te, checked))
+      T.mk ty (T.TCast (te, kind))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
@@ -448,7 +456,8 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
   in
   if kind = Comptime then (
     check_const_scalar env nspan t;
-    Hashtbl.replace env.l_vals (sym env nspan).Symbol.id
+    Hashtbl.replace env.l_vals
+      (Symbol.key (sym env nspan))
       (fold_num_or env dummy_const_num te));
   ( extend_var env nspan name t,
     T.mk TVoid (T.TBinding (kind, sym env nspan, t, te)) )
@@ -701,7 +710,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
-        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, false))
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, Normal))
         | _ -> te
       in
       List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
@@ -790,7 +799,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
       | Some s
         when Symbol.is_immutable s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_const_global env s.Symbol.name ->
+                && is_const_global env (symbol_name env s) ->
           emit env
             (Error.named l.span "cannot assign to immutable" s.Symbol.name)
       | _ -> ())
@@ -874,7 +883,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       | T.TIdent s
         when Symbol.is_comptime s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_comptime_global env s.Symbol.name ->
+                && is_comptime_global env (symbol_name env s) ->
           emit env
             Diagnostic.(
               error ("cannot take address of a constant: " ^ s.Symbol.name)
@@ -1018,11 +1027,11 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
     Const_eval.const_num =
   match s.Symbol.kind with
   | Symbol.Local Ast.Comptime -> (
-      match Hashtbl.find_opt env.l_vals s.Symbol.id with
+      match Hashtbl.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Hashtbl.mem env.g_state s.Symbol.name ->
-      global_const_num env span s.Symbol.name
+  | Symbol.Global when Hashtbl.mem env.g_state (symbol_name env s) ->
+      global_const_num env span (symbol_name env s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
 and global_const_num (env : env) (span : Ast.span) (name : string) :
@@ -1304,7 +1313,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
-      Symbol.is_func s.Symbol.kind || is_const_global env s.Symbol.name
+      Symbol.is_func s.Symbol.kind || is_const_global env (symbol_name env s)
   (* The address of a global is a link time constant *)
   | T.TUnOp (Ast.AddressOf, { T.desc = T.TIdent s; _ }) ->
       Symbol.is_global s.Symbol.kind
@@ -1398,8 +1407,9 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)
     ~force_const:(fun span name -> ignore (global_const_num env span name))
-    ~local_value:(Hashtbl.find_opt env.l_vals)
-    ~global_value:(fun name ->
+    ~local_value:(fun symbol -> Hashtbl.find_opt env.l_vals (Symbol.key symbol))
+    ~global_value:(fun symbol ->
+      let name = symbol_name env symbol in
       if is_comptime_global env name then
         match Hashtbl.find_opt env.g_state name with
         | Some { value = Some v; _ } -> Some v
