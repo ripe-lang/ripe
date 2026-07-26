@@ -208,6 +208,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
         emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
       T.mk (TInt kind) (T.TInt n)
+  | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
+      synth env { operand with span = e.span }
   | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
       if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
@@ -335,7 +337,7 @@ and tblock_ty (tb : T.tblock) : ty =
 and arm_is_flexible (e : expr) : bool =
   match e.desc with
   | Int (_, None) | Float _ -> true
-  | UnOp (Neg, inner) -> arm_is_flexible inner
+  | UnOp ((Pos | Neg), inner) -> arm_is_flexible inner
   | Block body -> block_is_flexible body
   | If (branches, else_body) ->
       Option.is_some else_body
@@ -626,8 +628,12 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
+  | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
+      check ~adopt env { operand with span = e.span } want
   | UnOp (Neg, operand) when is_numeric (strip_alias want) ->
       T.mk want (T.TUnOp (Neg, check env operand want))
+  | UnOp (Pos, operand) when is_numeric (strip_alias want) ->
+      T.mk want (T.TUnOp (Pos, check env operand want))
   | UnOp (BitNot, operand) when is_integer (strip_alias want) ->
       T.mk want (T.TUnOp (BitNot, check env operand want))
   | ArrayLit elems -> (
@@ -826,6 +832,12 @@ and synth_pair_assign (env : env) (ft : expr) (st : expr) (fv : expr)
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
+  | Pos ->
+      let te = synth env e in
+      let t = te.T.ty in
+      if not (is_numeric t) then
+        emit env (Error.bad_operand e.span ~op:"+" ~ty:(show_ty t));
+      T.mk t (T.TUnOp (op, te))
   | Neg ->
       let te = synth env e in
       let t = te.T.ty in

@@ -88,6 +88,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
           ( [ (lower_expr l, [ D.mk ~span ty (D.CBool true) ]) ],
             Some [ lower_expr r ] )
     | S.TBinOp (op, l, r) -> D.CBinOp (op, lower_expr l, lower_expr r)
+    | S.TUnOp (Ast.Pos, e) -> (lower_expr e).D.desc
     | S.TUnOp (op, e) -> D.CUnOp (op, lower_expr e)
     | S.TFieldAccess (e, name) -> D.CFieldAccess (lower_expr e, name)
     | S.TCast (e, checked) -> D.CCast (lower_expr e, checked)
