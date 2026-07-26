@@ -3761,3 +3761,27 @@ let%expect_test "typecheck: pair assignment rejects an expression target" =
 let%expect_test "typecheck: pair assignment allows different target types" =
   run_src "func f(a: i32, b: bool) { a, b = 1, true }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: newline operator continues into void call" =
+  run_src
+    {|func g() {}
+func f() i32 {
+  return 1 +
+    g()
+}|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:5
+            g()
+            ^~~ expected i32, found void
+    |}]
+
+let%expect_test "typecheck: newline operator continues into integer call" =
+  run_src
+    {|func g() i32 { return 2 }
+func f() i32 {
+  return 1 +
+    g()
+}|};
+  [%expect {| ok |}]

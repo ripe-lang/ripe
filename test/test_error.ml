@@ -89,3 +89,25 @@ let%expect_test "error: internal compiler error" =
     TVoid has no size
     help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
     |}]
+
+let%expect_test "error: expected expression after operator" =
+  let src = "return +\n" in
+  render src (Error.expected_expression_after (span src "+") "+");
+  [%expect
+    {|
+    error: expected expression after `+`
+      at <test>:1:8
+        return +
+               ^
+    |}]
+
+let%expect_test "error: expected type after operator" =
+  let src = "return x as!\n" in
+  render src (Error.expected_type_after (span src "as!") "as!");
+  [%expect
+    {|
+    error: expected type after `as!`
+      at <test>:1:10
+        return x as!
+                 ^~~
+    |}]
