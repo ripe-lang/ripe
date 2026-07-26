@@ -42,6 +42,13 @@ let fail_found st headline =
        |> Diagnostic.at (cur_span st)
        |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))))
 
+let parse_cast_kind st =
+  match st.tok with
+  | BANG ->
+      advance st;
+      Checked
+  | _ -> Normal
+
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
 (* Newlines lex as SEMI *)
@@ -283,10 +290,9 @@ and parse_expr st min_prec =
           match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
         if op_tok = AS then begin
-          let checked = st.tok = BANG in
-          if checked then advance st;
+          let kind = parse_cast_kind st in
           let ty = parse_typ st in
-          lhs := mk lo st (Cast (!lhs, ty, checked));
+          lhs := mk lo st (Cast (!lhs, ty, kind));
           if is_postfix_tok st.tok then
             raise
               (ParseError
