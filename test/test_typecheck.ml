@@ -2990,6 +2990,59 @@ func f() i32 { var a: Id = 5 as Id; return (-a) as i32 }
                                                      ^
     |}]
 
+let%expect_test "typecheck: unary plus accepts numeric operands" =
+  run_src {|
+func f() {
+  var _x: i64 = +3000000000
+  var _y: f32 = +1.5
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: unary plus rejects bool" =
+  run_src "func f() { let _x = +true }";
+  [%expect
+    {|
+    error: cannot apply `+` to bool
+      at <test>:1:22
+        func f() { let _x = +true }
+                             ^~~~
+    |}]
+
+let%expect_test "typecheck: newtype has no unary plus" =
+  run_src
+    {|
+newtype Id = i32
+func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
+|};
+  [%expect
+    {|
+    error: cannot apply `+` to Id
+      at <test>:3:46
+        func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
+                                                     ^
+    |}]
+
+let%expect_test "typecheck: suffixed unary plus range includes operator" =
+  run_src "func f() { let _x = +128i8 }";
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:21
+        func f() { let _x = +128i8 }
+                            ^~~~~~ does not fit in i8
+    |}]
+
+let%expect_test "typecheck: explicit positive literal reports full span" =
+  run_src "func f() { let _x: i8 = +128 }";
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:25
+        func f() { let _x: i8 = +128 }
+                                ^~~~ does not fit in i8
+    |}]
+
 let%expect_test "typecheck: newtype has no remainder" =
   run_src
     {|

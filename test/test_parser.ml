@@ -605,6 +605,14 @@ let%expect_test "parse: bitnot" =
   parse_expr "~x";
   [%expect {| (~ x) |}]
 
+let%expect_test "parse: unary plus" =
+  parse_expr "+42";
+  [%expect {| (+ 42) |}]
+
+let%expect_test "parse: unary plus binds tighter than multiply" =
+  parse_expr "+2 * 3";
+  [%expect {| (* (+ 2) 3) |}]
+
 let%expect_test "parse: field access after call" =
   parse_expr "f().x";
   [%expect {| (. (call f) x) |}]
