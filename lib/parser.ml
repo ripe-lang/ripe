@@ -339,28 +339,17 @@ and parse_expr st min_prec =
 (* -x *)
 and parse_prefix st =
   let lo = cur_pos st in
+  let unary desc =
+    advance st;
+    mk lo st (UnOp (desc, parse_prefix st))
+  in
   match st.tok with
-  | BANG ->
-      advance st;
-      mk lo st (UnOp (Not, parse_prefix st))
-  | PLUS ->
-      advance st;
-      mk lo st (UnOp (Pos, parse_prefix st))
-  | MINUS ->
-      advance st;
-      mk lo st (UnOp (Neg, parse_prefix st))
-  | TILDE ->
-      advance st;
-      mk lo st (UnOp (BitNot, parse_prefix st))
-  | AMP ->
-      advance st;
-      mk lo st (UnOp (AddressOf, parse_prefix st))
-  | STAR ->
-      advance st;
-      mk lo st (UnOp (Deref, parse_prefix st))
-  (* Postfix binds tighter than any prefix operator, so the primary takes its
-     postfix here at the leaf and prefix operators stack around the result:
-     `-arr[0]` is `-(arr[0])` and `&s.x` is `&(s.x)` *)
+  | BANG -> unary Not
+  | PLUS -> unary Pos
+  | MINUS -> unary Neg
+  | TILDE -> unary BitNot
+  | AMP -> unary AddressOf
+  | STAR -> unary Deref
   | _ -> parse_postfix st (parse_primary st)
 
 (* x.field, arr[i], f(args) *)
