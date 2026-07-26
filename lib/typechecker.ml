@@ -794,7 +794,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
       | Some s
         when Symbol.is_immutable s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_const_global env s.Symbol.name ->
+                && is_const_global env (symbol_name env s) ->
           emit env
             (Error.named l.span "cannot assign to immutable" s.Symbol.name)
       | _ -> ())
@@ -878,7 +878,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       | T.TIdent s
         when Symbol.is_comptime s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_comptime_global env s.Symbol.name ->
+                && is_comptime_global env (symbol_name env s) ->
           emit env
             Diagnostic.(
               error ("cannot take address of a constant: " ^ s.Symbol.name)
@@ -1022,11 +1022,11 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
     Const_eval.const_num =
   match s.Symbol.kind with
   | Symbol.Local Ast.Comptime -> (
-      match Hashtbl.find_opt env.l_vals s.Symbol.id with
+      match Hashtbl.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Hashtbl.mem env.g_state s.Symbol.name ->
-      global_const_num env span s.Symbol.name
+  | Symbol.Global when Hashtbl.mem env.g_state (symbol_name env s) ->
+      global_const_num env span (symbol_name env s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
 and global_const_num (env : env) (span : Ast.span) (name : string) :
@@ -1308,7 +1308,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
-      Symbol.is_func s.Symbol.kind || is_const_global env s.Symbol.name
+      Symbol.is_func s.Symbol.kind || is_const_global env (symbol_name env s)
   (* The address of a global is a link time constant *)
   | T.TUnOp (Ast.AddressOf, { T.desc = T.TIdent s; _ }) ->
       Symbol.is_global s.Symbol.kind
@@ -1402,8 +1402,9 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)
     ~force_const:(fun span name -> ignore (global_const_num env span name))
-    ~local_value:(Hashtbl.find_opt env.l_vals)
-    ~global_value:(fun name ->
+    ~local_value:(fun symbol -> Hashtbl.find_opt env.l_vals (Symbol.key symbol))
+    ~global_value:(fun symbol ->
+      let name = symbol_name env symbol in
       if is_comptime_global env name then
         match Hashtbl.find_opt env.g_state name with
         | Some { value = Some v; _ } -> Some v
