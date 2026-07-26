@@ -227,7 +227,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
   | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
-  | Cast (operand, t, checked) ->
+  | Cast (operand, t, kind) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
       if not (cast_ok te.T.ty ty) then begin
@@ -245,17 +245,21 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         in
         emit env d
       end
-      else if checked then
+      else if kind = Checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
         | TInt _, TInt _ -> ()
         | _ ->
             emit env
               (Diagnostic.error "checked cast only supports integers"
               |> Diagnostic.at e.span
-              |> Diagnostic.label "`as!` traps on integer overflow only"
-              |> Diagnostic.help "use a plain `as` cast here")
+              |> Diagnostic.label
+                   (Printf.sprintf "`%s` traps on integer overflow only"
+                      (show_cast_op Checked))
+              |> Diagnostic.help
+                   (Printf.sprintf "use a plain `%s` cast here"
+                      (show_cast_op Normal)))
         end;
-      T.mk ty (T.TCast (te, checked))
+      T.mk ty (T.TCast (te, kind))
   | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
   (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
@@ -701,7 +705,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
-        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, false))
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, Normal))
         | _ -> te
       in
       List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
