@@ -58,6 +58,10 @@ let make_env (uses : Resolve.t) : env =
 
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
+
+let symbol_name (env : env) (symbol : Symbol.t) : string =
+  Resolve.internal_name env.uses symbol
+
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
 let dummy_texpr = T.mk TError (T.TInt 0L)
