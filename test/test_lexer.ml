@@ -175,8 +175,8 @@ let%expect_test "lexer: operators and compound assignment" =
     >=
     <<
     >>
-    and
-    or
+    &&
+    ||
     &
     |
     ~
