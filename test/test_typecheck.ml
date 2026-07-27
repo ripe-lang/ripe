@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Span_utils
+open Pipeline
 
 let%expect_test "typecheck: break outside loop" =
   run_src "func f() { break }";

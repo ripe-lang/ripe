@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Diag
+open Pipeline
 
 let%expect_test "codegen: compound assign on global" =
   run_codegen {|

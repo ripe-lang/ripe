@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Pipeline
 
 let%expect_test "lower: block statements land in the surrounding list" =
   run_lower
