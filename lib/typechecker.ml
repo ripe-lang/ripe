@@ -523,22 +523,19 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
    synthesize *)
 and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
     (else_body : block option) (want : ty option) : T.texpr =
-  match want with
-  | None -> (
-      match else_body with
-      | None ->
-          let tbranches =
-            List.map
-              (fun (c, body) ->
-                ( check env c TBool,
-                  fst (check_scoped_block env span body None false) ))
-              branches
-          in
-          T.mk TVoid (T.TIf (tbranches, None))
-      | Some else_b ->
-          let rty = reconcile_if_result env branches else_b in
-          check_if env span branches else_body (Some rty))
-  | Some w ->
+  match (want, else_body) with
+  | None, None ->
+      let tbranches =
+        List.map
+          (fun (c, body) ->
+            (check env c TBool, fst (check_scoped_block env span body None false)))
+          branches
+      in
+      T.mk TVoid (T.TIf (tbranches, None))
+  | None, Some else_b ->
+      let rty = reconcile_if_result env branches else_b in
+      check_if env span branches else_body (Some rty)
+  | Some w, _ ->
       let tbranches =
         List.map
           (fun (c, body) ->
