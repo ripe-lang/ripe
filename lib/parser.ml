@@ -874,7 +874,4 @@ let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
     }
   in
   advance st;
-  let module_ = parse_module st in
-  match Diagnostic.drain st.diags with
-  | [] -> module_
-  | ds -> raise (Diagnostic.Errors ds)
+  parse_module st

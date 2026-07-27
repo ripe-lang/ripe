@@ -1439,8 +1439,4 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
   List.iter (fill_struct_fields_decl env) decls;
   List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
-  let tdecls = fold_consts env tdecls in
-  let all = Diagnostic.drain env.diags in
-  let is_err (d : Diagnostic.t) = d.Diagnostic.severity = Diagnostic.Error in
-  if List.exists is_err all then raise (Diagnostic.Errors all)
-  else (tdecls, List.filter (fun d -> not (is_err d)) all)
+  fold_consts env tdecls

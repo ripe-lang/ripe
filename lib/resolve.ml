@@ -214,7 +214,7 @@ let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
       types = Hashtbl.create 64;
       scopes = [];
       next_id = 0;
-      diags = Diagnostic.sink ();
+      diags;
     }
   in
   Hashtbl.add st.out.module_paths module_id [];
@@ -243,7 +243,4 @@ let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
           List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
       | TypeAlias td | Newtype td -> resolve_typ st td.typ)
     decls;
-  let all = Diagnostic.drain st.diags in
-  if List.exists (fun (d : Diagnostic.t) -> d.severity = Diagnostic.Error) all
-  then raise (Diagnostic.Errors all)
-  else st.out
+  st.out
