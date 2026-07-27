@@ -1,7 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ast
-open Diagnostic
 
 type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
@@ -44,6 +43,9 @@ let internal_name (r : t) (s : Symbol.t) : string =
   | _ ->
       let path = Hashtbl.find r.module_paths s.Symbol.module_id in
       qualified_name path s.Symbol.name
+
+let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
+  Hashtbl.find_opt r.syms span
 
 let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
     (name : string) (span : Ast.span) : Symbol.t =
@@ -93,7 +95,9 @@ let use_type (st : state) name span : unit =
   if not (List.mem_assoc name Types.builtin_tys) then
     match Hashtbl.find_opt st.types name with
     | Some sym -> Hashtbl.replace st.out.syms span sym
-    | None -> Diagnostic.emit st.diags (Error.undefined_name span "type" name)
+    | None ->
+        Diagnostic.emit st.diags (Error.undefined_name span "type" name);
+        ignore (mint st Symbol.Error name span)
 
 let lookup (st : state) (name : string) : Symbol.t option =
   match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
@@ -103,10 +107,13 @@ let lookup (st : state) (name : string) : Symbol.t option =
 let use (st : state) ~(what : string) name span : unit =
   match lookup st name with
   | Some sym -> Hashtbl.replace st.out.syms span sym
-  | None -> Diagnostic.emit st.diags (Error.undefined_name span what name)
+  | None ->
+      Diagnostic.emit st.diags (Error.undefined_name span what name);
+      ignore (mint st Symbol.Error name span)
 
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
+  | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
   | Call ({ desc = Ident name; span }, args) ->
       use st ~what:"function" name span;
@@ -165,6 +172,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
+  | ErrorType -> ()
   | Named "opaque" -> ()
   | Named name -> use_type st name t.span
   | Pointer t | Slice t -> resolve_typ st t
@@ -186,7 +194,8 @@ let declare_param (st : state) (p : param) : unit =
   match Hashtbl.find_opt scope p.name with
   | Some prev ->
       Diagnostic.emit st.diags
-        (Error.redefinition p.span ~prev:prev.Symbol.span p.name)
+        (Error.redefinition p.span ~prev:prev.Symbol.span p.name);
+      Hashtbl.replace st.out.syms p.span prev
   | None -> declare_local st Symbol.Param p.name p.span
 
 let resolve_func (st : state) (fd : func_def) : unit =
@@ -203,7 +212,8 @@ let resolve_func (st : state) (fd : func_def) : unit =
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
 
-let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
+let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
+    (decls : decl list) : t =
   let st =
     {
       out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };
@@ -212,7 +222,7 @@ let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
       types = Hashtbl.create 64;
       scopes = [];
       next_id = 0;
-      diags = Diagnostic.sink ();
+      diags;
     }
   in
   Hashtbl.add st.out.module_paths module_id [];
@@ -241,7 +251,4 @@ let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
           List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
       | TypeAlias td | Newtype td -> resolve_typ st td.typ)
     decls;
-  let all = Diagnostic.drain st.diags in
-  if List.exists (fun (d : Diagnostic.t) -> d.severity = Diagnostic.Error) all
-  then raise (Diagnostic.Errors all)
-  else st.out
+  st.out

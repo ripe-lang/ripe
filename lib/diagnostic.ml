@@ -18,7 +18,6 @@ type t = {
   suggestion : string option; (* Closing "help:" line *)
 }
 
-(* Any pass raises this to abort with a batch of diagnostics *)
 exception Errors of t list
 
 let make severity headline =
@@ -55,12 +54,21 @@ let emit (s : sink) (d : t) : unit = s := d :: !s
 let error_at (s : sink) span msg = emit s (error msg |> at span)
 let warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
+let has_errors (s : sink) : bool =
+  List.exists (fun (d : t) -> d.severity = Error) !s
+
 (* Sorted into source order and ties keep emission order *)
 let drain (s : sink) : t list =
   let pos d =
     match d.primary with Some sp -> (sp.Ast.file, sp.lo) | None -> (-1, 0)
   in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
+
+(* This clears the sink so the next stage doesn't report these again *)
+let take (s : sink) : t list =
+  let all = drain s in
+  s := [];
+  all
 
 (* Rendering *)
 

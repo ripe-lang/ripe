@@ -3,6 +3,7 @@
 open Types
 
 type texpr_desc =
+  | TErrorExpr
   | TInt of int64
   | TFloat of float
   | TBool of bool

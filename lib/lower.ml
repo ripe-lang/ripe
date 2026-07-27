@@ -71,6 +71,8 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   let ty = te.S.ty and span = te.S.span in
   let desc =
     match te.S.desc with
+    | S.TErrorExpr ->
+        Error.ice ~span:te.S.span "error expression reached lowering"
     | S.TInt n -> D.CInt n
     | S.TFloat f -> D.CFloat f
     | S.TBool b -> D.CBool b
