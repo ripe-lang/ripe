@@ -2,10 +2,20 @@
 
 module C = Ripe.Core
 
+let run_stage (f : Ripe.Diagnostic.sink -> 'a) : 'a * Ripe.Diagnostic.t list =
+  let diags = Ripe.Diagnostic.sink () in
+  let result = f diags in
+  let failed = Ripe.Diagnostic.has_errors diags in
+  let all = Ripe.Diagnostic.drain diags in
+  if failed then raise (Ripe.Diagnostic.Errors all);
+  (result, all)
+
 let parse_module ?(file = 0) src =
   let st = Ripe.Lexer.make_state file in
   let lexbuf = Lexing.from_string src in
-  Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
+  fst
+    (run_stage (fun diags ->
+         Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf))
 
 let parse ?(file = 0) src = (parse_module ~file src).decls
 
@@ -53,12 +63,13 @@ let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
 
 let resolve_src module_id src =
   let decls = parse src in
-  (decls, Ripe.Resolve.resolve ~module_id decls)
+  let uses = fst (run_stage (fun diags -> Ripe.Resolve.resolve ~diags ~module_id decls)) in
+  (decls, uses)
 
 (* the front of the pipeline every runner shares *)
 let check_src src =
   let decls, uses = resolve_src 0 src in
-  Ripe.Typechecker.typecheck uses decls
+  run_stage (fun diags -> Ripe.Typechecker.typecheck ~diags uses decls)
 
 let lower_src src = Ripe.Lower.lower (fst (check_src src))
 
