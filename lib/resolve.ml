@@ -174,7 +174,7 @@ and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
   | ErrorType -> ()
   | Named "opaque" -> ()
-  | Named name -> use_type st name t.span
+  | Named name -> use_type st name t.tspan
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
       resolve_expr st e;
