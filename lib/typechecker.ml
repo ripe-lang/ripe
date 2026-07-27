@@ -136,6 +136,7 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
+  | ErrorType -> TError
   (* Never is the return type of a function that can't return so no value ever
      has it *)
   | Named "never" ->
@@ -207,6 +208,7 @@ and synth (env : env) (e : expr) : T.texpr =
 
 and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
+  | ErrorExpr -> dummy_texpr
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
@@ -504,6 +506,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
     | _ -> (
         let ti = synth env iter in
         match strip_alias ti.T.ty with
+        | TError -> (ti, TError)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
             emit env
@@ -595,6 +598,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | _ -> te
   in
   match e.desc with
+  | ErrorExpr -> dummy_texpr
   | Int (_, Some _) ->
       (* The suffix already picked the type so a wrong target is an error not a
          quiet coercion *)
@@ -967,6 +971,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
       (* The callee is a value holding a fn ptr so call through it *)
       let callee_texpr = synth env callee in
       match resolve_ty callee_texpr.T.ty with
+      | TError -> dummy_texpr
       | TFunc (param_tys, ret_ty) ->
           let sig_ = { param_tys; ret_ty; variadic = false } in
           let targs = check_args env span sig_ args in
@@ -1308,6 +1313,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
 let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   match te.T.desc with
+  | T.TErrorExpr -> false
   | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
   | T.TSizeOf _ ->
       true

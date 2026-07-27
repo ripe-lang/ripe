@@ -104,6 +104,7 @@ let tok_str (t : Ripe.Tokens.token) =
 (* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
+  | ErrorType -> "<error>"
   | Named n -> n
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
@@ -115,6 +116,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
 
 and dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
+  | ErrorExpr -> "<error>"
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float f -> string_of_float f
   | Bool b -> string_of_bool b

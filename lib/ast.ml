@@ -89,6 +89,7 @@ type cast_kind = Normal | Checked [@@deriving show { with_path = false }]
 let show_cast_op = function Normal -> "as" | Checked -> "as!"
 
 type expr_desc =
+  | ErrorExpr
   | Int of int64 * string option
   | Float of float
   | Bool of bool

@@ -47,6 +47,7 @@ let run ~(emit : Diagnostic.t -> unit)
   let rec sub_expr (te : T.texpr) : T.texpr =
     let mk desc = { te with T.desc } in
     match te.T.desc with
+    | T.TErrorExpr -> te
     | T.TIdent s when Symbol.is_comptime s.kind -> (
         match local_value s with Some v -> literal_of te v | None -> te)
     | T.TIdent s when Symbol.is_global s.kind -> (

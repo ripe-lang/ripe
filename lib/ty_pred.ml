@@ -9,6 +9,7 @@ module T = Typed_ast
    (without cast)? *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
+  | TError, _ | _, TError -> true
   | _, TNever -> true
   | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
   | TPointer _, TNull -> true
@@ -41,8 +42,8 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
   | T.TUnOp (Deref, _) -> true
   | T.TUnOp _ -> false
-  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
-  | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
+  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
+  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
   | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
@@ -56,9 +57,9 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | T.TIdent s -> Some s
   | T.TFieldAccess (base, _) -> root_through base
   | T.TIndex (base, _) -> root_through base
-  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
-  | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
-  | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
+  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
+  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _
+  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak | T.TContinue ->

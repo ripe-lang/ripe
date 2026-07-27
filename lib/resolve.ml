@@ -107,6 +107,7 @@ let use (st : state) ~(what : string) name span : unit =
 
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
+  | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
   | Call ({ desc = Ident name; span }, args) ->
       use st ~what:"function" name span;
@@ -165,6 +166,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
+  | ErrorType -> ()
   | Named "opaque" -> ()
   | Named name -> use_type st name t.span
   | Pointer t | Slice t -> resolve_typ st t

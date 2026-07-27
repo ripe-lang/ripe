@@ -7,6 +7,7 @@ let rec loop_has_break (body : block) : bool = List.exists expr_has_break body
 
 and expr_has_break (e : expr) : bool =
   match e.desc with
+  | ErrorExpr -> false
   | Break -> true
   | Block body -> loop_has_break body
   | If (branches, else_body) ->
