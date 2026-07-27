@@ -45,6 +45,9 @@ let internal_name (r : t) (s : Symbol.t) : string =
       let path = Hashtbl.find r.module_paths s.Symbol.module_id in
       qualified_name path s.Symbol.name
 
+let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
+  Hashtbl.find_opt r.syms span
+
 let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
     (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
@@ -93,7 +96,9 @@ let use_type (st : state) name span : unit =
   if not (List.mem_assoc name Types.builtin_tys) then
     match Hashtbl.find_opt st.types name with
     | Some sym -> Hashtbl.replace st.out.syms span sym
-    | None -> Diagnostic.emit st.diags (Error.undefined_name span "type" name)
+    | None ->
+        Diagnostic.emit st.diags (Error.undefined_name span "type" name);
+        ignore (mint st Symbol.Error name span)
 
 let lookup (st : state) (name : string) : Symbol.t option =
   match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
@@ -103,7 +108,9 @@ let lookup (st : state) (name : string) : Symbol.t option =
 let use (st : state) ~(what : string) name span : unit =
   match lookup st name with
   | Some sym -> Hashtbl.replace st.out.syms span sym
-  | None -> Diagnostic.emit st.diags (Error.undefined_name span what name)
+  | None ->
+      Diagnostic.emit st.diags (Error.undefined_name span what name);
+      ignore (mint st Symbol.Error name span)
 
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
@@ -188,7 +195,8 @@ let declare_param (st : state) (p : param) : unit =
   match Hashtbl.find_opt scope p.name with
   | Some prev ->
       Diagnostic.emit st.diags
-        (Error.redefinition p.span ~prev:prev.Symbol.span p.name)
+        (Error.redefinition p.span ~prev:prev.Symbol.span p.name);
+      Hashtbl.replace st.out.syms p.span prev
   | None -> declare_local st Symbol.Param p.name p.span
 
 let resolve_func (st : state) (fd : func_def) : unit =

@@ -64,7 +64,7 @@ let symbol_name (env : env) (symbol : Symbol.t) : string =
 
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
-let dummy_texpr = T.mk TError (T.TInt 0L)
+let dummy_texpr = T.mk TError T.TErrorExpr
 let add_warning (env : env) span msg = Diagnostic.warn_at env.diags span msg
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
@@ -161,7 +161,10 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DStruct _) -> TStruct (name, [])
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
-          | None -> Error.ice ~span:t.span "type name escaped the resolver"))
+          | None -> (
+              match Resolve.sym_at_opt env.uses t.span with
+              | Some { Symbol.kind = Symbol.Error; _ } -> TError
+              | _ -> Error.ice ~span:t.span "type name escaped the resolver")))
   | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
   | Pointer t -> TPointer (ty_of_ast env t)
   | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
@@ -227,8 +230,11 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | String s -> T.mk (TPointer (TInt I8)) (T.TCStr s)
   | Char c -> T.mk TChar (T.TChar c)
   | Ident name ->
-      let t = lookup_var env e.span name in
-      T.mk t (T.TIdent (sym env e.span))
+      let s = sym env e.span in
+      if s.Symbol.kind = Symbol.Error then dummy_texpr
+      else
+        let t = lookup_var env e.span name in
+        T.mk t (T.TIdent s)
   | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
