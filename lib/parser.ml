@@ -148,7 +148,7 @@ let comma_sep st stop parse_one =
 
 let make_span st lo hi = Span.make st.tok_span.file lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
-let mkt lo st tdesc = { tdesc; span = make_span st lo st.prev_end }
+let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
 let recovery_span (st : state) (d : Diagnostic.t) : span =
   Option.value d.Diagnostic.primary ~default:(cur_span st)
@@ -157,7 +157,7 @@ let error_expr (st : state) (d : Diagnostic.t) : expr =
   { desc = ErrorExpr; span = recovery_span st d }
 
 let error_typ (st : state) (d : Diagnostic.t) : typ =
-  { tdesc = ErrorType; span = recovery_span st d }
+  { tdesc = ErrorType; tspan = recovery_span st d }
 
 let rec sync_to_depth_token (st : state) (depth : int) (line : int)
     (stops : token list) : unit =

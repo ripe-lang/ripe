@@ -134,7 +134,7 @@ and typ_desc =
   | Slice of typ
 [@@deriving show { with_path = false }]
 
-and typ = { tdesc : typ_desc; span : span }
+and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
 type param = { name : string; typ : typ; span : span }
