@@ -1,11 +1,14 @@
 (library
  (name test_ripe)
- (libraries ripe)
+ (libraries ripe str)
  (inline_tests)
  (preprocess
   (pps ppx_expect ppx_inline_test))
  (modules
-  helpers
+  span_utils
+  diag
+  dump
+  pipeline
   test_lexer
   test_parser
   test_typecheck

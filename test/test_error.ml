@@ -1,7 +1,8 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ripe
-open Helpers
+open Span_utils
+open Diag
 
 let%expect_test "error: type mismatch" =
   let src = "var x: i32 = true\n" in

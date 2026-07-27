@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Span_utils
+open Dump
 
 let%expect_test "lexer: semicolon inserted after expression newline" =
   dump_tokens "x\n";
