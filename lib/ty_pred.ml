@@ -37,6 +37,9 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | s_want, s_got -> ty_equal s_want s_got
 
+(* An error type matches anything so a broken subexpr doesn't cascade *)
+let strict_eq (a : ty) (b : ty) : bool = a = TError || b = TError || a = b
+
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
@@ -107,6 +110,7 @@ let cast_class t =
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
   match (resolve_ty src, resolve_ty tgt) with
+  | TError, _ | _, TError -> true
   | s, TBool -> s = TBool
   (* Char is a distinct scalar so it only converts to and from integers *)
   | TChar, TChar -> true

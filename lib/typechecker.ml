@@ -259,6 +259,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       end
       else if kind = Checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
+        | TError, _ | _, TError -> ()
         | TInt _, TInt _ -> ()
         | _ ->
             emit env
@@ -271,8 +272,12 @@ and synth_desc (env : env) (e : expr) : T.texpr =
                    (Printf.sprintf "use a plain `%s` cast here"
                       (show_cast_op Normal)))
         end;
-      T.mk ty (T.TCast (te, kind))
-  | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
+      if te.T.ty = TError || ty = TError then dummy_texpr
+      else T.mk ty (T.TCast (te, kind))
+  | SizeOf t -> (
+      match ty_of_ast env t with
+      | TError -> dummy_texpr
+      | ty -> T.mk (TInt I64) (T.TSizeOf ty))
   (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
   | Range _ | RangeInclusive _ ->
@@ -606,7 +611,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       (* The suffix already picked the type so a wrong target is an error not a
          quiet coercion *)
       let te = synth_desc env e in
-      if strip_alias want <> te.T.ty then
+      if not (strict_eq (strip_alias want) te.T.ty) then
         emit env
           (Error.type_mismatch e.span ~expected:(show_ty want)
              ~found:(show_ty te.T.ty));
