@@ -11,6 +11,16 @@ func main() i32 {
 }
 ```
 
+## Comments
+
+```ripe
+// line comment
+
+/* block comment
+   /* nested */
+*/
+```
+
 ## Declarations and bindings
 
 ### let and var
@@ -67,6 +77,39 @@ var l: f64
 var m: bool
 var n: cstr
 var o: char
+```
+
+### Float literals
+
+```ripe
+func main() i32 {
+  var a: f64 = 1.5
+  var b: f64 = 1e10
+  return (a + b) as i32
+}
+```
+
+### String literals
+
+```ripe
+func main() i32 {
+  var s: cstr = "line one\nline two\tend\\\"quoted\""
+  return 0
+}
+```
+
+### Char literals
+
+```ripe
+func main() i32 {
+  var a: char = 'a'
+  var nl: char = '\n'
+  var tab: char = '\t'
+  var bs: char = '\\'
+  var q: char = '\''
+  var z: char = '\0'
+  return 0
+}
 ```
 
 ### Struct declarations and literals
@@ -359,5 +402,16 @@ func main() i32 {
   var a: u8 = 255u8
   var b: i64 = 9000000000i64
   return (a as i32) + (b as i32)
+}
+```
+
+### Hex, binary, and octal literals
+
+```ripe
+func main() i32 {
+  var a: i32 = 0xff
+  var b: i32 = 0b1010
+  var c: i32 = 0o17i32
+  return a + b + c
 }
 ```
