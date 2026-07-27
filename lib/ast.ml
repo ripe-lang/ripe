@@ -125,6 +125,7 @@ and expr = { desc : expr_desc; span : span }
 and block = expr list [@@deriving show { with_path = false }]
 
 and typ_desc =
+  | ErrorType
   | Named of string
   | Pointer of typ
   | FuncPtr of typ list * typ option
