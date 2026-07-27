@@ -1,6 +1,8 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Span_utils
+open Dump
+open Pipeline
 
 let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
@@ -156,6 +158,44 @@ let%expect_test "parse: recover, broken then good" =
     {|
     error: expected expression
       at <test>:1:19
+        func f() { return / }
+                          ^ found /
+    |}]
+
+let%expect_test "parse: keep binders and collect later type errors" =
+  run_src
+    {|func f() i32 {
+  let x: = /
+  return x
+}
+func g() i32 { return true }|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:2:10
+          let x: = /
+                 ^ found =
+    error: expected expression
+      at <test>:2:12
+          let x: = /
+                   ^ found /
+    error: type mismatch
+      at <test>:5:23
+        func g() i32 { return true }
+                              ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "parse: sort diagnostics from every phase by source" =
+  run_src {|func g() i32 { return true }
+func f() { return / }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:23
+        func g() i32 { return true }
+                              ^~~~ expected i32, found bool
+    error: expected expression
+      at <test>:2:19
         func f() { return / }
                           ^ found /
     |}]
@@ -394,6 +434,10 @@ let%expect_test "parse: recover, preserve valid multiline expressions" =
 }|};
   [%expect
     {|
+    error: type mismatch
+      at <test>:4:10
+          return x +
+                 ^~~ expected void, found i32
     error: expected expression
       at <test>:6:10
           return /

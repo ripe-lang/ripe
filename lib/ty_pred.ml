@@ -9,6 +9,7 @@ module T = Typed_ast
    (without cast)? *)
 let rec compatible (want : ty) (got : ty) : bool =
   match (strip_alias want, strip_alias got) with
+  | TError, _ | _, TError -> true
   | _, TNever -> true
   | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
   | TPointer _, TNull -> true
@@ -36,13 +37,16 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | s_want, s_got -> ty_equal s_want s_got
 
+(* An error type matches anything so a broken subexpr doesn't cascade *)
+let strict_eq (a : ty) (b : ty) : bool = a = TError || b = TError || a = b
+
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
   | T.TUnOp (Deref, _) -> true
   | T.TUnOp _ -> false
-  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
-  | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
+  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
+  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
   | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
@@ -56,9 +60,9 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | T.TIdent s -> Some s
   | T.TFieldAccess (base, _) -> root_through base
   | T.TIndex (base, _) -> root_through base
-  | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
-  | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
-  | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
+  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
+  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _
+  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak | T.TContinue ->
@@ -106,6 +110,7 @@ let cast_class t =
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
   match (resolve_ty src, resolve_ty tgt) with
+  | TError, _ | _, TError -> true
   | s, TBool -> s = TBool
   (* Char is a distinct scalar so it only converts to and from integers *)
   | TChar, TChar -> true

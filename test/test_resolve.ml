@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Span_utils
+open Pipeline
 
 let decl_name_span = function
   | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
@@ -216,6 +217,36 @@ func main() i32 { return g() }
 func g() i32 { return 7 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "resolve: poison variable lets type checking continue" =
+  run_src {|func f() i32 { return missing }
+func g() i32 { return true }|};
+  [%expect
+    {|
+    error: undefined variable: missing
+      at <test>:1:23
+        func f() i32 { return missing }
+                              ^~~~~~~
+    error: type mismatch
+      at <test>:2:23
+        func g() i32 { return true }
+                              ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "resolve: poison type lets type checking continue" =
+  run_src {|func f(x: Missing) {}
+func g() i32 { return true }|};
+  [%expect
+    {|
+    error: undefined type: Missing
+      at <test>:1:11
+        func f(x: Missing) {}
+                  ^~~~~~~
+    error: type mismatch
+      at <test>:2:23
+        func g() i32 { return true }
+                              ^~~~ expected i32, found bool
+    |}]
 
 let%expect_test "resolve: shadow inside if body does not leak" =
   run_src

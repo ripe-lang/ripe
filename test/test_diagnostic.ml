@@ -1,7 +1,8 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ripe
-open Helpers
+open Span_utils
+open Diag
 
 let%expect_test "single caret from a zero-width span" =
   let src = "main() {\n    break\n}\n" in

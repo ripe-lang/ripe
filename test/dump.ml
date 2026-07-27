@@ -2,90 +2,6 @@
 
 module C = Ripe.Core
 
-let parse_module ?(file = 0) src =
-  let st = Ripe.Lexer.make_state file in
-  let lexbuf = Lexing.from_string src in
-  Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
-
-let parse ?(file = 0) src = (parse_module ~file src).decls
-
-let substring_offset src sub =
-  let n = String.length sub and m = String.length src in
-  let rec go i =
-    if i + n > m then failwith (Printf.sprintf "substring not found: %S" sub)
-    else if String.sub src i n = sub then i
-    else go (i + 1)
-  in
-  go 0
-
-let span src sub =
-  let lo = substring_offset src sub in
-  Ripe.Span.make 0 lo (lo + String.length sub)
-
-let point src sub =
-  let offset = substring_offset src sub in
-  Ripe.Span.make 0 offset offset
-
-let replace s old rep =
-  let olen = String.length old in
-  let b = Buffer.create (String.length s) in
-  let i = ref 0 in
-  while !i < String.length s do
-    if !i + olen <= String.length s && String.sub s !i olen = old then begin
-      Buffer.add_string b rep;
-      i := !i + olen
-    end
-    else begin
-      Buffer.add_char b s.[!i];
-      incr i
-    end
-  done;
-  Buffer.contents b
-
-let ctx src =
-  {
-    Ripe.Diagnostic.sm = Ripe.Source_map.create src;
-    filename = "<test>";
-    color = false;
-  }
-
-let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
-
-let resolve_src module_id src =
-  let decls = parse src in
-  (decls, Ripe.Resolve.resolve ~module_id decls)
-
-(* the front of the pipeline every runner shares *)
-let check_src src =
-  let decls, uses = resolve_src 0 src in
-  Ripe.Typechecker.typecheck uses decls
-
-let lower_src src = Ripe.Lower.lower (fst (check_src src))
-
-(* feed the il through qbe so malformed output fails the test *)
-let check_qbe il =
-  let ssa = Filename.temp_file "ripe_test" ".ssa" in
-  let err = Filename.temp_file "ripe_test" ".err" in
-  let oc = open_out ssa in
-  output_string oc il;
-  close_out oc;
-  let cmd =
-    Printf.sprintf "%s -o /dev/null %s 2> %s"
-      (Filename.quote Ripe.Config.qbe)
-      (Filename.quote ssa) (Filename.quote err)
-  in
-  if Sys.command cmd <> 0 then begin
-    let ic = open_in err in
-    (try
-       while true do
-         print_endline (replace (input_line ic) ssa "<il>")
-       done
-     with End_of_file -> ());
-    close_in ic
-  end;
-  Sys.remove ssa;
-  Sys.remove err
-
 let tok_str (t : Ripe.Tokens.token) =
   let open Ripe.Tokens in
   match t with
@@ -104,6 +20,7 @@ let tok_str (t : Ripe.Tokens.token) =
 (* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
+  | ErrorType -> "<error>"
   | Named n -> n
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
@@ -115,6 +32,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
 
 and dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
+  | ErrorExpr -> "<error>"
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float f -> string_of_float f
   | Bool b -> string_of_bool b
@@ -203,47 +121,3 @@ let dump_tokens src =
     if t <> Ripe.Tokens.EOF then go ()
   in
   go ()
-
-let run_parse src =
-  try
-    ignore (parse src);
-    print_endline "ok"
-  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
-
-(* wrap src in `return ...` so callers can write bare expressions *)
-let parse_expr src =
-  let wrapped = "func _f() { return " ^ src ^ " }" in
-  try
-    match parse wrapped with
-    | [ Ripe.Ast.Func { body = [ { desc = Return (Some e); _ } ]; _ } ] ->
-        print_endline (dump_expr e)
-    | _ -> print_endline "<parse_expr: unexpected shape>"
-  with Ripe.Diagnostic.Errors diags -> List.iter (render wrapped) diags
-
-let run_src src =
-  try
-    let _, warns = check_src src in
-    List.iter (render src) warns;
-    print_endline "ok"
-  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
-
-let run_codegen src =
-  try
-    let il = Ripe.Codegen_qbe.emit_qbe (lower_src src) in
-    print_string il;
-    check_qbe il
-  with Ripe.Diagnostic.Errors diags -> List.iter (render src) diags
-
-let run_lower src =
-  List.iter
-    (function
-      | C.CFunc fd -> print_endline (fd.C.name ^ " " ^ dump_cstmts fd.C.body)
-      | _ -> ())
-    (lower_src src)
-
-let expect_errors f =
-  try
-    f ();
-    print_endline "<no error>"
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx "") d)) diags

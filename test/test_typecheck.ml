@@ -1,6 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-open Helpers
+open Span_utils
+open Pipeline
 
 let%expect_test "typecheck: break outside loop" =
   run_src "func f() { break }";
@@ -666,6 +667,24 @@ var a: [(0 - 1) as u64]i32 = undefined
       at <test>:2:9
         var a: [(0 - 1) as u64]i32 = undefined
                 ^~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: array size literal with a type suffix" =
+  run_src {|
+var a: [2u8]i32 = undefined
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: array size literal suffix still range checks" =
+  run_src {|
+var a: [300u8]i32 = undefined
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:2:9
+        var a: [300u8]i32 = undefined
+                ^~~~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: float array size" =

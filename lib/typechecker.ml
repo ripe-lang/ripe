@@ -36,11 +36,12 @@ type env = {
   ret_ty : ty;
   in_loop : bool;
   in_main : bool;
+  suppress_warnings : bool;
   diags : Diagnostic.sink;
   uses : Resolve.t;
 }
 
-let make_env (uses : Resolve.t) : env =
+let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
   {
     vars = [];
     funcs = Hashtbl.create 16;
@@ -52,7 +53,8 @@ let make_env (uses : Resolve.t) : env =
     ret_ty = TVoid;
     in_loop = false;
     in_main = false;
-    diags = Diagnostic.sink ();
+    suppress_warnings = Diagnostic.has_errors diags;
+    diags;
     uses;
   }
 
@@ -64,14 +66,16 @@ let symbol_name (env : env) (symbol : Symbol.t) : string =
 
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
-let dummy_texpr = T.mk TError (T.TInt 0L)
-let add_warning (env : env) span msg = Diagnostic.warn_at env.diags span msg
+let dummy_texpr = T.mk TError T.TErrorExpr
+
+let add_warning (env : env) (span : Ast.span) (msg : string) : unit =
+  if not env.suppress_warnings then Diagnostic.warn_at env.diags span msg
+
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
 let warn_unused_in_scope (env : env) : unit =
   match env.vars with
-  | [] -> ()
-  | scope :: _ ->
+  | scope :: _ when not env.suppress_warnings ->
       List.iter
         (fun (name, info) ->
           (* Variables prefixed with '_' suppress unused warnings *)
@@ -82,6 +86,7 @@ let warn_unused_in_scope (env : env) : unit =
               |> Diagnostic.help
                    (Printf.sprintf "prefix with an underscore: _%s" name)))
         scope
+  | _ -> ()
 
 let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
     (t : ty) : env =
@@ -134,8 +139,12 @@ let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
       emit env (Error.undefined_name span "struct" name);
       { field_tys = [] }
 
+let lift_ty (f : ty -> ty) (ty : ty) : ty =
+  match ty with TError -> TError | ty -> f ty
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
+  | ErrorType -> TError
   (* Never is the return type of a function that can't return so no value ever
      has it *)
   | Named "never" ->
@@ -160,15 +169,23 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DStruct _) -> TStruct (name, [])
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
-          | None -> Error.ice ~span:t.span "type name escaped the resolver"))
+          | None -> (
+              match Resolve.sym_at_opt env.uses t.span with
+              | Some { Symbol.kind = Symbol.Error; _ } -> TError
+              | _ -> Error.ice ~span:t.span "type name escaped the resolver")))
   | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
-  | Pointer t -> TPointer (ty_of_ast env t)
-  | Array (e, t) -> TArray (ty_of_ast env t, eval_array_size env e)
-  | Slice t -> TSlice (ty_of_ast env t)
+  | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
+  | Array (e, t) -> (
+      match ty_of_ast env t with
+      | TError -> TError
+      | ty ->
+          if e.desc = ErrorExpr then TError
+          else TArray (ty, eval_array_size env e))
+  | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
       let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
-      TFunc (pts, rt)
+      if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
 
 and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
   match lookup_var_opt env name with
@@ -207,6 +224,7 @@ and synth (env : env) (e : expr) : T.texpr =
 
 and synth_desc (env : env) (e : expr) : T.texpr =
   match e.desc with
+  | ErrorExpr -> dummy_texpr
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
@@ -225,8 +243,11 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | String s -> T.mk (TPointer (TInt I8)) (T.TCStr s)
   | Char c -> T.mk TChar (T.TChar c)
   | Ident name ->
-      let t = lookup_var env e.span name in
-      T.mk t (T.TIdent (sym env e.span))
+      let s = sym env e.span in
+      if s.Symbol.kind = Symbol.Error then dummy_texpr
+      else
+        let t = lookup_var env e.span name in
+        T.mk t (T.TIdent s)
   | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
@@ -251,6 +272,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       end
       else if kind = Checked then
         begin match (resolve_ty te.T.ty, resolve_ty ty) with
+        | TError, _ | _, TError -> ()
         | TInt _, TInt _ -> ()
         | _ ->
             emit env
@@ -263,8 +285,12 @@ and synth_desc (env : env) (e : expr) : T.texpr =
                    (Printf.sprintf "use a plain `%s` cast here"
                       (show_cast_op Normal)))
         end;
-      T.mk ty (T.TCast (te, kind))
-  | SizeOf t -> T.mk (TInt I64) (T.TSizeOf (ty_of_ast env t))
+      if te.T.ty = TError || ty = TError then dummy_texpr
+      else T.mk ty (T.TCast (te, kind))
+  | SizeOf t -> (
+      match ty_of_ast env t with
+      | TError -> dummy_texpr
+      | ty -> T.mk (TInt I64) (T.TSizeOf ty))
   (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
   | Range _ | RangeInclusive _ ->
@@ -504,6 +530,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
     | _ -> (
         let ti = synth env iter in
         match strip_alias ti.T.ty with
+        | TError -> (ti, TError)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
             emit env
@@ -520,22 +547,20 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
    synthesize *)
 and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
     (else_body : block option) (want : ty option) : T.texpr =
-  match want with
-  | None -> (
-      match else_body with
-      | None ->
-          let tbranches =
-            List.map
-              (fun (c, body) ->
-                ( check env c TBool,
-                  fst (check_scoped_block env span body None false) ))
-              branches
-          in
-          T.mk TVoid (T.TIf (tbranches, None))
-      | Some else_b ->
-          let rty = reconcile_if_result env branches else_b in
-          check_if env span branches else_body (Some rty))
-  | Some w ->
+  match (want, else_body) with
+  | None, None ->
+      let tbranches =
+        List.map
+          (fun (c, body) ->
+            ( check env c TBool,
+              fst (check_scoped_block env span body None false) ))
+          branches
+      in
+      T.mk TVoid (T.TIf (tbranches, None))
+  | None, Some else_b ->
+      let rty = reconcile_if_result env branches else_b in
+      check_if env span branches else_body (Some rty)
+  | Some w, _ ->
       let tbranches =
         List.map
           (fun (c, body) ->
@@ -595,11 +620,12 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | _ -> te
   in
   match e.desc with
+  | ErrorExpr -> dummy_texpr
   | Int (_, Some _) ->
       (* The suffix already picked the type so a wrong target is an error not a
          quiet coercion *)
       let te = synth_desc env e in
-      if strip_alias want <> te.T.ty then
+      if not (strict_eq (strip_alias want) te.T.ty) then
         emit env
           (Error.type_mismatch e.span ~expected:(show_ty want)
              ~found:(show_ty te.T.ty));
@@ -967,6 +993,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
       (* The callee is a value holding a fn ptr so call through it *)
       let callee_texpr = synth env callee in
       match resolve_ty callee_texpr.T.ty with
+      | TError -> dummy_texpr
       | TFunc (param_tys, ret_ty) ->
           let sig_ = { param_tys; ret_ty; variadic = false } in
           let targs = check_args env span sig_ args in
@@ -1264,7 +1291,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   (* Main always returns a 32 bit integer so any other type the user writes is
      rejected *)
-  if fd.name = "main" && ret_ty <> TInt I32 then begin
+  if fd.name = "main" && ret_ty <> TError && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.span | None -> fd.span in
     emit env
       (Error.type_mismatch span ~expected:(show_ty (TInt I32))
@@ -1308,6 +1335,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
 let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   match te.T.desc with
+  (* Already reported once so there's nothing more to say here *)
+  | T.TErrorExpr -> true
   | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
   | T.TSizeOf _ ->
       true
@@ -1417,10 +1446,10 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
       else None)
     ~fold_num:(fold_num env) tdecls
 
-(* Hands warnings back for the edge to render and blows up on any error *)
-let typecheck (uses : Resolve.t) (decls : decl list) :
-    T.tdecl list * Diagnostic.t list =
-  let env = make_env uses in
+(* The partial tree stays available so later checks can still run *)
+let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
+    : T.tdecl list =
+  let env = make_env diags uses in
   (* An early array size can demand any later const so defs go in first *)
   List.iter
     (function
@@ -1433,8 +1462,4 @@ let typecheck (uses : Resolve.t) (decls : decl list) :
   List.iter (fill_struct_fields_decl env) decls;
   List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
-  let tdecls = fold_consts env tdecls in
-  let all = Diagnostic.drain env.diags in
-  let is_err (d : Diagnostic.t) = d.Diagnostic.severity = Diagnostic.Error in
-  if List.exists is_err all then raise (Diagnostic.Errors all)
-  else (tdecls, List.filter (fun d -> not (is_err d)) all)
+  fold_consts env tdecls

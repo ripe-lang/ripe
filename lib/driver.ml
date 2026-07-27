@@ -73,19 +73,16 @@ let render_all ctx diags =
 
 (* The C runtime we link calls main, so refuse before the linker leaks its own
    error *)
-let check_has_main tdecls =
+let check_has_main diags tdecls =
   let is_main decl =
     match decl with
     | Typed_ast.TFunc fd -> Typed_ast.tfunc_name fd = "main"
     | _ -> false
   in
   if not (List.exists is_main tdecls) then
-    raise
-      (Diagnostic.Errors
-         [
-           Diagnostic.error "no `main` function found"
-           |> Diagnostic.help "add a `func main() i32` entry point";
-         ])
+    Diagnostic.emit diags
+      (Diagnostic.error "no `main` function found"
+      |> Diagnostic.help "add a `func main() i32` entry point")
 
 (* Read the source and build a fresh lexer plus the diagnostic context *)
 let load filename =
@@ -121,29 +118,40 @@ let compile ~stage ~backend ~out ~filename =
     compile_binary base il
   in
   let read, lexbuf, ctx = load filename in
+  let diags = Diagnostic.sink () in
+  let render_and_exit_if_failed () =
+    let failed = Diagnostic.has_errors diags in
+    render_all ctx (Diagnostic.take diags);
+    if failed then exit 1
+  in
   (* Each stage is a possible stopping point so bail once we hit the target *)
   let stop_at target emit =
     if stage = target then (
       emit ();
+      render_and_exit_if_failed ();
       raise Exit)
   in
   try
     stop_at Tokens (fun () -> output_text (dump_tokens read lexbuf));
-    let module_ = Parser.parse read lexbuf in
+    let module_ = Parser.parse ~diags read lexbuf in
+    let parse_had_errors = Diagnostic.has_errors diags in
     let decls = module_.Ast.decls in
     stop_at Ast (fun () -> output_text (show_module module_));
-    let uses = Resolve.resolve ~module_id:0 decls in
+    let uses = Resolve.resolve ~diags ~module_id:0 decls in
     stop_at Resolve (fun () -> output_text (Resolve.dump uses));
-    let tdecls, warns = Typechecker.typecheck uses decls in
-    render_all ctx warns;
-    stop_at Check (fun () -> output_text "typecheck: ok\n");
+    let tdecls = Typechecker.typecheck ~diags uses decls in
+    let emit_check_result () =
+      if not (Diagnostic.has_errors diags) then output_text "typecheck: ok\n"
+    in
+    stop_at Check emit_check_result;
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));
+    if stage = Bin && not parse_had_errors then check_has_main diags tdecls;
+    render_and_exit_if_failed ();
     let cdecls = Lower.lower tdecls in
     stop_at Core (fun () -> output_text (show_cdecls cdecls));
     let il = match backend with Backend.Qbe -> Codegen_qbe.emit_qbe cdecls in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
-    check_has_main tdecls;
     output_binary il
   with
   | Exit -> ()
