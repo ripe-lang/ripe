@@ -63,7 +63,9 @@ let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
 
 let resolve_src module_id src =
   let decls = parse src in
-  let uses = fst (run_stage (fun diags -> Ripe.Resolve.resolve ~diags ~module_id decls)) in
+  let uses =
+    fst (run_stage (fun diags -> Ripe.Resolve.resolve ~diags ~module_id decls))
+  in
   (decls, uses)
 
 (* the front of the pipeline every runner shares *)

@@ -552,7 +552,8 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
       let tbranches =
         List.map
           (fun (c, body) ->
-            (check env c TBool, fst (check_scoped_block env span body None false)))
+            ( check env c TBool,
+              fst (check_scoped_block env span body None false) ))
           branches
       in
       T.mk TVoid (T.TIf (tbranches, None))
