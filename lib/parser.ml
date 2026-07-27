@@ -16,6 +16,7 @@ type state = {
   diags : Diagnostic.sink;
   mutable no_struct_lit : bool;
   mutable prev_end : int;
+  mutable recovered : bool;
 }
 
 type chain = Comparison | Range
@@ -149,6 +150,48 @@ let make_span st lo hi = Span.make st.tok_span.file lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
 let mkt lo st tdesc = { tdesc; span = make_span st lo st.prev_end }
 
+let recovery_span (st : state) (d : Diagnostic.t) : span =
+  Option.value d.Diagnostic.primary ~default:(cur_span st)
+
+let error_expr (st : state) (d : Diagnostic.t) : expr =
+  { desc = ErrorExpr; span = recovery_span st d }
+
+let error_typ (st : state) (d : Diagnostic.t) : typ =
+  { tdesc = ErrorType; span = recovery_span st d }
+
+let rec sync_to_depth_token (st : state) (depth : int) (line : int)
+    (stops : token list) : unit =
+  if
+    st.tok = EOF
+    || st.tok_depth = depth
+       && (List.mem st.tok stops || st.tok = SEMI || st.tok = RBRACE)
+    || st.tok_depth = depth && st.tok_line > line
+       && if depth = 0 then is_item_start st.tok else is_stmt_start st.tok
+  then ()
+  else (
+    advance st;
+    sync_to_depth_token st depth line stops)
+
+let recover_expr_to (st : state) (depth : int) (stops : token list)
+    (parse : unit -> expr) : expr =
+  let line = st.tok_line in
+  try parse ()
+  with ParseError d ->
+    Diagnostic.emit st.diags d;
+    sync_to_depth_token st depth line stops;
+    st.recovered <- true;
+    error_expr st d
+
+let recover_typ_to (st : state) (depth : int) (stops : token list)
+    (parse : unit -> typ) : typ =
+  let line = st.tok_line in
+  try parse ()
+  with ParseError d ->
+    Diagnostic.emit st.diags d;
+    sync_to_depth_token st depth line stops;
+    st.recovered <- true;
+    error_typ st d
+
 let expect_field_sep st =
   (match st.tok with
   | COMMA -> advance st
@@ -272,10 +315,14 @@ and parse_modifiers st =
 (* x: i32 *)
 and parse_fields st =
   let fields = ref [] in
+  let depth = st.tok_depth in
   while st.tok <> RBRACE do
     let name, nspan = expect_ident_span st in
-    expect st COLON;
-    let t = parse_typ st in
+    let t =
+      recover_typ_to st depth [ COMMA ] (fun () ->
+          expect st COLON;
+          parse_typ st)
+    in
     fields :=
       ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
     expect_field_sep st
@@ -297,13 +344,17 @@ and parse_struct st mods =
 (* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
 and parse_params st =
   expect st LPAREN;
+  let depth = st.tok_depth in
   let params = ref [] in
   let variadic = ref false in
   let parse_one () =
     let lo = cur_pos st in
     let name = expect_ident st in
-    expect st COLON;
-    let t = parse_typ st in
+    let t =
+      recover_typ_to st depth [ COMMA; RPAREN ] (fun () ->
+          expect st COLON;
+          parse_typ st)
+    in
     let hi = st.prev_end in
     ({ name; typ = t; span = make_span st lo hi } : param)
   in
@@ -326,7 +377,9 @@ and parse_params st =
 and parse_ret_type st =
   match st.tok with
   | LBRACE | SEMI | EOF | ASSIGN -> None
-  | _ -> Some (parse_typ st)
+  | _ ->
+      let depth = st.tok_depth in
+      Some (recover_typ_to st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st))
 
 (* Postfix binds tighter than infix so a.b + c means (a.b) + c *)
 
@@ -533,6 +586,7 @@ and parse_simple_stmt st =
   match st.tok with
   (* let x: i32 = 42 / const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
   | (LET | COMPTIME | VAR) as tok ->
+      let depth = st.tok_depth in
       advance st;
       let kind =
         match tok with
@@ -545,17 +599,17 @@ and parse_simple_stmt st =
       let ann =
         if at st COLON then (
           advance st;
-          Some (parse_typ st))
+          Some (recover_typ_to st depth [ ASSIGN ] (fun () -> parse_typ st)))
         else None
       in
       (* Only var may omit the value *)
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (parse_value st))
+          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
         else if at st ASSIGN then (
           advance st;
-          Some (parse_value st))
+          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
@@ -607,12 +661,16 @@ and parse_stmts st =
     try
       let s = parse_stmt st in
       stmts := s :: !stmts;
-      if st.tok = SEMI then skip_semi st
+      if st.recovered then (
+        st.recovered <- false;
+        skip_semi st)
+      else if st.tok = SEMI then skip_semi st
       else if st.tok <> RBRACE && st.tok <> EOF then
         fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;
       sync_to_stmt st depth line false;
+      stmts := error_expr st d :: !stmts;
       skip_semi st
   done;
   List.rev !stmts
@@ -717,17 +775,21 @@ let parse_func st mods =
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st =
   let lo = cur_pos st in
+  let depth = st.tok_depth in
   let kind =
     match st.tok with LET -> Ast.Let | COMPTIME -> Ast.Comptime | _ -> Ast.Var
   in
   advance st;
   let name = expect_ident st in
-  expect st COLON;
-  let typ = parse_typ st in
+  let typ =
+    recover_typ_to st depth [ ASSIGN ] (fun () ->
+        expect st COLON;
+        parse_typ st)
+  in
   let init =
     if at st ASSIGN then (
       advance st;
-      Some (parse_expr st 1))
+      Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
     else None
   in
   let hi = st.prev_end in
@@ -736,22 +798,30 @@ let parse_global st =
 (* type binop = (i32, i32) i32 *)
 let parse_type_alias st =
   let lo = cur_pos st in
+  let depth = st.tok_depth in
   advance st;
   (* TYPE *)
   let name = expect_ident st in
-  expect st ASSIGN;
-  let typ = parse_typ st in
+  let typ =
+    recover_typ_to st depth [] (fun () ->
+        expect st ASSIGN;
+        parse_typ st)
+  in
   let hi = st.prev_end in
   Ast.TypeAlias { name; typ; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
 let parse_newtype st =
   let lo = cur_pos st in
+  let depth = st.tok_depth in
   advance st;
   (* NEWTYPE *)
   let name = expect_ident st in
-  expect st ASSIGN;
-  let typ = parse_typ st in
+  let typ =
+    recover_typ_to st depth [] (fun () ->
+        expect st ASSIGN;
+        parse_typ st)
+  in
   let hi = st.prev_end in
   Ast.Newtype { name; typ; span = make_span st lo hi }
 
@@ -813,7 +883,10 @@ let parse_module st =
     try
       if st.tok = IMPORT then imports := parse_import st :: !imports
       else decls := parse_decl st :: !decls;
-      if st.tok = SEMI then skip_semi st
+      if st.recovered then (
+        st.recovered <- false;
+        skip_semi st)
+      else if st.tok = SEMI then skip_semi st
       else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;
@@ -871,6 +944,7 @@ let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
       diags;
       no_struct_lit = false;
       prev_end = 0;
+      recovered = false;
     }
   in
   advance st;
