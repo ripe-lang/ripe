@@ -92,6 +92,13 @@ let is_stmt_start (tok : token) : bool =
       true
   | _ -> false
 
+let is_item_start (tok : token) : bool =
+  match tok with
+  | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT | LET
+  | COMPTIME | VAR ->
+      true
+  | _ -> false
+
 let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
     : unit =
   match st.tok with
@@ -789,13 +796,6 @@ let parse_import st =
   done;
   let hi = st.prev_end in
   { path = List.rev !path; span = make_span st lo hi }
-
-let is_item_start (tok : token) : bool =
-  match tok with
-  | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT | LET
-  | COMPTIME | VAR ->
-      true
-  | _ -> false
 
 let rec sync_to_item (st : state) : unit =
   match st.tok with
