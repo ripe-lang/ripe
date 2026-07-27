@@ -1,7 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 open Ast
-open Diagnostic
 
 type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
@@ -213,7 +212,8 @@ let resolve_func (st : state) (fd : func_def) : unit =
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
 
-let resolve ~(module_id : Symbol.module_id) (decls : decl list) : t =
+let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
+    (decls : decl list) : t =
   let st =
     {
       out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };

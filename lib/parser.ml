@@ -930,9 +930,9 @@ let replay_of (tokens : token_info array) =
     if !idx < last then incr idx;
     pair
 
-let parse (read : Lexing.lexbuf -> Tokens.token * Ast.span)
-    (lexbuf : Lexing.lexbuf) : Ast.module_ =
-  let diags = Diagnostic.sink () in
+let parse ~(diags : Diagnostic.sink)
+    (read : Lexing.lexbuf -> Tokens.token * Ast.span) (lexbuf : Lexing.lexbuf) :
+    Ast.module_ =
   let tokens = tokenize_all read lexbuf diags in
   let st =
     {
