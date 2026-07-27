@@ -524,7 +524,7 @@ and parse_header_expr st = with_struct_lit st true (fun () -> parse_expr st 1)
 and parse_simple_stmt st =
   let lo = cur_pos st in
   match st.tok with
-  (* let x: i32 = 42 / const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
+  (* let x: i32 = 42 / comptime N: i32 = 4 / var x: i32 / var x = 42 / var x *)
   | (LET | COMPTIME | VAR) as tok ->
       advance st;
       let kind =
