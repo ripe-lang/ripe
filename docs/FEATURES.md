@@ -103,6 +103,19 @@ func main() i32 {
 }
 ```
 
+### Opaque pointers
+
+```ripe
+extern func malloc(size: usize) *opaque
+extern func free(ptr: *opaque)
+
+func main() i32 {
+  var p: *opaque = malloc(64)
+  free(p)
+  return 0
+}
+```
+
 ### Fixed arrays
 
 ```ripe
