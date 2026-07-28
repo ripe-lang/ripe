@@ -543,7 +543,7 @@ and parse_primary st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
-  | ELSE | ELSEIF ->
+  | ELSE ->
       raise
         (ParseError
            (Diagnostic.error
@@ -686,7 +686,7 @@ and parse_stmt st =
       mk lo st (Block body)
   | _ -> parse_simple_stmt st
 
-(* if x < 0 { return lo } elseif x > 0 { 1 } else { 0 } *)
+(* if x < 0 { return lo } else if x > 0 { 1 } else { 0 } *)
 and parse_if st =
   let lo = cur_pos st in
   advance st;
@@ -694,29 +694,21 @@ and parse_if st =
   let cond = parse_header_expr st in
   let body = parse_block st in
   let rec parse_elseifs acc =
-    if st.tok = ELSEIF then begin
-      advance st;
-      let c = parse_header_expr st in
-      let b = parse_block st in
-      parse_elseifs ((c, b) :: acc)
-    end
-    else List.rev acc
-  in
-  let elseifs = parse_elseifs [] in
-  let else_body =
     if st.tok = ELSE then begin
       advance st;
-      if st.tok = IF then
-        raise
-          (ParseError
-             (Diagnostic.error "expected block after else"
-             |> Diagnostic.at (cur_span st)
-             |> Diagnostic.label "found if"
-             |> Diagnostic.help "the keyword is elseif, one word"));
-      Some (parse_block st)
+      (* ELSE *)
+      if st.tok = IF then begin
+        advance st;
+        (* IF *)
+        let c = parse_header_expr st in
+        let b = parse_block st in
+        parse_elseifs ((c, b) :: acc)
+      end
+      else (List.rev acc, Some (parse_block st))
     end
-    else None
+    else (List.rev acc, None)
   in
+  let elseifs, else_body = parse_elseifs [] in
   mk lo st (If ((cond, body) :: elseifs, else_body))
 
 (* while i < len { } *)
