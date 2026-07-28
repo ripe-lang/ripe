@@ -41,7 +41,6 @@ type token =
   | VAR
   | RETURN
   | IF
-  | ELSEIF
   | ELSE
   | WHILE
   | FOR
@@ -86,7 +85,6 @@ let keywords =
     ("var", VAR);
     ("return", RETURN);
     ("if", IF);
-    ("elseif", ELSEIF);
     ("else", ELSE);
     ("while", WHILE);
     ("for", FOR);
@@ -163,7 +161,7 @@ let show_token = function
   | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | ( LET | COMPTIME | VAR | RETURN | IF | ELSEIF | ELSE | WHILE | FOR | IN
-    | TRUE | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT
-    | INLINE | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT ) as t ->
+  | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE
+    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
+    | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)

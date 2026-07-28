@@ -1935,7 +1935,7 @@ let%expect_test "codegen: if where all paths return" =
   run_codegen
     {|
 func sign(n: i32) i32 {
-  if n < 0 { return -1 } elseif n > 0 { return 1 } else { return 0 }
+  if n < 0 { return -1 } else if n > 0 { return 1 } else { return 0 }
 }
 |};
   [%expect
@@ -3634,11 +3634,11 @@ let%expect_test "codegen: cast float to int" =
     }
     |}]
 
-let%expect_test "codegen: elseif chain" =
+let%expect_test "codegen: else if chain" =
   run_codegen
     {|
 func f(x: i32) i32 {
-  if x < 0 { return 0 } elseif x == 0 { return 1 } else { return 2 }
+  if x < 0 { return 0 } else if x == 0 { return 1 } else { return 2 }
 }
 |};
   [%expect
