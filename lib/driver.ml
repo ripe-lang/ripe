@@ -88,17 +88,16 @@ let check_has_main diags tdecls =
 let load filename =
   if not (Sys.file_exists filename) then
     die (Printf.sprintf "no such file %s" filename);
-  let abs_filename = Unix.realpath filename in
   let src = read_file filename in
   if not (String.is_valid_utf_8 src) then
     die (Printf.sprintf "%s: not valid UTF-8" filename);
   let lexbuf = Lexing.from_string src in
-  Lexing.set_filename lexbuf abs_filename;
+  Lexing.set_filename lexbuf filename;
   let read = Lexer.read (Lexer.make_state 0) in
   let ctx =
     {
       Diagnostic.sm = Source_map.create src;
-      filename = abs_filename;
+      filename;
       color = Unix.isatty Unix.stderr;
     }
   in
