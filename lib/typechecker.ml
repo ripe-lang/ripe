@@ -151,14 +151,14 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       emit env
         Diagnostic.(
           error "never is only valid as a function return type"
-          |> at t.span
+          |> at t.tspan
           |> help "a value of type never cannot exist");
       TError
   | Named "opaque" ->
       emit env
         Diagnostic.(
           error "opaque is only valid as a pointee"
-          |> at t.span
+          |> at t.tspan
           |> help "use *opaque for an untyped pointer");
       TError
   | Named name -> (
@@ -170,9 +170,9 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           | Some (DNewtype base) -> TNewtype (name, base)
           | Some (DAlias aliased) -> TAlias (name, aliased)
           | None -> (
-              match Resolve.sym_at_opt env.uses t.span with
+              match Resolve.sym_at_opt env.uses t.tspan with
               | Some { Symbol.kind = Symbol.Error; _ } -> TError
-              | _ -> Error.ice ~span:t.span "type name escaped the resolver")))
+              | _ -> Error.ice ~span:t.tspan "type name escaped the resolver")))
   | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> (
@@ -1292,7 +1292,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* Main always returns a 32 bit integer so any other type the user writes is
      rejected *)
   if fd.name = "main" && ret_ty <> TError && ret_ty <> TInt I32 then begin
-    let span = match fd.ret with Some t -> t.span | None -> fd.span in
+    let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
     emit env
       (Error.type_mismatch span ~expected:(show_ty (TInt I32))
          ~found:(show_ty ret_ty))

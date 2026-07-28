@@ -869,16 +869,9 @@ let%expect_test "parse: if condition is not a struct literal" =
   run_src "func f(x: bool) i32 {\n  if x { return 1 }\n  return 0\n}";
   [%expect {| ok |}]
 
-let%expect_test "parse: else if hints elseif" =
+let%expect_test "parse: else if parses" =
   run_src "func f(x: bool) { if x {} else if x {} }";
-  [%expect
-    {|
-    error: expected block after else
-      at <test>:1:32
-        func f(x: bool) { if x {} else if x {} }
-                                       ^~ found if
-    help: the keyword is elseif, one word
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: dangling else has no matching if" =
   run_src "func f() i32 {\n  { if 1 > 0 { 1 } }\n  else { 2 }\n}";
@@ -1057,11 +1050,11 @@ let%expect_test "parse: multiple parameters" =
   run_src "func f(a: i32, b: i32, c: i32) i32 { return a + b + c }";
   [%expect {| ok |}]
 
-let%expect_test "parse: elseif chain with else" =
+let%expect_test "parse: else if chain with else" =
   run_src
     {|
 func f(x: i32) i32 {
-  if x < 0 { return 0 } elseif x == 0 { return 1 } elseif x < 10 { return 2 } else { return 3 }
+  if x < 0 { return 0 } else if x == 0 { return 1 } else if x < 10 { return 2 } else { return 3 }
 }
 |};
   [%expect {| ok |}]
@@ -1214,8 +1207,8 @@ let%expect_test "parse: value if binding shape" =
   parse_expr "if c { 1 } else { 2 }";
   [%expect {| (if (c (block 1)) (block 2)) |}]
 
-let%expect_test "parse: elseif chain shape" =
-  parse_expr "if a { 1 } elseif b { 2 } else { 3 }";
+let%expect_test "parse: else if chain shape" =
+  parse_expr "if a { 1 } else if b { 2 } else { 3 }";
   [%expect {| (if (a (block 1)) (b (block 2)) (block 3)) |}]
 
 let%expect_test "parse: block with a tail value" =

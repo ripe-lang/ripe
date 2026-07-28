@@ -148,7 +148,7 @@ let comma_sep st stop parse_one =
 
 let make_span st lo hi = Span.make st.tok_span.file lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
-let mkt lo st tdesc = { tdesc; span = make_span st lo st.prev_end }
+let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
 let recovery_span (st : state) (d : Diagnostic.t) : span =
   Option.value d.Diagnostic.primary ~default:(cur_span st)
@@ -157,7 +157,7 @@ let error_expr (st : state) (d : Diagnostic.t) : expr =
   { desc = ErrorExpr; span = recovery_span st d }
 
 let error_typ (st : state) (d : Diagnostic.t) : typ =
-  { tdesc = ErrorType; span = recovery_span st d }
+  { tdesc = ErrorType; tspan = recovery_span st d }
 
 let rec sync_to_depth_token (st : state) (depth : int) (line : int)
     (stops : token list) : unit =
@@ -543,7 +543,7 @@ and parse_primary st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
-  | ELSE | ELSEIF ->
+  | ELSE ->
       raise
         (ParseError
            (Diagnostic.error
@@ -686,7 +686,7 @@ and parse_stmt st =
       mk lo st (Block body)
   | _ -> parse_simple_stmt st
 
-(* if x < 0 { return lo } elseif x > 0 { 1 } else { 0 } *)
+(* if x < 0 { return lo } else if x > 0 { 1 } else { 0 } *)
 and parse_if st =
   let lo = cur_pos st in
   advance st;
@@ -694,29 +694,21 @@ and parse_if st =
   let cond = parse_header_expr st in
   let body = parse_block st in
   let rec parse_elseifs acc =
-    if st.tok = ELSEIF then begin
-      advance st;
-      let c = parse_header_expr st in
-      let b = parse_block st in
-      parse_elseifs ((c, b) :: acc)
-    end
-    else List.rev acc
-  in
-  let elseifs = parse_elseifs [] in
-  let else_body =
     if st.tok = ELSE then begin
       advance st;
-      if st.tok = IF then
-        raise
-          (ParseError
-             (Diagnostic.error "expected block after else"
-             |> Diagnostic.at (cur_span st)
-             |> Diagnostic.label "found if"
-             |> Diagnostic.help "the keyword is elseif, one word"));
-      Some (parse_block st)
+      (* ELSE *)
+      if st.tok = IF then begin
+        advance st;
+        (* IF *)
+        let c = parse_header_expr st in
+        let b = parse_block st in
+        parse_elseifs ((c, b) :: acc)
+      end
+      else (List.rev acc, Some (parse_block st))
     end
-    else None
+    else (List.rev acc, None)
   in
+  let elseifs, else_body = parse_elseifs [] in
   mk lo st (If ((cond, body) :: elseifs, else_body))
 
 (* while i < len { } *)

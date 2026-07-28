@@ -146,6 +146,19 @@ func main() i32 {
 }
 ```
 
+### Opaque pointers
+
+```ripe
+extern func malloc(size: usize) *opaque
+extern func free(ptr: *opaque)
+
+func main() i32 {
+  var p: *opaque = malloc(64)
+  free(p)
+  return 0
+}
+```
+
 ### Fixed arrays
 
 ```ripe
@@ -250,13 +263,17 @@ func main() i32 {
 
 ## Control flow
 
-### if, elseif, else
+### if, else if, else
 
 ```ripe
 func classify(x: i32) i32 {
-  if x < 0 { return 0 }
-  elseif x == 0 { return 1 }
-  else { return 2 }
+  if x < 0 {
+    return 0
+  } else if x == 0 {
+    return 1
+  } else {
+    return 2
+  }
 }
 ```
 
