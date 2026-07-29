@@ -144,33 +144,43 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   | None -> ());
   Buffer.add_char buf '\n'
 
-(* This prints the headline then the primary block then each secondary label *)
-let render_one ctx buf d =
-  Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
-  Buffer.add_string buf ": ";
-  Buffer.add_string buf d.headline;
-  Buffer.add_char buf '\n';
-  (match d.primary with
-  | Some span ->
-      render_location ctx buf span;
-      render_snippet ctx buf span d.primary_label d.severity
-  | None -> ());
-  List.iter
-    (fun (l : span_label) ->
-      render_location ctx buf l.span;
-      render_snippet ctx buf l.span (Some l.message) Note)
-    d.labels
-
-let render ctx d =
+let render_with (context_for_file : Span.file_id -> ctx) (default_ctx : ctx)
+    (d : t) : string =
   let buf = Buffer.create 256 in
-  render_one ctx buf d;
-  (match d.detail with Some s -> Buffer.add_string buf s | None -> ());
-  List.iter (render_one ctx buf) d.notes;
+  let render_one_with d =
+    let ctx =
+      match d.primary with
+      | Some span -> context_for_file span.Ast.file
+      | None -> default_ctx
+    in
+    Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
+    Buffer.add_string buf ": ";
+    Buffer.add_string buf d.headline;
+    Buffer.add_char buf '\n';
+    (match d.primary with
+    | Some span ->
+        render_location ctx buf span;
+        render_snippet ctx buf span d.primary_label d.severity
+    | None -> ());
+    List.iter
+      (fun (label : span_label) ->
+        let label_ctx = context_for_file label.span.file in
+        render_location label_ctx buf label.span;
+        render_snippet label_ctx buf label.span (Some label.message) Note)
+      d.labels
+  in
+  render_one_with d;
+  (match d.detail with
+  | Some detail -> Buffer.add_string buf detail
+  | None -> ());
+  List.iter render_one_with d.notes;
   (match d.suggestion with
-  | Some s ->
-      Buffer.add_string buf (colored ctx Help (severity_word Help));
+  | Some suggestion ->
+      Buffer.add_string buf (colored default_ctx Help (severity_word Help));
       Buffer.add_string buf ": ";
-      Buffer.add_string buf s;
+      Buffer.add_string buf suggestion;
       Buffer.add_char buf '\n'
   | None -> ());
   Buffer.contents buf
+
+let render (ctx : ctx) (d : t) : string = render_with (fun _ -> ctx) ctx d
