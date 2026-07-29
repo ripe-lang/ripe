@@ -148,7 +148,11 @@ let compile ~stage ~backend ~out ~filename =
     render_and_exit_if_failed ();
     let cdecls = Lower.lower tdecls in
     stop_at Core (fun () -> output_text (show_cdecls cdecls));
-    let il = match backend with Backend.Qbe -> Codegen_qbe.emit_qbe cdecls in
+    let il =
+      match backend with
+      | Backend.Qbe ->
+          Codegen_qbe.emit_qbe ~sm:ctx.Diagnostic.sm ~filename cdecls
+    in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
     output_binary il
