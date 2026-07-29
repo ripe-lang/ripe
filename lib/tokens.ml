@@ -97,7 +97,7 @@ let keywords =
     ("null", NULL);
     ("extern", EXTERN);
     ("struct", STRUCT);
-    ("public", PUBLIC);
+    ("pub", PUBLIC);
     ("func", FUNC);
     ("type", TYPE);
     ("newtype", NEWTYPE);

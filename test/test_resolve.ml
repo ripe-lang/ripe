@@ -368,9 +368,9 @@ let%expect_test "resolve: symbols from different modules are distinct" =
 let%expect_test "resolve: declarations carry visibility" =
   dump_decl_visibilities
     {|
-public func api() {}
+pub func api() {}
 func helper() {}
-public struct point {}
+pub struct point {}
 struct secret {}
 |};
   [%expect
