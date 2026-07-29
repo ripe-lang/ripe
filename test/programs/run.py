@@ -63,7 +63,9 @@ def check_one(ripec, testdir, workdir):
             want = f.read()
         if compile.returncode == 0:
             return "compiled clean", "expected a compile error, got none\n"
-        actual = compile.stdout + compile.stderr
+        actual = (compile.stdout + compile.stderr).replace(
+            os.path.realpath(testdir) + os.sep, ""
+        )
         if actual == want:
             return "ok", ""
         return "mismatch", diff(want, actual, "compilererr.txt")
