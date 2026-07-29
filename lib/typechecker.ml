@@ -1187,7 +1187,8 @@ let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
     =
   match existing_type_kind env name with
   | Some kind ->
-      emit env (Error.named span ("already defined as " ^ kind) name);
+      if List.mem_assoc name builtin_tys then
+        emit env (Error.named span ("already defined as " ^ kind) name);
       true
   | None -> false
 
