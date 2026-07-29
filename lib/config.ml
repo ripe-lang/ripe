@@ -2,6 +2,7 @@
 
 let qbe : string = match Sys.getenv_opt "QBE" with Some p -> p | None -> "qbe"
 
+(* Test *)
 (* An installed compiler finds the object through its dune install site *)
 let runtime_in_sites () : string list =
   List.map (fun dir -> Filename.concat dir "panic.o") Ripe_sites.Sites.runtime
