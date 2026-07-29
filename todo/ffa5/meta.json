@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-29 16:40:30.830033",
+  "depends": [],
+  "id": "ffa5",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [],
+  "title": "provide struct literal values positionally point { 5, 0 }",
+  "updated_at": "2026-07-29 16:40:30.830053"
+}
