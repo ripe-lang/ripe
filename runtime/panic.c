@@ -6,6 +6,8 @@
 #define PANIC_RED "\033[1;31m"
 #define PANIC_RESET "\033[0m"
 
+#define PANIC_EXIT 79
+
 struct ripe_site {
     unsigned int file;
     unsigned int line;
@@ -36,7 +38,7 @@ static _Noreturn void report(unsigned int site, const char *fmt, ...) {
             s->col);
     fprintf(stderr, "  in %s\n", &ripe_panic_strtab[s->func]);
 
-    abort();
+    exit(PANIC_EXIT);
 }
 
 _Noreturn void ripe_panic(unsigned int site, const char *msg) {
