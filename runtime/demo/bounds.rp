@@ -1,0 +1,9 @@
+func read_value(a: []i32, i: i64) i32 {
+  return a[i]
+}
+
+func main() i32 {
+  var v: [2]i32 = [1, 2]
+  var s: []i32 = v[0..2]
+  return read_value(s, 5)
+}

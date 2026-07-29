@@ -1,0 +1,8 @@
+func divide_total(total: i32, count: i32) i32 {
+  return total / count
+}
+
+func main() i32 {
+  var count: i32 = 0
+  return divide_total(20, count)
+}

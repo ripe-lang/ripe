@@ -1,0 +1,8 @@
+func load_point(p: *i32) i32 {
+  return *p
+}
+
+func main() i32 {
+  var p: *i32 = null
+  return load_point(p)
+}

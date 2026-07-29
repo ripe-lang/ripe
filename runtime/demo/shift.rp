@@ -1,0 +1,8 @@
+func shift_left(v: i32, n: i32) i32 {
+  return v << n
+}
+
+func main() i32 {
+  var n: i32 = -1
+  return shift_left(1, n)
+}

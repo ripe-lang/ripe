@@ -1,0 +1,8 @@
+func narrow(v: i32) u8 {
+  return v as! u8
+}
+
+func main() i32 {
+  var big: i32 = 300
+  return narrow(big) as i32
+}
