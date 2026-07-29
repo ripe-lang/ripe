@@ -1,0 +1,16 @@
+name: Build and test
+description: Install deps, build, and run the test suite
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: opam install . --deps-only --locked --yes
+    - shell: bash
+      run: opam exec -- dune build
+    - shell: bash
+      run: make -C vendor/qbe
+    - shell: bash
+      run: opam exec -- dune runtest
+      env:
+        QBE: ${{ github.workspace }}/vendor/qbe/qbe
