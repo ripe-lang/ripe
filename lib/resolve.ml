@@ -88,8 +88,12 @@ let declare_global (st : state) kind visibility name span : unit =
       Hashtbl.replace st.globals name sym
 
 let declare_type (st : state) visibility name span : unit =
-  if not (Hashtbl.mem st.types name) then
-    Hashtbl.replace st.types name (mint ~visibility st Symbol.Type name span)
+  match Hashtbl.find_opt st.types name with
+  | Some prev ->
+      Diagnostic.emit st.diags
+        (Error.redefinition span ~prev:prev.Symbol.span name)
+  | None ->
+      Hashtbl.replace st.types name (mint ~visibility st Symbol.Type name span)
 
 let use_type (st : state) name span : unit =
   if not (List.mem_assoc name Types.builtin_tys) then

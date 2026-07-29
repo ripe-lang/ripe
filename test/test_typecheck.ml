@@ -3159,10 +3159,13 @@ struct Foo { x: i32 }
 |};
   [%expect
     {|
-    error: already defined as an alias: Foo
+    error: already defined: Foo
       at <test>:3:1
         struct Foo { x: i32 }
         ^~~~~~~~~~~~~~~~~~~~~
+      at <test>:2:1
+        type Foo = i32
+        ^~~~~~~~~~~~~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type alias name collides with a newtype" =
@@ -3172,10 +3175,13 @@ type Foo = i64
 |};
   [%expect
     {|
-    error: already defined as a newtype: Foo
+    error: already defined: Foo
       at <test>:3:1
         type Foo = i64
         ^~~~~~~~~~~~~~
+      at <test>:2:1
+        newtype Foo = i32
+        ^~~~~~~~~~~~~~~~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type name cannot shadow a builtin" =
