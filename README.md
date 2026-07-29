@@ -13,28 +13,6 @@ A systems programming language.
 > [!WARNING]
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
-## Installation
-
-### Debian
-
-```sh
-sudo apt install opam qbe
-```
-
-### Build
-
-```sh
-opam init
-opam install . --deps-only
-```
-
-## Usage
-
-```
-dune build
-dune exec ripec -- <file.rp>
-```
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
