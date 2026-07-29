@@ -2335,12 +2335,6 @@ func f() { var x: i32 = g() }
                                 ^~~ expected i32, found void
     |}]
 
-let%expect_test "typecheck: modifiers public inline typecheck ok" =
-  run_src {|
-public inline func f() i32 { return 1 }
-|};
-  [%expect {| ok |}]
-
 let%expect_test "typecheck: struct field whose type is another struct" =
   run_src
     {|

@@ -242,12 +242,6 @@ func main() i32 {
 }
 ```
 
-### Inline functions
-
-```ripe
-inline func lerp(a: f32, b: f32, t: f32) f32 { return a }
-```
-
 ## Globals
 
 ```ripe

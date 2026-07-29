@@ -83,7 +83,7 @@ let show_unop_sym = function
 type binding_kind = Var | Let | Comptime
 [@@deriving show { with_path = false }]
 
-type modifier = Pub | Inline [@@deriving show { with_path = false }]
+type modifier = Pub [@@deriving show { with_path = false }]
 type cast_kind = Normal | Checked [@@deriving show { with_path = false }]
 
 let show_cast_op = function Normal -> "as" | Checked -> "as!"

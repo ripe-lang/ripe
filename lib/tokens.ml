@@ -49,7 +49,6 @@ type token =
   | CONTINUE
   | STRUCT
   | EXTERN
-  | INLINE
   | PUBLIC
   | FUNC
   | CARET
@@ -98,7 +97,6 @@ let keywords =
     ("null", NULL);
     ("extern", EXTERN);
     ("struct", STRUCT);
-    ("inline", INLINE);
     ("public", PUBLIC);
     ("func", FUNC);
     ("type", TYPE);
@@ -162,6 +160,6 @@ let show_token = function
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE
-    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | INLINE
-    | PUBLIC | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT ) as t ->
+    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC
+    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)

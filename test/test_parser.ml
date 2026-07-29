@@ -806,7 +806,7 @@ let%expect_test "parse: line tracking after multiline string" =
     |}]
 
 let%expect_test "parse: modifiers on func" =
-  run_src "public inline func f() {}";
+  run_src "public func f() {}";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifier before non-func decl" =
