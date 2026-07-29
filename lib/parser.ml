@@ -95,8 +95,8 @@ let is_stmt_start (tok : token) : bool =
 
 let is_item_start (tok : token) : bool =
   match tok with
-  | FUNC | EXTERN | STRUCT | INLINE | PUBLIC | TYPE | NEWTYPE | IMPORT | LET
-  | COMPTIME | VAR ->
+  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | NEWTYPE | IMPORT | LET | COMPTIME
+  | VAR ->
       true
   | _ -> false
 
@@ -302,9 +302,6 @@ let rec parse_typ st =
 and parse_modifiers st =
   let rec go acc =
     match st.tok with
-    | INLINE ->
-        advance st;
-        go (Ast.Inline :: acc)
     | PUBLIC ->
         advance st;
         go (Ast.Pub :: acc)
