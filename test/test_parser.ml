@@ -806,17 +806,17 @@ let%expect_test "parse: line tracking after multiline string" =
     |}]
 
 let%expect_test "parse: modifiers on func" =
-  run_src "public func f() {}";
+  run_src "pub func f() {}";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifier before non-func decl" =
-  run_src "public let X: i32 = 1";
+  run_src "pub let X: i32 = 1";
   [%expect
     {|
     error: expected declaration
-      at <test>:1:8
-        public let X: i32 = 1
-               ^~~ found let
+      at <test>:1:5
+        pub let X: i32 = 1
+            ^~~ found let
     |}]
 
 let%expect_test "parse: stray token at top level" =
