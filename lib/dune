@@ -13,6 +13,7 @@
   parser
   symbol
   qname
+  mangle
   types
   resolve
   ty_pred
