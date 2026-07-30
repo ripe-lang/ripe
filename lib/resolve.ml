@@ -36,6 +36,10 @@ let sym_at (r : t) (span : Ast.span) : Symbol.t =
 let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
   Hashtbl.find_opt r.syms span
 
+let qname_of (r : t) (s : Symbol.t) : Qname.t =
+  let path = Hashtbl.find r.module_paths s.Symbol.module_id in
+  Qname.make (Symbol.key s) path s.Symbol.name
+
 let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
     (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in

@@ -115,7 +115,7 @@ let qbe_store (t : ty) : string =
   | TError -> Error.ice "TError has no store instruction"
 
 type ctx = {
-  structs : (string, (string * ty) list) Hashtbl.t;
+  structs : (Symbol.key, (string * ty) list) Hashtbl.t;
   locals : (Symbol.id, string) Hashtbl.t;
   used_slots : (string, unit) Hashtbl.t;
   globals : (string, unit) Hashtbl.t;
@@ -644,7 +644,7 @@ and emit_field_addr ctx base field =
     | _ -> Error.ice ~span:base.T.span "field access on non-struct type"
   in
   let struct_name = peel base.T.ty in
-  let fields = Hashtbl.find ctx.structs struct_name in
+  let fields = Hashtbl.find ctx.structs (Qname.key struct_name) in
   let offset = field_offset ctx.structs fields field in
   offset_addr ctx addr offset
 
@@ -698,8 +698,8 @@ and emit_array_lit_into ctx base elems elem =
           emit ctx "    %s %s, %s\n" (qbe_store elem) v addr)
     elems
 
-and emit_struct_lit_into ctx base sname tfields =
-  let fields = Hashtbl.find ctx.structs sname in
+and emit_struct_lit_into ctx base (sname : Qname.t) tfields =
+  let fields = Hashtbl.find ctx.structs (Qname.key sname) in
   List.iter
     (fun (fname, (fe : T.cexpr)) ->
       let ft = fe.T.ty in
@@ -1194,7 +1194,7 @@ let rec qbe_ext_ty (t : ty) : string =
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
-  | TStruct (sn, _) -> ":" ^ sn
+  | TStruct (sn, _) -> ":" ^ Qname.show sn
   (* QBE repeats a field type so { w 3 } means three words *)
   | TArray (e, n) ->
       (* A QBE field cannot nest counts, so every dimension collapses into
@@ -1214,9 +1214,11 @@ let rec qbe_ext_ty (t : ty) : string =
   | TNever -> Error.ice "TNever has no extended type"
   | TError -> Error.ice "TError has no extended type"
 
-let emit_struct_type (ctx : ctx) (name : string) (fields : (string * ty) list) =
+let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : (string * ty) list)
+    =
   let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
-  emit ctx "type :%s = { %s }\n" name (String.concat ", " field_strs)
+  emit ctx "type :%s = { %s }\n" (Qname.show name)
+    (String.concat ", " field_strs)
 
 (* The typechecker already folded everything so this only formats values *)
 let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
@@ -1293,7 +1295,8 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   let structs = Hashtbl.create 8 in
   List.iter
     (function
-      | T.CStruct (name, fields, _) -> Hashtbl.replace structs name fields
+      | T.CStruct (name, fields, _) ->
+          Hashtbl.replace structs (Qname.key name) fields
       | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
