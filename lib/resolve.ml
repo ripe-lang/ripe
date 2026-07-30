@@ -10,6 +10,9 @@ type t = {
 type state = {
   out : t;
   module_id : Symbol.module_id;
+  module_path : string list;
+  qualify : bool;
+  is_root : bool;
   globals : (string, Symbol.t) Hashtbl.t;
   types : (string, Symbol.t) Hashtbl.t;
   mutable scopes : (string, Symbol.t) Hashtbl.t list;
@@ -40,16 +43,28 @@ let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
 
-let mint ?(visibility = Symbol.Private) (st : state) (kind : Symbol.kind)
-    (name : string) (span : Ast.span) : Symbol.t =
+(* An extern names a foreign symbol and the root main is what the system calls
+   so neither one can be renamed *)
+let declaration_link_name (st : state) (kind : Symbol.kind) (name : string) :
+    string =
+  if not st.qualify then name
+  else
+    match kind with
+    | Symbol.Extern -> name
+    | Symbol.Func when st.is_root && name = "main" -> name
+    | _ -> Mangle.declaration st.module_path name
+
+let mint ?(visibility = Symbol.Private) ?link_name (st : state)
+    (kind : Symbol.kind) (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
   st.next_id <- id + 1;
+  let link_name = Option.value ~default:name link_name in
   let sym =
     {
       Symbol.id;
       module_id = st.module_id;
       name;
-      link_name = name;
+      link_name;
       kind;
       visibility;
       span;
@@ -77,7 +92,8 @@ let declare_global (st : state) kind visibility name span : unit =
       Diagnostic.emit st.diags
         (Error.redefinition span ~prev:prev.Symbol.span name)
   | None ->
-      let sym = mint ~visibility st kind name span in
+      let link_name = declaration_link_name st kind name in
+      let sym = mint ~visibility ~link_name st kind name span in
       Hashtbl.replace st.globals name sym
 
 let declare_type (st : state) visibility name span : unit =
@@ -86,7 +102,9 @@ let declare_type (st : state) visibility name span : unit =
       Diagnostic.emit st.diags
         (Error.redefinition span ~prev:prev.Symbol.span name)
   | None ->
-      Hashtbl.replace st.types name (mint ~visibility st Symbol.Type name span)
+      let link_name = declaration_link_name st Symbol.Type name in
+      Hashtbl.replace st.types name
+        (mint ~visibility ~link_name st Symbol.Type name span)
 
 let use_type (st : state) name span : unit =
   if not (List.mem_assoc name Types.builtin_tys) then
@@ -223,6 +241,9 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
     {
       out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };
       module_id;
+      module_path = [];
+      qualify = false;
+      is_root = true;
       globals = Hashtbl.create 64;
       types = Hashtbl.create 64;
       scopes = [];

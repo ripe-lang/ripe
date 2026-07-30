@@ -166,7 +166,7 @@ let sym_addr ctx (s : Symbol.t) : string =
   match s.kind with
   | Symbol.Error ->
       Error.ice ~span:s.span "error symbol reached code generation"
-  | Global -> "$" ^ s.name
+  | Global -> "$" ^ s.link_name
   | Func | Extern | Type | Local _ | Param | ForVar -> (
       match local_slot ctx s.id with
       | Some slot -> "%" ^ slot
@@ -268,7 +268,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   (* Aggregate: the slot itself is the value so yield its address *)
   | T.CIdent s when is_aggregate t -> sym_addr ctx s
   | T.CIdent s ->
-      if Symbol.is_func s.kind then "$" ^ s.name
+      if Symbol.is_func s.kind then "$" ^ s.link_name
       else
         let tmp = fresh ctx in
         emit ctx "    %s =%s %s %s\n" tmp (qbe_ty t) (qbe_load t)
@@ -310,7 +310,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
          ptr *)
       let callee =
         match callee.T.desc with
-        | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.name
+        | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.link_name
         | _ -> emit_expr ctx callee
       in
       if ret_ty = TVoid || ret_ty = TNever then (
@@ -623,7 +623,7 @@ and emit_negshift_check ctx count count_qt =
 and emit_lvalue_addr ctx (e : T.cexpr) =
   match e.T.desc with
   (* &funcname is already the function pointer. *)
-  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.name
+  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.link_name
   | T.CIdent s -> sym_addr ctx s
   | T.CIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
   | T.CFieldAccess (base, field) -> emit_field_addr ctx base field
@@ -1227,11 +1227,11 @@ let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
   | T.CBool b -> if b then "1" else "0"
   | T.CNull -> "0"
   | T.CFloat f -> format_const_num te.T.ty (Nf f)
-  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.name
+  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.link_name
   | T.CCStr s -> intern_string ctx s
   | T.CUnOp (Ast.AddressOf, { T.desc = T.CIdent s; _ })
     when Symbol.is_global s.kind ->
-      "$" ^ s.name
+      "$" ^ s.link_name
   | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
 
 (* QBE data for a constant array looks like "w 1, w 2, w 3" *)
