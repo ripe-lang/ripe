@@ -120,6 +120,12 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
 
+(* What the linker calls this declaration was worked out once by the resolver *)
+let link_name_at (env : env) (span : Ast.span) (fallback : string) : string =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> symbol.Symbol.link_name
+  | None -> fallback
+
 let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs (key_at env span) with
   | Some s -> s
@@ -1427,7 +1433,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   in
 
   {
-    T.name = fd.name;
+    T.key = key_at env fd.span;
+    name = link_name_at env fd.span fd.name;
     params;
     ret_ty;
     body = tbody;
@@ -1497,7 +1504,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   in
   {
     T.key = key_at env gd.span;
-    name = gd.name;
+    name = link_name_at env gd.span gd.name;
     ty = t;
     init = tinit;
     kind = gd.kind;
