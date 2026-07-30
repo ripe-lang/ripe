@@ -60,6 +60,7 @@ type tfunc_def = {
 let tfunc_name (fd : tfunc_def) : string = fd.name
 
 type tglobal_def = {
+  key : Symbol.key;
   name : string;
   ty : ty;
   init : texpr option;

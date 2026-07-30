@@ -24,14 +24,14 @@ type gstate = {
 
 type env = {
   vars : (string * var_info) list list;
-  funcs : (string, func_sig) Hashtbl.t;
+  funcs : (Symbol.key, func_sig) Hashtbl.t;
   types : (string, type_def) Hashtbl.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need
      not rebuild them *)
   struct_fields : (string, (string * ty) list) Hashtbl.t;
-  globals : (string, ty * Ast.binding_kind) Hashtbl.t;
+  globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
-  g_state : (string, gstate) Hashtbl.t;
+  g_state : (Symbol.key, gstate) Hashtbl.t;
   l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
@@ -60,10 +60,6 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
 
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
-
-let symbol_name (env : env) (symbol : Symbol.t) : string =
-  Resolve.internal_name env.uses symbol
-
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
 let dummy_texpr = T.mk TError T.TErrorExpr
@@ -107,20 +103,30 @@ let lookup_var_opt (env : env) (name : string) : ty option =
   in
   search env.vars
 
+(* Nothing got resolved here so this key never matches a real entry *)
+let unresolved_key : Symbol.key = (-1, -1)
+
+(* Two declarations can go by the same name so the tables look things up by
+   which one it is and not what it's called *)
+let key_at (env : env) (span : Ast.span) : Symbol.key =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> Symbol.key symbol
+  | None -> unresolved_key
+
 let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
-  match Hashtbl.find_opt env.funcs name with
+  match Hashtbl.find_opt env.funcs (key_at env span) with
   | Some s -> s
   | None ->
       emit env (Error.undefined_name span "function" name);
       { param_tys = []; ret_ty = TVoid; variadic = false }
 
-let is_const_global (env : env) (name : string) : bool =
-  match Hashtbl.find_opt env.globals name with
+let is_const_global (env : env) (key : Symbol.key) : bool =
+  match Hashtbl.find_opt env.globals key with
   | Some (_, (Let | Comptime)) -> true
   | _ -> false
 
-let is_comptime_global (env : env) (name : string) : bool =
-  match Hashtbl.find_opt env.globals name with
+let is_comptime_global (env : env) (key : Symbol.key) : bool =
+  match Hashtbl.find_opt env.globals key with
   | Some (_, Comptime) -> true
   | _ -> false
 
@@ -191,12 +197,13 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
   match lookup_var_opt env name with
   | Some t -> t
   | None -> (
+      let key = key_at env span in
       (* Locals shadow globals shadow functions *)
-      match Hashtbl.find_opt env.globals name with
+      match Hashtbl.find_opt env.globals key with
       | Some (t, _) -> t
       | None -> (
           (* An array size may name a global not collected yet so type it now *)
-          match Hashtbl.find_opt env.g_state name with
+          match Hashtbl.find_opt env.g_state key with
           (* A global whose own size names it would loop forever *)
           | Some st when st.busy ->
               emit env (Error.named span "cyclic constant" name);
@@ -205,12 +212,12 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
               st.busy <- true;
               let t = ty_of_ast env st.def.typ in
               st.busy <- false;
-              Hashtbl.replace env.globals name (t, st.def.kind);
+              Hashtbl.replace env.globals key (t, st.def.kind);
               t
           | None -> (
               (* Fall back to function table so function names can be used as
                  values *)
-              match Hashtbl.find_opt env.funcs name with
+              match Hashtbl.find_opt env.funcs key with
               | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
               | None ->
                   emit env (Error.undefined_name span "variable" name);
@@ -825,7 +832,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
       | Some s
         when Symbol.is_immutable s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_const_global env (symbol_name env s) ->
+                && is_const_global env (Symbol.key s) ->
           emit env
             (Error.named l.span "cannot assign to immutable" s.Symbol.name)
       | _ -> ())
@@ -909,7 +916,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       | T.TIdent s
         when Symbol.is_comptime s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_comptime_global env (symbol_name env s) ->
+                && is_comptime_global env (Symbol.key s) ->
           emit env
             Diagnostic.(
               error ("cannot take address of a constant: " ^ s.Symbol.name)
@@ -1057,14 +1064,14 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
       match Hashtbl.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Hashtbl.mem env.g_state (symbol_name env s) ->
-      global_const_num env span (symbol_name env s)
+  | Symbol.Global when Hashtbl.mem env.g_state (Symbol.key s) ->
+      global_const_num env span (Symbol.key s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
-and global_const_num (env : env) (span : Ast.span) (name : string) :
+and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
     Const_eval.const_num =
   let st =
-    match Hashtbl.find_opt env.g_state name with
+    match Hashtbl.find_opt env.g_state key with
     | Some st -> st
     | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
   in
@@ -1072,9 +1079,10 @@ and global_const_num (env : env) (span : Ast.span) (name : string) :
   | Some v -> v
   | None ->
       if st.busy then
-        raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ]);
+        raise
+          (Diagnostic.Errors [ Error.named span "cyclic constant" st.def.name ]);
       let te =
-        match global_typed_init env span name with
+        match global_typed_init env span key with
         | te -> te
         (* A dummy lands on failure so the error reports only once *)
         | exception e ->
@@ -1098,9 +1106,10 @@ and global_const_num (env : env) (span : Ast.span) (name : string) :
       v
 
 (* Typing shares the busy flag so a self demand mid typing is a cycle *)
-and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
+and global_typed_init (env : env) (span : Ast.span) (key : Symbol.key) : T.texpr
+    =
   let st =
-    match Hashtbl.find_opt env.g_state name with
+    match Hashtbl.find_opt env.g_state key with
     | Some st -> st
     | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
   in
@@ -1108,7 +1117,8 @@ and global_typed_init (env : env) (span : Ast.span) (name : string) : T.texpr =
   | Some te -> te
   | None ->
       if st.busy then
-        raise (Diagnostic.Errors [ Error.named span "cyclic constant" name ]);
+        raise
+          (Diagnostic.Errors [ Error.named span "cyclic constant" st.def.name ]);
       let e, typ =
         match st.def with
         | { init = Some e; typ; _ } -> (e, typ)
@@ -1170,7 +1180,7 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
 let collect_func (env : env) (fd : func_def) : unit =
   let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
   let ret_ty = ret_ty_of env fd in
-  Hashtbl.replace env.funcs fd.name
+  Hashtbl.replace env.funcs (key_at env fd.span)
     { param_tys; ret_ty; variadic = fd.variadic }
 
 (* Every kind of type name shares one namespace *)
@@ -1325,7 +1335,7 @@ let collect_global (env : env) (gd : global_def) : unit =
      | Comptime ->
          emit env (Error.named gd.span "comptime without initializer" gd.name));
   let t = ty_of_ast env gd.typ in
-  Hashtbl.replace env.globals gd.name (t, gd.kind)
+  Hashtbl.replace env.globals (key_at env gd.span) (t, gd.kind)
 
 let fill_struct_fields_decl (env : env) (decl : decl) : unit =
   match decl with Struct sd -> resolve_struct_fields env sd | _ -> ()
@@ -1350,7 +1360,7 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* The collected signature is reused so a bad array size errors once *)
-  let collected = Hashtbl.find_opt env.funcs fd.name in
+  let collected = Hashtbl.find_opt env.funcs (key_at env fd.span) in
   let param_tys =
     match collected with
     | Some s when List.length s.param_tys = List.length fd.params -> s.param_tys
@@ -1418,7 +1428,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
-      Symbol.is_func s.Symbol.kind || is_const_global env (symbol_name env s)
+      Symbol.is_func s.Symbol.kind || is_const_global env (Symbol.key s)
   (* The address of a global is a link time constant *)
   | T.TUnOp (Ast.AddressOf, { T.desc = T.TIdent s; _ }) ->
       Symbol.is_global s.Symbol.kind
@@ -1442,7 +1452,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
   (* The collected type is reused so a bad array size errors once *)
   let t =
-    match Hashtbl.find_opt env.globals gd.name with
+    match Hashtbl.find_opt env.globals (key_at env gd.span) with
     | Some (t, _) -> t
     | None -> ty_of_ast env gd.typ
   in
@@ -1460,8 +1470,8 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te =
-          if Hashtbl.mem env.g_state gd.name then
-            global_typed_init env e.span gd.name
+          if Hashtbl.mem env.g_state (key_at env gd.span) then
+            global_typed_init env e.span (key_at env gd.span)
           else check env e t
         in
         if not (is_const_texpr env te) then (
@@ -1469,7 +1479,13 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           None)
         else Some te
   in
-  { T.name = gd.name; ty = t; init = tinit; kind = gd.kind }
+  {
+    T.key = key_at env gd.span;
+    name = gd.name;
+    ty = t;
+    init = tinit;
+    kind = gd.kind;
+  }
 
 let check_decl (env : env) (decl : decl) : T.tdecl =
   match decl with
@@ -1511,12 +1527,12 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
 
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)
-    ~force_const:(fun span name -> ignore (global_const_num env span name))
+    ~force_const:(fun span key -> ignore (global_const_num env span key))
     ~local_value:(fun symbol -> Hashtbl.find_opt env.l_vals (Symbol.key symbol))
     ~global_value:(fun symbol ->
-      let name = symbol_name env symbol in
-      if is_comptime_global env name then
-        match Hashtbl.find_opt env.g_state name with
+      let key = Symbol.key symbol in
+      if is_comptime_global env key then
+        match Hashtbl.find_opt env.g_state key with
         | Some { value = Some v; _ } -> Some v
         | _ -> None
       else None)
@@ -1530,7 +1546,7 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
   List.iter
     (function
       | Global ({ kind = Let | Comptime; _ } as gd) ->
-          Hashtbl.replace env.g_state gd.name
+          Hashtbl.replace env.g_state (key_at env gd.span)
             { def = gd; typed = None; value = None; busy = false }
       | _ -> ())
     decls;
