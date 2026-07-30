@@ -856,6 +856,14 @@ let parse_import st =
   let hi = st.prev_end in
   { path = List.rev !path; span = make_span st lo hi }
 
+(* module math *)
+let parse_module_header (st : state) : Ast.module_header =
+  let lo = cur_pos st in
+  advance st;
+  let name = expect_ident st in
+  let hi = st.prev_end in
+  { Ast.name; span = make_span st lo hi }
+
 let rec sync_to_item (st : state) : unit =
   match st.tok with
   | EOF -> ()
@@ -865,12 +873,22 @@ let rec sync_to_item (st : state) : unit =
       sync_to_item st
 
 let parse_module st =
+  let header = ref None in
   let imports = ref [] in
   let decls = ref [] in
   skip_semi st;
+  if st.tok = MODULE then (
+    try
+      header := Some (parse_module_header st);
+      if st.tok = SEMI then skip_semi st
+      else if st.tok <> EOF then fail_found st "expected `;`"
+    with ParseError d ->
+      Diagnostic.emit st.diags d;
+      sync_to_item st);
   while st.tok <> EOF do
     try
-      if st.tok = IMPORT then imports := parse_import st :: !imports
+      if st.tok = MODULE then fail st "`module` must be the first item"
+      else if st.tok = IMPORT then imports := parse_import st :: !imports
       else decls := parse_decl st :: !decls;
       if st.recovered then (
         st.recovered <- false;
@@ -881,7 +899,7 @@ let parse_module st =
       Diagnostic.emit st.diags d;
       sync_to_item st
   done;
-  { imports = List.rev !imports; decls = List.rev !decls }
+  { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
 (* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =

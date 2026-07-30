@@ -1347,3 +1347,25 @@ let%expect_test "parse: pair assignment rejects a third value" =
 let%expect_test "parse: regular assignment remains accepted" =
   run_src "func f(a: i32, b: i32) { a = b }";
   [%expect {| ok |}]
+
+let%expect_test "parse: a module header" =
+  let module_ = parse_module "module math\nfunc f() {}" in
+  (match module_.header with
+  | Some header -> print_endline header.Ripe.Ast.name
+  | None -> print_endline "<no header>");
+  [%expect {| math |}]
+
+let%expect_test "parse: a file without a module header" =
+  let module_ = parse_module "func f() {}" in
+  print_endline (match module_.header with Some _ -> "yes" | None -> "no");
+  [%expect {| no |}]
+
+let%expect_test "parse: module must come before anything else" =
+  run_parse "import io\nmodule math";
+  [%expect
+    {|
+    error: `module` must be the first item
+      at <test>:2:1
+        module math
+        ^~~~~~
+    |}]

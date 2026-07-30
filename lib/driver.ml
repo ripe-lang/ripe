@@ -55,12 +55,19 @@ let dump_tokens read lexbuf =
   Buffer.contents buf
 
 let show_module (module_ : Ast.module_) =
+  let header =
+    match module_.Ast.header with
+    | None -> []
+    | Some header -> [ "module " ^ header.Ast.name ]
+  in
   let imports =
     List.map
       (fun import -> "import " ^ String.concat "." import.Ast.path)
       module_.Ast.imports
   in
-  String.concat "\n" (imports @ List.map Ast.show_decl module_.Ast.decls) ^ "\n"
+  String.concat "\n"
+    (header @ imports @ List.map Ast.show_decl module_.Ast.decls)
+  ^ "\n"
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"

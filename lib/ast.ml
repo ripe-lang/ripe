@@ -191,5 +191,12 @@ type decl =
 type import = { path : string list; span : span }
 [@@deriving show { with_path = false }]
 
-type module_ = { imports : import list; decls : decl list }
+type module_header = { name : string; span : span }
+[@@deriving show { with_path = false }]
+
+type module_ = {
+  header : module_header option;
+  imports : import list;
+  decls : decl list;
+}
 [@@deriving show { with_path = false }]
