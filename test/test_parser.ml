@@ -1369,3 +1369,23 @@ let%expect_test "parse: module must come before anything else" =
         module math
         ^~~~~~
     |}]
+
+let%expect_test "parse: a dotted type path" =
+  (match parse "let p: math.vector.point = undefined" with
+  | [ Ripe.Ast.Global gd ] -> print_endline (dump_typ gd.typ)
+  | _ -> print_endline "<expected a global>");
+  [%expect {| math.vector.point |}]
+
+let%expect_test "parse: a dotted struct literal" =
+  parse_expr "math.Point { x: 1, y: 2 }";
+  [%expect {| (struct math.Point (x 1) (y 2)) |}]
+
+let%expect_test "parse: a dotted field read stays a field read" =
+  parse_expr "math.origin.x";
+  [%expect {| (. (. math origin) x) |}]
+
+let%expect_test "parse: an if condition still reads a field access" =
+  (match parse "func f(p: point) { if p.flag { } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (if ((. p flag) (block )))) |}]

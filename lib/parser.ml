@@ -267,6 +267,18 @@ let with_struct_lit (st : state) (no_struct_lit : bool) (f : unit -> 'a) : 'a =
 
 let in_brackets (st : state) (f : unit -> 'a) : 'a = with_struct_lit st false f
 
+(* math.Point, math.vector.Point *)
+let rec dotted_name (e : expr) : string option =
+  match e.desc with
+  | Ident name -> Some name
+  | FieldAccess (inner, name) ->
+      Option.map (fun path -> path ^ "." ^ name) (dotted_name inner)
+  | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
+  | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
+  | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break | Continue
+  | Undefined | Range _ | RangeInclusive _ | PairAssign _ ->
+      None
+
 (* i32, *i32, (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
@@ -276,7 +288,12 @@ let rec parse_typ st =
       mkt lo st (Pointer (parse_typ st))
   | IDENT name ->
       advance st;
-      mkt lo st (Named name)
+      let path = ref [ name ] in
+      while st.tok = DOT do
+        advance st;
+        path := expect_ident st :: !path
+      done;
+      mkt lo st (Named (String.concat "." (List.rev !path)))
   (* [N]T fixed-size array, []T slice *)
   | LBRACKET ->
       advance st;
@@ -468,10 +485,18 @@ and parse_prefix st =
 and parse_postfix st (lhs : expr) =
   let lo = lhs.span.lo in
   match st.tok with
-  | DOT ->
+  | DOT -> (
       advance st;
       let name = expect_ident st in
-      parse_postfix st (mk lo st (FieldAccess (lhs, name)))
+      let access = mk lo st (FieldAccess (lhs, name)) in
+      (* The brace means this path names a type from another module *)
+      match dotted_name access with
+      | Some path when at st LBRACE && not st.no_struct_lit ->
+          advance st;
+          let fields = parse_struct_lit_fields st in
+          expect st RBRACE;
+          parse_postfix st (mk lo st (StructLit (path, access.span, fields)))
+      | Some _ | None -> parse_postfix st access)
   | LBRACKET ->
       advance st;
       let idx = in_brackets st (fun () -> parse_expr st 1) in
