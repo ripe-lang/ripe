@@ -16,12 +16,13 @@ type ty =
   | TNull
   | TPointer of ty
   | TOpaquePtr
-  | TStruct of string * ty list
+  (* TODO: the ty list stays empty until generics land *)
+  | TStruct of Qname.t * ty list
   | TFunc of ty list * ty
   | TArray of ty * int
   | TSlice of ty
-  | TNewtype of string * ty
-  | TAlias of string * ty
+  | TNewtype of Qname.t * ty
+  | TAlias of Qname.t * ty
   | TError
 [@@deriving show { with_path = false }]
 
@@ -60,7 +61,9 @@ let int_kind_of_string s =
     (fun k -> String.lowercase_ascii (show_int_kind k) = s)
     int_kinds
 
-let rec show_ty = function
+let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
+  let show_ty = show_ty_with show_name in
+  match t with
   | TInt k -> String.lowercase_ascii (show_int_kind k)
   | TFloat k -> String.lowercase_ascii (show_float_kind k)
   | TBool -> "bool"
@@ -71,18 +74,25 @@ let rec show_ty = function
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TOpaquePtr -> "*opaque"
-  | TStruct (name, []) -> name
+  | TStruct (name, []) -> show_name name
   | TStruct (name, args) ->
-      Printf.sprintf "%s[%s]" name (String.concat ", " (List.map show_ty args))
+      Printf.sprintf "%s[%s]" (show_name name)
+        (String.concat ", " (List.map show_ty args))
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
-  | TNewtype (name, _) -> name
-  | TAlias (name, _) -> name
+  | TNewtype (name, _) -> show_name name
+  | TAlias (name, _) -> show_name name
   | TFunc (ps, r) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
       Printf.sprintf "(%s)%s" p_str r_str
   | TError -> "<error>"
+
+let show_ty (t : ty) : string = show_ty_with Qname.show t
+
+(* A reader inside the module a name belongs to doesn't need its path *)
+let show_ty_in (current : string list) (t : ty) : string =
+  show_ty_with (Qname.show_in current) t
 
 (* Sees through a newtype or alias to a representation tat the codegen can
    use *)
@@ -134,8 +144,8 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
 
-let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
+let rec ty_align (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
+    : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -146,13 +156,15 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TNever -> Error.ice "TNever has no alignment"
   | TError -> Error.ice "TError has no alignment"
   | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
+      match Hashtbl.find_opt structs (Qname.key name) with
       | Some fields ->
           List.fold_left
             (fun acc (_, ft) -> max acc (ty_align structs ft))
             1 fields
       | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
+          Error.ice
+            (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
+      )
   | TArray (e, _) -> ty_align structs e
   | TSlice _ -> 8
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
@@ -160,8 +172,8 @@ let rec ty_align (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
 (* `n` and `a` MUST be non-negative *)
 let align_to n a = (n + a - 1) / a * a
 
-let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
-    int =
+let rec ty_size (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
+    : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -172,7 +184,7 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
   | TNever -> Error.ice "TNever has no size"
   | TError -> Error.ice "TError has no size"
   | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs name with
+      match Hashtbl.find_opt structs (Qname.key name) with
       | Some fields ->
           let struct_align = ty_align structs t in
           let offset =
@@ -185,7 +197,9 @@ let rec ty_size (structs : (string, (string * ty) list) Hashtbl.t) (t : ty) :
           in
           align_to offset struct_align
       | None ->
-          Error.ice (Printf.sprintf "no layout recorded for struct %s" name))
+          Error.ice
+            (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
+      )
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* Fat pointer: { ptr, len } *)
   | TSlice _ -> 16

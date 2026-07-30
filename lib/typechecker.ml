@@ -25,10 +25,10 @@ type gstate = {
 type env = {
   vars : (string * var_info) list list;
   funcs : (Symbol.key, func_sig) Hashtbl.t;
-  types : (string, type_def) Hashtbl.t;
+  types : (Symbol.key, type_def) Hashtbl.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need
      not rebuild them *)
-  struct_fields : (string, (string * ty) list) Hashtbl.t;
+  struct_fields : (Symbol.key, (string * ty) list) Hashtbl.t;
   globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (Symbol.key, gstate) Hashtbl.t;
@@ -113,6 +113,13 @@ let key_at (env : env) (span : Ast.span) : Symbol.key =
   | Some symbol -> Symbol.key symbol
   | None -> unresolved_key
 
+(* The path comes off the symbol so a message can say which module a type is
+   from *)
+let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> Resolve.qname_of env.uses symbol
+  | None -> Qname.unresolved fallback
+
 let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs (key_at env span) with
   | Some s -> s
@@ -138,11 +145,11 @@ let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
         |> at span
         |> help "use let for values that need storage")
 
-let lookup_struct (env : env) (span : Ast.span) (name : string) : struct_info =
-  match Hashtbl.find_opt env.types name with
+let lookup_struct (env : env) (span : Ast.span) (name : Qname.t) : struct_info =
+  match Hashtbl.find_opt env.types (Qname.key name) with
   | Some (DStruct s) -> s
   | _ ->
-      emit env (Error.undefined_name span "struct" name);
+      emit env (Error.undefined_name span "struct" (Qname.show name));
       { field_tys = [] }
 
 let lift_ty (f : ty -> ty) (ty : ty) : ty =
@@ -171,10 +178,10 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       match List.assoc_opt name builtin_tys with
       | Some bt -> bt
       | None -> (
-          match Hashtbl.find_opt env.types name with
-          | Some (DStruct _) -> TStruct (name, [])
-          | Some (DNewtype base) -> TNewtype (name, base)
-          | Some (DAlias aliased) -> TAlias (name, aliased)
+          match Hashtbl.find_opt env.types (key_at env t.tspan) with
+          | Some (DStruct _) -> TStruct (qname_at env t.tspan name, [])
+          | Some (DNewtype base) -> TNewtype (qname_at env t.tspan name, base)
+          | Some (DAlias aliased) -> TAlias (qname_at env t.tspan name, aliased)
           | None -> (
               match Resolve.sym_at_opt env.uses t.tspan with
               | Some { Symbol.kind = Symbol.Error; _ } -> TError
@@ -316,7 +323,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
   | StructLit (name, name_span, inits) -> (
-      match Hashtbl.find_opt env.types name with
+      match Hashtbl.find_opt env.types (key_at env name_span) with
       | Some (DStruct info) ->
           let seen = Hashtbl.create 4 in
           List.iter
@@ -340,7 +347,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
                 | None -> (fname, T.mk ft T.TZero))
               info.field_tys
           in
-          T.mk (TStruct (name, [])) (T.TStructLit (name, tfields))
+          let qname = qname_at env name_span name in
+          T.mk (TStruct (qname, [])) (T.TStructLit (qname, tfields))
       | _ ->
           emit env (Error.undefined_name name_span "struct" name);
           dummy_texpr)
@@ -979,7 +987,8 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
       | None ->
           emit env
             (Error.named span "no field" fname
-            |> Diagnostic.label (Printf.sprintf "on struct %s" sname));
+            |> Diagnostic.label
+                 (Printf.sprintf "on struct %s" (Qname.show sname)));
           dummy_texpr)
 
 and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
@@ -1184,10 +1193,11 @@ let collect_func (env : env) (fd : func_def) : unit =
     { param_tys; ret_ty; variadic = fd.variadic }
 
 (* Every kind of type name shares one namespace *)
-let existing_type_kind (env : env) (name : string) : string option =
+let existing_type_kind (env : env) (span : Ast.span) (name : string) :
+    string option =
   if List.mem_assoc name builtin_tys then Some "a builtin type"
   else
-    match Hashtbl.find_opt env.types name with
+    match Hashtbl.find_opt env.types (key_at env span) with
     | Some (DStruct _) -> Some "a struct"
     | Some (DNewtype _) -> Some "a newtype"
     | Some (DAlias _) -> Some "an alias"
@@ -1195,7 +1205,7 @@ let existing_type_kind (env : env) (name : string) : string option =
 
 let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
     =
-  match existing_type_kind env name with
+  match existing_type_kind env span name with
   | Some kind ->
       if List.mem_assoc name builtin_tys then
         emit env (Error.named span ("already defined as " ^ kind) name);
@@ -1213,17 +1223,17 @@ let reserve_struct_name (env : env) (sd : struct_def) : unit =
           emit env (Error.named f.span "duplicate field" f.name)
         else Hashtbl.add seen f.name ())
       sd.fields;
-    Hashtbl.replace env.types sd.name (DStruct { field_tys = [] });
-    Hashtbl.replace env.struct_fields sd.name [])
+    Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys = [] });
+    Hashtbl.replace env.struct_fields (key_at env sd.span) [])
 
 let resolve_struct_fields (env : env) (sd : struct_def) : unit =
-  match Hashtbl.find_opt env.types sd.name with
+  match Hashtbl.find_opt env.types (key_at env sd.span) with
   | Some (DStruct _) ->
       let field_tys =
         List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
       in
-      Hashtbl.replace env.types sd.name (DStruct { field_tys });
-      Hashtbl.replace env.struct_fields sd.name field_tys
+      Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys });
+      Hashtbl.replace env.struct_fields (key_at env sd.span) field_tys
   | _ -> ()
 
 (* A pointer or slice field is just an address so it can't grow the struct *)
@@ -1232,11 +1242,12 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
     Option.value ~default:[] (Hashtbl.find_opt env.struct_fields name)
   in
   let on_path = Hashtbl.create 8 in
-  let rec reaches (target : string) (t : ty) : bool =
+  let rec reaches (target : Symbol.key) (t : ty) : bool =
     match resolve_ty t with
-    | TStruct (name, _) when name = target -> true
-    | TStruct (name, _) when Hashtbl.mem on_path name -> false
+    | TStruct (name, _) when Qname.key name = target -> true
+    | TStruct (name, _) when Hashtbl.mem on_path (Qname.key name) -> false
     | TStruct (name, _) ->
+        let name = Qname.key name in
         Hashtbl.add on_path name ();
         let hit =
           List.exists (fun (_, ft) -> reaches target ft) (fields_of name)
@@ -1246,29 +1257,32 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
     | TArray (elem, _) -> reaches target elem
     | _ -> false
   in
-  if List.exists (fun (_, ft) -> reaches sd.name ft) (fields_of sd.name) then
+  let key = key_at env sd.span in
+  if List.exists (fun (_, ft) -> reaches key ft) (fields_of key) then
     emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
 (* A fake error type goes in the table first and it just means the real body
    hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
-    Hashtbl.replace env.types td.name (DAlias TError)
+    Hashtbl.replace env.types (key_at env td.span) (DAlias TError)
 
 let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
-    Hashtbl.replace env.types td.name (DNewtype TError)
+    Hashtbl.replace env.types (key_at env td.span) (DNewtype TError)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types td.name with
+  match Hashtbl.find_opt env.types (key_at env td.span) with
   | Some (DAlias TError) ->
-      Hashtbl.replace env.types td.name (DAlias (ty_of_ast env td.typ))
+      Hashtbl.replace env.types (key_at env td.span)
+        (DAlias (ty_of_ast env td.typ))
   | _ -> ()
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types td.name with
+  match Hashtbl.find_opt env.types (key_at env td.span) with
   | Some (DNewtype TError) ->
-      Hashtbl.replace env.types td.name (DNewtype (ty_of_ast env td.typ))
+      Hashtbl.replace env.types (key_at env td.span)
+        (DNewtype (ty_of_ast env td.typ))
   | _ -> ()
 
 let rec named_types (t : typ) : string list =
@@ -1294,8 +1308,10 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
   in
   let unfilled (decl : decl) : bool =
     match decl with
-    | TypeAlias td -> Hashtbl.find_opt env.types td.name = Some (DAlias TError)
-    | Newtype td -> Hashtbl.find_opt env.types td.name = Some (DNewtype TError)
+    | TypeAlias td ->
+        Hashtbl.find_opt env.types (key_at env td.span) = Some (DAlias TError)
+    | Newtype td ->
+        Hashtbl.find_opt env.types (key_at env td.span) = Some (DNewtype TError)
     | Func _ | Extern _ | Global _ | Struct _ -> false
   in
   let fill (decl : decl) : unit =
@@ -1499,31 +1515,31 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       (* A rejected duplicate never landed in the table and its fields are read
          directly *)
       let field_tys =
-        match Hashtbl.find_opt env.types sd.name with
+        match Hashtbl.find_opt env.types (key_at env sd.span) with
         | Some (DStruct info) -> info.field_tys
         | _ ->
             List.map
               (fun (f : field) -> (f.name, ty_of_ast env f.typ))
               sd.fields
       in
-      T.TStruct (sd.name, field_tys, sd.modifiers)
+      T.TStruct (qname_at env sd.span sd.name, field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
   (* A rejected duplicate never landed in the table and falls back to the
      written type *)
   | TypeAlias td ->
       let t =
-        match Hashtbl.find_opt env.types td.name with
+        match Hashtbl.find_opt env.types (key_at env td.span) with
         | Some (DAlias t) -> t
         | _ -> ty_of_ast env td.typ
       in
-      T.TTypeAlias (td.name, t)
+      T.TTypeAlias (qname_at env td.span td.name, t)
   | Newtype td ->
       let t =
-        match Hashtbl.find_opt env.types td.name with
+        match Hashtbl.find_opt env.types (key_at env td.span) with
         | Some (DNewtype t) -> t
         | _ -> ty_of_ast env td.typ
       in
-      T.TNewtype (td.name, t)
+      T.TNewtype (qname_at env td.span td.name, t)
 
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)

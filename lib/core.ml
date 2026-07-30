@@ -25,7 +25,7 @@ type cexpr_desc =
   | CDataPtr of cexpr
   | CZero
   | CUndef
-  | CStructLit of string * (string * cexpr) list
+  | CStructLit of Qname.t * (string * cexpr) list
   | CBlock of cblock
   | CIf of (cexpr * cblock) list * cblock option
   | CLoop of cblock
@@ -60,10 +60,10 @@ type cglobal_def = {
 
 type cdecl =
   | CFunc of cfunc_def
-  | CStruct of string * (string * ty) list * Ast.modifier list
+  | CStruct of Qname.t * (string * ty) list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
   | CExtern of cfunc_def
   | CGlobal of cglobal_def
-  | CTypeAlias of string * ty
-  | CNewtype of string * ty
+  | CTypeAlias of Qname.t * ty
+  | CNewtype of Qname.t * ty
 [@@deriving show { with_path = false }]

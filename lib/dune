@@ -11,8 +11,9 @@
   lexer
   bracket_check
   parser
-  types
   symbol
+  qname
+  types
   resolve
   ty_pred
   escape

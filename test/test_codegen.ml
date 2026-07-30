@@ -3909,7 +3909,8 @@ let N: i64 = S as i64 + 1
 (* internal invariants: the typechecker keeps these unreachable from source, so
    drive the codegen helpers directly *)
 
-let empty_structs () : (string, (string * Ripe.Types.ty) list) Hashtbl.t =
+let empty_structs () :
+    (Ripe.Symbol.key, (string * Ripe.Types.ty) list) Hashtbl.t =
   Hashtbl.create 0
 
 let%expect_test "codegen ICE: TVoid has no QBE base type" =
@@ -3983,7 +3984,7 @@ let%expect_test "codegen ICE: missing struct layout in alignment" =
   expect_errors (fun () ->
       ignore
         (Ripe.Types.ty_align (empty_structs ())
-           (Ripe.Types.TStruct ("Foo", []))));
+           (Ripe.Types.TStruct (Ripe.Qname.unresolved "Foo", []))));
   [%expect
     {|
     error: internal compiler error
@@ -3994,7 +3995,8 @@ let%expect_test "codegen ICE: missing struct layout in alignment" =
 let%expect_test "codegen ICE: missing struct layout in size" =
   expect_errors (fun () ->
       ignore
-        (Ripe.Types.ty_size (empty_structs ()) (Ripe.Types.TStruct ("Foo", []))));
+        (Ripe.Types.ty_size (empty_structs ())
+           (Ripe.Types.TStruct (Ripe.Qname.unresolved "Foo", []))));
   [%expect
     {|
     error: internal compiler error

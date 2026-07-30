@@ -28,7 +28,7 @@ type texpr_desc =
   | TDataPtr of texpr
   | TZero
   | TUndef
-  | TStructLit of string * (string * texpr) list
+  | TStructLit of Qname.t * (string * texpr) list
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
   | TWhile of texpr * tblock
@@ -70,10 +70,10 @@ type tglobal_def = {
 
 type tdecl =
   | TFunc of tfunc_def
-  | TStruct of string * (string * ty) list * Ast.modifier list
+  | TStruct of Qname.t * (string * ty) list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
-  | TTypeAlias of string * ty
-  | TNewtype of string * ty
+  | TTypeAlias of Qname.t * ty
+  | TNewtype of Qname.t * ty
 [@@deriving show { with_path = false }]
