@@ -92,6 +92,13 @@ let use_type (st : state) name span : unit =
         Diagnostic.emit st.diags (Error.undefined_name span "type" name);
         ignore (mint st Symbol.Error name span)
 
+(* The typechecker reports an unknown struct literal so staying quiet here keeps
+   it from being reported twice *)
+let use_type_if_found (st : state) (name : string) (span : Ast.span) : unit =
+  match Hashtbl.find_opt st.types name with
+  | Some sym -> Hashtbl.replace st.out.syms span sym
+  | None -> ()
+
 let lookup (st : state) (name : string) : Symbol.t option =
   match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
   | Some s -> Some s
@@ -130,7 +137,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | StructLit (_, _, fields) ->
+  | StructLit (name, name_span, fields) ->
+      use_type_if_found st name name_span;
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | If (branches, else_body) ->
