@@ -33,17 +33,6 @@ let sym_at (r : t) (span : Ast.span) : Symbol.t =
   | Some s -> s
   | None -> Error.ice ~span "no symbol resolved here"
 
-let qualified_name (path : string list) (name : string) : string =
-  String.concat "." (path @ [ name ])
-
-let internal_name (r : t) (s : Symbol.t) : string =
-  match s.Symbol.kind with
-  | Symbol.Func when s.Symbol.name = "main" && s.Symbol.link_name = "main" ->
-      "main"
-  | _ ->
-      let path = Hashtbl.find r.module_paths s.Symbol.module_id in
-      qualified_name path s.Symbol.name
-
 let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
   Hashtbl.find_opt r.syms span
 

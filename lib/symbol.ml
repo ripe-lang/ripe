@@ -26,7 +26,7 @@ type t = {
 }
 [@@deriving show { with_path = false }]
 
-type key = module_id * id
+type key = module_id * id [@@deriving show { with_path = false }]
 
 let key (symbol : t) : key = (symbol.module_id, symbol.id)
 

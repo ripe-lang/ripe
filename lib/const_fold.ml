@@ -7,7 +7,7 @@ module T = Typed_ast
 (* Every constant folds to a value here so codegen never resolves a name. the
    typechecker owns the const tables so lookups come in as closures *)
 let run ~(emit : Diagnostic.t -> unit)
-    ~(force_const : Ast.span -> string -> unit)
+    ~(force_const : Ast.span -> Symbol.key -> unit)
     ~(local_value : Symbol.t -> Const_eval.const_num option)
     ~(global_value : Symbol.t -> Const_eval.const_num option)
     ~(fold_num : T.texpr -> Const_eval.const_num) (tdecls : T.tdecl list) :
@@ -15,8 +15,8 @@ let run ~(emit : Diagnostic.t -> unit)
   (* Fold every global const up front so an unused bad one still errors *)
   List.iter
     (function
-      | T.TGlobal { T.name; init = Some init; kind = Ast.Comptime; _ } -> (
-          try force_const init.T.span name
+      | T.TGlobal { T.key; init = Some init; kind = Ast.Comptime; _ } -> (
+          try force_const init.T.span key
           with Diagnostic.Errors ds -> List.iter emit ds)
       | _ -> ())
     tdecls;
