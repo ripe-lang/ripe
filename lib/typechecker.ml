@@ -1239,15 +1239,83 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
   if List.exists (fun (_, ft) -> reaches sd.name ft) (fields_of sd.name) then
     emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
-let collect_alias (env : env) (td : type_alias_def) : unit =
+(* A fake error type goes in the table first and it just means the real body
+   hasn't been read yet *)
+let reserve_alias_name (env : env) (td : type_alias_def) : unit =
   if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DAlias t)
+    Hashtbl.replace env.types td.name (DAlias TError)
+
+let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
+  if not (reject_taken_type_name env td.span td.name) then
+    Hashtbl.replace env.types td.name (DNewtype TError)
+
+let collect_alias (env : env) (td : type_alias_def) : unit =
+  match Hashtbl.find_opt env.types td.name with
+  | Some (DAlias TError) ->
+      Hashtbl.replace env.types td.name (DAlias (ty_of_ast env td.typ))
+  | _ -> ()
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
-    let t = ty_of_ast env td.typ in
-    Hashtbl.replace env.types td.name (DNewtype t)
+  match Hashtbl.find_opt env.types td.name with
+  | Some (DNewtype TError) ->
+      Hashtbl.replace env.types td.name (DNewtype (ty_of_ast env td.typ))
+  | _ -> ()
+
+let rec named_types (t : typ) : string list =
+  match t.tdesc with
+  | Named name -> [ name ]
+  | ErrorType -> []
+  | Pointer inner | Slice inner | Array (_, inner) -> named_types inner
+  | FuncPtr (params, ret) ->
+      List.concat_map named_types params
+      @ Option.value ~default:[] (Option.map named_types ret)
+
+(* An alias is only a second name for whatever it points at. A pointer in the
+   middle doesn't save it the way it saves a struct field *)
+let collect_type_bodies (env : env) (decls : decl list) : unit =
+  let defs = Hashtbl.create 16 in
+  let remember (decl : decl) : unit =
+    match decl with
+    | TypeAlias td | Newtype td ->
+        (* Only the first one counts because a repeat name already got turned
+           down *)
+        if not (Hashtbl.mem defs td.name) then Hashtbl.add defs td.name decl
+    | Func _ | Extern _ | Global _ | Struct _ -> ()
+  in
+  let unfilled (decl : decl) : bool =
+    match decl with
+    | TypeAlias td -> Hashtbl.find_opt env.types td.name = Some (DAlias TError)
+    | Newtype td -> Hashtbl.find_opt env.types td.name = Some (DNewtype TError)
+    | Func _ | Extern _ | Global _ | Struct _ -> false
+  in
+  let fill (decl : decl) : unit =
+    match decl with
+    | TypeAlias td -> collect_alias env td
+    | Newtype td -> collect_newtype env td
+    | Func _ | Extern _ | Global _ | Struct _ -> ()
+  in
+  let on_path = Hashtbl.create 8 in
+  let rec force (name : string) : unit =
+    match Hashtbl.find_opt defs name with
+    | None -> ()
+    | Some ((TypeAlias td | Newtype td) as decl) ->
+        if Hashtbl.mem on_path name then
+          emit env (Error.named td.span "recursive type" td.name)
+        else if unfilled decl then begin
+          Hashtbl.add on_path name ();
+          List.iter force (named_types td.typ);
+          Hashtbl.remove on_path name;
+          if unfilled decl then fill decl
+        end
+    | Some (Func _ | Extern _ | Global _ | Struct _) -> ()
+  in
+  List.iter remember decls;
+  (* The order here follows the file so the same type gets blamed every time *)
+  List.iter
+    (function
+      | TypeAlias td | Newtype td -> force td.name
+      | Func _ | Extern _ | Global _ | Struct _ -> ())
+    decls
 
 let collect_global (env : env) (gd : global_def) : unit =
   (if gd.init = None then
@@ -1265,13 +1333,20 @@ let fill_struct_fields_decl (env : env) (decl : decl) : unit =
 let check_cycle_decl (env : env) (decl : decl) : unit =
   match decl with Struct sd -> check_struct_cycle env sd | _ -> ()
 
-let collect_decl (env : env) (decl : decl) : unit =
+(* Every type name lands before any signature is read so a declaration can name
+   a type written further down the file *)
+let reserve_type_name (env : env) (decl : decl) : unit =
   match decl with
   | Struct sd -> reserve_struct_name env sd
+  | TypeAlias td -> reserve_alias_name env td
+  | Newtype td -> reserve_newtype_name env td
+  | Func _ | Extern _ | Global _ -> ()
+
+let collect_decl (env : env) (decl : decl) : unit =
+  match decl with
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
-  | TypeAlias td -> collect_alias env td
-  | Newtype td -> collect_newtype env td
+  | Struct _ | TypeAlias _ | Newtype _ -> ()
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* The collected signature is reused so a bad array size errors once *)
@@ -1459,6 +1534,8 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
             { def = gd; typed = None; value = None; busy = false }
       | _ -> ())
     decls;
+  List.iter (reserve_type_name env) decls;
+  collect_type_bodies env decls;
   List.iter (collect_decl env) decls;
   List.iter (fill_struct_fields_decl env) decls;
   List.iter (check_cycle_decl env) decls;

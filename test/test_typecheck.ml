@@ -3802,3 +3802,75 @@ func f() i32 {
     g()
 }|};
   [%expect {| ok |}]
+
+let%expect_test "typecheck: a parameter names a type declared later" =
+  run_src {|
+func take(value: Meters) i32 { return value }
+type Meters = i32
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a global names a type declared later" =
+  run_src {|
+let width: Meters = 3
+type Meters = i32
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: an alias names itself" =
+  run_src {|
+type Loop = Loop
+|};
+  [%expect
+    {|
+    error: recursive type: Loop
+      at <test>:2:1
+        type Loop = Loop
+        ^~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: two aliases name each other" =
+  run_src {|
+type First = Second
+type Second = First
+|};
+  [%expect
+    {|
+    error: recursive type: First
+      at <test>:2:1
+        type First = Second
+        ^~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: an alias names itself through a pointer" =
+  run_src {|
+type Loop = *Loop
+|};
+  [%expect
+    {|
+    error: recursive type: Loop
+      at <test>:2:1
+        type Loop = *Loop
+        ^~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: a newtype names itself" =
+  run_src {|
+newtype Loop = Loop
+|};
+  [%expect
+    {|
+    error: recursive type: Loop
+      at <test>:2:1
+        newtype Loop = Loop
+        ^~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: an alias chain resolves in either order" =
+  run_src
+    {|
+type Feet = Meters
+type Meters = i32
+func take(value: Feet) i32 { return value }
+|};
+  [%expect {| ok |}]
