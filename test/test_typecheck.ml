@@ -1992,6 +1992,16 @@ let%expect_test "typecheck: var without type or value cannot infer" =
     help: prefix with an underscore: _x
     |}]
 
+let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
+  run_src "func f() { var x\n  x = [1,2,3,4] }";
+  [%expect
+    {|
+    error: cannot infer type: x
+      at <test>:1:16
+        func f() { var x
+                       ^
+    |}]
+
 let%expect_test "typecheck: undefined without type cannot infer" =
   run_src "func f() { var x = undefined }";
   [%expect
