@@ -499,7 +499,9 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
         (want, T.mk want T.TZero)
     | None, None ->
         emit env (Error.named nspan "cannot infer type" name);
-        (TInt I32, dummy_texpr)
+        (* A real type here makes every later use mismatch against a type nobody
+           wrote *)
+        (TError, dummy_texpr)
   in
   if kind = Comptime then (
     check_const_scalar env nspan t;
