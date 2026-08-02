@@ -1,5 +1,7 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
+exception Invalid_utf8 of string
+
 type source = {
   file_id : Span.file_id;
   filename : string;
@@ -126,9 +128,9 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           in
           record [ { source; ast = empty_ast } ] []
         in
-        let loaded filename =
+        let loaded filename src =
           let source, ast =
-            parse_source ~diags (fresh_file_id ()) filename (read_file filename)
+            parse_source ~diags (fresh_file_id ()) filename src
           in
           let stack = stack @ [ path ] in
           let dependencies =
@@ -139,6 +141,20 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           in
           record [ { source; ast } ] dependencies
         in
+        (* The root has no import to blame so it throws instead *)
+        let missing () =
+          match imported_by with
+          | None -> raise (Sys_error (file_of_path source_root path))
+          | Some import ->
+              unreadable import ("module not found: " ^ show_module_path path)
+        in
+        let not_utf8 filename =
+          match imported_by with
+          | None -> raise (Invalid_utf8 filename)
+          | Some import ->
+              unreadable import
+                ("module is not valid UTF-8: " ^ show_module_path path)
+        in
         (* The root came straight off the command line so there is nothing to
            look up *)
         let located =
@@ -146,11 +162,13 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           | None -> Some root_filename
           | Some _ -> locate_module ~read_file source_root path
         in
-        match (located, imported_by) with
-        | Some filename, _ -> loaded filename
-        | None, None -> raise (Sys_error (file_of_path source_root path))
-        | None, Some import ->
-            unreadable import ("module not found: " ^ show_module_path path))
+        match located with
+        | None -> missing ()
+        | Some filename ->
+            let src = read_file filename in
+            (* The lexer walks bytes so it would split a character in half *)
+            if String.is_valid_utf_8 src then loaded filename src
+            else not_utf8 filename)
   in
   let root_path =
     [ root_filename |> Filename.basename |> Filename.remove_extension ]
