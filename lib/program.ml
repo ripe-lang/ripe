@@ -7,11 +7,13 @@ type source = {
 }
 
 type unit_ = { source : source; ast : Ast.module_ }
+type dependency = { import : Ast.import; target : Symbol.module_id }
 
 type module_ = {
   module_id : Symbol.module_id;
   path : string list;
   units : unit_ list;
+  dependencies : dependency list;
 }
 
 type t = {
@@ -21,6 +23,8 @@ type t = {
   root_source : source;
   modules : module_ array;
 }
+
+type load_state = Loading of Symbol.module_id | Loaded of module_
 
 let empty_ast : Ast.module_ = { Ast.header = None; imports = []; decls = [] }
 
@@ -37,13 +41,108 @@ let parse_source ~(diags : Diagnostic.sink) (file_id : Span.file_id)
   in
   (source, ast)
 
+let file_of_path (source_root : string) (path : string list) : string =
+  List.fold_left Filename.concat source_root path ^ ".rp"
+
+let show_module_path (path : string list) : string = String.concat "." path
+
+let import_error ~(diags : Diagnostic.sink) (import : Ast.import)
+    (headline : string) : unit =
+  Diagnostic.emit diags
+    (Diagnostic.error headline |> Diagnostic.at import.Ast.span)
+
+let locate_module ~(read_file : string -> string) (source_root : string)
+    (path : string list) : string option =
+  let file = file_of_path source_root path in
+  match read_file file with exception Sys_error _ -> None | _ -> Some file
+
 let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
     ~(root_filename : string) : t =
-  let source, ast =
-    parse_source ~diags 0 root_filename (read_file root_filename)
+  (* Dirname of a bare filename is "." which would stick "./" on the front of
+     every import *)
+  let source_root =
+    match Filename.dirname root_filename with "." -> "" | dir -> dir
   in
-  let path =
+  let next_file_id = ref 0 in
+  let next_module_id = ref 0 in
+  let states = Hashtbl.create 16 in
+  let modules = ref [] in
+  let fresh_file_id () =
+    let id = !next_file_id in
+    incr next_file_id;
+    id
+  in
+  let fresh_module_id () =
+    let id = !next_module_id in
+    incr next_module_id;
+    id
+  in
+  let rec load_module imported_by path =
+    match Hashtbl.find_opt states path with
+    | Some (Loading module_id) -> module_id
+    | Some (Loaded module_) -> module_.module_id
+    | None -> (
+        let module_id = fresh_module_id () in
+        (* The ID comes first because an import can lead right back here *)
+        Hashtbl.add states path (Loading module_id);
+        let record units dependencies =
+          let module_ = { module_id; path; units; dependencies } in
+          Hashtbl.replace states path (Loaded module_);
+          modules := module_ :: !modules;
+          module_id
+        in
+        (* A file that won't read still becomes a module so looking it up by ID
+           later never fails *)
+        let unreadable import headline =
+          import_error ~diags import headline;
+          let source =
+            {
+              file_id = fresh_file_id ();
+              filename = file_of_path source_root path;
+              source_map = Source_map.create "";
+            }
+          in
+          record [ { source; ast = empty_ast } ] []
+        in
+        let loaded filename =
+          let source, ast =
+            parse_source ~diags (fresh_file_id ()) filename (read_file filename)
+          in
+          let dependencies =
+            ast.Ast.imports
+            |> List.map (fun import ->
+                let target = load_module (Some import) import.Ast.path in
+                { import; target })
+          in
+          record [ { source; ast } ] dependencies
+        in
+        (* The root came straight off the command line so there is nothing to
+           look up *)
+        let located =
+          match imported_by with
+          | None -> Some root_filename
+          | Some _ -> locate_module ~read_file source_root path
+        in
+        match (located, imported_by) with
+        | Some filename, _ -> loaded filename
+        | None, None -> raise (Sys_error (file_of_path source_root path))
+        | None, Some import ->
+            unreadable import ("module not found: " ^ show_module_path path))
+  in
+  let root_path =
     [ root_filename |> Filename.basename |> Filename.remove_extension ]
   in
-  let root = { module_id = 0; path; units = [ { source; ast } ] } in
-  { root; root_source = source; modules = [| root |] }
+  let root_id = load_module None root_path in
+  (* Sorting lines the array index up with the module ID *)
+  let modules =
+    !modules
+    |> List.sort (fun (a : module_) b -> compare a.module_id b.module_id)
+    |> Array.of_list
+  in
+  let root = modules.(root_id) in
+  let root_source =
+    match root.units with
+    | unit_ :: _ -> unit_.source
+    | [] -> Error.ice ("module has no units: " ^ show_module_path root.path)
+  in
+  { root; root_source; modules }
