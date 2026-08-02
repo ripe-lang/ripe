@@ -12,6 +12,7 @@
   bracket_check
   parser
   symbol
+  program
   qname
   mangle
   types
