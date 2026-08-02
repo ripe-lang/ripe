@@ -140,6 +140,10 @@ rule read_main st = parse
   | "'\\t'"  { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''"  { CHAR (Char.code '\'') }
+  | '\'' '\\' newline '\''  {
+      next_line lexbuf;
+      bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
+    }
   | '\'' '\\' _ '\''  {
       bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
     }
