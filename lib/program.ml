@@ -51,6 +51,20 @@ let import_error ~(diags : Diagnostic.sink) (import : Ast.import)
   Diagnostic.emit diags
     (Diagnostic.error headline |> Diagnostic.at import.Ast.span)
 
+(* The stack holds everything still loading so the cycle is the tail of it
+   starting where the path shows up again *)
+let import_cycle (stack : string list list) (path : string list) :
+    string list list =
+  let rec from_path = function
+    | [] -> []
+    | current :: _ as paths when current = path -> paths
+    | _ :: paths -> from_path paths
+  in
+  from_path stack @ [ path ]
+
+let show_import_cycle (paths : string list list) : string =
+  String.concat " -> " (List.map show_module_path paths)
+
 let locate_module ~(read_file : string -> string) (source_root : string)
     (path : string list) : string option =
   let file = file_of_path source_root path in
@@ -77,9 +91,17 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
     incr next_module_id;
     id
   in
-  let rec load_module imported_by path =
+  let rec load_module stack imported_by path =
     match Hashtbl.find_opt states path with
-    | Some (Loading module_id) -> module_id
+    | Some (Loading module_id) ->
+        (* The root is still loading when it imports itself back but no import
+           of its own started that *)
+        (match imported_by with
+        | None -> ()
+        | Some import ->
+            let cycle = show_import_cycle (import_cycle stack path) in
+            import_error ~diags import ("import cycle: " ^ cycle));
+        module_id
     | Some (Loaded module_) -> module_.module_id
     | None -> (
         let module_id = fresh_module_id () in
@@ -108,10 +130,11 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           let source, ast =
             parse_source ~diags (fresh_file_id ()) filename (read_file filename)
           in
+          let stack = stack @ [ path ] in
           let dependencies =
             ast.Ast.imports
             |> List.map (fun import ->
-                let target = load_module (Some import) import.Ast.path in
+                let target = load_module stack (Some import) import.Ast.path in
                 { import; target })
           in
           record [ { source; ast } ] dependencies
@@ -132,7 +155,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
   let root_path =
     [ root_filename |> Filename.basename |> Filename.remove_extension ]
   in
-  let root_id = load_module None root_path in
+  let root_id = load_module [] None root_path in
   (* Sorting lines the array index up with the module ID *)
   let modules =
     !modules
