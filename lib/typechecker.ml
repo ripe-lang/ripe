@@ -321,7 +321,14 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       dummy_texpr
   | ArrayLit (e0 :: rest) ->
       let te0 = synth env e0 in
-      let elem = te0.T.ty in
+      let elem =
+        match te0.T.ty with
+        | (TVoid | TNever) as t ->
+            add_error env e0.span
+              (Printf.sprintf "array element cannot have type %s" (show_ty t));
+            TError
+        | t -> t
+      in
       let tes = te0 :: List.map (fun e -> check env e elem) rest in
       T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
   | Index (base, idx) -> synth_index env e.span base idx

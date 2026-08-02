@@ -3884,3 +3884,35 @@ type Meters = i32
 func take(value: Feet) i32 { return value }
 |};
   [%expect {| ok |}]
+
+let%expect_test "typecheck: inferred storage rejects never and void" =
+  run_src
+    {|
+extern func stop() never
+func noop() {}
+func f() {
+  var never_array = [stop(), stop()]
+  var void_array = [noop(), noop()]
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: never_array
+      at <test>:5:7
+          var never_array = [stop(), stop()]
+              ^~~~~~~~~~~
+    help: prefix with an underscore: _never_array
+    error: array element cannot have type never
+      at <test>:5:22
+          var never_array = [stop(), stop()]
+                             ^~~~~~
+    warning: unused variable: void_array
+      at <test>:6:7
+          var void_array = [noop(), noop()]
+              ^~~~~~~~~~
+    help: prefix with an underscore: _void_array
+    error: array element cannot have type void
+      at <test>:6:21
+          var void_array = [noop(), noop()]
+                            ^~~~~~
+    |}]
