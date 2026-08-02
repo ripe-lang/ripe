@@ -16,7 +16,7 @@ type ty =
   | TNull
   | TPointer of ty
   | TOpaquePtr
-  (* TODO: the ty list stays empty until generics land *)
+  (* TODO(39ca): the ty list stays empty until generics land *)
   | TStruct of Qname.t * ty list
   | TFunc of ty list * ty
   | TArray of ty * int

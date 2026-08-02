@@ -6,8 +6,8 @@
   "id": "2151",
   "priority": "low",
   "source": "lib/lexer.mll",
-  "status": "open",
+  "status": "orphaned",
   "tags": [],
   "title": "allow raw newlines for now, revisit them in the future",
-  "updated_at": "2026-07-24 13:03:12.383769"
+  "updated_at": "2026-08-02 16:53:07.263489"
 }
