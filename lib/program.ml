@@ -48,10 +48,11 @@ let file_of_path (source_root : string) (path : string list) : string =
 
 let show_module_path (path : string list) : string = String.concat "." path
 
-let import_error ~(diags : Diagnostic.sink) (import : Ast.import)
-    (headline : string) : unit =
+let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
+    (import : Ast.import) (headline : string) : unit =
+  let d = Diagnostic.error headline |> Diagnostic.at import.Ast.span in
   Diagnostic.emit diags
-    (Diagnostic.error headline |> Diagnostic.at import.Ast.span)
+    (match detail with Some s -> Diagnostic.detail s d | None -> d)
 
 (* The stack holds everything still loading so the cycle is the tail of it
    starting where the path shows up again *)
@@ -65,7 +66,12 @@ let import_cycle (stack : string list list) (path : string list) :
   from_path stack @ [ path ]
 
 let show_import_cycle (paths : string list list) : string =
-  String.concat " -> " (List.map show_module_path paths)
+  match paths with
+  | [] -> ""
+  | first :: rest ->
+      let hop path = "    imports " ^ show_module_path path ^ "\n" in
+      "  module " ^ show_module_path first ^ "\n"
+      ^ String.concat "" (List.map hop rest)
 
 let locate_module ~(read_file : string -> string) (source_root : string)
     (path : string list) : string option =
@@ -101,8 +107,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         (match imported_by with
         | None -> ()
         | Some import ->
-            let cycle = show_import_cycle (import_cycle stack path) in
-            import_error ~diags import ("import cycle: " ^ cycle));
+            let detail = show_import_cycle (import_cycle stack path) in
+            import_error ~detail ~diags import "import cycle");
         module_id
     | Some (Loaded module_) -> module_.module_id
     | None -> (
