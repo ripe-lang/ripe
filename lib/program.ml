@@ -20,13 +20,13 @@ type module_ = {
 
 type t = {
   root : module_;
-  (* A dummy span has no file of its own so rendering it needs somewhere to
-     point *)
+  (* A dummy span has no file so rendering needs somewhere to point *)
   root_source : source;
   modules : module_ array;
 }
 
 type load_state = Loading of Symbol.module_id | Loaded of module_
+type located = Single of string | Merged of string list | Clash | Not_found
 
 let empty_ast : Ast.module_ = { Ast.header = None; imports = []; decls = [] }
 
@@ -36,8 +36,7 @@ let parse_source ~(diags : Diagnostic.sink) (file_id : Span.file_id)
   let lexbuf = Lexing.from_string src in
   Lexing.set_filename lexbuf filename;
   let read = Lexer.read (Lexer.make_state file_id) in
-  (* The bracket error is already in the sink so reporting the payload too would
-     say it twice *)
+  (* The bracket error is already in the sink so the payload would double it *)
   let ast =
     try Parser.parse ~diags read lexbuf with Diagnostic.Errors _ -> empty_ast
   in
@@ -46,7 +45,16 @@ let parse_source ~(diags : Diagnostic.sink) (file_id : Span.file_id)
 let file_of_path (source_root : string) (path : string list) : string =
   List.fold_left Filename.concat source_root path ^ ".rp"
 
+let dir_of_path (source_root : string) (path : string list) : string =
+  List.fold_left Filename.concat source_root path
+
 let show_module_path (path : string list) : string = String.concat "." path
+
+let module_name_of_path (path : string list) : string =
+  match List.rev path with name :: _ -> name | [] -> ""
+
+let parent_path (path : string list) : string list =
+  match List.rev path with _ :: rest -> List.rev rest | [] -> []
 
 let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
     (import : Ast.import) (headline : string) : unit =
@@ -54,8 +62,7 @@ let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
   Diagnostic.emit diags
     (match detail with Some s -> Diagnostic.detail s d | None -> d)
 
-(* The stack holds everything still loading so the cycle is the tail of it
-   starting where the path shows up again *)
+(* The cycle is the tail of the stack starting where the path shows up again *)
 let import_cycle (stack : string list list) (path : string list) :
     string list list =
   let rec from_path = function
@@ -73,15 +80,78 @@ let show_import_cycle (paths : string list list) : string =
       "  module " ^ show_module_path first ^ "\n"
       ^ String.concat "" (List.map hop rest)
 
-let locate_module ~(read_file : string -> string) (source_root : string)
-    (path : string list) : string option =
+(* Only the first item matters so a full parse would double every error *)
+
+let probe_header (src : string) : string option =
+  let lexbuf = Lexing.from_string src in
+  let read = Lexer.read (Lexer.make_state 0) in
+  let rec first_item () =
+    match read lexbuf with Tokens.SEMI, _ -> first_item () | tok, _ -> tok
+  in
+  match first_item () with
+  | Tokens.MODULE -> (
+      match read lexbuf with Tokens.IDENT name, _ -> Some name | _ -> None)
+  | _ -> None
+
+let ripe_files (list_dir : string -> string list) (dir : string) : string list =
+  match list_dir dir with
+  | exception Sys_error _ -> []
+  (* A module's units shouldn't ride on filesystem order *)
+  | entries ->
+      entries
+      |> List.filter (fun entry -> Filename.extension entry = ".rp")
+      |> List.sort compare
+      |> List.map (Filename.concat dir)
+
+let locate_module ~(read_file : string -> string)
+    ~(list_dir : string -> string list) (source_root : string)
+    (path : string list) : located =
   let file = file_of_path source_root path in
-  match read_file file with exception Sys_error _ -> None | _ -> Some file
+  let readable filename =
+    match read_file filename with exception Sys_error _ -> false | _ -> true
+  in
+  let declares filename =
+    match read_file filename with
+    | exception Sys_error _ -> false
+    | src -> probe_header src <> None
+  in
+  let candidates = ripe_files list_dir (dir_of_path source_root path) in
+  match (readable file, List.exists declares candidates) with
+  | true, true -> Clash
+  | true, false -> Single file
+  | false, true -> Merged candidates
+  | false, false -> Not_found
+
+(* Every file of a merged module needs the name importers actually write *)
+let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
+    (unit_ : unit_) : unit =
+  let expected = module_name_of_path path in
+  match unit_.ast.Ast.header with
+  | Some header when header.Ast.name <> expected ->
+      let wrong =
+        Error.named header.Ast.span "wrong module name" header.Ast.name
+        |> Diagnostic.label ("expected " ^ expected)
+      in
+      (* A header naming its own directory means the import went too deep *)
+      let parent = parent_path path in
+      Diagnostic.emit diags
+        (if parent <> [] && header.Ast.name = module_name_of_path parent then
+           Diagnostic.help
+             ("import `" ^ show_module_path parent ^ "` instead")
+             wrong
+         else wrong)
+  | Some _ -> ()
+  | None when merged ->
+      Diagnostic.emit diags
+        (Diagnostic.error ("missing `module " ^ expected ^ "` header")
+        |> Diagnostic.at (Span.make unit_.source.file_id 0 0)
+        |> Diagnostic.help
+             "every file beside a module header needs the same header")
+  | None -> ()
 
 let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
-    ~(root_filename : string) : t =
-  (* Dirname of a bare filename is "." which would stick "./" on the front of
-     every import *)
+    ~(list_dir : string -> string list) ~(root_filename : string) : t =
+  (* A bare filename has no directory so every import would start with "./" *)
   let source_root =
     match Filename.dirname root_filename with "." -> "" | dir -> dir
   in
@@ -102,8 +172,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
   let rec load_module stack imported_by path =
     match Hashtbl.find_opt states path with
     | Some (Loading module_id) ->
-        (* The root is still loading when it imports itself back but no import
-           of its own started that *)
+        (* The root imports itself back with no import of its own to blame *)
         (match imported_by with
         | None -> ()
         | Some import ->
@@ -121,8 +190,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           modules := module_ :: !modules;
           module_id
         in
-        (* A file that won't read still becomes a module so looking it up by ID
-           later never fails *)
+        (* A file that won't read becomes a module so lookups never fail *)
         let unreadable import headline =
           import_error ~diags import headline;
           let source =
@@ -134,47 +202,57 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           in
           record [ { source; ast = empty_ast } ] []
         in
-        let loaded filename src =
+        let read_unit filename =
+          let src = read_file filename in
+          (* The lexer walks bytes so it would split a character in half *)
+          if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
           let source, ast =
             parse_source ~diags (fresh_file_id ()) filename src
           in
+          { source; ast }
+        in
+        let loaded merged filenames =
+          let units = List.map read_unit filenames in
+          List.iter (check_header ~diags path merged) units;
           let stack = stack @ [ path ] in
           let dependencies =
-            ast.Ast.imports
+            units
+            |> List.concat_map (fun unit_ -> unit_.ast.Ast.imports)
             |> List.map (fun import ->
                 let target = load_module stack (Some import) import.Ast.path in
                 { import; target })
           in
-          record [ { source; ast } ] dependencies
+          record units dependencies
         in
         (* The root has no import to blame so it throws instead *)
-        let missing () =
+        let missing headline =
           match imported_by with
           | None -> raise (Sys_error (file_of_path source_root path))
-          | Some import ->
-              unreadable import ("module not found: " ^ show_module_path path)
+          | Some import -> unreadable import headline
         in
-        let not_utf8 filename =
-          match imported_by with
-          | None -> raise (Invalid_utf8 filename)
-          | Some import ->
-              unreadable import
-                ("module is not valid UTF-8: " ^ show_module_path path)
+        let load_units merged filenames =
+          match loaded merged filenames with
+          | module_id -> module_id
+          | exception Invalid_utf8 filename -> (
+              match imported_by with
+              | None -> raise (Invalid_utf8 filename)
+              | Some import ->
+                  unreadable import
+                    ("module is not valid UTF-8: " ^ show_module_path path))
         in
-        (* The root came straight off the command line so there is nothing to
-           look up *)
+        (* The root came off the command line so nothing beside it competes *)
         let located =
           match imported_by with
-          | None -> Some root_filename
-          | Some _ -> locate_module ~read_file source_root path
+          | None -> Single root_filename
+          | Some _ -> locate_module ~read_file ~list_dir source_root path
         in
         match located with
-        | None -> missing ()
-        | Some filename ->
-            let src = read_file filename in
-            (* The lexer walks bytes so it would split a character in half *)
-            if String.is_valid_utf_8 src then loaded filename src
-            else not_utf8 filename)
+        | Not_found -> missing ("module not found: " ^ show_module_path path)
+        | Clash ->
+            missing
+              ("module is both a file and a directory: " ^ show_module_path path)
+        | Single filename -> load_units false [ filename ]
+        | Merged filenames -> load_units true filenames)
   in
   let root_path =
     [ root_filename |> Filename.basename |> Filename.remove_extension ]
