@@ -1300,14 +1300,14 @@ let collect_newtype (env : env) (td : type_alias_def) : unit =
         (DNewtype (ty_of_ast env td.typ))
   | _ -> ()
 
-let rec named_types (t : typ) : string list =
+let rec named_type_spans (t : typ) : Ast.span list =
   match t.tdesc with
-  | Named name -> [ name ]
+  | Named _ -> [ t.tspan ]
   | ErrorType -> []
-  | Pointer inner | Slice inner | Array (_, inner) -> named_types inner
+  | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
   | FuncPtr (params, ret) ->
-      List.concat_map named_types params
-      @ Option.value ~default:[] (Option.map named_types ret)
+      List.concat_map named_type_spans params
+      @ Option.value ~default:[] (Option.map named_type_spans ret)
 
 (* An alias is only a second name for whatever it points at. A pointer in the
    middle doesn't save it the way it saves a struct field *)
@@ -1318,7 +1318,11 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | TypeAlias td | Newtype td ->
         (* Only the first one counts because a repeat name already got turned
            down *)
-        if not (Hashtbl.mem defs td.name) then Hashtbl.add defs td.name decl
+        (* An unresolved name shares one key so two broken types would look
+           mutually recursive *)
+        let key = key_at env td.span in
+        if key <> unresolved_key && not (Hashtbl.mem defs key) then
+          Hashtbl.add defs key decl
     | Func _ | Extern _ | Global _ | Struct _ -> ()
   in
   let unfilled (decl : decl) : bool =
@@ -1336,16 +1340,17 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | Func _ | Extern _ | Global _ | Struct _ -> ()
   in
   let on_path = Hashtbl.create 8 in
-  let rec force (name : string) : unit =
-    match Hashtbl.find_opt defs name with
+  let rec force (key : Symbol.key) : unit =
+    match Hashtbl.find_opt defs key with
     | None -> ()
     | Some ((TypeAlias td | Newtype td) as decl) ->
-        if Hashtbl.mem on_path name then
+        if Hashtbl.mem on_path key then
           emit env (Error.named td.span "recursive type" td.name)
         else if unfilled decl then begin
-          Hashtbl.add on_path name ();
-          List.iter force (named_types td.typ);
-          Hashtbl.remove on_path name;
+          Hashtbl.add on_path key ();
+          let step span = force (key_at env span) in
+          List.iter step (named_type_spans td.typ);
+          Hashtbl.remove on_path key;
           if unfilled decl then fill decl
         end
     | Some (Func _ | Extern _ | Global _ | Struct _) -> ()
@@ -1354,7 +1359,7 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
   (* The order here follows the file so the same type gets blamed every time *)
   List.iter
     (function
-      | TypeAlias td | Newtype td -> force td.name
+      | TypeAlias td | Newtype td -> force (key_at env td.span)
       | Func _ | Extern _ | Global _ | Struct _ -> ())
     decls
 
