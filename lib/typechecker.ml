@@ -8,8 +8,13 @@ module T = Typed_ast
 type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
 type struct_info = { field_tys : (string * ty) list }
 
-(* Structs newtypes and aliases share one namespace of type names *)
-type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
+(* Structs newtypes aliases and builtins share one namespace of type names *)
+type type_def =
+  | DStruct of struct_info
+  | DNewtype of ty
+  | DAlias of ty
+  | DBuiltin of Types.builtin
+
 type var_info = { ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls
@@ -42,10 +47,13 @@ type env = {
 }
 
 let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
+  let types = Hashtbl.create 16 in
+  let seed (key, builtin) = Hashtbl.replace types key (DBuiltin builtin) in
+  List.iter seed (Resolve.builtins uses);
   {
     vars = [];
     funcs = Hashtbl.create 16;
-    types = Hashtbl.create 16;
+    types;
     struct_fields = Hashtbl.create 16;
     globals = Hashtbl.create 16;
     g_state = Hashtbl.create 16;
@@ -113,6 +121,11 @@ let key_at (env : env) (span : Ast.span) : Symbol.key =
   | Some symbol -> Symbol.key symbol
   | None -> unresolved_key
 
+let builtin_at (env : env) (span : Ast.span) : Types.builtin option =
+  match Hashtbl.find_opt env.types (key_at env span) with
+  | Some (DBuiltin b) -> Some b
+  | Some (DStruct _ | DNewtype _ | DAlias _) | None -> None
+
 (* The path comes off the symbol so a message can say which module a type is
    from *)
 let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
@@ -169,27 +182,26 @@ let lift_ty (f : ty -> ty) (ty : ty) : ty =
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   | ErrorType -> TError
-  (* Never is the return type of a function that can't return so no value ever
-     has it *)
-  | Named ([], "never") ->
-      emit env
-        Diagnostic.(
-          error "never is only valid as a function return type"
-          |> at t.tspan
-          |> help "a value of type never cannot exist");
-      TError
-  | Named ([], "opaque") ->
-      emit env
-        Diagnostic.(
-          error "opaque is only valid as a pointee"
-          |> at t.tspan
-          |> help "use *opaque for an untyped pointer");
-      TError
-  | Named ([], name) when List.mem_assoc name builtin_tys ->
-      List.assoc name builtin_tys
   | Named (path, name) -> (
       let shown = Ast.show_named path name in
       match Hashtbl.find_opt env.types (key_at env t.tspan) with
+      (* Never is the return type of a function that can't return so no value
+         ever has it *)
+      | Some (DBuiltin (BTy TNever)) ->
+          emit env
+            Diagnostic.(
+              error "never is only valid as a function return type"
+              |> at t.tspan
+              |> help "a value of type never cannot exist");
+          TError
+      | Some (DBuiltin BOpaque) ->
+          emit env
+            Diagnostic.(
+              error "opaque is only valid as a pointee"
+              |> at t.tspan
+              |> help "use *opaque for an untyped pointer");
+          TError
+      | Some (DBuiltin (BTy ty)) -> ty
       | Some (DStruct _) -> TStruct (qname_at env t.tspan shown, [])
       | Some (DNewtype base) -> TNewtype (qname_at env t.tspan shown, base)
       | Some (DAlias aliased) -> TAlias (qname_at env t.tspan shown, aliased)
@@ -197,7 +209,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           match Resolve.sym_at_opt env.uses t.tspan with
           | Some { Symbol.kind = Symbol.Error; _ } -> TError
           | _ -> Error.ice ~span:t.tspan "type name escaped the resolver"))
-  | Pointer { tdesc = Named ([], "opaque"); _ } -> TOpaquePtr
+  | Pointer inner when builtin_at env inner.tspan = Some BOpaque -> TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> (
       match ty_of_ast env t with
@@ -1215,7 +1227,7 @@ and eval_array_size (env : env) (e : expr) : int =
 (* Main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
-  | Some { tdesc = Named ([], "never"); _ } -> TNever
+  | Some t when builtin_at env t.tspan = Some (BTy TNever) -> TNever
   | Some t -> ty_of_ast env t
   | None -> if is_entry env fd.span then TInt I32 else TVoid
 
@@ -1227,30 +1239,14 @@ let collect_func (env : env) (fd : func_def) : unit =
   Hashtbl.replace env.funcs (key_at env fd.span)
     { param_tys; ret_ty; variadic = fd.variadic }
 
-(* Every kind of type name shares one namespace *)
-let existing_type_kind (env : env) (span : Ast.span) (name : string) :
-    string option =
-  if List.mem_assoc name builtin_tys then Some "a builtin type"
-  else
-    match Hashtbl.find_opt env.types (key_at env span) with
-    | Some (DStruct _) -> Some "a struct"
-    | Some (DNewtype _) -> Some "a newtype"
-    | Some (DAlias _) -> Some "an alias"
-    | None -> None
-
-let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
-    =
-  match existing_type_kind env span name with
-  | Some kind ->
-      if List.mem_assoc name builtin_tys then
-        emit env (Error.named span ("already defined as " ^ kind) name);
-      true
-  | None -> false
+(* A repeat name is already reported with both spans by the resolver *)
+let type_name_taken (env : env) (span : Ast.span) : bool =
+  Hashtbl.mem env.types (key_at env span)
 
 (* The name goes in first so a field can name this struct or one defined
    later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
-  if not (reject_taken_type_name env sd.span sd.name) then (
+  if not (type_name_taken env sd.span) then (
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
@@ -1299,11 +1295,11 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
 (* A fake error type goes in the table first and it just means the real body
    hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
+  if not (type_name_taken env td.span) then
     Hashtbl.replace env.types (key_at env td.span) (DAlias TError)
 
 let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
+  if not (type_name_taken env td.span) then
     Hashtbl.replace env.types (key_at env td.span) (DNewtype TError)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =

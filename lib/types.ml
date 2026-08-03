@@ -46,15 +46,22 @@ let int_kind_neg_limit = function
   | I64 | Isize -> Int64.min_int
   | U8 | U16 | U32 | U64 | Usize -> 0L
 
-(* Single source for builtin type names used by both parsing and printing *)
-let builtin_tys =
+type builtin = BTy of ty | BOpaque
+
+let builtins : (string * builtin) list =
   List.map
-    (fun k -> (String.lowercase_ascii (show_int_kind k), TInt k))
+    (fun k -> (String.lowercase_ascii (show_int_kind k), BTy (TInt k)))
     int_kinds
   @ List.map
-      (fun k -> (String.lowercase_ascii (show_float_kind k), TFloat k))
+      (fun k -> (String.lowercase_ascii (show_float_kind k), BTy (TFloat k)))
       float_kinds
-  @ [ ("bool", TBool); ("char", TChar); ("cstr", TCStr); ("never", TNever) ]
+  @ [
+      ("bool", BTy TBool);
+      ("char", BTy TChar);
+      ("cstr", BTy TCStr);
+      ("never", BTy TNever);
+      ("opaque", BOpaque);
+    ]
 
 let int_kind_of_string s =
   List.find_opt

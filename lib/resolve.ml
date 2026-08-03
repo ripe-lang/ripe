@@ -2,15 +2,18 @@
 
 open Ast
 
+type scope = {
+  values : (string, Symbol.t) Hashtbl.t;
+  types : (string, Symbol.t) Hashtbl.t;
+  modules : (string list, scope) Hashtbl.t;
+  parent : scope option;
+}
+
 type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
-}
-
-type namespace = {
-  values : (string, Symbol.t) Hashtbl.t;
-  types : (string, Symbol.t) Hashtbl.t;
+  universe : scope;
 }
 
 type state = {
@@ -19,10 +22,8 @@ type state = {
   module_path : string list;
   qualify : bool;
   is_root : bool;
-  globals : (string, Symbol.t) Hashtbl.t;
-  types : (string, Symbol.t) Hashtbl.t;
-  mutable imports : (string list * namespace) list;
-  mutable scopes : (string, Symbol.t) Hashtbl.t list;
+  top : scope;
+  mutable scope : scope;
   mutable next_id : Symbol.id;
   diags : Diagnostic.sink;
 }
@@ -30,13 +31,53 @@ type state = {
 type resolved_program = { uses : t; decls : Ast.decl list }
 type qualified = Local | Found of Symbol.t | Missing of string
 
+let universe_symbol (id : Symbol.id) (name : string) : Symbol.t =
+  {
+    Symbol.id;
+    module_id = Symbol.universe_module_id;
+    name;
+    link_name = name;
+    kind = Symbol.Type;
+    visibility = Symbol.Public;
+    entry_point = false;
+    span = Ast.dummy_span;
+  }
+
+let new_scope (parent : scope option) : scope =
+  {
+    values = Hashtbl.create 16;
+    types = Hashtbl.create 16;
+    modules = Hashtbl.create 4;
+    parent;
+  }
+
+(* A builtin sits in the outermost scope so a module can shadow it like any
+   name *)
+let make_output (modules : int) : t =
+  let universe = new_scope None in
+  let seed id (name, _) =
+    Hashtbl.replace universe.types name (universe_symbol id name)
+  in
+  List.iteri seed Types.builtins;
+  let out =
+    {
+      syms = Hashtbl.create 512;
+      module_paths = Hashtbl.create modules;
+      file_modules = Hashtbl.create modules;
+      universe;
+    }
+  in
+  Hashtbl.add out.module_paths Symbol.universe_module_id [];
+  out
+
 (* This is the `--emit resolve` output *)
 let dump (r : t) : string =
   Hashtbl.to_seq r.syms |> List.of_seq
   |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) ->
       compare (a.file, a.lo, a.hi) (b.file, b.lo, b.hi))
   |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
-      Printf.sprintf "(%d,%d) -> #%d %s %s\n" sp.Ast.lo sp.Ast.hi s.Symbol.id
+      Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" sp.Ast.lo sp.Ast.hi
+        s.Symbol.module_id s.Symbol.id
         (Symbol.show_kind s.Symbol.kind)
         s.Symbol.name)
   |> String.concat ""
@@ -52,6 +93,13 @@ let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
 let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
+
+let builtins (r : t) : (Symbol.key * Types.builtin) list =
+  let entry (name, builtin) =
+    let keyed (sym : Symbol.t) = (Symbol.key sym, builtin) in
+    Option.map keyed (Hashtbl.find_opt r.universe.types name)
+  in
+  List.filter_map entry Types.builtins
 
 (* A message inside math says add where one outside says math.add *)
 let module_path_at (r : t) (span : Ast.span) : string list =
@@ -95,43 +143,45 @@ let mint ?(visibility = Symbol.Private) ?link_name (st : state)
   Hashtbl.replace st.out.syms span sym;
   sym
 
-let push_scope (st : state) = st.scopes <- Hashtbl.create 8 :: st.scopes
+let push_scope (st : state) = st.scope <- new_scope (Some st.scope)
 
 let pop_scope (st : state) =
-  st.scopes <-
-    (match st.scopes with _ :: scopes -> scopes | [] -> assert false)
+  st.scope <-
+    (match st.scope.parent with Some parent -> parent | None -> assert false)
 
 (* The innermost scope holds params and top level body binders *)
 let declare_local (st : state) kind name span : unit =
-  let sym = mint st kind name span in
-  match st.scopes with
-  | scope :: _ -> Hashtbl.replace scope name sym
-  | [] -> assert false
+  Hashtbl.replace st.scope.values name (mint st kind name span)
 
-let declare_global (st : state) kind visibility name span : unit =
-  match Hashtbl.find_opt st.globals name with
+let declare_in (table : (string, Symbol.t) Hashtbl.t) (st : state)
+    (kind : Symbol.kind) (visibility : Symbol.visibility) (name : string)
+    (span : Ast.span) : unit =
+  match Hashtbl.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
         (Error.redefinition span ~prev:prev.Symbol.span name)
   | None ->
       let link_name = declaration_link_name st kind name in
-      let sym = mint ~visibility ~link_name st kind name span in
-      Hashtbl.replace st.globals name sym
+      Hashtbl.replace table name (mint ~visibility ~link_name st kind name span)
+
+let declare_global (st : state) kind visibility name span : unit =
+  declare_in st.top.values st kind visibility name span
 
 let declare_type (st : state) visibility name span : unit =
-  match Hashtbl.find_opt st.types name with
-  | Some prev ->
-      Diagnostic.emit st.diags
-        (Error.redefinition span ~prev:prev.Symbol.span name)
+  declare_in st.top.types st Symbol.Type visibility name span
+
+let values_of (scope : scope) = scope.values
+let types_of (scope : scope) = scope.types
+
+let rec find_in_chain (table : scope -> (string, Symbol.t) Hashtbl.t)
+    (scope : scope) (name : string) : Symbol.t option =
+  match Hashtbl.find_opt (table scope) name with
+  | Some sym -> Some sym
   | None ->
-      let link_name = declaration_link_name st Symbol.Type name in
-      Hashtbl.replace st.types name
-        (mint ~visibility ~link_name st Symbol.Type name span)
+      Option.bind scope.parent (fun parent -> find_in_chain table parent name)
 
 let lookup (st : state) (name : string) : Symbol.t option =
-  match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
-  | Some s -> Some s
-  | None -> Hashtbl.find_opt st.globals name
+  find_in_chain values_of st.scope name
 
 (* The name comes off the symbol not off the spelling at the use site *)
 let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
@@ -148,32 +198,41 @@ let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
   check_visibility st span sym;
   Hashtbl.replace st.out.syms span sym
 
-let imported_namespace (st : state) (path : string list) : namespace option =
-  List.assoc_opt path st.imports
-
 let split_member (path : string list) : (string list * string) option =
   match List.rev path with
   | member :: rest -> Some (List.rev rest, member)
   | [] -> None
 
-(* math.Vec goes through the import and Vec stays in this module *)
+(* A nearer value binding wins so a local named math is not a module *)
+let find_module (st : state) (path : string list) : scope option =
+  match path with
+  | [] -> None
+  | root :: _ ->
+      let rec search (scope : scope) =
+        if Hashtbl.mem scope.values root then None
+        else
+          match Hashtbl.find_opt scope.modules path with
+          | Some found -> Some found
+          | None -> Option.bind scope.parent search
+      in
+      search st.scope
+
+(* math.Vec goes through the import and Vec walks out to the builtins *)
 let find_type (st : state) (path : string list) (name : string) :
     Symbol.t option =
-  if path = [] then Hashtbl.find_opt st.types name
+  if path = [] then find_in_chain types_of st.scope name
   else
-    match imported_namespace st path with
-    | Some namespace -> Hashtbl.find_opt namespace.types name
-    | None -> None
+    let member (scope : scope) = Hashtbl.find_opt scope.types name in
+    Option.bind (find_module st path) member
 
 let use_type (st : state) (path : string list) (name : string) (span : Ast.span)
     : unit =
-  let shown = Ast.show_named path name in
-  if not (path = [] && List.mem_assoc name Types.builtin_tys) then
-    match find_type st path name with
-    | Some sym -> use_symbol st span sym
-    | None ->
-        Diagnostic.emit st.diags (Error.undefined_name span "type" shown);
-        ignore (mint st Symbol.Error shown span)
+  match find_type st path name with
+  | Some sym -> use_symbol st span sym
+  | None ->
+      let shown = Ast.show_named path name in
+      Diagnostic.emit st.diags (Error.undefined_name span "type" shown);
+      ignore (mint st Symbol.Error shown span)
 
 (* The typechecker already reports an unknown struct literal *)
 let use_type_if_found (st : state) (name : string) (span : Ast.span) : unit =
@@ -195,20 +254,16 @@ let rec access_path (e : expr) : string list option =
       Option.map (fun path -> path @ [ name ]) (access_path inner)
   | _ -> None
 
-let root_in_scope (st : state) (path : string list) : bool =
-  match path with root :: _ -> lookup st root <> None | [] -> true
-
-(* A local named math wins so math.x stays an ordinary field access *)
 let qualified_use (st : state) (e : expr) : qualified =
   match Option.bind (access_path e) split_member with
-  | Some (module_path, member) when not (root_in_scope st module_path) -> (
-      match imported_namespace st module_path with
+  | None -> Local
+  | Some (module_path, member) -> (
+      match find_module st module_path with
       | None -> Local
-      | Some namespace -> (
-          match Hashtbl.find_opt namespace.values member with
+      | Some scope -> (
+          match Hashtbl.find_opt scope.values member with
           | Some sym -> Found sym
           | None -> Missing (String.concat "." (module_path @ [ member ]))))
-  | _ -> Local
 
 let use_qualified (st : state) ~(what : string) (e : expr) : bool =
   match qualified_use st e with
@@ -288,7 +343,6 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
   | ErrorType -> ()
-  | Named ([], "opaque") -> ()
   | Named (path, name) -> use_type st path name t.tspan
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
@@ -305,8 +359,7 @@ and resolve_block (st : state) (body : block) : unit =
 
 (* Body binders can redeclare but params can't repeat *)
 let declare_param (st : state) (p : param) : unit =
-  let scope = match st.scopes with scope :: _ -> scope | [] -> assert false in
-  match Hashtbl.find_opt scope p.name with
+  match Hashtbl.find_opt st.scope.values p.name with
   | Some prev ->
       Diagnostic.emit st.diags
         (Error.redefinition p.span ~prev:prev.Symbol.span p.name);
@@ -330,16 +383,15 @@ let visibility modifiers =
 let make_state ~(out : t) ~(diags : Diagnostic.sink)
     ~(module_id : Symbol.module_id) ~(module_path : string list)
     ~(qualify : bool) ~(is_root : bool) : state =
+  let top = new_scope (Some out.universe) in
   {
     out;
     module_id;
     module_path;
     qualify;
     is_root;
-    globals = Hashtbl.create 64;
-    types = Hashtbl.create 64;
-    imports = [];
-    scopes = [];
+    top;
+    scope = top;
     next_id = 0;
     diags;
   }
@@ -374,13 +426,7 @@ let resolve_decls (st : state) (decls : decl list) : unit =
 
 let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
     (decls : decl list) : t =
-  let out =
-    {
-      syms = Hashtbl.create 256;
-      module_paths = Hashtbl.create 1;
-      file_modules = Hashtbl.create 1;
-    }
-  in
+  let out = make_output 1 in
   Hashtbl.add out.module_paths module_id [];
   let st =
     make_state ~out ~diags ~module_id ~module_path:[] ~qualify:false
@@ -393,13 +439,7 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
 let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
     resolved_program =
   let count = Array.length program.Program.modules in
-  let out =
-    {
-      syms = Hashtbl.create 512;
-      module_paths = Hashtbl.create count;
-      file_modules = Hashtbl.create count;
-    }
-  in
+  let out = make_output count in
   let states = Hashtbl.create count in
   let state_of (module_ : Program.module_) =
     Hashtbl.find states module_.Program.module_id
@@ -418,15 +458,14 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
       (make_state ~out ~diags ~module_id:module_.Program.module_id
          ~module_path:module_.Program.path ~qualify:true ~is_root)
   in
-  (* Both tables are shared so an import sees names declared after this *)
+  (* The scope is shared so an import sees names declared after this *)
   let link_imports (module_ : Program.module_) =
-    let namespace_of (dependency : Program.dependency) =
+    let bind (dependency : Program.dependency) =
       let target = Hashtbl.find states dependency.Program.target in
-      ( dependency.Program.import.Ast.path,
-        { values = target.globals; types = target.types } )
+      Hashtbl.replace (state_of module_).top.modules
+        dependency.Program.import.Ast.path target.top
     in
-    (state_of module_).imports <-
-      List.map namespace_of module_.Program.dependencies
+    List.iter bind module_.Program.dependencies
   in
   let declare module_ =
     declare_decls (state_of module_) (Program.module_decls module_)

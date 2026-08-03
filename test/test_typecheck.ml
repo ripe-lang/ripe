@@ -3194,16 +3194,24 @@ type Foo = i64
         ^~~~~~~~~~~~~~~~~ previous definition here
     |}]
 
-let%expect_test "typecheck: a type name cannot shadow a builtin" =
+let%expect_test "typecheck: a type name shadows a builtin" =
   run_src {|
 type i32 = i64
+func f(x: i32) i64 { return x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: shadowing a builtin reaches its own definition" =
+  run_src {|
+type i32 = bool
+func f(x: i32) i64 { return x }
 |};
   [%expect
     {|
-    error: already defined as a builtin type: i32
-      at <test>:2:1
-        type i32 = i64
-        ^~~~~~~~~~~~~~
+    error: type mismatch
+      at <test>:3:29
+        func f(x: i32) i64 { return x }
+                                    ^ expected i64, found i32
     |}]
 
 let%expect_test "typecheck: sizeof of a struct type" =
