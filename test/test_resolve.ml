@@ -442,3 +442,42 @@ pub func add(x: i32) {}
 |});
     ];
   [%expect {| ok |}]
+
+let%expect_test "resolve: an import and a function cannot share a name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func math() {}
+func main() { math.add(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: already defined: math
+      at <test>:3:1
+        func math() {}
+        ^~~~~~~~~~~~~~
+      at <test>:2:1
+        import math
+        ^~~~~~~~~~~ previous definition here
+    |}]
+
+(* A struct and a func already share a name here so an import does too *)
+let%expect_test "resolve: an import and a struct can share a name" =
+  resolve_program_src
+    [
+      ( "main.rp",
+        {|
+import math
+struct math { x: i32 }
+func main() { math.add(1) }
+|} );
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]

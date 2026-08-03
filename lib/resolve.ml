@@ -5,7 +5,6 @@ open Ast
 type scope = {
   values : (string, Symbol.t) Hashtbl.t;
   types : (string, Symbol.t) Hashtbl.t;
-  modules : (string list, scope) Hashtbl.t;
   parent : scope option;
 }
 
@@ -13,6 +12,7 @@ type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
+  imports : (Symbol.module_id * string list, scope) Hashtbl.t;
   universe : scope;
 }
 
@@ -44,12 +44,7 @@ let universe_symbol (id : Symbol.id) (name : string) : Symbol.t =
   }
 
 let new_scope (parent : scope option) : scope =
-  {
-    values = Hashtbl.create 16;
-    types = Hashtbl.create 16;
-    modules = Hashtbl.create 4;
-    parent;
-  }
+  { values = Hashtbl.create 16; types = Hashtbl.create 16; parent }
 
 (* A builtin sits in the outermost scope so a module can shadow it like any
    name *)
@@ -64,6 +59,7 @@ let make_output (modules : int) : t =
       syms = Hashtbl.create 512;
       module_paths = Hashtbl.create modules;
       file_modules = Hashtbl.create modules;
+      imports = Hashtbl.create modules;
       universe;
     }
   in
@@ -207,15 +203,11 @@ let split_member (path : string list) : (string list * string) option =
 let find_module (st : state) (path : string list) : scope option =
   match path with
   | [] -> None
-  | root :: _ ->
-      let rec search (scope : scope) =
-        if Hashtbl.mem scope.values root then None
-        else
-          match Hashtbl.find_opt scope.modules path with
-          | Some found -> Some found
-          | None -> Option.bind scope.parent search
-      in
-      search st.scope
+  | root :: _ -> (
+      match find_in_chain values_of st.scope root with
+      | Some { Symbol.kind = Symbol.Module; _ } ->
+          Hashtbl.find_opt st.out.imports (st.module_id, path)
+      | Some _ | None -> None)
 
 (* math.Vec goes through the import and Vec walks out to the builtins *)
 let find_type (st : state) (path : string list) (name : string) :
@@ -460,10 +452,18 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
   in
   (* The scope is shared so an import sees names declared after this *)
   let link_imports (module_ : Program.module_) =
+    let st = state_of module_ in
     let bind (dependency : Program.dependency) =
       let target = Hashtbl.find states dependency.Program.target in
-      Hashtbl.replace (state_of module_).top.modules
-        dependency.Program.import.Ast.path target.top
+      let import = dependency.Program.import in
+      Hashtbl.replace out.imports
+        (module_.Program.module_id, import.Ast.path)
+        target.top;
+      match import.Ast.path with
+      | root :: _ when not (Hashtbl.mem st.top.values root) ->
+          Hashtbl.replace st.top.values root
+            (mint st Symbol.Module root import.Ast.span)
+      | _ -> ()
     in
     List.iter bind module_.Program.dependencies
   in
