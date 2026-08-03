@@ -43,15 +43,17 @@ let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
 
-(* An extern names a foreign symbol and the root main is what the system calls
-   so neither one can be renamed *)
+let is_entry (st : state) (kind : Symbol.kind) (name : string) : bool =
+  kind = Symbol.Func && st.is_root && name = "main"
+
+(* An extern and the entry point are named by something outside the compiler *)
 let declaration_link_name (st : state) (kind : Symbol.kind) (name : string) :
     string =
   if not st.qualify then name
+  else if is_entry st kind name then name
   else
     match kind with
     | Symbol.Extern -> name
-    | Symbol.Func when st.is_root && name = "main" -> name
     | _ -> Mangle.declaration st.module_path name
 
 let mint ?(visibility = Symbol.Private) ?link_name (st : state)
@@ -67,6 +69,7 @@ let mint ?(visibility = Symbol.Private) ?link_name (st : state)
       link_name;
       kind;
       visibility;
+      entry_point = is_entry st kind name;
       span;
     }
   in

@@ -16,6 +16,7 @@ let fresh_sym name : Symbol.t =
     link_name = Printf.sprintf "%s.%d" name c;
     kind = Symbol.Local Ast.Var;
     visibility = Symbol.Private;
+    entry_point = false;
     span = Ast.dummy_span;
   }
 
@@ -250,6 +251,7 @@ and lower_for sym elem_ty iter body : D.cblock =
 let lower_func (fd : S.tfunc_def) : D.cfunc_def =
   {
     D.name = fd.S.name;
+    entry_point = fd.S.entry_point;
     params = fd.S.params;
     ret_ty = fd.S.ret_ty;
     body = lower_block fd.S.body;

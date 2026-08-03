@@ -126,6 +126,11 @@ let link_name_at (env : env) (span : Ast.span) (fallback : string) : string =
   | Some symbol -> symbol.Symbol.link_name
   | None -> fallback
 
+let is_entry (env : env) (span : Ast.span) : bool =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> symbol.Symbol.entry_point
+  | None -> false
+
 let lookup_func (env : env) (span : Ast.span) (name : string) : func_sig =
   match Hashtbl.find_opt env.funcs (key_at env span) with
   | Some s -> s
@@ -1197,7 +1202,7 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some { tdesc = Named "never"; _ } -> TNever
   | Some t -> ty_of_ast env t
-  | None -> if fd.name = "main" then TInt I32 else TVoid
+  | None -> if is_entry env fd.span then TInt I32 else TVoid
 
 (* First pass collecting signatures so that the compiler can handle forward
    references *)
@@ -1413,14 +1418,16 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   (* Main always returns a 32 bit integer so any other type the user writes is
      rejected *)
-  if fd.name = "main" && ret_ty <> TError && ret_ty <> TInt I32 then begin
+  if is_entry env fd.span && ret_ty <> TError && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
     emit env
       (Error.type_mismatch span ~expected:(show_ty (TInt I32))
          ~found:(show_ty ret_ty))
   end;
 
-  let func_env = push_scope { env with ret_ty; in_main = fd.name = "main" } in
+  let func_env =
+    push_scope { env with ret_ty; in_main = is_entry env fd.span }
+  in
   (* An extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
@@ -1431,7 +1438,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* A non-void body's trailing value is its return value so it flows against
      the declared return type while main and void bodies just run for effect *)
   let implicit_return =
-    (not is_extern) && ret_ty <> TVoid && fd.name <> "main"
+    (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.span)
   in
   let want_tail = if implicit_return then Some ret_ty else None in
   let final_env, tbody0 = check_block param_env fd.span fd.body want_tail in
@@ -1449,6 +1456,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   {
     T.key = key_at env fd.span;
     name = link_name_at env fd.span fd.name;
+    entry_point = is_entry env fd.span;
     params;
     ret_ty;
     body = tbody;

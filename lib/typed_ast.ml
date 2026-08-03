@@ -52,6 +52,7 @@ let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
 type tfunc_def = {
   key : Symbol.key;
   name : string;
+  entry_point : bool;
   params : (Symbol.t * ty) list;
   ret_ty : ty;
   body : tblock;
