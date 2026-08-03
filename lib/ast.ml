@@ -127,7 +127,7 @@ and block = expr list [@@deriving show { with_path = false }]
 
 and typ_desc =
   | ErrorType
-  | Named of string
+  | Named of string list * string
   | Pointer of typ
   | FuncPtr of typ list * typ option
   | Array of expr * typ
@@ -136,6 +136,9 @@ and typ_desc =
 
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
+
+let show_named (path : string list) (name : string) : string =
+  String.concat "." (path @ [ name ])
 
 type param = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]

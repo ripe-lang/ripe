@@ -56,6 +56,10 @@ let module_name_of_path (path : string list) : string =
 let parent_path (path : string list) : string list =
   match List.rev path with _ :: rest -> List.rev rest | [] -> []
 
+(* Every file of a module shares one namespace *)
+let module_decls (module_ : module_) : Ast.decl list =
+  List.concat_map (fun (unit_ : unit_) -> unit_.ast.Ast.decls) module_.units
+
 let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
     (import : Ast.import) (headline : string) : unit =
   let d = Diagnostic.error headline |> Diagnostic.at import.Ast.span in
@@ -81,7 +85,6 @@ let show_import_cycle (paths : string list list) : string =
       ^ String.concat "" (List.map hop rest)
 
 (* Only the first item matters so a full parse would double every error *)
-
 let probe_header (src : string) : string option =
   let lexbuf = Lexing.from_string src in
   let read = Lexer.read (Lexer.make_state 0) in

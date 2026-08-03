@@ -5,6 +5,12 @@ open Ast
 type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
+  file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
+}
+
+type namespace = {
+  values : (string, Symbol.t) Hashtbl.t;
+  types : (string, Symbol.t) Hashtbl.t;
 }
 
 type state = {
@@ -15,10 +21,14 @@ type state = {
   is_root : bool;
   globals : (string, Symbol.t) Hashtbl.t;
   types : (string, Symbol.t) Hashtbl.t;
+  mutable imports : (string list * namespace) list;
   mutable scopes : (string, Symbol.t) Hashtbl.t list;
   mutable next_id : Symbol.id;
   diags : Diagnostic.sink;
 }
+
+type resolved_program = { uses : t; decls : Ast.decl list }
+type qualified = Local | Found of Symbol.t | Missing of string
 
 (* This is the `--emit resolve` output *)
 let dump (r : t) : string =
@@ -42,6 +52,15 @@ let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
 let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
+
+(* A message inside math says add where one outside says math.add *)
+let module_path_at (r : t) (span : Ast.span) : string list =
+  match Hashtbl.find_opt r.file_modules span.Ast.file with
+  | None -> []
+  | Some module_id -> (
+      match Hashtbl.find_opt r.module_paths module_id with
+      | Some path -> path
+      | None -> [])
 
 let is_entry (st : state) (kind : Symbol.kind) (name : string) : bool =
   kind = Symbol.Func && st.is_root && name = "main"
@@ -109,25 +128,58 @@ let declare_type (st : state) visibility name span : unit =
       Hashtbl.replace st.types name
         (mint ~visibility ~link_name st Symbol.Type name span)
 
-let use_type (st : state) name span : unit =
-  if not (List.mem_assoc name Types.builtin_tys) then
-    match Hashtbl.find_opt st.types name with
-    | Some sym -> Hashtbl.replace st.out.syms span sym
-    | None ->
-        Diagnostic.emit st.diags (Error.undefined_name span "type" name);
-        ignore (mint st Symbol.Error name span)
-
-(* The typechecker reports an unknown struct literal so staying quiet here keeps
-   it from being reported twice *)
-let use_type_if_found (st : state) (name : string) (span : Ast.span) : unit =
-  match Hashtbl.find_opt st.types name with
-  | Some sym -> Hashtbl.replace st.out.syms span sym
-  | None -> ()
-
 let lookup (st : state) (name : string) : Symbol.t option =
   match List.find_map (fun scope -> Hashtbl.find_opt scope name) st.scopes with
   | Some s -> Some s
   | None -> Hashtbl.find_opt st.globals name
+
+(* The name comes off the symbol not off the spelling at the use site *)
+let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
+  if
+    sym.Symbol.module_id <> st.module_id
+    && sym.Symbol.visibility = Symbol.Private
+  then
+    let shown = Qname.show_in st.module_path (qname_of st.out sym) in
+    Diagnostic.emit st.diags
+      (Error.named span "private declaration" shown
+      |> Diagnostic.secondary sym.Symbol.span "declared private here")
+
+let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
+  check_visibility st span sym;
+  Hashtbl.replace st.out.syms span sym
+
+let imported_namespace (st : state) (path : string list) : namespace option =
+  List.assoc_opt path st.imports
+
+let split_member (path : string list) : (string list * string) option =
+  match List.rev path with
+  | member :: rest -> Some (List.rev rest, member)
+  | [] -> None
+
+(* math.Vec goes through the import and Vec stays in this module *)
+let find_type (st : state) (path : string list) (name : string) :
+    Symbol.t option =
+  if path = [] then Hashtbl.find_opt st.types name
+  else
+    match imported_namespace st path with
+    | Some namespace -> Hashtbl.find_opt namespace.types name
+    | None -> None
+
+let use_type (st : state) (path : string list) (name : string) (span : Ast.span)
+    : unit =
+  let shown = Ast.show_named path name in
+  if not (path = [] && List.mem_assoc name Types.builtin_tys) then
+    match find_type st path name with
+    | Some sym -> use_symbol st span sym
+    | None ->
+        Diagnostic.emit st.diags (Error.undefined_name span "type" shown);
+        ignore (mint st Symbol.Error shown span)
+
+(* The typechecker already reports an unknown struct literal *)
+let use_type_if_found (st : state) (name : string) (span : Ast.span) : unit =
+  match find_type st [] name with
+  | Some sym -> use_symbol st span sym
+  | None -> ()
 
 let use (st : state) ~(what : string) name span : unit =
   match lookup st name with
@@ -136,15 +188,51 @@ let use (st : state) ~(what : string) name span : unit =
       Diagnostic.emit st.diags (Error.undefined_name span what name);
       ignore (mint st Symbol.Error name span)
 
+let rec access_path (e : expr) : string list option =
+  match e.desc with
+  | Ident name -> Some [ name ]
+  | FieldAccess (inner, name) ->
+      Option.map (fun path -> path @ [ name ]) (access_path inner)
+  | _ -> None
+
+let root_in_scope (st : state) (path : string list) : bool =
+  match path with root :: _ -> lookup st root <> None | [] -> true
+
+(* A local named math wins so math.x stays an ordinary field access *)
+let qualified_use (st : state) (e : expr) : qualified =
+  match Option.bind (access_path e) split_member with
+  | Some (module_path, member) when not (root_in_scope st module_path) -> (
+      match imported_namespace st module_path with
+      | None -> Local
+      | Some namespace -> (
+          match Hashtbl.find_opt namespace.values member with
+          | Some sym -> Found sym
+          | None -> Missing (String.concat "." (module_path @ [ member ]))))
+  | _ -> Local
+
+let use_qualified (st : state) ~(what : string) (e : expr) : bool =
+  match qualified_use st e with
+  | Local -> false
+  | Found sym ->
+      use_symbol st e.span sym;
+      true
+  | Missing name ->
+      Diagnostic.emit st.diags (Error.undefined_name e.span what name);
+      (* The stages after this read a symbol back off every span they walk *)
+      ignore (mint st Symbol.Error name e.span);
+      true
+
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
   | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
-  | Call ({ desc = Ident name; span }, args) ->
-      use st ~what:"function" name span;
+  | Call (({ desc = Ident name; span } as callee), args) ->
+      if not (use_qualified st ~what:"function" callee) then
+        use st ~what:"function" name span;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
-      resolve_expr st callee;
+      if not (use_qualified st ~what:"function" callee) then
+        resolve_expr st callee;
       List.iter (resolve_expr st) args
   | BinOp (_, l, r) ->
       resolve_expr st l;
@@ -153,7 +241,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Range (l, r) | RangeInclusive (l, r) ->
       resolve_expr st l;
       resolve_expr st r
-  | FieldAccess (inner, _) -> resolve_expr st inner
+  | FieldAccess (inner, _) ->
+      if not (use_qualified st ~what:"variable" e) then resolve_expr st inner
   | Cast (inner, ty, _) ->
       resolve_expr st inner;
       resolve_typ st ty
@@ -199,8 +288,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
   | ErrorType -> ()
-  | Named "opaque" -> ()
-  | Named name -> use_type st name t.tspan
+  | Named ([], "opaque") -> ()
+  | Named (path, name) -> use_type st path name t.tspan
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
       resolve_expr st e;
@@ -238,25 +327,25 @@ let resolve_func (st : state) (fd : func_def) : unit =
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
 
-let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
-    (decls : decl list) : t =
-  let st =
-    {
-      out = { syms = Hashtbl.create 256; module_paths = Hashtbl.create 1 };
-      module_id;
-      module_path = [];
-      qualify = false;
-      is_root = true;
-      globals = Hashtbl.create 64;
-      types = Hashtbl.create 64;
-      scopes = [];
-      next_id = 0;
-      diags;
-    }
-  in
-  Hashtbl.add st.out.module_paths module_id [];
-  (* Declare every top level name first so bodies and initializers can forward
-     reference. *)
+let make_state ~(out : t) ~(diags : Diagnostic.sink)
+    ~(module_id : Symbol.module_id) ~(module_path : string list)
+    ~(qualify : bool) ~(is_root : bool) : state =
+  {
+    out;
+    module_id;
+    module_path;
+    qualify;
+    is_root;
+    globals = Hashtbl.create 64;
+    types = Hashtbl.create 64;
+    imports = [];
+    scopes = [];
+    next_id = 0;
+    diags;
+  }
+
+(* A top level name lands first so a body can forward reference *)
+let declare_decls (st : state) (decls : decl list) : unit =
   List.iter
     (function
       | Func fd ->
@@ -269,7 +358,9 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
       | Struct sd -> declare_type st (visibility sd.modifiers) sd.name sd.span
       | TypeAlias td | Newtype td ->
           declare_type st Symbol.Private td.name td.span)
-    decls;
+    decls
+
+let resolve_decls (st : state) (decls : decl list) : unit =
   List.iter
     (function
       | Func fd | Extern fd -> resolve_func st fd
@@ -279,5 +370,77 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
       | Struct sd ->
           List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
       | TypeAlias td | Newtype td -> resolve_typ st td.typ)
-    decls;
-  st.out
+    decls
+
+let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
+    (decls : decl list) : t =
+  let out =
+    {
+      syms = Hashtbl.create 256;
+      module_paths = Hashtbl.create 1;
+      file_modules = Hashtbl.create 1;
+    }
+  in
+  Hashtbl.add out.module_paths module_id [];
+  let st =
+    make_state ~out ~diags ~module_id ~module_path:[] ~qualify:false
+      ~is_root:true
+  in
+  declare_decls st decls;
+  resolve_decls st decls;
+  out
+
+let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
+    resolved_program =
+  let count = Array.length program.Program.modules in
+  let out =
+    {
+      syms = Hashtbl.create 512;
+      module_paths = Hashtbl.create count;
+      file_modules = Hashtbl.create count;
+    }
+  in
+  let states = Hashtbl.create count in
+  let state_of (module_ : Program.module_) =
+    Hashtbl.find states module_.Program.module_id
+  in
+  let start (module_ : Program.module_) =
+    Hashtbl.add out.module_paths module_.Program.module_id module_.Program.path;
+    List.iter
+      (fun (unit_ : Program.unit_) ->
+        Hashtbl.replace out.file_modules unit_.Program.source.Program.file_id
+          module_.Program.module_id)
+      module_.Program.units;
+    let is_root =
+      module_.Program.module_id = program.Program.root.Program.module_id
+    in
+    Hashtbl.add states module_.Program.module_id
+      (make_state ~out ~diags ~module_id:module_.Program.module_id
+         ~module_path:module_.Program.path ~qualify:true ~is_root)
+  in
+  (* Both tables are shared so an import sees names declared after this *)
+  let link_imports (module_ : Program.module_) =
+    let namespace_of (dependency : Program.dependency) =
+      let target = Hashtbl.find states dependency.Program.target in
+      ( dependency.Program.import.Ast.path,
+        { values = target.globals; types = target.types } )
+    in
+    (state_of module_).imports <-
+      List.map namespace_of module_.Program.dependencies
+  in
+  let declare module_ =
+    declare_decls (state_of module_) (Program.module_decls module_)
+  in
+  let resolve module_ =
+    resolve_decls (state_of module_) (Program.module_decls module_)
+  in
+  Array.iter start program.Program.modules;
+  Array.iter link_imports program.Program.modules;
+  (* Every module declares before any body resolves so imports go both ways *)
+  Array.iter declare program.Program.modules;
+  Array.iter resolve program.Program.modules;
+  let decls =
+    program.Program.modules |> Array.to_list
+    |> List.concat_map Program.module_decls
+  in
+  { uses = out; decls }

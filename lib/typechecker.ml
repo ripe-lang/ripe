@@ -171,33 +171,33 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | ErrorType -> TError
   (* Never is the return type of a function that can't return so no value ever
      has it *)
-  | Named "never" ->
+  | Named ([], "never") ->
       emit env
         Diagnostic.(
           error "never is only valid as a function return type"
           |> at t.tspan
           |> help "a value of type never cannot exist");
       TError
-  | Named "opaque" ->
+  | Named ([], "opaque") ->
       emit env
         Diagnostic.(
           error "opaque is only valid as a pointee"
           |> at t.tspan
           |> help "use *opaque for an untyped pointer");
       TError
-  | Named name -> (
-      match List.assoc_opt name builtin_tys with
-      | Some bt -> bt
+  | Named ([], name) when List.mem_assoc name builtin_tys ->
+      List.assoc name builtin_tys
+  | Named (path, name) -> (
+      let shown = Ast.show_named path name in
+      match Hashtbl.find_opt env.types (key_at env t.tspan) with
+      | Some (DStruct _) -> TStruct (qname_at env t.tspan shown, [])
+      | Some (DNewtype base) -> TNewtype (qname_at env t.tspan shown, base)
+      | Some (DAlias aliased) -> TAlias (qname_at env t.tspan shown, aliased)
       | None -> (
-          match Hashtbl.find_opt env.types (key_at env t.tspan) with
-          | Some (DStruct _) -> TStruct (qname_at env t.tspan name, [])
-          | Some (DNewtype base) -> TNewtype (qname_at env t.tspan name, base)
-          | Some (DAlias aliased) -> TAlias (qname_at env t.tspan name, aliased)
-          | None -> (
-              match Resolve.sym_at_opt env.uses t.tspan with
-              | Some { Symbol.kind = Symbol.Error; _ } -> TError
-              | _ -> Error.ice ~span:t.tspan "type name escaped the resolver")))
-  | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
+          match Resolve.sym_at_opt env.uses t.tspan with
+          | Some { Symbol.kind = Symbol.Error; _ } -> TError
+          | _ -> Error.ice ~span:t.tspan "type name escaped the resolver"))
+  | Pointer { tdesc = Named ([], "opaque"); _ } -> TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> (
       match ty_of_ast env t with
@@ -276,7 +276,14 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
-  | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
+  (* A qualified name is one symbol so the module in front of it isn't a value *)
+  | FieldAccess (inner_e, fname) -> (
+      match Resolve.sym_at_opt env.uses e.span with
+      | Some s when s.Symbol.kind = Symbol.Error -> dummy_texpr
+      | Some s
+        when Symbol.is_func s.Symbol.kind || Symbol.is_global s.Symbol.kind ->
+          T.mk (lookup_var env e.span s.Symbol.name) (T.TIdent s)
+      | _ -> synth_field env e.span inner_e fname)
   | Cast (operand, t, kind) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
@@ -1013,10 +1020,18 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 
 and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
     : T.texpr =
-  match callee.desc with
-  | Ident name when Symbol.is_func (sym env callee.span).Symbol.kind ->
-      let fn_sym = sym env callee.span in
-      let sig_ = lookup_func env callee.span name in
+  (* A qualified callee is one symbol so it still calls direct *)
+  let direct_callee =
+    match callee.desc with
+    | Ident _ | FieldAccess _ -> (
+        match Resolve.sym_at_opt env.uses callee.span with
+        | Some s when Symbol.is_func s.Symbol.kind -> Some s
+        | _ -> None)
+    | _ -> None
+  in
+  match direct_callee with
+  | Some fn_sym ->
+      let sig_ = lookup_func env callee.span fn_sym.Symbol.name in
       let targs = check_args env span sig_ args in
       let fixed_count =
         if sig_.variadic then Some (List.length sig_.param_tys) else None
@@ -1200,7 +1215,7 @@ and eval_array_size (env : env) (e : expr) : int =
 (* Main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
-  | Some { tdesc = Named "never"; _ } -> TNever
+  | Some { tdesc = Named ([], "never"); _ } -> TNever
   | Some t -> ty_of_ast env t
   | None -> if is_entry env fd.span then TInt I32 else TVoid
 

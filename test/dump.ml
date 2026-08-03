@@ -21,7 +21,7 @@ let tok_str (t : Ripe.Tokens.token) =
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
   | ErrorType -> "<error>"
-  | Named n -> n
+  | Named (path, n) -> Ripe.Ast.show_named path n
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
   | Slice t -> "[]" ^ dump_typ t

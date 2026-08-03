@@ -293,7 +293,10 @@ let rec parse_typ st =
         advance st;
         path := expect_ident st :: !path
       done;
-      mkt lo st (Named (String.concat "." (List.rev !path)))
+      let modules, base =
+        match !path with base :: rest -> (List.rev rest, base) | [] -> ([], "")
+      in
+      mkt lo st (Named (modules, base))
   (* [N]T fixed-size array, []T slice *)
   | LBRACKET ->
       advance st;

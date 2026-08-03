@@ -380,3 +380,65 @@ struct secret {}
     point Public
     secret Private
     |}]
+
+let resolve_program_src (files : (string * string) list) =
+  let read_file name =
+    match List.assoc_opt name files with
+    | Some src -> src
+    | None -> raise (Sys_error name)
+  in
+  let list_dir name = raise (Sys_error name) in
+  let diags = Ripe.Diagnostic.sink () in
+  let program =
+    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp"
+  in
+  let resolved = Ripe.Resolve.resolve_program ~diags program in
+  match Diag.finish diags resolved with
+  | _, _ -> print_endline "ok"
+  | exception Ripe.Diagnostic.Errors ds ->
+      List.iter (fun d -> Diag.render (List.assoc "main.rp" files) d) ds
+
+let%expect_test "resolve: a call reaches into an imported module" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { math.add(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: an unknown member of an import is reported" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { math.nope(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: undefined function: math.nope
+      at <test>:3:15
+        func main() { math.nope(1) }
+                      ^~~~~~~~~
+    |}]
+
+let%expect_test "resolve: a local shadows an import of the same name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var math = 1; math.nope(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
