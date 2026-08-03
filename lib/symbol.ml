@@ -22,6 +22,7 @@ type t = {
   link_name : string;
   kind : kind;
   visibility : visibility;
+  entry_point : bool;
   span : Ast.span;
 }
 [@@deriving show { with_path = false }]

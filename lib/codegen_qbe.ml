@@ -1134,7 +1134,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
       param_tmps
   in
 
-  let is_main = tfd.T.name = "main" && tfd.T.ret_ty = TInt I32 in
+  let is_main = tfd.T.entry_point && tfd.T.ret_ty = TInt I32 in
   ctx.in_main := is_main;
   let export_part = if is_main then "export " else "" in
   let ret_part =

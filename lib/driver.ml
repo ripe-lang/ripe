@@ -76,7 +76,7 @@ let render_all ctx diags =
 let check_has_main diags tdecls =
   let is_main decl =
     match decl with
-    | Typed_ast.TFunc fd -> Typed_ast.tfunc_name fd = "main"
+    | Typed_ast.TFunc fd -> fd.Typed_ast.entry_point
     | _ -> false
   in
   if not (List.exists is_main tdecls) then
