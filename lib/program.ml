@@ -252,9 +252,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           | exception Invalid_utf8 filename -> (
               match imported_by with
               | None -> raise (Invalid_utf8 filename)
-              | Some import ->
-                  unreadable import
-                    ("module is not valid UTF-8: " ^ show_module_path path))
+              | Some import -> unreadable import ("not valid UTF-8: " ^ filename)
+              )
         in
         (* The root came off the command line so nothing beside it competes *)
         let located =
