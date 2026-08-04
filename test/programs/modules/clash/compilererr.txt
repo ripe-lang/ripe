@@ -1,0 +1,8 @@
+error: module is both a file and a directory: math
+  at main.rp:1:1
+    import math
+    ^~~~~~~~~~~
+error: undefined function: math.answer
+  at main.rp:4:10
+      return math.answer()
+             ^~~~~~~~~~~
