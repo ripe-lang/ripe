@@ -298,8 +298,9 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | StructLit (name, name_span, fields) ->
-      use_type_if_found st name name_span;
+  | StructLit (path, name, name_span, fields) ->
+      if path = [] then use_type_if_found st name name_span
+      else use_type st path name name_span;
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | If (branches, else_body) ->

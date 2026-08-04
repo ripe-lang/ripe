@@ -33,7 +33,7 @@ type env = {
   types : (Symbol.key, type_def) Hashtbl.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need
      not rebuild them *)
-  struct_fields : (Symbol.key, (string * ty) list) Hashtbl.t;
+  struct_fields : (Symbol.key, ty list) Hashtbl.t;
   globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (Symbol.key, gstate) Hashtbl.t;
@@ -359,7 +359,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
-  | StructLit (name, name_span, inits) -> (
+  | StructLit (path, name, name_span, inits) -> (
       match Hashtbl.find_opt env.types (key_at env name_span) with
       | Some (DStruct info) ->
           let seen = Hashtbl.create 4 in
@@ -373,21 +373,23 @@ and synth_desc (env : env) (e : expr) : T.texpr =
             inits;
           (* Omitted fields are zero-initialized *)
           let tfields =
-            List.map
-              (fun (fname, ft) ->
+            List.mapi
+              (fun field_id (fname, ft) ->
                 match
                   List.find_map
                     (fun (n, _, e) -> if n = fname then Some e else None)
                     inits
                 with
-                | Some e -> (fname, check env e ft)
-                | None -> (fname, T.mk ft T.TZero))
+                | Some e -> (field_id, check env e ft)
+                | None -> (field_id, T.mk ft T.TZero))
               info.field_tys
           in
-          let qname = qname_at env name_span name in
+          let shown = Ast.show_named path name in
+          let qname = qname_at env name_span shown in
           T.mk (TStruct (qname, [])) (T.TStructLit (qname, tfields))
       | _ ->
-          emit env (Error.undefined_name name_span "struct" name);
+          emit env
+            (Error.undefined_name name_span "struct" (Ast.show_named path name));
           dummy_texpr)
   | Block body ->
       let tb, ty = check_scoped_block env e.span body None false in
@@ -1021,8 +1023,13 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
       dummy_texpr
   | Some (sname, _) -> (
       let info = lookup_struct env span sname in
-      match List.assoc_opt fname info.field_tys with
-      | Some ft -> T.mk ft (T.TFieldAccess (te, fname))
+      match
+        List.find_mapi
+          (fun field_id (name, ft) ->
+            if name = fname then Some (field_id, ft) else None)
+          info.field_tys
+      with
+      | Some (field_id, ft) -> T.mk ft (T.TFieldAccess (te, field_id))
       | None ->
           emit env
             (Error.named span "no field" fname
@@ -1264,7 +1271,8 @@ let resolve_struct_fields (env : env) (sd : struct_def) : unit =
         List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
       in
       Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys });
-      Hashtbl.replace env.struct_fields (key_at env sd.span) field_tys
+      Hashtbl.replace env.struct_fields (key_at env sd.span)
+        (List.map snd field_tys)
   | _ -> ()
 
 (* A pointer or slice field is just an address so it can't grow the struct *)
@@ -1280,16 +1288,14 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
     | TStruct (name, _) ->
         let name = Qname.key name in
         Hashtbl.add on_path name ();
-        let hit =
-          List.exists (fun (_, ft) -> reaches target ft) (fields_of name)
-        in
+        let hit = List.exists (reaches target) (fields_of name) in
         Hashtbl.remove on_path name;
         hit
     | TArray (elem, _) -> reaches target elem
     | _ -> false
   in
   let key = key_at env sd.span in
-  if List.exists (fun (_, ft) -> reaches key ft) (fields_of key) then
+  if List.exists (reaches key) (fields_of key) then
     emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
 (* A fake error type goes in the table first and it just means the real body
@@ -1562,7 +1568,8 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
               (fun (f : field) -> (f.name, ty_of_ast env f.typ))
               sd.fields
       in
-      T.TStruct (qname_at env sd.span sd.name, field_tys, sd.modifiers)
+      T.TStruct
+        (qname_at env sd.span sd.name, List.map snd field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
   (* A rejected duplicate never landed in the table and falls back to the
      written type *)

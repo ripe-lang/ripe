@@ -151,8 +151,7 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
 
-let rec ty_align (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
-    : int =
+let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -165,9 +164,7 @@ let rec ty_align (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs (Qname.key name) with
       | Some fields ->
-          List.fold_left
-            (fun acc (_, ft) -> max acc (ty_align structs ft))
-            1 fields
+          List.fold_left (fun acc ft -> max acc (ty_align structs ft)) 1 fields
       | None ->
           Error.ice
             (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
@@ -179,8 +176,7 @@ let rec ty_align (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
 (* `n` and `a` MUST be non-negative *)
 let align_to n a = (n + a - 1) / a * a
 
-let rec ty_size (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
-    : int =
+let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -196,7 +192,7 @@ let rec ty_size (structs : (Symbol.key, (string * ty) list) Hashtbl.t) (t : ty)
           let struct_align = ty_align structs t in
           let offset =
             List.fold_left
-              (fun off (_, ft) ->
+              (fun off ft ->
                 let a = ty_align structs ft in
                 let off = align_to off a in
                 off + ty_size structs ft)

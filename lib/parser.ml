@@ -268,11 +268,11 @@ let with_struct_lit (st : state) (no_struct_lit : bool) (f : unit -> 'a) : 'a =
 let in_brackets (st : state) (f : unit -> 'a) : 'a = with_struct_lit st false f
 
 (* math.Point, math.vector.Point *)
-let rec dotted_name (e : expr) : string option =
+let rec dotted_name (e : expr) : string list option =
   match e.desc with
-  | Ident name -> Some name
+  | Ident name -> Some [ name ]
   | FieldAccess (inner, name) ->
-      Option.map (fun path -> path ^ "." ^ name) (dotted_name inner)
+      Option.map (fun path -> path @ [ name ]) (dotted_name inner)
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break | Continue
@@ -498,7 +498,14 @@ and parse_postfix st (lhs : expr) =
           advance st;
           let fields = parse_struct_lit_fields st in
           expect st RBRACE;
-          parse_postfix st (mk lo st (StructLit (path, access.span, fields)))
+          let path = List.rev path in
+          let name, module_path =
+            match path with
+            | name :: module_path -> (name, List.rev module_path)
+            | [] -> assert false
+          in
+          parse_postfix st
+            (mk lo st (StructLit (module_path, name, access.span, fields)))
       | Some _ | None -> parse_postfix st access)
   | LBRACKET ->
       advance st;
@@ -559,7 +566,7 @@ and parse_primary st =
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
-        mk lo st (StructLit (name, nspan, fields))
+        mk lo st (StructLit ([], name, nspan, fields))
       end
       else mk lo st (Ident name)
   | STRING s ->

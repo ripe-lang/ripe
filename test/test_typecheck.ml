@@ -3924,3 +3924,16 @@ func f() {
           var void_array = [noop(), noop()]
                             ^~~~~~
     |}]
+
+let%expect_test "typecheck: a qualified struct literal" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+func main() { let _p = math.Point { x: 1 } }
+|});
+      ("math.rp", {|
+pub struct Point { x: i32 }
+|});
+    ];
+  [%expect {| ok |}]

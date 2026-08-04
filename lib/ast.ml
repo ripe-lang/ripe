@@ -108,7 +108,7 @@ type expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of string * span * (string * span * expr) list
+  | StructLit of string list * string * span * (string * span * expr) list
   | Block of block
   | If of (expr * block) list * block option
   | While of expr * block

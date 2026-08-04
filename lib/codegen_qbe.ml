@@ -115,7 +115,7 @@ let qbe_store (t : ty) : string =
   | TError -> Error.ice "TError has no store instruction"
 
 type ctx = {
-  structs : (Symbol.key, (string * ty) list) Hashtbl.t;
+  structs : (Symbol.key, ty list) Hashtbl.t;
   locals : (Symbol.id, string) Hashtbl.t;
   used_slots : (string, unit) Hashtbl.t;
   globals : (string, unit) Hashtbl.t;
@@ -220,15 +220,16 @@ let emit_jnz ctx v then_lbl else_lbl =
     emit ctx "    jnz %s, %s, %s\n" v then_lbl else_lbl;
   ctx.terminated := true
 
-let field_offset structs fields fname =
-  let rec go off = function
-    | [] -> Error.ice (Printf.sprintf "unknown field %s" fname)
-    | (n, ft) :: rest ->
+let field_offset structs fields field_id =
+  let rec go index off = function
+    | [] -> Error.ice (Printf.sprintf "unknown field index %d" field_id)
+    | ft :: rest ->
         let a = ty_align structs ft in
         let off = align_to off a in
-        if n = fname then off else go (off + ty_size structs ft) rest
+        if index = field_id then off
+        else go (index + 1) (off + ty_size structs ft) rest
   in
-  go 0 fields
+  go 0 0 fields
 
 (* The number of bytes from one element to the next after rounding to its
    alignment *)
@@ -702,9 +703,9 @@ and emit_array_lit_into ctx base elems elem =
 and emit_struct_lit_into ctx base (sname : Qname.t) tfields =
   let fields = Hashtbl.find ctx.structs (Qname.key sname) in
   List.iter
-    (fun (fname, (fe : T.cexpr)) ->
+    (fun (field_id, (fe : T.cexpr)) ->
       let ft = fe.T.ty in
-      let offset = field_offset ctx.structs fields fname in
+      let offset = field_offset ctx.structs fields field_id in
       let addr = offset_addr ctx base offset in
       match fe.T.desc with
       | T.CStructLit (sub, subfields) ->
@@ -1215,9 +1216,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TNever -> Error.ice "TNever has no extended type"
   | TError -> Error.ice "TError has no extended type"
 
-let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : (string * ty) list)
-    =
-  let field_strs = List.map (fun (_, t) -> qbe_ext_ty t) fields in
+let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
+  let field_strs = List.map qbe_ext_ty fields in
   emit ctx "type :%s = { %s }\n" (Qname.show name)
     (String.concat ", " field_strs)
 

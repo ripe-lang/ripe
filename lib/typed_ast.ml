@@ -14,7 +14,7 @@ type texpr_desc =
   | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
   | TUnOp of Ast.unop * texpr
-  | TFieldAccess of texpr * string
+  | TFieldAccess of texpr * int
   (* Target type is the node type *)
   | TCast of texpr * Ast.cast_kind
   | TSizeOf of Types.ty
@@ -28,7 +28,7 @@ type texpr_desc =
   | TDataPtr of texpr
   | TZero
   | TUndef
-  | TStructLit of Qname.t * (string * texpr) list
+  | TStructLit of Qname.t * (int * texpr) list
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
   | TWhile of texpr * tblock
@@ -74,7 +74,7 @@ type tglobal_def = {
 
 type tdecl =
   | TFunc of tfunc_def
-  | TStruct of Qname.t * (string * ty) list * Ast.modifier list
+  | TStruct of Qname.t * ty list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
