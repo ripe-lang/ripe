@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:4:13
+      math.take(1)
+                ^ expected math.Point, found i32

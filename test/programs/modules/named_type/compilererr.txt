@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:4:26
+      var _c: math.Celsius = true
+                             ^~~~ expected math.Celsius, found bool

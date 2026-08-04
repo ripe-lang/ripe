@@ -42,6 +42,8 @@ type env = {
   in_loop : bool;
   in_main : bool;
   suppress_warnings : bool;
+  (* Whoever reads the message is inside this module so its path drops out *)
+  reader_path : string list;
   diags : Diagnostic.sink;
   uses : Resolve.t;
 }
@@ -62,9 +64,22 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
     in_loop = false;
     in_main = false;
     suppress_warnings = Diagnostic.has_errors diags;
+    reader_path = [];
     diags;
     uses;
   }
+
+let show_ty (env : env) (t : ty) : string = Types.show_ty_in env.reader_path t
+
+let decl_span : decl -> Ast.span = function
+  | Func fd | Extern fd -> fd.span
+  | Global gd -> gd.span
+  | Struct sd -> sd.span
+  | TypeAlias td | Newtype td -> td.span
+
+(* The path comes off the declaration being checked not off the root module *)
+let reading (env : env) (decl : decl) : env =
+  { env with reader_path = Resolve.module_path_at env.uses (decl_span decl) }
 
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
@@ -169,7 +184,7 @@ let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
   if not (is_scalar t) then
     emit env
       Diagnostic.(
-        error ("comptime must be a scalar, found " ^ show_ty t)
+        error ("comptime must be a scalar, found " ^ show_ty env t)
         |> at span
         |> help "use let for values that need storage")
 
@@ -269,14 +284,14 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty env (TInt kind)));
       T.mk (TInt kind) (T.TInt n)
   | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
       synth env { operand with span = e.span }
   | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
       if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty env (TInt kind)));
       T.mk (TInt kind) (T.TInt (Int64.neg n))
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
   | Bool b -> T.mk TBool (T.TBool b)
@@ -311,8 +326,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           Diagnostic.error "invalid cast"
           |> Diagnostic.at e.span
           |> Diagnostic.label
-               (Printf.sprintf "cannot cast %s to %s" (show_ty te.T.ty)
-                  (show_ty ty))
+               (Printf.sprintf "cannot cast %s to %s" (show_ty env te.T.ty)
+                  (show_ty env ty))
         in
         let d =
           if resolve_ty ty = TBool then
@@ -356,7 +371,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         match te0.T.ty with
         | (TVoid | TNever) as t ->
             add_error env e0.span
-              (Printf.sprintf "array element cannot have type %s" (show_ty t));
+              (Printf.sprintf "array element cannot have type %s"
+                 (show_ty env t));
             TError
         | t -> t
       in
@@ -477,8 +493,8 @@ and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
         (match want with
         | Some w when strip_alias w <> TVoid ->
             emit env
-              (Error.type_mismatch span ~expected:(show_ty w)
-                 ~found:(show_ty TVoid))
+              (Error.type_mismatch span ~expected:(show_ty env w)
+                 ~found:(show_ty env TVoid))
         | _ -> ());
         (env, List.rev acc)
     | [ last ] ->
@@ -501,8 +517,8 @@ and check_elem (env : env) (e : expr) (want : ty option) : env * T.texpr =
       (match want with
       | Some w when strip_alias w <> TVoid ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty w)
-               ~found:(show_ty TVoid))
+            (Error.type_mismatch e.span ~expected:(show_ty env w)
+               ~found:(show_ty env TVoid))
       | _ -> ());
       (env', tb)
   | _ ->
@@ -597,7 +613,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
             emit env
-              (Error.named iter.span "cannot iterate over type" (show_ty t));
+              (Error.named iter.span "cannot iterate over type" (show_ty env t));
             (ti, TInt I32))
   in
   let inner = push_scope { env with in_loop = true } in
@@ -638,8 +654,8 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
         | None ->
             if strip_alias w <> TVoid then
               emit env
-                (Error.type_mismatch span ~expected:(show_ty w)
-                   ~found:(show_ty TVoid));
+                (Error.type_mismatch span ~expected:(show_ty env w)
+                   ~found:(show_ty env TVoid));
             None
       in
       let arm_tys =
@@ -666,7 +682,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
     let got = te.T.ty in
     if not (compatible want got) then (
       let mismatch =
-        Error.type_mismatch e.span ~expected:(show_ty want) ~found:(show_ty got)
+        Error.type_mismatch e.span ~expected:(show_ty env want)
+          ~found:(show_ty env got)
       in
       let mismatch =
         match (e.desc, strip_alias want) with
@@ -690,8 +707,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       let te = synth_desc env e in
       if not (strict_eq (strip_alias want) te.T.ty) then
         emit env
-          (Error.type_mismatch e.span ~expected:(show_ty want)
-             ~found:(show_ty te.T.ty));
+          (Error.type_mismatch e.span ~expected:(show_ty env want)
+             ~found:(show_ty env te.T.ty));
       te
   | Int (n, None) -> (
       (* An untyped literal adopts a newtype over an int and checks its base *)
@@ -699,13 +716,15 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
             emit env
-              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
+              (Error.int_out_of_range e.span
+                 ~ty:(show_ty env (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
       (* Want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
+            (Error.type_mismatch e.span ~expected:(show_ty env want)
+               ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
       match target with
@@ -713,14 +732,16 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | TError -> T.mk want (T.TFloat f)
       | _ ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
+            (Error.type_mismatch e.span ~expected:(show_ty env want)
+               ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
             emit env
-              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
+              (Error.int_out_of_range e.span
+                 ~ty:(show_ty env (resolve_ty want)));
           T.mk want (T.TInt (Int64.neg n))
       | _ -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
@@ -818,10 +839,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = tl.T.ty in
       if not (is_numeric t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       (* QBE has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
-      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty t));
+      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty env t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
@@ -829,7 +850,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -838,7 +859,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_ordered t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -851,7 +872,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = tl.T.ty in
       if not (is_integer t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tr =
         match op with
         (* The count keeps its own integer type since it is only a number of
@@ -861,7 +882,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
             if not (is_integer tr.T.ty) then
               add_error env r.span
                 (Printf.sprintf "shift count must be an integer, found %s"
-                   (show_ty tr.T.ty));
+                   (show_ty env tr.T.ty));
             tr
         | _ -> check env r t
       in
@@ -907,7 +928,8 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     | _ -> false
   in
   if not operand_ok then
-    emit env (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+    emit env
+      (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
   let tr =
     match op with
     (* The count keeps its own type since it's just how far to shift *)
@@ -916,7 +938,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
         if not (is_integer tr.T.ty) then
           add_error env r.span
             (Printf.sprintf "shift count must be an integer, found %s"
-               (show_ty tr.T.ty));
+               (show_ty env tr.T.ty));
         tr
     | _ -> check env r t
   in
@@ -934,13 +956,13 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        emit env (Error.bad_operand e.span ~op:"+" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"+" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Neg ->
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Not ->
       let te = check env e TBool in
@@ -949,7 +971,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_integer t) then
-        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
@@ -964,7 +986,8 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
               |> help "cast to a typed pointer first");
           dummy_texpr
       | t ->
-          emit env (Error.named e.span "cannot dereference type" (show_ty t));
+          emit env
+            (Error.named e.span "cannot dereference type" (show_ty env t));
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
@@ -998,7 +1021,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
       | _ ->
           emit env
             (Error.named span "no field" fname
-            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
+            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
           dummy_texpr)
   | TOpaquePtr ->
       emit env
@@ -1020,12 +1043,12 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
   match peel 0 ty with
   | None when strip_alias ty = TError -> dummy_texpr
   | None ->
-      emit env (Error.named span "type has no fields" (show_ty ty));
+      emit env (Error.named span "type has no fields" (show_ty env ty));
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
       let hint = Printf.sprintf "dereference first: `(*p).%s`" fname in
       emit env
-        (Error.named span "too many pointer levels" (show_ty ty)
+        (Error.named span "too many pointer levels" (show_ty env ty)
         |> Diagnostic.help hint);
       dummy_texpr
   | Some (sname, _) -> (
@@ -1080,8 +1103,8 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
             (Diagnostic.error "not callable"
             |> Diagnostic.at callee.span
             |> Diagnostic.label
-                 (Printf.sprintf "this has type %s" (show_ty callee_texpr.T.ty))
-            );
+                 (Printf.sprintf "this has type %s"
+                    (show_ty env callee_texpr.T.ty)));
           dummy_texpr)
 
 and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
@@ -1117,7 +1140,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
           |> help "cast to a typed pointer first");
       dummy_texpr
   | t ->
-      emit env (Error.named span "cannot index type" (show_ty t));
+      emit env (Error.named span "cannot index type" (show_ty env t));
       dummy_texpr
 
 (* An array size can demand a const before its decl is checked so values resolve
@@ -1411,6 +1434,7 @@ let check_cycle_decl (env : env) (decl : decl) : unit =
 (* Every type name lands before any signature is read so a declaration can name
    a type written further down the file *)
 let reserve_type_name (env : env) (decl : decl) : unit =
+  let env = reading env decl in
   match decl with
   | Struct sd -> reserve_struct_name env sd
   | TypeAlias td -> reserve_alias_name env td
@@ -1418,6 +1442,7 @@ let reserve_type_name (env : env) (decl : decl) : unit =
   | Func _ | Extern _ | Global _ -> ()
 
 let collect_decl (env : env) (decl : decl) : unit =
+  let env = reading env decl in
   match decl with
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
@@ -1445,8 +1470,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   if is_entry env fd.span && ret_ty <> TError && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
     emit env
-      (Error.type_mismatch span ~expected:(show_ty (TInt I32))
-         ~found:(show_ty ret_ty))
+      (Error.type_mismatch span ~expected:(show_ty env (TInt I32))
+         ~found:(show_ty env ret_ty))
   end;
 
   let func_env =
@@ -1557,6 +1582,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   }
 
 let check_decl (env : env) (decl : decl) : T.tdecl =
+  let env = reading env decl in
   match decl with
   | Func fd ->
       let tfd = check_func env fd in

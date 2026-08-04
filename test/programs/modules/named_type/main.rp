@@ -1,0 +1,6 @@
+import math
+
+func main() i32 {
+  var _c: math.Celsius = true
+  return 0
+}

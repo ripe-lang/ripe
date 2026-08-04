@@ -1,0 +1,5 @@
+pub struct Point { x: i32 }
+
+pub func bad() {
+  var _p: Point = true
+}
