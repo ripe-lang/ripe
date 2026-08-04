@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 00:55:03.673191",
+  "depends": [],
+  "id": "034f",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "low"
+  ],
+  "title": "Escape control bytes in emitted string data",
+  "updated_at": "2026-08-02 00:55:03.673209"
+}

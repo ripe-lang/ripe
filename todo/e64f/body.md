@@ -1,1 +1,1 @@
-A BOM at the start of any file lexes as three unexpected character errors. Go, rustc and clang all strip it. Hits single file compiles too, so it predates the module stack.
+A leading BOM lexes as three unexpected character errors even on a single file compile so it predates the module stack. Go, rustc and clang all strip it.
