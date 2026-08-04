@@ -26,6 +26,7 @@ type t = {
 }
 
 type load_state = Loading of Symbol.module_id | Loaded of module_
+type hop = { from_path : string list; from_file : string }
 type located = Single of string | Merged of string list | Clash | Not_found
 
 let empty_ast : Ast.module_ = { Ast.header = None; imports = []; decls = [] }
@@ -67,22 +68,30 @@ let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
     (match detail with Some s -> Diagnostic.detail s d | None -> d)
 
 (* The cycle is the tail of the stack starting where the path shows up again *)
-let import_cycle (stack : string list list) (path : string list) :
-    string list list =
-  let rec from_path = function
+let import_cycle (stack : hop list) (path : string list) : hop list =
+  let rec starting_at = function
     | [] -> []
-    | current :: _ as paths when current = path -> paths
-    | _ :: paths -> from_path paths
+    | hop :: _ as hops when hop.from_path = path -> hops
+    | _ :: hops -> starting_at hops
   in
-  from_path stack @ [ path ]
+  starting_at stack
 
-let show_import_cycle (paths : string list list) : string =
-  match paths with
+let show_import_cycle (hops : hop list) (back : string list) : string =
+  let line hop target =
+    "    imports " ^ show_module_path target ^ " from " ^ hop.from_file ^ "\n"
+  in
+  let rec hops_from = function
+    | [] -> []
+    | [ hop ] -> [ line hop back ]
+    | hop :: (next :: _ as rest) -> line hop next.from_path :: hops_from rest
+  in
+  match hops with
   | [] -> ""
-  | first :: rest ->
-      let hop path = "    imports " ^ show_module_path path ^ "\n" in
-      "  module " ^ show_module_path first ^ "\n"
-      ^ String.concat "" (List.map hop rest)
+  | first :: _ ->
+      "  module "
+      ^ show_module_path first.from_path
+      ^ "\n"
+      ^ String.concat "" (hops_from hops)
 
 (* Only the first item matters so a full parse would double every error *)
 let probe_header (src : string) : string option =
@@ -179,7 +188,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         (match imported_by with
         | None -> ()
         | Some import ->
-            let detail = show_import_cycle (import_cycle stack path) in
+            let detail = show_import_cycle (import_cycle stack path) path in
             import_error ~detail ~diags import "import cycle");
         module_id
     | Some (Loaded module_) -> module_.module_id
@@ -217,13 +226,17 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         let loaded merged filenames =
           let units = List.map read_unit filenames in
           List.iter (check_header ~diags path merged) units;
-          let stack = stack @ [ path ] in
+          let follow (unit_ : unit_) (import : Ast.import) =
+            let hop = { from_path = path; from_file = unit_.source.filename } in
+            let target =
+              load_module (stack @ [ hop ]) (Some import) import.Ast.path
+            in
+            { import; target }
+          in
           let dependencies =
             units
-            |> List.concat_map (fun unit_ -> unit_.ast.Ast.imports)
-            |> List.map (fun import ->
-                let target = load_module stack (Some import) import.Ast.path in
-                { import; target })
+            |> List.concat_map (fun (unit_ : unit_) ->
+                List.map (follow unit_) unit_.ast.Ast.imports)
           in
           record units dependencies
         in
