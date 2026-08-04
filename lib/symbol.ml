@@ -31,7 +31,7 @@ type t = {
 type key = module_id * id [@@deriving show { with_path = false }]
 
 let key (symbol : t) : key = (symbol.module_id, symbol.id)
-let universe_module_id : module_id = -2
+let prelude_module_id : module_id = -2
 
 let is_func (kind : kind) : bool =
   match kind with

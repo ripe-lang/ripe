@@ -2,18 +2,15 @@
 
 open Ast
 
-type scope = {
-  values : (string, Symbol.t) Hashtbl.t;
-  types : (string, Symbol.t) Hashtbl.t;
-  parent : scope option;
-}
+type namespace = (string, Symbol.t) Hashtbl.t
+type scope = { values : namespace; types : namespace; parent : scope option }
 
 type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
   imports : (Symbol.module_id * string list, scope) Hashtbl.t;
-  universe : scope;
+  prelude : scope;
 }
 
 type state = {
@@ -31,10 +28,10 @@ type state = {
 type resolved_program = { uses : t; decls : Ast.decl list }
 type qualified = Local | Found of Symbol.t | Missing of string
 
-let universe_symbol (id : Symbol.id) (name : string) : Symbol.t =
+let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
   {
     Symbol.id;
-    module_id = Symbol.universe_module_id;
+    module_id = Symbol.prelude_module_id;
     name;
     link_name = name;
     kind = Symbol.Type;
@@ -49,9 +46,9 @@ let new_scope (parent : scope option) : scope =
 (* A builtin sits in the outermost scope so a module can shadow it like any
    name *)
 let make_output (modules : int) : t =
-  let universe = new_scope None in
+  let prelude = new_scope None in
   let seed id (name, _) =
-    Hashtbl.replace universe.types name (universe_symbol id name)
+    Hashtbl.replace prelude.types name (prelude_symbol id name)
   in
   List.iteri seed Types.builtins;
   let out =
@@ -60,10 +57,10 @@ let make_output (modules : int) : t =
       module_paths = Hashtbl.create modules;
       file_modules = Hashtbl.create modules;
       imports = Hashtbl.create modules;
-      universe;
+      prelude;
     }
   in
-  Hashtbl.add out.module_paths Symbol.universe_module_id [];
+  Hashtbl.add out.module_paths Symbol.prelude_module_id [];
   out
 
 (* This is the `--emit resolve` output *)
@@ -93,7 +90,7 @@ let qname_of (r : t) (s : Symbol.t) : Qname.t =
 let builtins (r : t) : (Symbol.key * Types.builtin) list =
   let entry (name, builtin) =
     let keyed (sym : Symbol.t) = (Symbol.key sym, builtin) in
-    Option.map keyed (Hashtbl.find_opt r.universe.types name)
+    Option.map keyed (Hashtbl.find_opt r.prelude.types name)
   in
   List.filter_map entry Types.builtins
 
@@ -376,7 +373,7 @@ let visibility modifiers =
 let make_state ~(out : t) ~(diags : Diagnostic.sink)
     ~(module_id : Symbol.module_id) ~(module_path : string list)
     ~(qualify : bool) ~(is_root : bool) : state =
-  let top = new_scope (Some out.universe) in
+  let top = new_scope (Some out.prelude) in
   {
     out;
     module_id;
