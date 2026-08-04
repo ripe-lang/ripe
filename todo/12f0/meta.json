@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 01:26:12.208609",
+  "depends": [],
+  "id": "12f0",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "Allow never returns in function pointer types",
+  "updated_at": "2026-08-02 01:26:12.208627"
+}

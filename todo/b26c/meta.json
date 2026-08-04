@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 00:55:04.001249",
+  "depends": [],
+  "id": "b26c",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "environment"
+  ],
+  "title": "Keep the installed compiler current",
+  "updated_at": "2026-08-02 00:55:04.001266"
+}

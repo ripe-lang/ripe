@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 00:55:03.719726",
+  "depends": [],
+  "id": "b5e4",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "low"
+  ],
+  "title": "Key symbol table entries without spans",
+  "updated_at": "2026-08-02 00:55:03.719742"
+}

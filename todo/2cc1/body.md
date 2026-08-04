@@ -1,1 +1,1 @@
-folding through fold_const_num
+Constant arithmetic on locals always emits instructions instead of folding.

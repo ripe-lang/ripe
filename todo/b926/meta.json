@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 00:55:03.383305",
+  "depends": [],
+  "id": "b926",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "low"
+  ],
+  "title": "Improve named errors for types",
+  "updated_at": "2026-08-02 00:55:03.383322"
+}

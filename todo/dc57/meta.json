@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-02 00:55:03.287905",
+  "depends": [],
+  "id": "dc57",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Diagnose writes to by value aggregate parameters",
+  "updated_at": "2026-08-02 00:55:03.287920"
+}
