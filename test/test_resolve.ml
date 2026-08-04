@@ -372,6 +372,10 @@ pub func api() {}
 func helper() {}
 pub struct point {}
 struct secret {}
+pub let LIMIT: i32 = 1
+var count: i32 = 0
+pub type meters = i32
+newtype celsius = f32
 |};
   [%expect
     {|
@@ -379,6 +383,10 @@ struct secret {}
     helper Private
     point Public
     secret Private
+    LIMIT Public
+    count Private
+    meters Public
+    celsius Private
     |}]
 
 let resolve_program_src (files : (string * string) list) =
@@ -519,6 +527,41 @@ pub func scale(x: i32) {}
       at <test>:2:1
         import math.vector
         ^~~~~~~~~~~~~~~~~~ previous definition here
+    |}]
+
+let%expect_test "resolve: a type annotation reaches into an imported module" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var d: math.meters = 0 }
+|});
+      ("math.rp", {|
+pub type meters = i32
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a private type in another module is reported" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var d: math.meters = 0 }
+|});
+      ("math.rp", {|
+type meters = i32
+|});
+    ];
+  [%expect
+    {|
+    error: private declaration: math.meters
+      at <test>:3:22
+        func main() { var d: math.meters = 0 }
+                             ^~~~~~~~~~~
+      at <test>:2:1
+        import math
+        ^~~~~~~~~~~ declared private here
     |}]
 
 let%expect_test "resolve: main outside the root module is mangled" =

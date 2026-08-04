@@ -170,7 +170,12 @@ type struct_def = {
 }
 [@@deriving show { with_path = false }]
 
-type type_alias_def = { name : string; typ : typ; span : span }
+type type_alias_def = {
+  name : string;
+  typ : typ;
+  modifiers : modifier list;
+  span : span;
+}
 [@@deriving show { with_path = false }]
 
 type global_def = {
@@ -178,6 +183,7 @@ type global_def = {
   typ : typ;
   init : expr option;
   kind : binding_kind;
+  modifiers : modifier list;
   span : span;
 }
 [@@deriving show { with_path = false }]

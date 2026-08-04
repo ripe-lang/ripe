@@ -797,7 +797,7 @@ let parse_func st mods =
     }
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
-let parse_global st =
+let parse_global st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   let kind =
@@ -817,10 +817,10 @@ let parse_global st =
     else None
   in
   let hi = st.prev_end in
-  Global { name; typ; init; kind; span = make_span st lo hi }
+  Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
 
 (* type binop = (i32, i32) i32 *)
-let parse_type_alias st =
+let parse_type_alias st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
@@ -832,10 +832,10 @@ let parse_type_alias st =
         parse_typ st)
   in
   let hi = st.prev_end in
-  Ast.TypeAlias { name; typ; span = make_span st lo hi }
+  Ast.TypeAlias { name; typ; modifiers = mods; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
-let parse_newtype st =
+let parse_newtype st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
@@ -847,7 +847,7 @@ let parse_newtype st =
         parse_typ st)
   in
   let hi = st.prev_end in
-  Ast.Newtype { name; typ; span = make_span st lo hi }
+  Ast.Newtype { name; typ; modifiers = mods; span = make_span st lo hi }
 
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
@@ -873,10 +873,11 @@ let parse_decl st =
   match (mods, st.tok) with
   | _, STRUCT -> parse_struct st mods
   | _, FUNC -> parse_func st mods
+  (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st
-  | [], (LET | COMPTIME | VAR) -> parse_global st
-  | [], TYPE -> parse_type_alias st
-  | [], NEWTYPE -> parse_newtype st
+  | _, (LET | COMPTIME | VAR) -> parse_global st mods
+  | _, TYPE -> parse_type_alias st mods
+  | _, NEWTYPE -> parse_newtype st mods
   | _ -> err ()
 
 (* import math.vector *)

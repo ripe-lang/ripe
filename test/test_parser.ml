@@ -809,14 +809,26 @@ let%expect_test "parse: modifiers on func" =
   run_src "pub func f() {}";
   [%expect {| ok |}]
 
-let%expect_test "parse: modifier before non-func decl" =
+let%expect_test "parse: modifiers on a global" =
   run_src "pub let X: i32 = 1";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifiers on a type alias" =
+  run_src "pub type binop = (i32, i32) i32";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifiers on a newtype" =
+  run_src "pub newtype Celsius = f32";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifier before extern" =
+  run_src "pub extern func puts(s: cstr) i32";
   [%expect
     {|
     error: expected declaration
       at <test>:1:5
-        pub let X: i32 = 1
-            ^~~ found let
+        pub extern func puts(s: cstr) i32
+            ^~~~~~ found extern
     |}]
 
 let%expect_test "parse: stray token at top level" =

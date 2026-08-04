@@ -396,10 +396,11 @@ let declare_decls (st : state) (decls : decl list) : unit =
       | Extern fd ->
           declare_global st Symbol.Extern Symbol.Private fd.name fd.span
       | Global gd ->
-          declare_global st Symbol.Global Symbol.Private gd.name gd.span
+          declare_global st Symbol.Global (visibility gd.modifiers) gd.name
+            gd.span
       | Struct sd -> declare_type st (visibility sd.modifiers) sd.name sd.span
       | TypeAlias td | Newtype td ->
-          declare_type st Symbol.Private td.name td.span)
+          declare_type st (visibility td.modifiers) td.name td.span)
     decls
 
 let resolve_decls (st : state) (decls : decl list) : unit =
