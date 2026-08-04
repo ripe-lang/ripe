@@ -520,3 +520,30 @@ pub func scale(x: i32) {}
         import math.vector
         ^~~~~~~~~~~~~~~~~~ previous definition here
     |}]
+
+let%expect_test "resolve: main outside the root module is mangled" =
+  let resolved, _ =
+    load_program
+      [
+        ("main.rp", {|
+import math
+func main() i32 { return 0 }
+|});
+        ("math.rp", {|
+pub func main() {}
+|});
+      ]
+  in
+  let show (decl : Ripe.Ast.decl) =
+    match decl with
+    | Ripe.Ast.Func fd ->
+        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.span in
+        Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
+          sym.Ripe.Symbol.link_name
+    | _ -> ()
+  in
+  List.iter show resolved.Ripe.Resolve.decls;
+  [%expect {|
+    main -> main
+    main -> _R4math4main
+    |}]
