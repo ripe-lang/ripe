@@ -1,1 +1,1 @@
-error: main.rp: not valid UTF-8
+error: not valid UTF-8: main.rp

@@ -372,6 +372,10 @@ pub func api() {}
 func helper() {}
 pub struct point {}
 struct secret {}
+pub let LIMIT: i32 = 1
+var count: i32 = 0
+pub type meters = i32
+newtype celsius = f32
 |};
   [%expect
     {|
@@ -379,4 +383,210 @@ struct secret {}
     helper Private
     point Public
     secret Private
+    LIMIT Public
+    count Private
+    meters Public
+    celsius Private
+    |}]
+
+let resolve_program_src (files : (string * string) list) =
+  let read_file name =
+    match List.assoc_opt name files with
+    | Some src -> src
+    | None -> raise (Sys_error name)
+  in
+  let list_dir name = raise (Sys_error name) in
+  let diags = Ripe.Diagnostic.sink () in
+  let program =
+    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp"
+  in
+  let resolved = Ripe.Resolve.resolve_program ~diags program in
+  match Diag.finish diags resolved with
+  | _, _ -> print_endline "ok"
+  | exception Ripe.Diagnostic.Errors ds ->
+      List.iter (fun d -> Diag.render (List.assoc "main.rp" files) d) ds
+
+let%expect_test "resolve: a call reaches into an imported module" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { math.add(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: an unknown member of an import is reported" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { math.nope(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: undefined function: math.nope
+      at <test>:3:15
+        func main() { math.nope(1) }
+                      ^~~~~~~~~
+    |}]
+
+let%expect_test "resolve: a local shadows an import of the same name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var math = 1; math.nope(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: an import and a function cannot share a name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func math() {}
+func main() { math.add(1) }
+|});
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: already defined: math
+      at <test>:3:1
+        func math() {}
+        ^~~~~~~~~~~~~~
+      at <test>:2:1
+        import math
+        ^~~~~~~~~~~ previous definition here
+    |}]
+
+(* A struct and a func already share a name here so an import does too *)
+let%expect_test "resolve: an import and a struct can share a name" =
+  resolve_program_src
+    [
+      ( "main.rp",
+        {|
+import math
+struct math { x: i32 }
+func main() { math.add(1) }
+|} );
+      ("math.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a nested import binds its final name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math.vector
+func main() { vector.add(1) }
+|});
+      ("math/vector.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: imports with the same final name collide" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math.vector
+import geometry.vector
+func main() {}
+|});
+      ("math/vector.rp", {|
+pub func add(x: i32) {}
+|});
+      ("geometry/vector.rp", {|
+pub func scale(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: already defined: vector
+      at <test>:3:1
+        import geometry.vector
+        ^~~~~~~~~~~~~~~~~~~~~~
+      at <test>:2:1
+        import math.vector
+        ^~~~~~~~~~~~~~~~~~ previous definition here
+    |}]
+
+let%expect_test "resolve: a type annotation reaches into an imported module" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var d: math.meters = 0 }
+|});
+      ("math.rp", {|
+pub type meters = i32
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a private type in another module is reported" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math
+func main() { var d: math.meters = 0 }
+|});
+      ("math.rp", {|
+type meters = i32
+|});
+    ];
+  [%expect
+    {|
+    error: private declaration: math.meters
+      at <test>:3:22
+        func main() { var d: math.meters = 0 }
+                             ^~~~~~~~~~~
+      at <test>:2:1
+        import math
+        ^~~~~~~~~~~ declared private here
+    |}]
+
+let%expect_test "resolve: main outside the root module is mangled" =
+  let resolved, _ =
+    load_program
+      [
+        ("main.rp", {|
+import math
+func main() i32 { return 0 }
+|});
+        ("math.rp", {|
+pub func main() {}
+|});
+      ]
+  in
+  let show (decl : Ripe.Ast.decl) =
+    match decl with
+    | Ripe.Ast.Func fd ->
+        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.span in
+        Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
+          sym.Ripe.Symbol.link_name
+    | _ -> ()
+  in
+  List.iter show resolved.Ripe.Resolve.decls;
+  [%expect {|
+    main -> main
+    main -> _R4math4main
     |}]

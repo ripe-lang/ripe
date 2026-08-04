@@ -1,0 +1,5 @@
+import geometry
+
+pub func answer() i32 {
+  return geometry.area()
+}

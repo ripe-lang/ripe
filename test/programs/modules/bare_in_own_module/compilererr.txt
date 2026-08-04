@@ -1,0 +1,4 @@
+error: type mismatch
+  at math.rp:4:19
+      var _p: Point = true
+                      ^~~~ expected Point, found bool

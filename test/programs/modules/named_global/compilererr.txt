@@ -1,0 +1,4 @@
+error: cannot assign to immutable: math.LIMIT
+  at main.rp:4:3
+      math.LIMIT = 2
+      ^~~~~~~~~~

@@ -267,6 +267,18 @@ let with_struct_lit (st : state) (no_struct_lit : bool) (f : unit -> 'a) : 'a =
 
 let in_brackets (st : state) (f : unit -> 'a) : 'a = with_struct_lit st false f
 
+(* math.Point, math.vector.Point *)
+let rec dotted_name (e : expr) : string list option =
+  match e.desc with
+  | Ident name -> Some [ name ]
+  | FieldAccess (inner, name) ->
+      Option.map (fun path -> path @ [ name ]) (dotted_name inner)
+  | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
+  | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
+  | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break | Continue
+  | Undefined | Range _ | RangeInclusive _ | PairAssign _ ->
+      None
+
 (* i32, *i32, (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
@@ -276,7 +288,15 @@ let rec parse_typ st =
       mkt lo st (Pointer (parse_typ st))
   | IDENT name ->
       advance st;
-      mkt lo st (Named name)
+      let path = ref [ name ] in
+      while st.tok = DOT do
+        advance st;
+        path := expect_ident st :: !path
+      done;
+      let modules, base =
+        match !path with base :: rest -> (List.rev rest, base) | [] -> ([], "")
+      in
+      mkt lo st (Named (modules, base))
   (* [N]T fixed-size array, []T slice *)
   | LBRACKET ->
       advance st;
@@ -468,10 +488,25 @@ and parse_prefix st =
 and parse_postfix st (lhs : expr) =
   let lo = lhs.span.lo in
   match st.tok with
-  | DOT ->
+  | DOT -> (
       advance st;
       let name = expect_ident st in
-      parse_postfix st (mk lo st (FieldAccess (lhs, name)))
+      let access = mk lo st (FieldAccess (lhs, name)) in
+      (* The brace means this path names a type from another module *)
+      match dotted_name access with
+      | Some path when at st LBRACE && not st.no_struct_lit ->
+          advance st;
+          let fields = parse_struct_lit_fields st in
+          expect st RBRACE;
+          let path = List.rev path in
+          let name, module_path =
+            match path with
+            | name :: module_path -> (name, List.rev module_path)
+            | [] -> assert false
+          in
+          parse_postfix st
+            (mk lo st (StructLit (module_path, name, access.span, fields)))
+      | Some _ | None -> parse_postfix st access)
   | LBRACKET ->
       advance st;
       let idx = in_brackets st (fun () -> parse_expr st 1) in
@@ -531,7 +566,7 @@ and parse_primary st =
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
-        mk lo st (StructLit (name, nspan, fields))
+        mk lo st (StructLit ([], name, nspan, fields))
       end
       else mk lo st (Ident name)
   | STRING s ->
@@ -762,7 +797,7 @@ let parse_func st mods =
     }
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
-let parse_global st =
+let parse_global st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   let kind =
@@ -782,10 +817,10 @@ let parse_global st =
     else None
   in
   let hi = st.prev_end in
-  Global { name; typ; init; kind; span = make_span st lo hi }
+  Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
 
 (* type binop = (i32, i32) i32 *)
-let parse_type_alias st =
+let parse_type_alias st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
@@ -797,10 +832,10 @@ let parse_type_alias st =
         parse_typ st)
   in
   let hi = st.prev_end in
-  Ast.TypeAlias { name; typ; span = make_span st lo hi }
+  Ast.TypeAlias { name; typ; modifiers = mods; span = make_span st lo hi }
 
 (* newtype Celsius = f32 *)
-let parse_newtype st =
+let parse_newtype st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
@@ -812,7 +847,7 @@ let parse_newtype st =
         parse_typ st)
   in
   let hi = st.prev_end in
-  Ast.Newtype { name; typ; span = make_span st lo hi }
+  Ast.Newtype { name; typ; modifiers = mods; span = make_span st lo hi }
 
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
@@ -838,10 +873,11 @@ let parse_decl st =
   match (mods, st.tok) with
   | _, STRUCT -> parse_struct st mods
   | _, FUNC -> parse_func st mods
+  (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st
-  | [], (LET | COMPTIME | VAR) -> parse_global st
-  | [], TYPE -> parse_type_alias st
-  | [], NEWTYPE -> parse_newtype st
+  | _, (LET | COMPTIME | VAR) -> parse_global st mods
+  | _, TYPE -> parse_type_alias st mods
+  | _, NEWTYPE -> parse_newtype st mods
   | _ -> err ()
 
 (* import math.vector *)
@@ -856,6 +892,14 @@ let parse_import st =
   let hi = st.prev_end in
   { path = List.rev !path; span = make_span st lo hi }
 
+(* module math *)
+let parse_module_header (st : state) : Ast.module_header =
+  let lo = cur_pos st in
+  advance st;
+  let name = expect_ident st in
+  let hi = st.prev_end in
+  { Ast.name; span = make_span st lo hi }
+
 let rec sync_to_item (st : state) : unit =
   match st.tok with
   | EOF -> ()
@@ -865,12 +909,22 @@ let rec sync_to_item (st : state) : unit =
       sync_to_item st
 
 let parse_module st =
+  let header = ref None in
   let imports = ref [] in
   let decls = ref [] in
   skip_semi st;
+  if st.tok = MODULE then (
+    try
+      header := Some (parse_module_header st);
+      if st.tok = SEMI then skip_semi st
+      else if st.tok <> EOF then fail_found st "expected `;`"
+    with ParseError d ->
+      Diagnostic.emit st.diags d;
+      sync_to_item st);
   while st.tok <> EOF do
     try
-      if st.tok = IMPORT then imports := parse_import st :: !imports
+      if st.tok = MODULE then fail st "`module` must be the first item"
+      else if st.tok = IMPORT then imports := parse_import st :: !imports
       else decls := parse_decl st :: !decls;
       if st.recovered then (
         st.recovered <- false;
@@ -881,7 +935,7 @@ let parse_module st =
       Diagnostic.emit st.diags d;
       sync_to_item st
   done;
-  { imports = List.rev !imports; decls = List.rev !decls }
+  { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
 (* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =

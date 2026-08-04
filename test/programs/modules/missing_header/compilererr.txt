@@ -1,0 +1,5 @@
+error: missing `module math` header
+  at math/double.rp:1:1
+    pub func double(x: i32) i32 {
+    ^
+help: every file beside a module header needs the same header

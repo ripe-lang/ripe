@@ -8,9 +8,14 @@ module T = Typed_ast
 type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
 type struct_info = { field_tys : (string * ty) list }
 
-(* Structs newtypes and aliases share one namespace of type names *)
-type type_def = DStruct of struct_info | DNewtype of ty | DAlias of ty
-type var_info = { ty : ty; used : bool ref; span : Ast.span }
+(* Structs newtypes aliases and builtins share one namespace of type names *)
+type type_def =
+  | DStruct of struct_info
+  | DNewtype of ty
+  | DAlias of ty
+  | DBuiltin of Types.builtin
+
+type var_info = { name : string; ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls
    back *)
@@ -23,12 +28,12 @@ type gstate = {
 }
 
 type env = {
-  vars : (string * var_info) list list;
+  vars : (Symbol.key * var_info) list list;
   funcs : (Symbol.key, func_sig) Hashtbl.t;
   types : (Symbol.key, type_def) Hashtbl.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need
      not rebuild them *)
-  struct_fields : (Symbol.key, (string * ty) list) Hashtbl.t;
+  struct_fields : (Symbol.key, ty list) Hashtbl.t;
   globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : (Symbol.key, gstate) Hashtbl.t;
@@ -37,15 +42,20 @@ type env = {
   in_loop : bool;
   in_main : bool;
   suppress_warnings : bool;
+  (* Whoever reads the message is inside this module so its path drops out *)
+  reader_path : string list;
   diags : Diagnostic.sink;
   uses : Resolve.t;
 }
 
 let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
+  let types = Hashtbl.create 16 in
+  let seed (key, builtin) = Hashtbl.replace types key (DBuiltin builtin) in
+  List.iter seed (Resolve.builtins uses);
   {
     vars = [];
     funcs = Hashtbl.create 16;
-    types = Hashtbl.create 16;
+    types;
     struct_fields = Hashtbl.create 16;
     globals = Hashtbl.create 16;
     g_state = Hashtbl.create 16;
@@ -54,9 +64,22 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
     in_loop = false;
     in_main = false;
     suppress_warnings = Diagnostic.has_errors diags;
+    reader_path = [];
     diags;
     uses;
   }
+
+let show_ty (env : env) (t : ty) : string = Types.show_ty_in env.reader_path t
+
+let decl_span : decl -> Ast.span = function
+  | Func fd | Extern fd -> fd.span
+  | Global gd -> gd.span
+  | Struct sd -> sd.span
+  | TypeAlias td | Newtype td -> td.span
+
+(* The path comes off the declaration being checked not off the root module *)
+let reading (env : env) (decl : decl) : env =
+  { env with reader_path = Resolve.module_path_at env.uses (decl_span decl) }
 
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
@@ -73,29 +96,33 @@ let warn_unused_in_scope (env : env) : unit =
   match env.vars with
   | scope :: _ when not env.suppress_warnings ->
       List.iter
-        (fun (name, info) ->
+        (fun (_, info) ->
           (* Variables prefixed with '_' suppress unused warnings *)
-          if (not !(info.used)) && name.[0] <> '_' then
+          if (not !(info.used)) && info.name.[0] <> '_' then
             emit env
-              (Diagnostic.warning (Printf.sprintf "unused variable: %s" name)
+              (Diagnostic.warning
+                 (Printf.sprintf "unused variable: %s" info.name)
               |> Diagnostic.at info.span
               |> Diagnostic.help
-                   (Printf.sprintf "prefix with an underscore: _%s" name)))
+                   (Printf.sprintf "prefix with an underscore: _%s" info.name)))
         scope
   | _ -> ()
 
 let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
     (t : ty) : env =
-  let info = { ty = t; used = ref used; span } in
+  let key = Symbol.key (sym env span) in
+  let info = { name; ty = t; used = ref used; span } in
   match env.vars with
   | [] -> assert false (* No active scope *)
-  | scope :: rest -> { env with vars = ((name, info) :: scope) :: rest }
+  | scope :: _ when List.mem_assoc key scope -> env
+  | scope :: rest -> { env with vars = ((key, info) :: scope) :: rest }
 
-let lookup_var_opt (env : env) (name : string) : ty option =
+let lookup_var_opt (env : env) (span : Ast.span) : ty option =
+  let key = Symbol.key (sym env span) in
   let rec search = function
     | [] -> None
     | scope :: rest -> (
-        match List.assoc_opt name scope with
+        match List.assoc_opt key scope with
         | Some info ->
             info.used := true;
             Some info.ty
@@ -113,12 +140,30 @@ let key_at (env : env) (span : Ast.span) : Symbol.key =
   | Some symbol -> Symbol.key symbol
   | None -> unresolved_key
 
+let builtin_at (env : env) (span : Ast.span) : Types.builtin option =
+  match Hashtbl.find_opt env.types (key_at env span) with
+  | Some (DBuiltin b) -> Some b
+  | Some (DStruct _ | DNewtype _ | DAlias _) | None -> None
+
 (* The path comes off the symbol so a message can say which module a type is
    from *)
 let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
   match Resolve.sym_at_opt env.uses span with
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
+
+(* A local is only visible where it was written so its module is noise *)
+let symbol_name (env : env) (symbol : Symbol.t) : string =
+  match symbol.Symbol.kind with
+  | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> symbol.Symbol.name
+  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.Type | Symbol.Module
+  | Symbol.Error ->
+      Qname.show_in env.reader_path (Resolve.qname_of env.uses symbol)
+
+let decl_name (env : env) (span : Ast.span) (fallback : string) : string =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> symbol_name env symbol
+  | None -> fallback
 
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at (env : env) (span : Ast.span) (fallback : string) : string =
@@ -152,7 +197,7 @@ let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
   if not (is_scalar t) then
     emit env
       Diagnostic.(
-        error ("comptime must be a scalar, found " ^ show_ty t)
+        error ("comptime must be a scalar, found " ^ show_ty env t)
         |> at span
         |> help "use let for values that need storage")
 
@@ -169,35 +214,34 @@ let lift_ty (f : ty -> ty) (ty : ty) : ty =
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   | ErrorType -> TError
-  (* Never is the return type of a function that can't return so no value ever
-     has it *)
-  | Named "never" ->
-      emit env
-        Diagnostic.(
-          error "never is only valid as a function return type"
-          |> at t.tspan
-          |> help "a value of type never cannot exist");
-      TError
-  | Named "opaque" ->
-      emit env
-        Diagnostic.(
-          error "opaque is only valid as a pointee"
-          |> at t.tspan
-          |> help "use *opaque for an untyped pointer");
-      TError
-  | Named name -> (
-      match List.assoc_opt name builtin_tys with
-      | Some bt -> bt
+  | Named (path, name) -> (
+      let shown = Ast.show_named path name in
+      match Hashtbl.find_opt env.types (key_at env t.tspan) with
+      (* Never is the return type of a function that can't return so no value
+         ever has it *)
+      | Some (DBuiltin (BTy TNever)) ->
+          emit env
+            Diagnostic.(
+              error "never is only valid as a function return type"
+              |> at t.tspan
+              |> help "a value of type never cannot exist");
+          TError
+      | Some (DBuiltin BOpaque) ->
+          emit env
+            Diagnostic.(
+              error "opaque is only valid as a pointee"
+              |> at t.tspan
+              |> help "use *opaque for an untyped pointer");
+          TError
+      | Some (DBuiltin (BTy ty)) -> ty
+      | Some (DStruct _) -> TStruct (qname_at env t.tspan shown, [])
+      | Some (DNewtype base) -> TNewtype (qname_at env t.tspan shown, base)
+      | Some (DAlias aliased) -> TAlias (qname_at env t.tspan shown, aliased)
       | None -> (
-          match Hashtbl.find_opt env.types (key_at env t.tspan) with
-          | Some (DStruct _) -> TStruct (qname_at env t.tspan name, [])
-          | Some (DNewtype base) -> TNewtype (qname_at env t.tspan name, base)
-          | Some (DAlias aliased) -> TAlias (qname_at env t.tspan name, aliased)
-          | None -> (
-              match Resolve.sym_at_opt env.uses t.tspan with
-              | Some { Symbol.kind = Symbol.Error; _ } -> TError
-              | _ -> Error.ice ~span:t.tspan "type name escaped the resolver")))
-  | Pointer { tdesc = Named "opaque"; _ } -> TOpaquePtr
+          match Resolve.sym_at_opt env.uses t.tspan with
+          | Some { Symbol.kind = Symbol.Error; _ } -> TError
+          | _ -> Error.ice ~span:t.tspan "type name escaped the resolver"))
+  | Pointer inner when builtin_at env inner.tspan = Some BOpaque -> TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> (
       match ty_of_ast env t with
@@ -212,7 +256,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
 
 and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
-  match lookup_var_opt env name with
+  match lookup_var_opt env span with
   | Some t -> t
   | None -> (
       let key = key_at env span in
@@ -253,14 +297,14 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty env (TInt kind)));
       T.mk (TInt kind) (T.TInt n)
   | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
       synth env { operand with span = e.span }
   | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
       if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-        emit env (Error.int_out_of_range e.span ~ty:(show_ty (TInt kind)));
+        emit env (Error.int_out_of_range e.span ~ty:(show_ty env (TInt kind)));
       T.mk (TInt kind) (T.TInt (Int64.neg n))
   | Float f -> T.mk (TFloat F64) (T.TFloat f)
   | Bool b -> T.mk TBool (T.TBool b)
@@ -270,13 +314,23 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Ident name ->
       let s = sym env e.span in
       if s.Symbol.kind = Symbol.Error then dummy_texpr
+      else if s.Symbol.kind = Symbol.Module then (
+        emit env (Error.named e.span "module requires a member" name);
+        dummy_texpr)
       else
         let t = lookup_var env e.span name in
         T.mk t (T.TIdent s)
   | Call (callee, args) -> synth_call env e.span callee args
   | BinOp (op, l, r) -> synth_binop env op l r
   | UnOp (op, e) -> synth_unop env op e
-  | FieldAccess (inner_e, fname) -> synth_field env e.span inner_e fname
+  (* A qualified name is one symbol so the module in front of it isn't a value *)
+  | FieldAccess (inner_e, fname) -> (
+      match Resolve.sym_at_opt env.uses e.span with
+      | Some s when s.Symbol.kind = Symbol.Error -> dummy_texpr
+      | Some s
+        when Symbol.is_func s.Symbol.kind || Symbol.is_global s.Symbol.kind ->
+          T.mk (lookup_var env e.span s.Symbol.name) (T.TIdent s)
+      | _ -> synth_field env e.span inner_e fname)
   | Cast (operand, t, kind) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
@@ -285,8 +339,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           Diagnostic.error "invalid cast"
           |> Diagnostic.at e.span
           |> Diagnostic.label
-               (Printf.sprintf "cannot cast %s to %s" (show_ty te.T.ty)
-                  (show_ty ty))
+               (Printf.sprintf "cannot cast %s to %s" (show_ty env te.T.ty)
+                  (show_ty env ty))
         in
         let d =
           if resolve_ty ty = TBool then
@@ -330,7 +384,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         match te0.T.ty with
         | (TVoid | TNever) as t ->
             add_error env e0.span
-              (Printf.sprintf "array element cannot have type %s" (show_ty t));
+              (Printf.sprintf "array element cannot have type %s"
+                 (show_ty env t));
             TError
         | t -> t
       in
@@ -340,7 +395,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
-  | StructLit (name, name_span, inits) -> (
+  | StructLit (path, name, name_span, inits) -> (
       match Hashtbl.find_opt env.types (key_at env name_span) with
       | Some (DStruct info) ->
           let seen = Hashtbl.create 4 in
@@ -354,21 +409,23 @@ and synth_desc (env : env) (e : expr) : T.texpr =
             inits;
           (* Omitted fields are zero-initialized *)
           let tfields =
-            List.map
-              (fun (fname, ft) ->
+            List.mapi
+              (fun field_id (fname, ft) ->
                 match
                   List.find_map
                     (fun (n, _, e) -> if n = fname then Some e else None)
                     inits
                 with
-                | Some e -> (fname, check env e ft)
-                | None -> (fname, T.mk ft T.TZero))
+                | Some e -> (field_id, check env e ft)
+                | None -> (field_id, T.mk ft T.TZero))
               info.field_tys
           in
-          let qname = qname_at env name_span name in
+          let shown = Ast.show_named path name in
+          let qname = qname_at env name_span shown in
           T.mk (TStruct (qname, [])) (T.TStructLit (qname, tfields))
       | _ ->
-          emit env (Error.undefined_name name_span "struct" name);
+          emit env
+            (Error.undefined_name name_span "struct" (Ast.show_named path name));
           dummy_texpr)
   | Block body ->
       let tb, ty = check_scoped_block env e.span body None false in
@@ -449,8 +506,8 @@ and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
         (match want with
         | Some w when strip_alias w <> TVoid ->
             emit env
-              (Error.type_mismatch span ~expected:(show_ty w)
-                 ~found:(show_ty TVoid))
+              (Error.type_mismatch span ~expected:(show_ty env w)
+                 ~found:(show_ty env TVoid))
         | _ -> ());
         (env, List.rev acc)
     | [ last ] ->
@@ -473,8 +530,8 @@ and check_elem (env : env) (e : expr) (want : ty option) : env * T.texpr =
       (match want with
       | Some w when strip_alias w <> TVoid ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty w)
-               ~found:(show_ty TVoid))
+            (Error.type_mismatch e.span ~expected:(show_ty env w)
+               ~found:(show_ty env TVoid))
       | _ -> ());
       (env', tb)
   | _ ->
@@ -569,7 +626,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
             emit env
-              (Error.named iter.span "cannot iterate over type" (show_ty t));
+              (Error.named iter.span "cannot iterate over type" (show_ty env t));
             (ti, TInt I32))
   in
   let inner = push_scope { env with in_loop = true } in
@@ -610,8 +667,8 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
         | None ->
             if strip_alias w <> TVoid then
               emit env
-                (Error.type_mismatch span ~expected:(show_ty w)
-                   ~found:(show_ty TVoid));
+                (Error.type_mismatch span ~expected:(show_ty env w)
+                   ~found:(show_ty env TVoid));
             None
       in
       let arm_tys =
@@ -638,7 +695,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
     let got = te.T.ty in
     if not (compatible want got) then (
       let mismatch =
-        Error.type_mismatch e.span ~expected:(show_ty want) ~found:(show_ty got)
+        Error.type_mismatch e.span ~expected:(show_ty env want)
+          ~found:(show_ty env got)
       in
       let mismatch =
         match (e.desc, strip_alias want) with
@@ -662,8 +720,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       let te = synth_desc env e in
       if not (strict_eq (strip_alias want) te.T.ty) then
         emit env
-          (Error.type_mismatch e.span ~expected:(show_ty want)
-             ~found:(show_ty te.T.ty));
+          (Error.type_mismatch e.span ~expected:(show_ty env want)
+             ~found:(show_ty env te.T.ty));
       te
   | Int (n, None) -> (
       (* An untyped literal adopts a newtype over an int and checks its base *)
@@ -671,13 +729,15 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
             emit env
-              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
+              (Error.int_out_of_range e.span
+                 ~ty:(show_ty env (resolve_ty want)));
           T.mk want (T.TInt n)
       | TError -> T.mk want (T.TInt n)
       (* Want is not an integer type at all e.g. let y: bool = 20 *)
       | _ ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"i32");
+            (Error.type_mismatch e.span ~expected:(show_ty env want)
+               ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float f -> (
       match target with
@@ -685,14 +745,16 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | TError -> T.mk want (T.TFloat f)
       | _ ->
           emit env
-            (Error.type_mismatch e.span ~expected:(show_ty want) ~found:"f64");
+            (Error.type_mismatch e.span ~expected:(show_ty env want)
+               ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match target with
       | TInt kind ->
           if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
             emit env
-              (Error.int_out_of_range e.span ~ty:(show_ty (resolve_ty want)));
+              (Error.int_out_of_range e.span
+                 ~ty:(show_ty env (resolve_ty want)));
           T.mk want (T.TInt (Int64.neg n))
       | _ -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
@@ -790,10 +852,10 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = tl.T.ty in
       if not (is_numeric t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       (* QBE has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
-      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty t));
+      then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty env t));
       let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
@@ -801,7 +863,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_comparable t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -810,7 +872,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
       if not (is_ordered t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tl = if tl.T.ty = TNull then check env l t else tl in
       let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
@@ -823,7 +885,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       let t = tl.T.ty in
       if not (is_integer t) then
         emit env
-          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+          (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tr =
         match op with
         (* The count keeps its own integer type since it is only a number of
@@ -833,7 +895,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
             if not (is_integer tr.T.ty) then
               add_error env r.span
                 (Printf.sprintf "shift count must be an integer, found %s"
-                   (show_ty tr.T.ty));
+                   (show_ty env tr.T.ty));
             tr
         | _ -> check env r t
       in
@@ -852,7 +914,8 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
   if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
-      emit env (Error.named l.span "cannot assign to function" s.Symbol.name)
+      emit env
+        (Error.named l.span "cannot assign to function" (symbol_name env s))
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> (
       (* This catches assignment to an immutable binding whether it's local or
          global. *)
@@ -862,7 +925,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
              || Symbol.is_global s.Symbol.kind
                 && is_const_global env (Symbol.key s) ->
           emit env
-            (Error.named l.span "cannot assign to immutable" s.Symbol.name)
+            (Error.named l.span "cannot assign to immutable" (symbol_name env s))
       | _ -> ())
   | _ -> ());
   let t = tl.T.ty in
@@ -879,7 +942,8 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     | _ -> false
   in
   if not operand_ok then
-    emit env (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty t));
+    emit env
+      (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
   let tr =
     match op with
     (* The count keeps its own type since it's just how far to shift *)
@@ -888,7 +952,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
         if not (is_integer tr.T.ty) then
           add_error env r.span
             (Printf.sprintf "shift count must be an integer, found %s"
-               (show_ty tr.T.ty));
+               (show_ty env tr.T.ty));
         tr
     | _ -> check env r t
   in
@@ -906,13 +970,13 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        emit env (Error.bad_operand e.span ~op:"+" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"+" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Neg ->
       let te = synth env e in
       let t = te.T.ty in
       if not (is_numeric t) then
-        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"-" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Not ->
       let te = check env e TBool in
@@ -921,7 +985,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       let te = synth env e in
       let t = te.T.ty in
       if not (is_integer t) then
-        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty t));
+        emit env (Error.bad_operand e.span ~op:"~" ~ty:(show_ty env t));
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
@@ -936,7 +1000,8 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
               |> help "cast to a typed pointer first");
           dummy_texpr
       | t ->
-          emit env (Error.named e.span "cannot dereference type" (show_ty t));
+          emit env
+            (Error.named e.span "cannot dereference type" (show_ty env t));
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
@@ -947,7 +1012,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
                 && is_comptime_global env (Symbol.key s) ->
           emit env
             Diagnostic.(
-              error ("cannot take address of a constant: " ^ s.Symbol.name)
+              error ("cannot take address of a constant: " ^ symbol_name env s)
               |> at e.span
               |> help "a const has no storage, use let")
       | _ ->
@@ -970,7 +1035,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string) :
       | _ ->
           emit env
             (Error.named span "no field" fname
-            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty ty)));
+            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
           dummy_texpr)
   | TOpaquePtr ->
       emit env
@@ -992,18 +1057,23 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
   match peel 0 ty with
   | None when strip_alias ty = TError -> dummy_texpr
   | None ->
-      emit env (Error.named span "type has no fields" (show_ty ty));
+      emit env (Error.named span "type has no fields" (show_ty env ty));
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
       let hint = Printf.sprintf "dereference first: `(*p).%s`" fname in
       emit env
-        (Error.named span "too many pointer levels" (show_ty ty)
+        (Error.named span "too many pointer levels" (show_ty env ty)
         |> Diagnostic.help hint);
       dummy_texpr
   | Some (sname, _) -> (
       let info = lookup_struct env span sname in
-      match List.assoc_opt fname info.field_tys with
-      | Some ft -> T.mk ft (T.TFieldAccess (te, fname))
+      match
+        List.find_mapi
+          (fun field_id (name, ft) ->
+            if name = fname then Some (field_id, ft) else None)
+          info.field_tys
+      with
+      | Some (field_id, ft) -> T.mk ft (T.TFieldAccess (te, field_id))
       | None ->
           emit env
             (Error.named span "no field" fname
@@ -1013,10 +1083,18 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
 
 and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
     : T.texpr =
-  match callee.desc with
-  | Ident name when Symbol.is_func (sym env callee.span).Symbol.kind ->
-      let fn_sym = sym env callee.span in
-      let sig_ = lookup_func env callee.span name in
+  (* A qualified callee is one symbol so it still calls direct *)
+  let direct_callee =
+    match callee.desc with
+    | Ident _ | FieldAccess _ -> (
+        match Resolve.sym_at_opt env.uses callee.span with
+        | Some s when Symbol.is_func s.Symbol.kind -> Some s
+        | _ -> None)
+    | _ -> None
+  in
+  match direct_callee with
+  | Some fn_sym ->
+      let sig_ = lookup_func env callee.span fn_sym.Symbol.name in
       let targs = check_args env span sig_ args in
       let fixed_count =
         if sig_.variadic then Some (List.length sig_.param_tys) else None
@@ -1039,8 +1117,8 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
             (Diagnostic.error "not callable"
             |> Diagnostic.at callee.span
             |> Diagnostic.label
-                 (Printf.sprintf "this has type %s" (show_ty callee_texpr.T.ty))
-            );
+                 (Printf.sprintf "this has type %s"
+                    (show_ty env callee_texpr.T.ty)));
           dummy_texpr)
 
 and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
@@ -1076,7 +1154,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
           |> help "cast to a typed pointer first");
       dummy_texpr
   | t ->
-      emit env (Error.named span "cannot index type" (show_ty t));
+      emit env (Error.named span "cannot index type" (show_ty env t));
       dummy_texpr
 
 (* An array size can demand a const before its decl is checked so values resolve
@@ -1200,7 +1278,7 @@ and eval_array_size (env : env) (e : expr) : int =
 (* Main implicitly returns i32 for the C runtime and everything else is void *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
-  | Some { tdesc = Named "never"; _ } -> TNever
+  | Some t when builtin_at env t.tspan = Some (BTy TNever) -> TNever
   | Some t -> ty_of_ast env t
   | None -> if is_entry env fd.span then TInt I32 else TVoid
 
@@ -1212,30 +1290,14 @@ let collect_func (env : env) (fd : func_def) : unit =
   Hashtbl.replace env.funcs (key_at env fd.span)
     { param_tys; ret_ty; variadic = fd.variadic }
 
-(* Every kind of type name shares one namespace *)
-let existing_type_kind (env : env) (span : Ast.span) (name : string) :
-    string option =
-  if List.mem_assoc name builtin_tys then Some "a builtin type"
-  else
-    match Hashtbl.find_opt env.types (key_at env span) with
-    | Some (DStruct _) -> Some "a struct"
-    | Some (DNewtype _) -> Some "a newtype"
-    | Some (DAlias _) -> Some "an alias"
-    | None -> None
-
-let reject_taken_type_name (env : env) (span : Ast.span) (name : string) : bool
-    =
-  match existing_type_kind env span name with
-  | Some kind ->
-      if List.mem_assoc name builtin_tys then
-        emit env (Error.named span ("already defined as " ^ kind) name);
-      true
-  | None -> false
+(* A repeat name is already reported with both spans by the resolver *)
+let type_name_taken (env : env) (span : Ast.span) : bool =
+  Hashtbl.mem env.types (key_at env span)
 
 (* The name goes in first so a field can name this struct or one defined
    later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
-  if not (reject_taken_type_name env sd.span sd.name) then (
+  if not (type_name_taken env sd.span) then (
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
@@ -1253,7 +1315,8 @@ let resolve_struct_fields (env : env) (sd : struct_def) : unit =
         List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
       in
       Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys });
-      Hashtbl.replace env.struct_fields (key_at env sd.span) field_tys
+      Hashtbl.replace env.struct_fields (key_at env sd.span)
+        (List.map snd field_tys)
   | _ -> ()
 
 (* A pointer or slice field is just an address so it can't grow the struct *)
@@ -1269,26 +1332,24 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
     | TStruct (name, _) ->
         let name = Qname.key name in
         Hashtbl.add on_path name ();
-        let hit =
-          List.exists (fun (_, ft) -> reaches target ft) (fields_of name)
-        in
+        let hit = List.exists (reaches target) (fields_of name) in
         Hashtbl.remove on_path name;
         hit
     | TArray (elem, _) -> reaches target elem
     | _ -> false
   in
   let key = key_at env sd.span in
-  if List.exists (fun (_, ft) -> reaches key ft) (fields_of key) then
+  if List.exists (reaches key) (fields_of key) then
     emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
 (* A fake error type goes in the table first and it just means the real body
    hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
+  if not (type_name_taken env td.span) then
     Hashtbl.replace env.types (key_at env td.span) (DAlias TError)
 
 let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
-  if not (reject_taken_type_name env td.span td.name) then
+  if not (type_name_taken env td.span) then
     Hashtbl.replace env.types (key_at env td.span) (DNewtype TError)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
@@ -1372,9 +1433,14 @@ let collect_global (env : env) (gd : global_def) : unit =
   (if gd.init = None then
      match gd.kind with
      | Var -> ()
-     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
+     | Let ->
+         emit env
+           (Error.named gd.span "let without initializer"
+              (decl_name env gd.span gd.name))
      | Comptime ->
-         emit env (Error.named gd.span "comptime without initializer" gd.name));
+         emit env
+           (Error.named gd.span "comptime without initializer"
+              (decl_name env gd.span gd.name)));
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals (key_at env gd.span) (t, gd.kind)
 
@@ -1387,6 +1453,7 @@ let check_cycle_decl (env : env) (decl : decl) : unit =
 (* Every type name lands before any signature is read so a declaration can name
    a type written further down the file *)
 let reserve_type_name (env : env) (decl : decl) : unit =
+  let env = reading env decl in
   match decl with
   | Struct sd -> reserve_struct_name env sd
   | TypeAlias td -> reserve_alias_name env td
@@ -1394,6 +1461,7 @@ let reserve_type_name (env : env) (decl : decl) : unit =
   | Func _ | Extern _ | Global _ -> ()
 
 let collect_decl (env : env) (decl : decl) : unit =
+  let env = reading env decl in
   match decl with
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
@@ -1421,8 +1489,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   if is_entry env fd.span && ret_ty <> TError && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
     emit env
-      (Error.type_mismatch span ~expected:(show_ty (TInt I32))
-         ~found:(show_ty ret_ty))
+      (Error.type_mismatch span ~expected:(show_ty env (TInt I32))
+         ~found:(show_ty env ret_ty))
   end;
 
   let func_env =
@@ -1520,7 +1588,9 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           else check env e t
         in
         if not (is_const_texpr env te) then (
-          emit env (Error.named e.span "initializer must be constant" gd.name);
+          emit env
+            (Error.named e.span "initializer must be constant"
+               (decl_name env gd.span gd.name));
           None)
         else Some te
   in
@@ -1533,6 +1603,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   }
 
 let check_decl (env : env) (decl : decl) : T.tdecl =
+  let env = reading env decl in
   match decl with
   | Func fd ->
       let tfd = check_func env fd in
@@ -1551,7 +1622,8 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
               (fun (f : field) -> (f.name, ty_of_ast env f.typ))
               sd.fields
       in
-      T.TStruct (qname_at env sd.span sd.name, field_tys, sd.modifiers)
+      T.TStruct
+        (qname_at env sd.span sd.name, List.map snd field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
   (* A rejected duplicate never landed in the table and falls back to the
      written type *)

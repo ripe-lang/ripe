@@ -1,0 +1,7 @@
+error: import cycle
+  at geometry.rp:1:1
+    import math
+    ^~~~~~~~~~~
+  module math
+    imports geometry from math.rp
+    imports math from geometry.rp

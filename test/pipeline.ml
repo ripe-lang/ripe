@@ -25,6 +25,34 @@ let resolve_src module_id src =
   let uses, _ = Diag.finish diags uses in
   (decls, uses)
 
+let load_program (files : (string * string) list) =
+  let read_file name =
+    match List.assoc_opt name files with
+    | Some src -> src
+    | None -> raise (Sys_error name)
+  in
+  let list_dir name = raise (Sys_error name) in
+  let diags = Ripe.Diagnostic.sink () in
+  let program =
+    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp"
+  in
+  (Ripe.Resolve.resolve_program ~diags program, diags)
+
+let run_program files =
+  let headline (d : Ripe.Diagnostic.t) =
+    print_endline d.Ripe.Diagnostic.headline
+  in
+  try
+    let resolved, diags = load_program files in
+    let checked =
+      Ripe.Typechecker.typecheck ~diags resolved.Ripe.Resolve.uses
+        resolved.Ripe.Resolve.decls
+    in
+    let _, warns = Diag.finish diags checked in
+    List.iter headline warns;
+    print_endline "ok"
+  with Ripe.Diagnostic.Errors ds -> List.iter headline ds
+
 (* the front of the pipeline every runner shares *)
 let check_src src =
   let decls, uses, diags = front_src 0 src in

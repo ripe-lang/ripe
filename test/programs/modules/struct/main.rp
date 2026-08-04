@@ -1,0 +1,7 @@
+import math
+
+func main() i32 {
+  let p = math.Point { x: 20, y: 22 }
+  let total: math.Coord = math.sum(p)
+  return total
+}

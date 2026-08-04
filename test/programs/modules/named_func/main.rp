@@ -1,0 +1,6 @@
+import math
+
+func main() i32 {
+  math.add = math.add
+  return 0
+}

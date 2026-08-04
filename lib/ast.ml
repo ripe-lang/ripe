@@ -108,7 +108,7 @@ type expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of string * span * (string * span * expr) list
+  | StructLit of string list * string * span * (string * span * expr) list
   | Block of block
   | If of (expr * block) list * block option
   | While of expr * block
@@ -127,7 +127,7 @@ and block = expr list [@@deriving show { with_path = false }]
 
 and typ_desc =
   | ErrorType
-  | Named of string
+  | Named of string list * string
   | Pointer of typ
   | FuncPtr of typ list * typ option
   | Array of expr * typ
@@ -136,6 +136,9 @@ and typ_desc =
 
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
+
+let show_named (path : string list) (name : string) : string =
+  String.concat "." (path @ [ name ])
 
 type param = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]
@@ -167,7 +170,12 @@ type struct_def = {
 }
 [@@deriving show { with_path = false }]
 
-type type_alias_def = { name : string; typ : typ; span : span }
+type type_alias_def = {
+  name : string;
+  typ : typ;
+  modifiers : modifier list;
+  span : span;
+}
 [@@deriving show { with_path = false }]
 
 type global_def = {
@@ -175,6 +183,7 @@ type global_def = {
   typ : typ;
   init : expr option;
   kind : binding_kind;
+  modifiers : modifier list;
   span : span;
 }
 [@@deriving show { with_path = false }]
@@ -191,5 +200,12 @@ type decl =
 type import = { path : string list; span : span }
 [@@deriving show { with_path = false }]
 
-type module_ = { imports : import list; decls : decl list }
+type module_header = { name : string; span : span }
+[@@deriving show { with_path = false }]
+
+type module_ = {
+  header : module_header option;
+  imports : import list;
+  decls : decl list;
+}
 [@@deriving show { with_path = false }]

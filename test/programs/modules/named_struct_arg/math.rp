@@ -1,0 +1,3 @@
+pub struct Point { x: i32 }
+
+pub func take(_p: Point) {}

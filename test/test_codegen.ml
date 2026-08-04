@@ -3909,8 +3909,7 @@ let N: i64 = S as i64 + 1
 (* internal invariants: the typechecker keeps these unreachable from source, so
    drive the codegen helpers directly *)
 
-let empty_structs () :
-    (Ripe.Symbol.key, (string * Ripe.Types.ty) list) Hashtbl.t =
+let empty_structs () : (Ripe.Symbol.key, Ripe.Types.ty list) Hashtbl.t =
   Hashtbl.create 0
 
 let%expect_test "codegen ICE: TVoid has no QBE base type" =

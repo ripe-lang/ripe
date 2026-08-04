@@ -809,14 +809,26 @@ let%expect_test "parse: modifiers on func" =
   run_src "pub func f() {}";
   [%expect {| ok |}]
 
-let%expect_test "parse: modifier before non-func decl" =
+let%expect_test "parse: modifiers on a global" =
   run_src "pub let X: i32 = 1";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifiers on a type alias" =
+  run_src "pub type binop = (i32, i32) i32";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifiers on a newtype" =
+  run_src "pub newtype Celsius = f32";
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifier before extern" =
+  run_src "pub extern func puts(s: cstr) i32";
   [%expect
     {|
     error: expected declaration
       at <test>:1:5
-        pub let X: i32 = 1
-            ^~~ found let
+        pub extern func puts(s: cstr) i32
+            ^~~~~~ found extern
     |}]
 
 let%expect_test "parse: stray token at top level" =
@@ -1347,3 +1359,45 @@ let%expect_test "parse: pair assignment rejects a third value" =
 let%expect_test "parse: regular assignment remains accepted" =
   run_src "func f(a: i32, b: i32) { a = b }";
   [%expect {| ok |}]
+
+let%expect_test "parse: a module header" =
+  let module_ = parse_module "module math\nfunc f() {}" in
+  (match module_.header with
+  | Some header -> print_endline header.Ripe.Ast.name
+  | None -> print_endline "<no header>");
+  [%expect {| math |}]
+
+let%expect_test "parse: a file without a module header" =
+  let module_ = parse_module "func f() {}" in
+  print_endline (match module_.header with Some _ -> "yes" | None -> "no");
+  [%expect {| no |}]
+
+let%expect_test "parse: module must come before anything else" =
+  run_parse "import io\nmodule math";
+  [%expect
+    {|
+    error: `module` must be the first item
+      at <test>:2:1
+        module math
+        ^~~~~~
+    |}]
+
+let%expect_test "parse: a dotted type path" =
+  (match parse "let p: math.vector.point = undefined" with
+  | [ Ripe.Ast.Global gd ] -> print_endline (dump_typ gd.typ)
+  | _ -> print_endline "<expected a global>");
+  [%expect {| math.vector.point |}]
+
+let%expect_test "parse: a dotted struct literal" =
+  parse_expr "math.Point { x: 1, y: 2 }";
+  [%expect {| (struct math.Point (x 1) (y 2)) |}]
+
+let%expect_test "parse: a dotted field read stays a field read" =
+  parse_expr "math.origin.x";
+  [%expect {| (. (. math origin) x) |}]
+
+let%expect_test "parse: an if condition still reads a field access" =
+  (match parse "func f(p: point) { if p.flag { } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (if ((. p flag) (block )))) |}]

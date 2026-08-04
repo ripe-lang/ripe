@@ -3194,16 +3194,24 @@ type Foo = i64
         ^~~~~~~~~~~~~~~~~ previous definition here
     |}]
 
-let%expect_test "typecheck: a type name cannot shadow a builtin" =
+let%expect_test "typecheck: a type name shadows a builtin" =
   run_src {|
 type i32 = i64
+func f(x: i32) i64 { return x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: shadowing a builtin reaches its own definition" =
+  run_src {|
+type i32 = bool
+func f(x: i32) i64 { return x }
 |};
   [%expect
     {|
-    error: already defined as a builtin type: i32
-      at <test>:2:1
-        type i32 = i64
-        ^~~~~~~~~~~~~~
+    error: type mismatch
+      at <test>:3:29
+        func f(x: i32) i64 { return x }
+                                    ^ expected i64, found i32
     |}]
 
 let%expect_test "typecheck: sizeof of a struct type" =
@@ -3915,4 +3923,48 @@ func f() {
       at <test>:6:21
           var void_array = [noop(), noop()]
                             ^~~~~~
+    |}]
+
+let%expect_test "typecheck: a qualified struct literal" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+func main() { let _p = math.Point { x: 1 } }
+|});
+      ("math.rp", {|
+pub struct Point { x: i32 }
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a module needs a member" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+func main() { let _value = math }
+|});
+      ("math.rp", {|
+pub func add(_x: i32) {}
+|});
+    ];
+  [%expect {| module requires a member: math |}]
+
+let%expect_test "typecheck: modules can repeat a type spelling" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+type Pair = i32
+func main() { math.check() }
+|});
+      ("math.rp", {|
+type Pair = bool
+pub func check() { var v: Pair = 1 }
+|});
+    ];
+  [%expect {|
+    unused variable: v
+    type mismatch
     |}]

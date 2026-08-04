@@ -1,0 +1,4 @@
+error: module name mismatch: maths
+  at math/answer.rp:1:1
+    module maths
+    ^~~~~~~~~~~~ expected math

@@ -76,6 +76,7 @@ type token =
   | NEWTYPE
   | UNDEFINED
   | IMPORT
+  | MODULE
 
 let keywords =
   [
@@ -103,6 +104,7 @@ let keywords =
     ("newtype", NEWTYPE);
     ("undefined", UNDEFINED);
     ("import", IMPORT);
+    ("module", MODULE);
   ]
 
 let lookup_keyword s = List.assoc_opt s keywords
@@ -161,5 +163,5 @@ let show_token = function
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE
     | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC
-    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT ) as t ->
+    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)

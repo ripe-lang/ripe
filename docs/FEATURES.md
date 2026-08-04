@@ -397,6 +397,83 @@ func main() i32 {
 func main() i32 { return sizeof(i32) as i32 }
 ```
 
+## Modules
+
+### Imports
+
+```ripe
+import math.vector
+
+func main() i32 {
+  return vector.first()
+}
+```
+
+An import binds the last part of the path so `math.vector` is written `vector`.
+
+### Public visibility
+
+A declaration is private to its module unless it opens with `pub`.
+
+```ripe
+pub func add(left: i32, right: i32) i32 {
+  return left + right
+}
+
+pub struct point { x: i32, y: i32 }
+
+pub comptime WIDTH: i32 = 6
+pub let SCALE: i32 = 7
+pub var TOTAL: i32 = 0
+pub type Count = i32
+pub newtype Celsius = i32
+```
+
+A `pub var` is one storage location that every importing module reads and
+writes, so `pub` says who can see it and `var` says whether it can change.
+
+An `extern` is always private, so each module declares the foreign symbols it
+calls.
+
+### Directory modules
+
+Files in a directory that open with the same `module` clause share one namespace
+and one private scope.
+
+```ripe
+// shapes/area.rp
+module shapes
+
+pub func area() i32 {
+  return width() * height()
+}
+```
+
+```ripe
+// shapes/sides.rp
+module shapes
+
+func width() i32 {
+  return 6
+}
+
+func height() i32 {
+  return 7
+}
+```
+
+```ripe
+// main.rp
+import shapes
+
+func main() i32 {
+  return shapes.area()
+}
+```
+
+A file without a clause is its own module named by its path. A directory whose
+files carry no clause stays a plain namespace step.
+
 ## FFI
 
 ### Foreign functions

@@ -1,0 +1,1 @@
+pub newtype Celsius = f32

@@ -13,7 +13,7 @@ type cexpr_desc =
   | CCall of cexpr * cexpr list * int option
   | CBinOp of Ast.binop * cexpr * cexpr
   | CUnOp of Ast.unop * cexpr
-  | CFieldAccess of cexpr * string
+  | CFieldAccess of cexpr * int
   (* Target type is the node type *)
   | CCast of cexpr * Ast.cast_kind
   | CSizeOf of Types.ty
@@ -25,7 +25,7 @@ type cexpr_desc =
   | CDataPtr of cexpr
   | CZero
   | CUndef
-  | CStructLit of Qname.t * (string * cexpr) list
+  | CStructLit of Qname.t * (int * cexpr) list
   | CBlock of cblock
   | CIf of (cexpr * cblock) list * cblock option
   | CLoop of cblock
@@ -61,7 +61,7 @@ type cglobal_def = {
 
 type cdecl =
   | CFunc of cfunc_def
-  | CStruct of Qname.t * (string * ty) list * Ast.modifier list
+  | CStruct of Qname.t * ty list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
   | CExtern of cfunc_def
   | CGlobal of cglobal_def
