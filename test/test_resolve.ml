@@ -481,3 +481,42 @@ pub func add(x: i32) {}
 |});
     ];
   [%expect {| ok |}]
+
+let%expect_test "resolve: a nested import binds its final name" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math.vector
+func main() { vector.add(1) }
+|});
+      ("math/vector.rp", {|
+pub func add(x: i32) {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: imports with the same final name collide" =
+  resolve_program_src
+    [
+      ("main.rp", {|
+import math.vector
+import geometry.vector
+func main() {}
+|});
+      ("math/vector.rp", {|
+pub func add(x: i32) {}
+|});
+      ("geometry/vector.rp", {|
+pub func scale(x: i32) {}
+|});
+    ];
+  [%expect
+    {|
+    error: already defined: vector
+      at <test>:3:1
+        import geometry.vector
+        ^~~~~~~~~~~~~~~~~~~~~~
+      at <test>:2:1
+        import math.vector
+        ^~~~~~~~~~~~~~~~~~ previous definition here
+    |}]

@@ -3937,3 +3937,34 @@ pub struct Point { x: i32 }
 |});
     ];
   [%expect {| ok |}]
+
+let%expect_test "typecheck: a module needs a member" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+func main() { let _value = math }
+|});
+      ("math.rp", {|
+pub func add(_x: i32) {}
+|});
+    ];
+  [%expect {| module requires a member: math |}]
+
+let%expect_test "typecheck: modules can repeat a type spelling" =
+  run_program
+    [
+      ("main.rp", {|
+import math
+type Pair = i32
+func main() { math.check() }
+|});
+      ("math.rp", {|
+type Pair = bool
+pub func check() { var v: Pair = 1 }
+|});
+    ];
+  [%expect {|
+    unused variable: v
+    type mismatch
+    |}]

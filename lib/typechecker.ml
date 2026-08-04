@@ -286,6 +286,9 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Ident name ->
       let s = sym env e.span in
       if s.Symbol.kind = Symbol.Error then dummy_texpr
+      else if s.Symbol.kind = Symbol.Module then (
+        emit env (Error.named e.span "module requires a member" name);
+        dummy_texpr)
       else
         let t = lookup_var env e.span name in
         T.mk t (T.TIdent s)

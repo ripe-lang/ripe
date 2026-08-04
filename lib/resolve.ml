@@ -457,14 +457,19 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
     let bind (dependency : Program.dependency) =
       let target = Hashtbl.find states dependency.Program.target in
       let import = dependency.Program.import in
-      Hashtbl.replace out.imports
-        (module_.Program.module_id, import.Ast.path)
-        target.top;
-      match import.Ast.path with
-      | root :: _ when not (Hashtbl.mem st.top.values root) ->
-          Hashtbl.replace st.top.values root
-            (mint st Symbol.Module root import.Ast.span)
-      | _ -> ()
+      match List.rev import.Ast.path with
+      | [] -> ()
+      | name :: _ -> (
+          match Hashtbl.find_opt st.top.values name with
+          | Some prev ->
+              Diagnostic.emit st.diags
+                (Error.redefinition import.Ast.span ~prev:prev.Symbol.span name)
+          | None ->
+              Hashtbl.replace out.imports
+                (module_.Program.module_id, [ name ])
+                target.top;
+              Hashtbl.replace st.top.values name
+                (mint st Symbol.Module name import.Ast.span))
     in
     List.iter bind module_.Program.dependencies
   in
