@@ -152,6 +152,19 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
 
+(* A local is only visible where it was written so its module is noise *)
+let symbol_name (env : env) (symbol : Symbol.t) : string =
+  match symbol.Symbol.kind with
+  | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> symbol.Symbol.name
+  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.Type | Symbol.Module
+  | Symbol.Error ->
+      Qname.show_in env.reader_path (Resolve.qname_of env.uses symbol)
+
+let decl_name (env : env) (span : Ast.span) (fallback : string) : string =
+  match Resolve.sym_at_opt env.uses span with
+  | Some symbol -> symbol_name env symbol
+  | None -> fallback
+
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at (env : env) (span : Ast.span) (fallback : string) : string =
   match Resolve.sym_at_opt env.uses span with
@@ -901,7 +914,8 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
   if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
-      emit env (Error.named l.span "cannot assign to function" s.Symbol.name)
+      emit env
+        (Error.named l.span "cannot assign to function" (symbol_name env s))
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> (
       (* This catches assignment to an immutable binding whether it's local or
          global. *)
@@ -911,7 +925,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
              || Symbol.is_global s.Symbol.kind
                 && is_const_global env (Symbol.key s) ->
           emit env
-            (Error.named l.span "cannot assign to immutable" s.Symbol.name)
+            (Error.named l.span "cannot assign to immutable" (symbol_name env s))
       | _ -> ())
   | _ -> ());
   let t = tl.T.ty in
@@ -998,7 +1012,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
                 && is_comptime_global env (Symbol.key s) ->
           emit env
             Diagnostic.(
-              error ("cannot take address of a constant: " ^ s.Symbol.name)
+              error ("cannot take address of a constant: " ^ symbol_name env s)
               |> at e.span
               |> help "a const has no storage, use let")
       | _ ->
@@ -1419,9 +1433,14 @@ let collect_global (env : env) (gd : global_def) : unit =
   (if gd.init = None then
      match gd.kind with
      | Var -> ()
-     | Let -> emit env (Error.named gd.span "let without initializer" gd.name)
+     | Let ->
+         emit env
+           (Error.named gd.span "let without initializer"
+              (decl_name env gd.span gd.name))
      | Comptime ->
-         emit env (Error.named gd.span "comptime without initializer" gd.name));
+         emit env
+           (Error.named gd.span "comptime without initializer"
+              (decl_name env gd.span gd.name)));
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals (key_at env gd.span) (t, gd.kind)
 
@@ -1569,7 +1588,9 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           else check env e t
         in
         if not (is_const_texpr env te) then (
-          emit env (Error.named e.span "initializer must be constant" gd.name);
+          emit env
+            (Error.named e.span "initializer must be constant"
+               (decl_name env gd.span gd.name));
           None)
         else Some te
   in

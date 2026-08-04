@@ -1,0 +1,6 @@
+import math
+
+func main() i32 {
+  math.LIMIT = 2
+  return 0
+}
