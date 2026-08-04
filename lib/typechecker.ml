@@ -15,7 +15,7 @@ type type_def =
   | DAlias of ty
   | DBuiltin of Types.builtin
 
-type var_info = { ty : ty; used : bool ref; span : Ast.span }
+type var_info = { name : string; ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls
    back *)
@@ -28,7 +28,7 @@ type gstate = {
 }
 
 type env = {
-  vars : (string * var_info) list list;
+  vars : (Symbol.key * var_info) list list;
   funcs : (Symbol.key, func_sig) Hashtbl.t;
   types : (Symbol.key, type_def) Hashtbl.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need
@@ -81,29 +81,33 @@ let warn_unused_in_scope (env : env) : unit =
   match env.vars with
   | scope :: _ when not env.suppress_warnings ->
       List.iter
-        (fun (name, info) ->
+        (fun (_, info) ->
           (* Variables prefixed with '_' suppress unused warnings *)
-          if (not !(info.used)) && name.[0] <> '_' then
+          if (not !(info.used)) && info.name.[0] <> '_' then
             emit env
-              (Diagnostic.warning (Printf.sprintf "unused variable: %s" name)
+              (Diagnostic.warning
+                 (Printf.sprintf "unused variable: %s" info.name)
               |> Diagnostic.at info.span
               |> Diagnostic.help
-                   (Printf.sprintf "prefix with an underscore: _%s" name)))
+                   (Printf.sprintf "prefix with an underscore: _%s" info.name)))
         scope
   | _ -> ()
 
 let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
     (t : ty) : env =
-  let info = { ty = t; used = ref used; span } in
+  let key = Symbol.key (sym env span) in
+  let info = { name; ty = t; used = ref used; span } in
   match env.vars with
   | [] -> assert false (* No active scope *)
-  | scope :: rest -> { env with vars = ((name, info) :: scope) :: rest }
+  | scope :: _ when List.mem_assoc key scope -> env
+  | scope :: rest -> { env with vars = ((key, info) :: scope) :: rest }
 
-let lookup_var_opt (env : env) (name : string) : ty option =
+let lookup_var_opt (env : env) (span : Ast.span) : ty option =
+  let key = Symbol.key (sym env span) in
   let rec search = function
     | [] -> None
     | scope :: rest -> (
-        match List.assoc_opt name scope with
+        match List.assoc_opt key scope with
         | Some info ->
             info.used := true;
             Some info.ty
@@ -224,7 +228,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
 
 and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
-  match lookup_var_opt env name with
+  match lookup_var_opt env span with
   | Some t -> t
   | None -> (
       let key = key_at env span in
