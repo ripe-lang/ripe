@@ -14,7 +14,6 @@ type state = {
   mutable tok_depth : int;
   read : unit -> token_info;
   diags : Diagnostic.sink;
-  mutable no_struct_lit : bool;
   mutable prev_end : int;
   mutable recovered : bool;
 }
@@ -260,13 +259,6 @@ let binop_of = function
   | RSHIFT_ASSIGN -> RshiftAssign
   | _ -> failwith "not a binary operator"
 
-let with_struct_lit (st : state) (no_struct_lit : bool) (f : unit -> 'a) : 'a =
-  let saved = st.no_struct_lit in
-  st.no_struct_lit <- no_struct_lit;
-  Fun.protect f ~finally:(fun () -> st.no_struct_lit <- saved)
-
-let in_brackets (st : state) (f : unit -> 'a) : 'a = with_struct_lit st false f
-
 (* math.Point, math.vector.Point *)
 let rec dotted_name (e : expr) : string list option =
   match e.desc with
@@ -400,9 +392,9 @@ and parse_ret_type st =
 
 (* Postfix binds tighter than infix so a.b + c means (a.b) + c *)
 
-and parse_expr st min_prec =
+and parse_expr ?(no_struct_lit = false) st min_prec =
   let lo = cur_pos st in
-  let lhs = ref (parse_prefix st) in
+  let lhs = ref (parse_prefix ~no_struct_lit st) in
 
   (* Precedence climbing for infix ops *)
   let loop = ref true in
@@ -431,15 +423,15 @@ and parse_expr st min_prec =
                  |> Diagnostic.help "parenthesize the cast: `(x as T)[...]`"))
         end
         else if op_tok = DOTDOT then begin
-          let rhs = parse_expr st next_min_prec in
+          let rhs = parse_expr ~no_struct_lit st next_min_prec in
           lhs := mk lo st (Range (!lhs, rhs))
         end
         else if op_tok = DOTDOTEQ then begin
-          let rhs = parse_expr st next_min_prec in
+          let rhs = parse_expr ~no_struct_lit st next_min_prec in
           lhs := mk lo st (RangeInclusive (!lhs, rhs))
         end
         else begin
-          let rhs = parse_expr st next_min_prec in
+          let rhs = parse_expr ~no_struct_lit st next_min_prec in
           let op = binop_of op_tok in
           lhs := mk lo st (BinOp (op, !lhs, rhs))
         end;
@@ -467,13 +459,13 @@ and parse_expr st min_prec =
   !lhs
 
 (* -x *)
-and parse_prefix st =
+and parse_prefix ?(no_struct_lit = false) st =
   let lo = cur_pos st in
   let unary op desc =
     let span = cur_span st in
     advance st;
     require_expr_start st op span;
-    mk lo st (UnOp (desc, parse_prefix st))
+    mk lo st (UnOp (desc, parse_prefix ~no_struct_lit st))
   in
   match st.tok with
   | BANG -> unary BANG Not
@@ -482,11 +474,12 @@ and parse_prefix st =
   | TILDE -> unary TILDE BitNot
   | AMP -> unary AMP AddressOf
   | STAR -> unary STAR Deref
-  | _ -> parse_postfix st (parse_primary st)
+  | _ -> parse_postfix ~no_struct_lit st (parse_primary ~no_struct_lit st)
 
 (* x.field, arr[i], f(args) *)
-and parse_postfix st (lhs : expr) =
+and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
   let lo = lhs.span.lo in
+  let continue_with = parse_postfix ~no_struct_lit st in
   match st.tok with
   | DOT -> (
       advance st;
@@ -494,7 +487,7 @@ and parse_postfix st (lhs : expr) =
       let access = mk lo st (FieldAccess (lhs, name)) in
       (* The brace means this path names a type from another module *)
       match dotted_name access with
-      | Some path when at st LBRACE && not st.no_struct_lit ->
+      | Some path when at st LBRACE && not no_struct_lit ->
           advance st;
           let fields = parse_struct_lit_fields st in
           expect st RBRACE;
@@ -504,23 +497,23 @@ and parse_postfix st (lhs : expr) =
             | name :: module_path -> (name, List.rev module_path)
             | [] -> assert false
           in
-          parse_postfix st
+          continue_with
             (mk lo st (StructLit (module_path, name, access.span, fields)))
-      | Some _ | None -> parse_postfix st access)
+      | Some _ | None -> continue_with access)
   | LBRACKET ->
       advance st;
-      let idx = in_brackets st (fun () -> parse_expr st 1) in
+      let idx = parse_expr st 1 in
       expect st RBRACKET;
-      parse_postfix st (mk lo st (Index (lhs, idx)))
+      continue_with (mk lo st (Index (lhs, idx)))
   | LPAREN ->
       advance st;
       let args = parse_comma_list st RPAREN in
       expect st RPAREN;
-      parse_postfix st (mk lo st (Call (lhs, args)))
+      continue_with (mk lo st (Call (lhs, args)))
   | _ -> lhs
 
 (* 1, x, "str", foo(a, b) *)
-and parse_primary st =
+and parse_primary ?(no_struct_lit = false) st =
   let lo = cur_pos st in
   match st.tok with
   | INT (n, suf) ->
@@ -543,7 +536,7 @@ and parse_primary st =
       mk lo st Null
   | LPAREN ->
       advance st;
-      let e = in_brackets st (fun () -> parse_expr st 1) in
+      let e = parse_expr st 1 in
       expect st RPAREN;
       e
   (* [1, 2, 3] array literal *)
@@ -562,7 +555,7 @@ and parse_primary st =
   | IDENT name ->
       let nspan = st.tok_span in
       advance st;
-      if at st LBRACE && not st.no_struct_lit then begin
+      if at st LBRACE && not no_struct_lit then begin
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
@@ -598,20 +591,19 @@ and parse_value st =
 
 (* x: 3, y: 4 *)
 and parse_struct_lit_fields st =
-  in_brackets st (fun () ->
-      skip_semi st;
-      let fields = ref [] in
-      while st.tok <> RBRACE do
-        let name, nspan = expect_ident_span st in
-        expect st COLON;
-        let e = parse_expr st 1 in
-        fields := (name, nspan, e) :: !fields;
-        expect_literal_field_sep st
-      done;
-      List.rev !fields)
+  skip_semi st;
+  let fields = ref [] in
+  while st.tok <> RBRACE do
+    let name, nspan = expect_ident_span st in
+    expect st COLON;
+    let e = parse_expr st 1 in
+    fields := (name, nspan, e) :: !fields;
+    expect_literal_field_sep st
+  done;
+  List.rev !fields
 
 (* IDENT { in an if/while/for header is the body, not a struct literal *)
-and parse_header_expr st = with_struct_lit st true (fun () -> parse_expr st 1)
+and parse_header_expr st = parse_expr ~no_struct_lit:true st 1
 
 and parse_simple_stmt st =
   let lo = cur_pos st in
@@ -984,7 +976,6 @@ let parse ~(diags : Diagnostic.sink)
       tok_depth = 0;
       read = replay_of tokens;
       diags;
-      no_struct_lit = false;
       prev_end = 0;
       recovered = false;
     }
