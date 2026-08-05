@@ -3426,6 +3426,13 @@ let%expect_test "typecheck: a never call coerces to the return type" =
   run_src "extern func exit(code: i32) never\nfunc f() i32 { return exit(1) }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: function pointer may return never" =
+  run_src
+    "extern func exit(code: i32) never\n\
+     func f() { let stop: (i32) never = exit\n\
+    \ stop(1) }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: a typed pointer flows into *opaque" =
   run_src "func f(p: *i32) *opaque { return p }";
   [%expect {| ok |}]
