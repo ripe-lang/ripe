@@ -688,8 +688,7 @@ func f() u8 { return A }
 
 let%expect_test "codegen: sizeof int" =
   run_codegen "func f() usize { return sizeof(i32) }";
-  [%expect
-    {|
+  [%expect {|
     function l $f() {
     @start
         ret 4
