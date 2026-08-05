@@ -2426,7 +2426,7 @@ func f() { printf() }
 |};
   [%expect
     {|
-    error: expected at least 1 arguments, found 0
+    error: expected at least 1 argument, found 0
       at <test>:3:12
         func f() { printf() }
                    ^~~~~~~~
@@ -3967,4 +3967,16 @@ pub func check() { var v: Pair = 1 }
   [%expect {|
     unused variable: v
     type mismatch
+    |}]
+
+let%expect_test "typecheck: singular argument count" =
+  run_src {|func take(_value: i32) {}
+func main() { take() }
+|};
+  [%expect
+    {|
+    error: expected 1 argument, found 0
+      at <test>:2:15
+        func main() { take() }
+                      ^~~~~~
     |}]

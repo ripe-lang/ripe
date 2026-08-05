@@ -819,11 +819,14 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
     (args : expr list) : T.texpr list =
   let n_params = List.length sig_.param_tys in
   let n_args = List.length args in
+  let expected_arguments =
+    Printf.sprintf "%d argument%s" n_params (if n_params = 1 then "" else "s")
+  in
   if sig_.variadic then
     if n_args < n_params then (
       emit env
         (Error.arity span
-           ~expected:(Printf.sprintf "expected at least %d arguments" n_params)
+           ~expected:("expected at least " ^ expected_arguments)
            ~found:n_args);
       [])
     else
@@ -840,7 +843,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
   else if n_params <> n_args then (
     emit env
       (Error.arity span
-         ~expected:(Printf.sprintf "expected %d arguments" n_params)
+         ~expected:("expected " ^ expected_arguments)
          ~found:n_args);
     [])
   else List.map2 (check env) args sig_.param_tys
