@@ -94,7 +94,7 @@ let%expect_test "parse: same-line declarations require a separator" =
     error: expected `;`
       at <test>:1:13
         func f() {} func g() {}
-                    ^~~~ found func
+                    ^~~~ found `func`
     |}]
 
 let%expect_test "parse: multiline call requires a trailing comma" =
@@ -828,7 +828,7 @@ let%expect_test "parse: modifier before extern" =
     error: expected declaration
       at <test>:1:5
         pub extern func puts(s: cstr) i32
-            ^~~~~~ found extern
+            ^~~~~~ found `extern`
     |}]
 
 let%expect_test "parse: stray token at top level" =
@@ -838,7 +838,7 @@ let%expect_test "parse: stray token at top level" =
     error: expected declaration
       at <test>:1:1
         return 1
-        ^~~~~~ found return
+        ^~~~~~ found `return`
     |}]
 
 let%expect_test "parse: struct literal" =
@@ -892,7 +892,7 @@ let%expect_test "parse: dangling else has no matching if" =
     error: `else` without a matching `if`
       at <test>:3:3
           else { 2 }
-          ^~~~ found else
+          ^~~~ found `else`
     help: an `if` used as a value closes at its `}`
     |}]
 
