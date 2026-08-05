@@ -4,8 +4,7 @@
 
 open Diagnostic
 
-(* The goal is to try to keep the headline short and let the expected/found
-   detail ride the caret *)
+(* The goal is to try to keep the headline short and let the expected/found detail ride the caret *)
 let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) : t =
   error "type mismatch" |> at span
   |> label (Printf.sprintf "expected %s, found %s" expected found)
@@ -13,8 +12,7 @@ let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) : t =
 let undefined_name (span : Ast.span) (kind : string) (name : string) : t =
   error (Printf.sprintf "undefined %s: %s" kind name) |> at span
 
-(* This is a name then a terse fragment then lowercase with no trailing
-   period *)
+(* This is a name then a terse fragment then lowercase with no trailing period *)
 let named (span : Ast.span) (msg : string) (name : string) : t =
   error (Printf.sprintf "%s: %s" msg name) |> at span
 

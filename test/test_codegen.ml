@@ -3904,8 +3904,7 @@ let N: i64 = S as i64 + 1
     help: constant initializers must fold to a compile-time value
     |}]
 
-(* internal invariants: the typechecker keeps these unreachable from source, so
-   drive the codegen helpers directly *)
+(* internal invariants: the typechecker keeps these unreachable from source, so drive the codegen helpers directly *)
 
 let empty_structs () : (Ripe.Symbol.key, Ripe.Types.ty list) Hashtbl.t =
   Hashtbl.create 0

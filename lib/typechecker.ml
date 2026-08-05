@@ -17,8 +17,7 @@ type type_def =
 
 type var_info = { name : string; ty : ty; used : bool ref; span : Ast.span }
 
-(* The typed and value fields only ever go from None to Some so nothing rolls
-   back *)
+(* The typed and value fields only ever go from None to Some so nothing rolls back *)
 type gstate = {
   def : global_def;
   mutable typed : T.texpr option;
@@ -31,8 +30,7 @@ type env = {
   vars : (Symbol.key * var_info) list list;
   funcs : (Symbol.key, func_sig) Hashtbl.t;
   types : (Symbol.key, type_def) Hashtbl.t;
-  (* Struct field layouts mirror the DStruct entries in types so ty_size need
-     not rebuild them *)
+  (* Struct field layouts mirror the DStruct entries in types so ty_size need not rebuild them *)
   struct_fields : (Symbol.key, ty list) Hashtbl.t;
   globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
   (* Constants evaluate on demand so an array size may name a later const *)
@@ -133,8 +131,7 @@ let lookup_var_opt (env : env) (span : Ast.span) : ty option =
 (* Nothing got resolved here so this key never matches a real entry *)
 let unresolved_key : Symbol.key = (-1, -1)
 
-(* Two declarations can go by the same name so the tables look things up by
-   which one it is and not what it's called *)
+(* Two declarations can go by the same name so the tables look things up by which one it is and not what it's called *)
 let key_at (env : env) (span : Ast.span) : Symbol.key =
   match Resolve.sym_at_opt env.uses span with
   | Some symbol -> Symbol.key symbol
@@ -145,8 +142,7 @@ let builtin_at (env : env) (span : Ast.span) : Types.builtin option =
   | Some (DBuiltin b) -> Some b
   | Some (DStruct _ | DNewtype _ | DAlias _) | None -> None
 
-(* The path comes off the symbol so a message can say which module a type is
-   from *)
+(* The path comes off the symbol so a message can say which module a type is from *)
 let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
   match Resolve.sym_at_opt env.uses span with
   | Some symbol -> Resolve.qname_of env.uses symbol
@@ -217,8 +213,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Named (path, name) -> (
       let shown = Ast.show_named path name in
       match Hashtbl.find_opt env.types (key_at env t.tspan) with
-      (* Never is the return type of a function that can't return so no value
-         ever has it *)
+      (* Never is the return type of a function that can't return so no value ever has it *)
       | Some (DBuiltin (BTy TNever)) ->
           emit env
             Diagnostic.(
@@ -284,8 +279,7 @@ and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
               Hashtbl.replace env.globals key (t, st.def.kind);
               t
           | None -> (
-              (* Fall back to function table so function names can be used as
-                 values *)
+              (* Fall back to function table so function names can be used as values *)
               match Hashtbl.find_opt env.funcs key with
               | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
               | None ->
@@ -377,8 +371,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       match ty_of_ast env t with
       | TError -> dummy_texpr
       | ty -> T.mk (TInt Usize) (T.TSizeOf ty))
-  (* Ranges are not first-class values and only work as for-loop iterators or
-     slice bounds *)
+  (* Ranges are not first-class values and only work as for-loop iterators or slice bounds *)
   | Range _ | RangeInclusive _ ->
       add_error env e.span "range is only valid in a for loop or slice";
       dummy_texpr
@@ -479,8 +472,7 @@ and arm_is_flexible (e : expr) : bool =
 and block_is_flexible (body : block) : bool =
   match List.rev body with last :: _ -> arm_is_flexible last | [] -> false
 
-(* Probe a block's result type with diagnostics muted so a sibling can anchor
-   it *)
+(* Probe a block's result type with diagnostics muted so a sibling can anchor it *)
 and block_result_ty (env : env) (body : block) : ty =
   let quiet = { env with diags = Diagnostic.sink () } in
   let inner = push_scope quiet in
@@ -503,8 +495,7 @@ and reconcile_if_result (env : env) (branches : (expr * block) list)
       | Some (_, t) -> t
       | None -> TNever)
 
-(* Thread env so a binding is visible to later elements then check the tail
-   against want and discard the rest *)
+(* Thread env so a binding is visible to later elements then check the tail against want and discard the rest *)
 and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
     : env * T.tblock =
   let rec go env diverged acc (elems : expr list) =
@@ -575,8 +566,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
         (want, T.mk want T.TZero)
     | None, None ->
         emit env (Error.named nspan "cannot infer type" name);
-        (* A real type here makes every later use mismatch against a type nobody
-           wrote *)
+        (* A real type here makes every later use mismatch against a type nobody wrote *)
         (TError, dummy_texpr)
   in
   if kind = Comptime then (
@@ -643,8 +633,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
   warn_unused_in_scope final_inner;
   T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
 
-(* One if handles both a value and a plain statement and want None means
-   synthesize *)
+(* One if handles both a value and a plain statement and want None means synthesize *)
 and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
     (else_body : block option) (want : ty option) : T.texpr =
   match (want, else_body) with
@@ -723,8 +712,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   match e.desc with
   | ErrorExpr -> dummy_texpr
   | Int (_, Some _) ->
-      (* The suffix already picked the type so a wrong target is an error not a
-         quiet coercion *)
+      (* The suffix already picked the type so a wrong target is an error not a quiet coercion *)
       let te = synth_desc env e in
       if not (strict_eq (strip_alias want) te.T.ty) then
         emit env
@@ -895,8 +883,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       let tr =
         match op with
-        (* The count keeps its own integer type since it is only a number of
-           positions *)
+        (* The count keeps its own integer type since it is only a number of positions *)
         | Lshift | Rshift ->
             let tr = synth env r in
             if not (is_integer tr.T.ty) then
@@ -924,8 +911,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
       emit env
         (Error.named l.span "cannot assign to function" (symbol_name env s))
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> (
-      (* This catches assignment to an immutable binding whether it's local or
-         global. *)
+      (* This catches assignment to an immutable binding whether it's local or global. *)
       match root_binding tl with
       | Some s
         when Symbol.is_immutable s.Symbol.kind
@@ -1023,8 +1009,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
               |> at e.span
               |> help "a const has no storage, use let")
       | _ ->
-          (* TODO(abe2): In the future allow &(a + b) once I figure out the
-             memory and what to do about temporary lifetimes *)
+          (* TODO(abe2): In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes *)
           if not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
@@ -1134,8 +1119,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
   match strip_alias tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
       match idx.desc with
-      (* Arr[lo..hi] produces a slice that borrows into the same storage;
-         arr[lo..=hi] desugars to arr[lo..hi+1] *)
+      (* Arr[lo..hi] produces a slice that borrows into the same storage; arr[lo..=hi] desugars to arr[lo..hi+1] *)
       | Range (lo, hi) | RangeInclusive (lo, hi) ->
           let inclusive =
             match idx.desc with RangeInclusive _ -> true | _ -> false
@@ -1164,8 +1148,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
       emit env (Error.with_type span "cannot index type" (show_ty env t));
       dummy_texpr
 
-(* An array size can demand a const before its decl is checked so values resolve
-   on demand from here and fold_consts below shares this resolver *)
+(* An array size can demand a const before its decl is checked so values resolve on demand from here and fold_consts below shares this resolver *)
 and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
   Const_eval.fold_const_num
     ~sizeof:(ty_size env.struct_fields)
@@ -1289,8 +1272,7 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
   | Some t -> return_ty_of_ast env t
   | None -> if is_entry env fd.span then TInt I32 else TVoid
 
-(* First pass collecting signatures so that the compiler can handle forward
-   references *)
+(* First pass collecting signatures so that the compiler can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
   let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
   let ret_ty = ret_ty_of env fd in
@@ -1301,8 +1283,7 @@ let collect_func (env : env) (fd : func_def) : unit =
 let type_name_taken (env : env) (span : Ast.span) : bool =
   Hashtbl.mem env.types (key_at env span)
 
-(* The name goes in first so a field can name this struct or one defined
-   later *)
+(* The name goes in first so a field can name this struct or one defined later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
   if not (type_name_taken env sd.span) then (
     let seen = Hashtbl.create 8 in
@@ -1349,8 +1330,7 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
   if List.exists (reaches key) (fields_of key) then
     emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
 
-(* A fake error type goes in the table first and it just means the real body
-   hasn't been read yet *)
+(* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
   if not (type_name_taken env td.span) then
     Hashtbl.replace env.types (key_at env td.span) (DAlias TError)
@@ -1382,17 +1362,14 @@ let rec named_type_spans (t : typ) : Ast.span list =
       List.concat_map named_type_spans params
       @ Option.value ~default:[] (Option.map named_type_spans ret)
 
-(* An alias is only a second name for whatever it points at. A pointer in the
-   middle doesn't save it the way it saves a struct field *)
+(* An alias is only a second name for whatever it points at. A pointer in the middle doesn't save it the way it saves a struct field *)
 let collect_type_bodies (env : env) (decls : decl list) : unit =
   let defs = Hashtbl.create 16 in
   let remember (decl : decl) : unit =
     match decl with
     | TypeAlias td | Newtype td ->
-        (* Only the first one counts because a repeat name already got turned
-           down *)
-        (* An unresolved name shares one key so two broken types would look
-           mutually recursive *)
+        (* Only the first one counts because a repeat name already got turned down *)
+        (* An unresolved name shares one key so two broken types would look mutually recursive *)
         let key = key_at env td.span in
         if key <> unresolved_key && not (Hashtbl.mem defs key) then
           Hashtbl.add defs key decl
@@ -1457,8 +1434,7 @@ let fill_struct_fields_decl (env : env) (decl : decl) : unit =
 let check_cycle_decl (env : env) (decl : decl) : unit =
   match decl with Struct sd -> check_struct_cycle env sd | _ -> ()
 
-(* Every type name lands before any signature is read so a declaration can name
-   a type written further down the file *)
+(* Every type name lands before any signature is read so a declaration can name a type written further down the file *)
 let reserve_type_name (env : env) (decl : decl) : unit =
   let env = reading env decl in
   match decl with
@@ -1491,8 +1467,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
-  (* Main always returns a 32 bit integer so any other type the user writes is
-     rejected *)
+  (* Main always returns a 32 bit integer so any other type the user writes is rejected *)
   if is_entry env fd.span && ret_ty <> TError && ret_ty <> TInt I32 then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
     emit env
@@ -1510,8 +1485,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
       func_env params_typed
   in
 
-  (* A non-void body's trailing value is its return value so it flows against
-     the declared return type while main and void bodies just run for effect *)
+  (* A non-void body's trailing value is its return value so it flows against the declared return type while main and void bodies just run for effect *)
   let implicit_return =
     (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.span)
   in
@@ -1520,8 +1494,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    (* A live value tail returns while a diverging tail already left on its
-       own *)
+    (* A live value tail returns while a diverging tail already left on its own *)
     | true, last :: rest when last.T.ty = ret_ty && ret_ty <> TNever ->
         let ret = T.mk ~span:last.T.span TNever (T.TReturn (Some last)) in
         List.rev (ret :: rest)
@@ -1619,8 +1592,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       let tfd = check_func ~is_extern:true env fd in
       T.TExtern tfd
   | Struct sd ->
-      (* A rejected duplicate never landed in the table and its fields are read
-         directly *)
+      (* A rejected duplicate never landed in the table and its fields are read directly *)
       let field_tys =
         match Hashtbl.find_opt env.types (key_at env sd.span) with
         | Some (DStruct info) -> info.field_tys
@@ -1632,8 +1604,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       T.TStruct
         (qname_at env sd.span sd.name, List.map snd field_tys, sd.modifiers)
   | Global gd -> T.TGlobal (check_global env gd)
-  (* A rejected duplicate never landed in the table and falls back to the
-     written type *)
+  (* A rejected duplicate never landed in the table and falls back to the written type *)
   | TypeAlias td ->
       let t =
         match Hashtbl.find_opt env.types (key_at env td.span) with

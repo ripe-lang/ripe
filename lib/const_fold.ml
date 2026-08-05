@@ -4,8 +4,7 @@ open Types
 open Symbol
 module T = Typed_ast
 
-(* Every constant folds to a value here so codegen never resolves a name. the
-   typechecker owns the const tables so lookups come in as closures *)
+(* Every constant folds to a value here so codegen never resolves a name. the typechecker owns the const tables so lookups come in as closures *)
 let run ~(emit : Diagnostic.t -> unit)
     ~(force_const : Ast.span -> Symbol.key -> unit)
     ~(local_value : Symbol.t -> Const_eval.const_num option)

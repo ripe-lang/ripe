@@ -8,8 +8,7 @@ type const_num = Ni32 of Int32.t | Ni64 of Int64.t | Nf of float
 
 let const_bool (b : bool) : const_num = Ni32 (if b then 1l else 0l)
 
-(* The source signedness says whether the new high bits are zeros or the sign
-   bit *)
+(* The source signedness says whether the new high bits are zeros or the sign bit *)
 let const_to_int64 (src_ty : ty) (n : const_num) : Int64.t =
   match n with
   | Ni64 n -> n
@@ -24,8 +23,7 @@ let const_to_float (n : const_num) : float =
   | Ni64 n -> Int64.to_float n
   | Nf f -> f
 
-(* The narrow kinds get masked back to width so the value wraps like the
-   target *)
+(* The narrow kinds get masked back to width so the value wraps like the target *)
 let wrap_const (ty : ty) (n : Int64.t) : const_num =
   match resolve_ty ty with
   | TInt (I64 | U64 | Isize | Usize) -> Ni64 n
@@ -47,8 +45,7 @@ let unsupported_const (span : Ast.span) : Diagnostic.t =
     |> at span
     |> help "constant initializers must fold to a compile-time value")
 
-(* [resolve] yields the value of a named constant so cycle handling stays in the
-   caller *)
+(* [resolve] yields the value of a named constant so cycle handling stays in the caller *)
 let rec fold_const_num ~sizeof
     ~(resolve : Symbol.t -> ty -> Ast.span -> const_num) (te : T.texpr) :
     const_num =
@@ -135,8 +132,7 @@ and fold_const_binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty)
       | Ast.BitAnd -> wrap (Int64.logand x y)
       | Ast.BitOr -> wrap (Int64.logor x y)
       | Ast.BitXor -> wrap (Int64.logxor x y)
-      (* The count is capped since ocaml leaves a shift past 64 bits undefined
-         while go shifts every bit out *)
+      (* The count is capped since ocaml leaves a shift past 64 bits undefined while go shifts every bit out *)
       | Ast.Lshift | Ast.Rshift -> (
           let oversized = Int64.unsigned_compare y 64L >= 0 in
           let n = Int64.to_int y in
