@@ -1443,7 +1443,14 @@ let%expect_test "parse: operator may follow an explicit semicolon" =
 func main() {
   var _x = f(1); +f(2)
 }|};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: discarded operation result
+      at <test>:3:18
+          var _x = f(1); +f(2)
+                         ^~~~~
+    help: use `let _ = ...` when this is intentional
+    ok |}]
 
 let%expect_test
     "parse: dereference assignment may follow an automatic semicolon" =
