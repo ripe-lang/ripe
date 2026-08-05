@@ -804,21 +804,19 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
+and check_matching_operands (env : env) (l : expr) (r : expr) :
+    T.texpr * T.texpr * ty =
+  if is_int_literal l && not (is_int_literal r) then
+    let tr = synth env r in
+    let t = tr.T.ty in
+    (check env l t, tr, t)
+  else
+    let tl = synth env l in
+    let t = tl.T.ty in
+    (tl, check env r t, t)
+
 and check_range_bounds (env : env) (lo : expr) (hi : expr) =
-  let tlo, thi, t =
-    (* This bends a lone literal on the left toward the typed value on the
-       right *)
-    if is_int_literal lo && not (is_int_literal hi) then
-      let thi = synth env hi in
-      let t = thi.T.ty in
-      (check env lo t, thi, t)
-      (* Otherwise anchor on lo and check hi against it (also covers two
-         literals) *)
-    else
-      let tlo = synth env lo in
-      let t = tlo.T.ty in
-      (tlo, check env hi t, t)
-  in
+  let tlo, thi, t = check_matching_operands env lo hi in
   if not (is_integer t) then
     add_error env lo.span "range bounds must be integers";
   (tlo, thi, t)
@@ -859,15 +857,13 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
 and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   match op with
   | Add | Sub | Mul | Div | Mod ->
-      let tl = synth env l in
-      let t = tl.T.ty in
+      let tl, tr, t = check_matching_operands env l r in
       if not (is_numeric t) then
         emit env
           (Error.bad_operand l.span ~op:(show_binop_sym op) ~ty:(show_ty env t));
       (* QBE has no float remainder instruction *)
       if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
       then emit env (Error.bad_operand l.span ~op:"%" ~ty:(show_ty env t));
-      let tr = check env r t in
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
       let tl = synth env l in
