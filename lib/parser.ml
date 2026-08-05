@@ -52,7 +52,7 @@ let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-    ->
+  | IF ->
       true
   | _ -> false
 
@@ -568,6 +568,7 @@ and parse_primary ?(no_struct_lit = false) st =
   | UNDEFINED ->
       advance st;
       mk lo st Undefined
+  | IF -> parse_if st
   | ELSE ->
       raise
         (ParseError
@@ -580,12 +581,10 @@ and parse_primary ?(no_struct_lit = false) st =
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
-(* If and block are values too and where they sit decides if the value is
-   used *)
+(* A block is a value too and where it sits decides if the value is used *)
 and parse_value st =
   let lo = cur_pos st in
   match st.tok with
-  | IF -> parse_if st
   | LBRACE -> mk lo st (Block (parse_block st))
   | _ -> parse_expr st 1
 
