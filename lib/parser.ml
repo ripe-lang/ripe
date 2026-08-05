@@ -78,11 +78,32 @@ let parse_cast_kind st op_span =
 
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
-(* Newlines lex as SEMI *)
+let is_semi (token : token) : bool =
+  match token with AUTOSEMI | SEMI -> true | _ -> false
+
 let skip_semi st =
-  while st.tok = SEMI do
+  while is_semi st.tok do
     advance st
   done
+
+let is_ambiguous_continuation (token : token) : bool =
+  match token with PLUS | MINUS | STAR | AMP -> true | _ -> false
+
+let is_dereference_assignment (token : token) (e : expr) : bool =
+  match e.desc with
+  | BinOp (op, _, _) -> token = STAR && Ast.is_assignment_op op
+  | _ -> false
+
+let diagnose_dropped_continuation (st : state) (token : token) (span : span)
+    (expr : expr) : unit =
+  if
+    is_ambiguous_continuation token
+    && not (is_dereference_assignment token expr)
+  then
+    Diagnostic.emit st.diags
+      (Diagnostic.error "operator starts a new statement after a newline"
+      |> Diagnostic.at span
+      |> Diagnostic.help "move the operator to the previous line")
 
 let is_stmt_start (tok : token) : bool =
   match tok with
@@ -109,7 +130,7 @@ let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
     when st.tok_depth = depth && is_stmt_start st.tok
          && (after_semi || st.tok_line > line) ->
       ()
-  | SEMI when st.tok_depth = depth ->
+  | (AUTOSEMI | SEMI) when st.tok_depth = depth ->
       advance st;
       sync_to_stmt st depth line true
   | _ ->
@@ -142,7 +163,7 @@ let comma_sep st stop parse_one =
       advance st;
       if st.tok <> stop then items := parse_one () :: !items
     done;
-    if st.tok = SEMI then fail st "missing `,` before newline"
+    if is_semi st.tok then fail st "missing `,` before newline"
   end;
   List.rev !items
 
@@ -164,7 +185,7 @@ let rec sync_to_depth_token (st : state) (depth : int) (line : int)
   if
     st.tok = EOF
     || st.tok_depth = depth
-       && (List.mem st.tok stops || st.tok = SEMI || st.tok = RBRACE)
+       && (List.mem st.tok stops || is_semi st.tok || st.tok = RBRACE)
     || st.tok_depth = depth && st.tok_line > line
        && if depth = 0 then is_item_start st.tok else is_stmt_start st.tok
   then ()
@@ -195,14 +216,14 @@ let recover_typ_to (st : state) (depth : int) (stops : token list)
 let expect_field_sep st =
   (match st.tok with
   | COMMA -> advance st
-  | SEMI | RBRACE -> ()
+  | AUTOSEMI | SEMI | RBRACE -> ()
   | _ -> fail_found st "expected `,` or newline between fields");
   skip_semi st
 
 let expect_literal_field_sep st =
   match st.tok with
   | COMMA -> advance st
-  | SEMI -> fail st "missing `,` before newline"
+  | AUTOSEMI | SEMI -> fail st "missing `,` before newline"
   | RBRACE -> ()
   | _ -> fail_found st "expected `,` between fields"
 
@@ -379,14 +400,14 @@ and parse_params st =
     done
   end;
   if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
-  if st.tok = SEMI then fail st "missing `,` before newline";
+  if is_semi st.tok then fail st "missing `,` before newline";
   expect st RPAREN;
   (List.rev !params, !variadic)
 
 (* i32 *)
 and parse_ret_type st =
   match st.tok with
-  | LBRACE | SEMI | EOF | ASSIGN -> None
+  | LBRACE | AUTOSEMI | SEMI | EOF | ASSIGN -> None
   | _ ->
       let depth = st.tok_depth in
       Some (recover_typ_to st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st))
@@ -647,7 +668,7 @@ and parse_simple_stmt st =
   | RETURN ->
       (* Return with no value ends at a newline or closing brace *)
       advance st;
-      if st.tok = SEMI || st.tok = RBRACE || st.tok = EOF then
+      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
         mk lo st (Return None)
       else
         let e = parse_value st in
@@ -680,19 +701,30 @@ and parse_block st =
 and parse_stmts st =
   let stmts = ref [] in
   let depth = st.tok_depth in
+  let after_auto_semi = ref false in
   skip_semi st;
   while st.tok <> RBRACE && st.tok <> EOF do
     let line = st.tok_line in
+    let start_token = st.tok in
+    let start_span = cur_span st in
+    let follows_auto_semi = !after_auto_semi in
+    after_auto_semi := false;
     try
       let s = parse_stmt st in
+      if follows_auto_semi then
+        diagnose_dropped_continuation st start_token start_span s;
       stmts := s :: !stmts;
       if st.recovered then (
         st.recovered <- false;
         skip_semi st)
-      else if st.tok = SEMI then skip_semi st
+      else if is_semi st.tok then begin
+        after_auto_semi := st.tok = AUTOSEMI;
+        skip_semi st
+      end
       else if st.tok <> RBRACE && st.tok <> EOF then
         fail_found st "expected `;`"
     with ParseError d ->
+      after_auto_semi := false;
       Diagnostic.emit st.diags d;
       sync_to_stmt st depth line false;
       stmts := error_expr st d :: !stmts;
@@ -909,7 +941,7 @@ let parse_module st =
   if st.tok = MODULE then (
     try
       header := Some (parse_module_header st);
-      if st.tok = SEMI then skip_semi st
+      if is_semi st.tok then skip_semi st
       else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;
@@ -922,7 +954,7 @@ let parse_module st =
       if st.recovered then (
         st.recovered <- false;
         skip_semi st)
-      else if st.tok = SEMI then skip_semi st
+      else if is_semi st.tok then skip_semi st
       else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;

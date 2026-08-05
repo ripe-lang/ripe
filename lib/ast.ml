@@ -69,6 +69,13 @@ let show_binop_sym = function
   | LshiftAssign -> "<<="
   | RshiftAssign -> ">>="
 
+let is_assignment_op (op : binop) : bool =
+  match op with
+  | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
+  | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
+      true
+  | _ -> false
+
 type unop = Pos | Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 

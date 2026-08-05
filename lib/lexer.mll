@@ -76,7 +76,7 @@ rule read_main st = parse
   | "/*"               { read_block_comment st 0 false lexbuf }
   | newline            { next_line lexbuf;
                          match st.last_token with
-                         | Some t when can_end_stmt t -> SEMI
+                         | Some t when can_end_stmt t -> AUTOSEMI
                          | _ -> read_main st lexbuf }
   | ('0' ['x' 'X'] hexdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
   | ('0' ['b' 'B'] bindig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
@@ -164,7 +164,7 @@ rule read_main st = parse
            tok }
   | eof  {
       match st.last_token with
-      | Some t when can_end_stmt t -> SEMI
+      | Some t when can_end_stmt t -> AUTOSEMI
       | _ -> EOF
     }
   | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
@@ -212,7 +212,7 @@ and read_block_comment st depth saw_newline = parse
   | "*/"    {
       if depth = 0 then
         match st.last_token with
-        | Some t when saw_newline && can_end_stmt t -> SEMI
+        | Some t when saw_newline && can_end_stmt t -> AUTOSEMI
         | _ -> read_main st lexbuf
       else read_block_comment st (depth - 1) saw_newline lexbuf
     }

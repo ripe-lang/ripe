@@ -1420,3 +1420,35 @@ let%expect_test "parse: a nested if body still reads a struct literal" =
   | _ -> print_endline "<expected a function>");
   [%expect
     {| (block (if ((== 1 (if (c (block (. (struct P (x 1)) x))) (block 0))) (block )))) |}]
+
+let%expect_test "parse: operator cannot continue after an automatic semicolon" =
+  run_src
+    {|func f(x: i32) i32 { return x }
+func main() {
+  var x = f(1)
+    + f(2)
+}|};
+  [%expect
+    {|
+    error: operator starts a new statement after a newline
+      at <test>:4:5
+            + f(2)
+            ^
+    help: move the operator to the previous line
+    |}]
+
+let%expect_test "parse: operator may follow an explicit semicolon" =
+  run_src
+    {|func f(x: i32) i32 { return x }
+func main() {
+  var _x = f(1); +f(2)
+}|};
+  [%expect {| ok |}]
+
+let%expect_test
+    "parse: dereference assignment may follow an automatic semicolon" =
+  run_src {|func f(p: *i32) {
+  let _x = 1
+  *p = 2
+}|};
+  [%expect {| ok |}]
