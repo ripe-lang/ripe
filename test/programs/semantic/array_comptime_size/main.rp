@@ -2,7 +2,7 @@ extern func printf(fmt: cstr, ...) i32
 
 let TABLE: [N]i32 = [10, 20, 30]
 comptime N: i32 = 3
-comptime DOUBLED: i64 = sizeof([N * 2]i32)
+comptime DOUBLED: usize = sizeof([N * 2]i32)
 
 struct box { buf: [N]i32, tail: i32 }
 

@@ -369,7 +369,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | SizeOf t -> (
       match ty_of_ast env t with
       | TError -> dummy_texpr
-      | ty -> T.mk (TInt I64) (T.TSizeOf ty))
+      | ty -> T.mk (TInt Usize) (T.TSizeOf ty))
   (* Ranges are not first-class values and only work as for-loop iterators or
      slice bounds *)
   | Range _ | RangeInclusive _ ->

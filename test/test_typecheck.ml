@@ -738,11 +738,11 @@ comptime M: i32 = sizeof([N]i32)
     error: type mismatch
       at <test>:2:19
         comptime N: i32 = sizeof([M]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found i64
+                          ^~~~~~~~~~~~~~ expected i32, found usize
     error: type mismatch
       at <test>:3:19
         comptime M: i32 = sizeof([N]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found i64
+                          ^~~~~~~~~~~~~~ expected i32, found usize
     error: cyclic constant: N
       at <test>:3:27
         comptime M: i32 = sizeof([N]i32)
@@ -884,8 +884,8 @@ let%expect_test "typecheck: checked cast on a float rejected" =
     help: use a plain `as` cast here
     |}]
 
-let%expect_test "typecheck: sizeof has int type" =
-  run_src "func f() i64 { return sizeof(i32) as i64 }";
+let%expect_test "typecheck: sizeof has usize type" =
+  run_src "func f() usize { return sizeof(i32) }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cast bool to ptr rejected" =

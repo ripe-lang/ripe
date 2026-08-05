@@ -687,13 +687,12 @@ func f() u8 { return A }
     |}]
 
 let%expect_test "codegen: sizeof int" =
-  run_codegen "func f() i64 { return sizeof(i32) as i64 }";
+  run_codegen "func f() usize { return sizeof(i32) }";
   [%expect
     {|
     function l $f() {
     @start
-        %t0 =l copy 4
-        ret %t0
+        ret 4
     }
     |}]
 
@@ -2989,8 +2988,8 @@ let%expect_test "codegen: sizeof folds in a comptime" =
   run_codegen
     {|
 struct pt { x: i32, y: i32 }
-comptime S: i64 = sizeof(pt)
-func f() i64 { return S }
+comptime S: usize = sizeof(pt)
+func f() usize { return S }
 |};
   [%expect
     {|
@@ -3064,7 +3063,7 @@ let%expect_test "codegen: expression array size" =
   run_codegen
     {|
 comptime N: i32 = 3
-func f() i64 { return sizeof([N * 2 + 1]i32) }
+func f() usize { return sizeof([N * 2 + 1]i32) }
 |};
   [%expect {|
     function l $f() {
@@ -3075,7 +3074,7 @@ func f() i64 { return sizeof([N * 2 + 1]i32) }
 
 let%expect_test "codegen: suffixed array size" =
   run_codegen {|
-func f() i64 { return sizeof([2u8]i32) }
+func f() usize { return sizeof([2u8]i32) }
 |};
   [%expect {|
     function l $f() {
@@ -3088,8 +3087,8 @@ let%expect_test "codegen: sizeof of a comptime sized array folds" =
   run_codegen
     {|
 comptime N: i32 = 4
-comptime S: i64 = sizeof([N]i32)
-func f() i64 { return S }
+comptime S: usize = sizeof([N]i32)
+func f() usize { return S }
 |};
   [%expect {|
     function l $f() {
