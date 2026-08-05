@@ -35,6 +35,7 @@ let usage_msg =
      %s\n\
     \  -b, --backend <NAME>  Select the code generator: %s (default qbe)\n\
     \  -o, --output <FILE>   Write the compiler output to <FILE>\n\
+    \  -l, --library <NAME>  Link with the named library\n\
     \  -h, --help            Display this list of options\n\n\
      Examples:\n\
     \  ripec source.rp\n\
@@ -56,9 +57,10 @@ let command =
       ~default:Driver.Backend.Qbe
   and+ out =
     named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
+  and+ libraries = named_multi [ "l"; "library" ] string ~value_name:"NAME"
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
-  Driver.compile ~stage ~backend ~out ~filename
+  Driver.compile ~stage ~backend ~out ~libraries ~filename
 
 let is_help arg = arg = "-h" || arg = "--help"
 

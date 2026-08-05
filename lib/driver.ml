@@ -33,9 +33,13 @@ let run_qbe il =
   Sys.remove tmp_qbe;
   tmp_asm
 
-let compile_binary base il =
+let compile_binary base il libraries =
   let tmp_asm = run_qbe il in
-  run (Printf.sprintf "cc -o %s %s %s" base tmp_asm (Config.runtime_object ()));
+  let args =
+    [ "cc"; "-o"; base; tmp_asm; Config.runtime_object () ]
+    @ List.map (fun library -> "-l" ^ library) libraries
+  in
+  run (String.concat " " (List.map Filename.quote args));
   Sys.remove tmp_asm
 
 let emit_asm il =
@@ -139,7 +143,7 @@ let load ~diags ~filename =
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
 
-let compile ~stage ~backend ~out ~filename =
+let compile ~stage ~backend ~out ~libraries ~filename =
   (* Write to -o if set or stdout *)
   let output_text s =
     if out = "" then print_string s
@@ -150,7 +154,7 @@ let compile ~stage ~backend ~out ~filename =
       if out = "" then Filename.remove_extension (Filename.basename filename)
       else out
     in
-    compile_binary base il
+    compile_binary base il libraries
   in
   if stage = Tokens then (
     output_text (root_tokens filename);
