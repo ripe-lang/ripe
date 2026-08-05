@@ -513,10 +513,10 @@ let%expect_test "parse: recover incomplete cast operators" =
 let%expect_test "parse: recover operators across statement forms" =
   let src =
     {|func f() {
+  if 1 *
   let a = +
   comptime b = 1 -
   var c = !
-  if 1 *
   while 2 /
   for x in 3 %
   return 4 ==
@@ -525,22 +525,22 @@ let%expect_test "parse: recover operators across statement forms" =
   run_parse src;
   [%expect
     {|
+    error: expected expression after `*`
+      at <test>:2:8
+          if 1 *
+               ^
     error: expected expression after `+`
-      at <test>:2:11
+      at <test>:3:11
           let a = +
                   ^
     error: expected expression after `-`
-      at <test>:3:18
+      at <test>:4:18
           comptime b = 1 -
                          ^
     error: expected expression after `!`
-      at <test>:4:11
+      at <test>:5:11
           var c = !
                   ^
-    error: expected expression after `*`
-      at <test>:5:8
-          if 1 *
-               ^
     error: expected expression after `/`
       at <test>:6:11
           while 2 /
@@ -1401,3 +1401,22 @@ let%expect_test "parse: an if condition still reads a field access" =
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
   [%expect {| (block (if ((. p flag) (block )))) |}]
+
+let%expect_test "parse: an if is a value in an assignment" =
+  parse_expr "x = if c { 1 } else { 2 }";
+  [%expect {| (= x (if (c (block 1)) (block 2))) |}]
+
+let%expect_test "parse: an if is a value in a call argument" =
+  parse_expr "f(if c { 1 } else { 2 })";
+  [%expect {| (call f (if (c (block 1)) (block 2))) |}]
+
+let%expect_test "parse: an if is a value in a binary operand" =
+  parse_expr "1 + if c { 1 } else { 2 }";
+  [%expect {| (+ 1 (if (c (block 1)) (block 2))) |}]
+
+let%expect_test "parse: a nested if body still reads a struct literal" =
+  (match parse "func f() { if 1 == if c { P { x: 1 }.x } else { 0 } { } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect
+    {| (block (if ((== 1 (if (c (block (. (struct P (x 1)) x))) (block 0))) (block )))) |}]
