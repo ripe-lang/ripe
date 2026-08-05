@@ -67,6 +67,10 @@ let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
 rule read_main st = parse
+  | "\xEF\xBB\xBF" {
+      if start_pos lexbuf = 0 then read_main st lexbuf
+      else ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf)
+    }
   | white              { read_main st lexbuf }
   | "//" [^ '\n' '\r']* { read_main st lexbuf }
   | "/*"               { read_block_comment st 0 false lexbuf }
