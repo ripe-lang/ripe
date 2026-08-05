@@ -937,7 +937,6 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
-(* TODO(5689): cap at 20 errors then bail with a flag to list the rest *)
 let tokenize_all read lexbuf diags =
   let toks = ref [] in
   let rec scan stack depth =
