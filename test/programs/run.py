@@ -18,14 +18,18 @@ def find_ripec(explicit):
     if explicit:
         return os.path.abspath(explicit)
 
+    built = os.path.join(
+        TEST_DIR, "..", "..", "_build", "install", "default", "bin", "ripec"
+    )
+    built = os.path.abspath(built)
+    if os.path.isfile(built):
+        return built
+
     found = shutil.which("ripec")
     if found:
         return found
 
-    fallback = os.path.join(
-        TEST_DIR, "..", "..", "_build", "install", "default", "bin", "ripec"
-    )
-    return os.path.abspath(fallback)
+    return built
 
 
 def tests(testname):
@@ -134,7 +138,7 @@ def main():
     parser.add_argument(
         "--ripec",
         default=None,
-        help="ripe compiler to use (defaults to ripec on PATH, then the build dir)",
+        help="ripe compiler to use (defaults to the build dir, then ripec on PATH)",
     )
     parser.add_argument(
         "testname",
