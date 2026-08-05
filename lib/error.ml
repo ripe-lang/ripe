@@ -18,6 +18,9 @@ let undefined_name (span : Ast.span) (kind : string) (name : string) : t =
 let named (span : Ast.span) (msg : string) (name : string) : t =
   error (Printf.sprintf "%s: %s" msg name) |> at span
 
+let with_type (span : Ast.span) (msg : string) (ty : string) : t =
+  error (Printf.sprintf "%s %s" msg ty) |> at span
+
 (* The prev span marks the original binder so both ends show up *)
 let redefinition (span : Ast.span) ~(prev : Ast.span) (name : string) : t =
   named span "already defined" name |> secondary prev "previous definition here"

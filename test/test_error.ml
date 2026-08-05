@@ -112,3 +112,14 @@ let%expect_test "error: expected type after operator" =
         return x as!
                  ^~~
     |}]
+
+let%expect_test "error: message with type" =
+  let src = "return value[0]\n" in
+  render src (Error.with_type (span src "value[0]") "cannot index type" "i32");
+  [%expect
+    {|
+    error: cannot index type i32
+      at <test>:1:8
+        return value[0]
+               ^~~~~~~~
+    |}]

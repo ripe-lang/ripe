@@ -626,7 +626,8 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
             emit env
-              (Error.named iter.span "cannot iterate over type" (show_ty env t));
+              (Error.with_type iter.span "cannot iterate over type"
+                 (show_ty env t));
             (ti, TInt I32))
   in
   let inner = push_scope { env with in_loop = true } in
@@ -1004,7 +1005,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
           dummy_texpr
       | t ->
           emit env
-            (Error.named e.span "cannot dereference type" (show_ty env t));
+            (Error.with_type e.span "cannot dereference type" (show_ty env t));
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
@@ -1157,7 +1158,7 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
           |> help "cast to a typed pointer first");
       dummy_texpr
   | t ->
-      emit env (Error.named span "cannot index type" (show_ty env t));
+      emit env (Error.with_type span "cannot index type" (show_ty env t));
       dummy_texpr
 
 (* An array size can demand a const before its decl is checked so values resolve
