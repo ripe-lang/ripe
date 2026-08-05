@@ -252,8 +252,15 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
   | FuncPtr (ps, ret) ->
       let pts = List.map (ty_of_ast env) ps in
-      let rt = match ret with Some t -> ty_of_ast env t | None -> TVoid in
+      let rt =
+        match ret with Some t -> return_ty_of_ast env t | None -> TVoid
+      in
       if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
+
+and return_ty_of_ast (env : env) (t : typ) : ty =
+  match builtin_at env t.tspan with
+  | Some (BTy TNever) -> TNever
+  | Some (BTy _) | Some BOpaque | None -> ty_of_ast env t
 
 and lookup_var (env : env) (span : Ast.span) (name : string) : ty =
   match lookup_var_opt env span with
@@ -1280,10 +1287,10 @@ and eval_array_size (env : env) (e : expr) : int =
     else Int64.to_int n
 
 (* Main implicitly returns i32 for the C runtime and everything else is void *)
+(* FIXME: The default keeps main working until return types are inferred *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
-  | Some t when builtin_at env t.tspan = Some (BTy TNever) -> TNever
-  | Some t -> ty_of_ast env t
+  | Some t -> return_ty_of_ast env t
   | None -> if is_entry env fd.span then TInt I32 else TVoid
 
 (* First pass collecting signatures so that the compiler can handle forward
