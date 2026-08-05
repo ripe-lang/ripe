@@ -3980,3 +3980,14 @@ func main() { take() }
         func main() { take() }
                       ^~~~~~
     |}]
+
+let%expect_test "typecheck: nonliteral operand types binary expression" =
+  run_src
+    {|
+func add_two(x: i64) i64 {
+  let left = 1 + x
+  let right = x + 1
+  return left + right
+}
+|};
+  [%expect {| ok |}]
