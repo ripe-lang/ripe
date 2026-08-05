@@ -3598,7 +3598,7 @@ let%expect_test "collapse: a binding is not a value operand" =
     error: expected expression
       at <test>:1:29
         func f() i32 { let x: i32 = let y: i32 = 5
-                                    ^~~ found let
+                                    ^~~ found `let`
     |}]
 
 let%expect_test "collapse: a block ending in a binding is void" =

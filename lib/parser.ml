@@ -42,11 +42,12 @@ let fail st headline =
   raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
 
 let fail_found st headline =
+  let found = Printf.sprintf "found %s" (show_found_token st.tok) in
   raise
     (ParseError
        (Diagnostic.error headline
        |> Diagnostic.at (cur_span st)
-       |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))))
+       |> Diagnostic.label found))
 
 let is_expr_start (tok : token) : bool =
   match tok with
@@ -575,7 +576,8 @@ and parse_primary ?(no_struct_lit = false) st =
            (Diagnostic.error
               (Printf.sprintf "`%s` without a matching `if`" (show_token st.tok))
            |> Diagnostic.at (cur_span st)
-           |> Diagnostic.label (Printf.sprintf "found %s" (show_token st.tok))
+           |> Diagnostic.label
+                (Printf.sprintf "found %s" (show_found_token st.tok))
            |> Diagnostic.help "an `if` used as a value closes at its `}`"))
   | _ -> fail_found st "expected expression"
 

@@ -165,3 +165,8 @@ let show_token = function
     | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC
     | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
+
+let show_found_token (token : token) : string =
+  if List.exists (fun (_, keyword) -> keyword = token) keywords then
+    "`" ^ show_token token ^ "`"
+  else show_token token
