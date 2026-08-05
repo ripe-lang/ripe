@@ -482,3 +482,17 @@ let%expect_test "lexer: unterminated char literal is an error" =
     SEMI
     EOF
     |}]
+
+let%expect_test "lexer: leading UTF 8 BOM is ignored" =
+  dump_tokens "\xEF\xBB\xBFfunc main() {}\n";
+  [%expect
+    {|
+    KW func
+    IDENT main
+    (
+    )
+    {
+    }
+    SEMI
+    EOF
+    |}]
