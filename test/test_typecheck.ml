@@ -1117,7 +1117,7 @@ func f() {
           let y = *x
               ^
     help: prefix with an underscore: _y
-    error: cannot dereference type: i32
+    error: cannot dereference type i32
       at <test>:4:12
           let y = *x
                    ^
@@ -1321,7 +1321,7 @@ let%expect_test "typecheck: index non-array" =
   run_src "func f() { var x: i32 = 0; x[0] }";
   [%expect
     {|
-    error: cannot index type: i32
+    error: cannot index type i32
       at <test>:1:28
         func f() { var x: i32 = 0; x[0] }
                                    ^~~~
@@ -1446,7 +1446,7 @@ let%expect_test "typecheck: for over non-iterable" =
   run_src "func f() { for x in 5 { let y = x } }";
   [%expect
     {|
-    error: cannot iterate over type: i32
+    error: cannot iterate over type i32
       at <test>:1:21
         func f() { for x in 5 { let y = x } }
                             ^
