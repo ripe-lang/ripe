@@ -47,8 +47,7 @@ and tblock = texpr list [@@deriving show { with_path = false }]
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }
 
-(* The name here is what the linker sees and anything a person reads comes off
-   the symbol instead *)
+(* The name here is what the linker sees and anything a person reads comes off the symbol instead *)
 type tfunc_def = {
   key : Symbol.key;
   name : string;

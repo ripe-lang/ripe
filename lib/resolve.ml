@@ -43,8 +43,7 @@ let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
 let new_scope (parent : scope option) : scope =
   { values = Hashtbl.create 16; types = Hashtbl.create 16; parent }
 
-(* A builtin sits in the outermost scope so a module can shadow it like any
-   name *)
+(* A builtin sits in the outermost scope so a module can shadow it like any name *)
 let make_output (modules : int) : t =
   let prelude = new_scope None in
   let seed id (name, _) =

@@ -100,8 +100,7 @@ let severity_label color sev =
 (* UTF8 continuation bytes don't advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
-(* This gets visual columns from line_start to pos with tabs expanded and cont
-   bytes skipped *)
+(* This gets visual columns from line_start to pos with tabs expanded and cont bytes skipped *)
 let visual_col src line_start pos =
   let col = ref 0 in
   for i = line_start to pos - 1 do

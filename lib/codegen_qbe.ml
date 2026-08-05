@@ -25,8 +25,7 @@ let qbe_base (t : ty) : qbe_base =
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
-(* The QBE mnemonic prefix, u for unsigned int types and pointers, s
-   otherwise *)
+(* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
   | TPointer _ | TOpaquePtr | TNull | TCStr | TChar -> "u"
@@ -41,8 +40,7 @@ let div_overflows_at_reg_width (t : ty) : bool =
   | TAlias _ | TError ->
       false
 
-(* This is the hard limit where libc call stops emitting one instruction per
-   word *)
+(* This is the hard limit where libc call stops emitting one instruction per word *)
 let bulk_mem_threshold = 64
 
 (* s_ for single, d_ for double *)
@@ -209,8 +207,7 @@ let emit_label ctx lbl =
   ctx.terminated := false;
   emit ctx "%s\n" lbl
 
-(* jmp/jnz end a block so anything emitted after until the next label is
-   dropped *)
+(* jmp/jnz end a block so anything emitted after until the next label is dropped *)
 let emit_jmp ctx lbl =
   if not !(ctx.terminated) then emit ctx "    jmp %s\n" lbl;
   ctx.terminated := true
@@ -231,8 +228,7 @@ let field_offset structs fields field_id =
   in
   go 0 0 fields
 
-(* The number of bytes from one element to the next after rounding to its
-   alignment *)
+(* The number of bytes from one element to the next after rounding to its alignment *)
 let stride structs elem =
   align_to (ty_size structs elem) (ty_align structs elem)
 
@@ -279,8 +275,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CCStr s -> intern_string ctx s
   | T.CCall (_, args, _)
     when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
-      (* The call is dead once a `never` argument diverges so only the args up
-         to it get emitted *)
+      (* The call is dead once a `never` argument diverges so only the args up to it get emitted *)
       let rec emit_until = function
         | [] -> ()
         | (a : T.cexpr) :: rest ->
@@ -298,8 +293,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
                Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
              args)
       in
-      (* The ... marker between fixed and variadic args tells QBE to set the
-         vararg register count on amd64 SysV *)
+      (* The ... marker between fixed and variadic args tells QBE to set the vararg register count on amd64 SysV *)
       let arg_strs =
         match fixed_count with
         | Some n ->
@@ -308,8 +302,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
             fixed @ ("..." :: rest)
         | None -> arg_strs
       in
-      (* A plain function name calls direct otherwise the callee holds a fn
-         ptr *)
+      (* A plain function name calls direct otherwise the callee holds a fn ptr *)
       let callee =
         match callee.T.desc with
         | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.link_name
@@ -387,8 +380,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       slot
   | T.CSliceExpr (base, lo, hi) -> emit_slice_expr ctx e.T.span base lo hi t
   | T.CArrayLit elems ->
-      (* A fresh stack slot holds the materialized value so its address can be
-         yielded *)
+      (* A fresh stack slot holds the materialized value so its address can be yielded *)
       let elem = array_elem_ty ~span:e.T.span t in
       let slot = fresh ctx in
       emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
@@ -457,8 +449,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
 and emit_unop ctx op e t =
   match op with
   | Ast.Pos -> Error.ice ~span:e.T.span "unary plus reached code generation"
-  (* Dereferencing a struct pointer just yields its address like any other
-     aggregate lvalue *)
+  (* Dereferencing a struct pointer just yields its address like any other aggregate lvalue *)
   | Ast.Deref when is_aggregate t ->
       let ptr = emit_expr ctx e in
       emit_null_check ctx ptr;
@@ -550,8 +541,7 @@ and emit_index_addr ctx base idx elem =
   emit ctx "    %s =l add %s, %s\n" addr storage off;
   addr
 
-(* Every runtime check jumps to a panic when cond is nonzero and otherwise falls
-   into the ok block *)
+(* Every runtime check jumps to a panic when cond is nonzero and otherwise falls into the ok block *)
 and emit_guard ctx ~tag ~cond ~panic =
   let id = fresh_id ctx in
   let fail_lbl = Printf.sprintf "@%s.fail.%d" tag id in
@@ -585,8 +575,7 @@ and emit_divzero_check ctx divisor op_qt =
   emit_guard ctx ~tag:"divzero" ~cond:zero ~panic:(fun () ->
       emit ctx "    call $ripe_panic_divzero()\n")
 
-(* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware
-   divide when the divisor is -1 *)
+(* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware divide when the divisor is -1 *)
 and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
   let id = fresh_id ctx in
   let neg1_lbl = Printf.sprintf "@div.neg1.%d" id in
@@ -620,8 +609,7 @@ and emit_negshift_check ctx count count_qt =
   emit_guard ctx ~tag:"negshift" ~cond:neg ~panic:(fun () ->
       emit ctx "    call $ripe_panic_shift()\n")
 
-(* Address of any lvalue, for &e: a name's own slot/global, or the same address
-   computation assign already uses for index/field/deref *)
+(* Address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.cexpr) =
   match e.T.desc with
   (* &funcname is already the function pointer. *)
@@ -632,8 +620,7 @@ and emit_lvalue_addr ctx (e : T.cexpr) =
   | T.CUnOp (Ast.Deref, inner) -> emit_expr ctx inner
   | _ -> Error.ice ~span:e.T.span "expected an lvalue"
 
-(* Address of e.field: base address (or loaded pointer, if base is a pointer) +
-   field offset *)
+(* Address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
 and emit_field_addr ctx base field =
   let addr = emit_expr ctx base in
   (match resolve_ty base.T.ty with
@@ -672,8 +659,7 @@ and emit_zero_into ctx dest t =
       end
   | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
 
-(* An aggregate suhc as a slice is moved by copying size bytes from src to
-   dest *)
+(* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
 and emit_aggregate_copy ctx dest src size =
   if size > bulk_mem_threshold then
     emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
@@ -686,8 +672,7 @@ and emit_array_lit_into ctx base elems elem =
     (fun i el ->
       let addr = offset_addr ctx base (i * strd) in
       match el.T.desc with
-      (* Nested literal represent multidimensional arrays and are wrtiten
-         recursively *)
+      (* Nested literal represent multidimensional arrays and are wrtiten recursively *)
       | T.CArrayLit sub ->
           let subelem = array_elem_ty ~span:el.T.span el.T.ty in
           emit_array_lit_into ctx addr sub subelem
@@ -740,8 +725,7 @@ and emit_assign ctx l r _t =
       emit_store_into ctx l.T.ty addr r
   | _ -> emit_expr ctx r
 
-(* The caller already worked out the address so every lvalue shape can share
-   this store. *)
+(* The caller already worked out the address so every lvalue shape can share this store. *)
 and emit_store_into ctx ty addr r =
   if is_aggregate ty then begin
     (match (r.T.desc, ty) with
@@ -763,8 +747,7 @@ and emit_store_into ctx ty addr r =
 and emit_branch ctx e true_lbl false_lbl =
   match e.T.desc with
   | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
-  (* A short-circuit and/or lowers to a single-arm if so branch through it
-     directly *)
+  (* A short-circuit and/or lowers to a single-arm if so branch through it directly *)
   | T.CIf ([ (c, then_body) ], Some else_body) ->
       let id = fresh_id ctx in
       let then_lbl = Printf.sprintf "@sel.then%d" id in
@@ -803,8 +786,7 @@ and emit_if ctx (branches : (T.cexpr * T.cblock) list)
     emit_label ctx lbl;
     if is_value then (
       let v = emit_block_value ctx body in
-      (* A never arm already terminated so only a live arm copies out and
-         joins *)
+      (* A never arm already terminated so only a live arm copies out and joins *)
       if not !(ctx.terminated) then (
         emit ctx "    %s =%s copy %s\n" res qt v;
         emit_jmp ctx end_lbl))
@@ -830,15 +812,13 @@ and emit_if ctx (branches : (T.cexpr * T.cblock) list)
           emit_label ctx else_lbl;
           emit_jmp ctx end_lbl));
   emit_label ctx end_lbl;
-  (* Every arm diverged so the join is unreachable but still needs a
-     terminator *)
+  (* Every arm diverged so the join is unreachable but still needs a terminator *)
   if never then (
     emit ctx "    hlt\n";
     ctx.terminated := true);
   res
 
-(* TODO(2cc1): the local arithmetic always emits instructions instead of folding
-   through fold_const_num *)
+(* TODO(2cc1): the local arithmetic always emits instructions instead of folding through fold_const_num *)
 and emit_binop ctx op l r t =
   let lv = emit_expr ctx l in
   let rv = emit_expr ctx r in
@@ -901,8 +881,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
   | _ -> tmp
 
-(* This rebuilds the go result where an oversized count clears every bit since
-   qbe only masks the count like x86 *)
+(* This rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
 and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
   let bits = match qbe_base ty with L -> 64 | _ -> 32 in
@@ -920,15 +899,13 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
         | None -> is_unsigned count_ty
       in
       if not known_nonneg then emit_negshift_check ctx rv (qbe_ty count_ty);
-      (* The range check runs in the count width so a huge count is caught
-         before the truncation *)
+      (* The range check runs in the count width so a huge count is caught before the truncation *)
       let in_range = fresh ctx in
       emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
       let count = word_count ctx count_ty rv in
       match op with
       | Ast.Rshift when not unsigned ->
-          (* An out of range count is forced to all ones so sar keeps filling
-             with the sign bit *)
+          (* An out of range count is forced to all ones so sar keeps filling with the sign bit *)
           let spill = fresh ctx in
           emit ctx "    %s =w sub %s, 1\n" spill in_range;
           let capped = fresh ctx in
@@ -941,8 +918,7 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
           let instr = if is_lshift then "shl" else "shr" in
           let raw = fresh ctx in
           emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
-          (* An out of range count makes the mask all zeros so the result drops
-             to 0 *)
+          (* An out of range count makes the mask all zeros so the result drops to 0 *)
           let res = fresh ctx in
           emit ctx "    %s =%s and %s, %s\n" res qt raw
             (shift_mask ctx ty in_range);
@@ -958,8 +934,7 @@ and word_count ctx count_ty rv =
       w
   | _ -> rv
 
-(* The in range flag spreads across the whole type so 1 becomes all ones and 0
-   becomes all zeros *)
+(* The in range flag spreads across the whole type so 1 becomes all ones and 0 becomes all zeros *)
 and shift_mask ctx ty flag =
   let neg = fresh ctx in
   emit ctx "    %s =w sub 0, %s\n" neg flag;
@@ -979,8 +954,7 @@ and narrow_int_instr t =
   | TInt U16 -> Some "extuh"
   | _ -> None
 
-(* A narrow int only fills the low bits of its w register so a cast has to mask
-   it back down *)
+(* A narrow int only fills the low bits of its w register so a cast has to mask it back down *)
 and narrow_int_to ctx v target_ty =
   match narrow_int_instr target_ty with
   | None -> v
@@ -993,8 +967,7 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
   let src_k = int_kind_of src_ty in
   let tgt_k = int_kind_of target_ty in
   if cast_int_needs_check src_k tgt_k then begin
-    (* The value moves up to 64 bits so both bounds fit and the compare sees its
-       true value *)
+    (* The value moves up to 64 bits so both bounds fit and the compare sees its true value *)
     let v64 =
       if qbe_base src_ty = W then begin
         let t = fresh ctx in
@@ -1199,8 +1172,7 @@ let rec qbe_ext_ty (t : ty) : string =
   | TStruct (sn, _) -> ":" ^ Qname.show sn
   (* QBE repeats a field type so { w 3 } means three words *)
   | TArray (e, n) ->
-      (* A QBE field cannot nest counts, so every dimension collapses into
-         one *)
+      (* A QBE field cannot nest counts, so every dimension collapses into one *)
       let rec flatten t reps =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)

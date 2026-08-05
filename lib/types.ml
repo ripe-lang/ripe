@@ -101,8 +101,7 @@ let show_ty (t : ty) : string = show_ty_with Qname.show t
 let show_ty_in (current : string list) (t : ty) : string =
   show_ty_with (Qname.show_in current) t
 
-(* Sees through a newtype or alias to a representation tat the codegen can
-   use *)
+(* Sees through a newtype or alias to a representation tat the codegen can use *)
 let rec resolve_ty = function
   | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
   | t -> t
@@ -208,8 +207,7 @@ let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   | TSlice _ -> 16
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
-(* Aggregates are addressed by pointer: an ident of this type is its base
-   address *)
+(* Aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ -> true
@@ -238,8 +236,7 @@ let is_wide_ty t =
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
 
-(* An alias is just another name for its base type so it doesn't make two
-   types *)
+(* An alias is just another name for its base type so it doesn't make two types *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
   | TPointer t -> TPointer (erase_aliases t)

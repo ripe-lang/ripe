@@ -111,8 +111,7 @@ let render_program program diags =
       Printf.eprintf "%s" (Diagnostic.render_with context_for_file default d))
     diags
 
-(* The C runtime we link calls main, so refuse before the linker leaks its own
-   error *)
+(* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main diags tdecls =
   let is_main decl =
     match decl with
