@@ -69,6 +69,7 @@ type token =
   | DOTDOTEQ
   | ELLIPSIS
   | DOT
+  | AUTOSEMI
   | SEMI
   | EOF
   | ERROR of string
@@ -158,7 +159,7 @@ let show_token = function
   | DOTDOTEQ -> "..="
   | ELLIPSIS -> "..."
   | DOT -> "."
-  | SEMI -> ";"
+  | AUTOSEMI | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE

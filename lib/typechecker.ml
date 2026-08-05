@@ -15,6 +15,7 @@ type type_def =
   | DAlias of ty
   | DBuiltin of Types.builtin
 
+type result_use = Infer | Expect of ty | Discard
 type var_info = { name : string; ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls back *)
@@ -428,12 +429,12 @@ and synth_desc (env : env) (e : expr) : T.texpr =
             (Error.undefined_name name_span "struct" (Ast.show_named path name));
           dummy_texpr)
   | Block body ->
-      let tb, ty = check_scoped_block env e.span body None false in
+      let tb, ty = check_scoped_block env e.span body Infer false in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) -> check_if env e.span branches else_body None
   | While (cond, body) ->
       let tc = check env cond TBool in
-      let tb, _ = check_scoped_block env e.span body None true in
+      let tb, _ = check_scoped_block env e.span body Discard true in
       (* A while true with no break loops forever so it never yields control *)
       let diverges =
         match cond.desc with
@@ -476,7 +477,7 @@ and block_is_flexible (body : block) : bool =
 and block_result_ty (env : env) (body : block) : ty =
   let quiet = { env with diags = Diagnostic.sink () } in
   let inner = push_scope quiet in
-  let _, tb = check_block inner Ast.dummy_span body None in
+  let _, tb = check_block inner Ast.dummy_span body Infer in
   tblock_ty tb
 
 and reconcile_if_result (env : env) (branches : (expr * block) list)
@@ -495,55 +496,77 @@ and reconcile_if_result (env : env) (branches : (expr * block) list)
       | Some (_, t) -> t
       | None -> TNever)
 
-(* Thread env so a binding is visible to later elements then check the tail against want and discard the rest *)
-and check_block (env : env) (span : Ast.span) (body : block) (want : ty option)
+and is_unused_operation (e : expr) : bool =
+  match e.desc with
+  | BinOp (op, _, _) -> not (Ast.is_assignment_op op)
+  | UnOp _ | Cast _ -> true
+  | _ -> false
+
+and warn_discarded_operation (env : env) (e : expr) (te : T.texpr) : unit =
+  if
+    (not env.suppress_warnings)
+    && (not (Diagnostic.has_errors env.diags))
+    && is_unused_operation e && te.T.ty <> TVoid && te.T.ty <> TNever
+    && te.T.ty <> TError
+  then
+    emit env
+      (Diagnostic.warning "discarded operation result"
+      |> Diagnostic.at te.T.span
+      |> Diagnostic.help "use `let _ = ...` when this is intentional")
+
+and check_void_result (env : env) (span : Ast.span) : result_use -> unit =
+  function
+  | Expect want when strip_alias want <> TVoid ->
+      emit env
+        (Error.type_mismatch span ~expected:(show_ty env want)
+           ~found:(show_ty env TVoid))
+  | Infer | Discard | Expect _ -> ()
+
+and check_value_for_use (env : env) (e : expr) : result_use -> T.texpr =
+  function
+  | Infer -> synth env e
+  | Expect want -> check env e want
+  | Discard ->
+      let te = synth env e in
+      warn_discarded_operation env e te;
+      te
+
+(* Thread env so a binding is visible to later elements *)
+and check_block (env : env) (span : Ast.span) (body : block) (use : result_use)
     : env * T.tblock =
   let rec go env diverged acc (elems : expr list) =
     match elems with
     | [] ->
-        (match want with
-        | Some w when strip_alias w <> TVoid ->
-            emit env
-              (Error.type_mismatch span ~expected:(show_ty env w)
-                 ~found:(show_ty env TVoid))
-        | _ -> ());
+        check_void_result env span use;
         (env, List.rev acc)
     | [ last ] ->
         (* A dead tail keeps only its warning and its type need not match *)
-        let tail_want = if diverged then None else want in
+        let tail_use = if diverged then Infer else use in
         if diverged then add_warning env last.span "unreachable code";
-        let env, te = check_elem env last tail_want in
+        let env, te = check_elem env last tail_use in
         (env, List.rev (te :: acc))
     | e :: rest ->
         if diverged then add_warning env e.span "unreachable code";
-        let env, te = check_elem env e None in
+        let elem_use = if diverged then Infer else Discard in
+        let env, te = check_elem env e elem_use in
         go env (diverged || te.T.ty = TNever) (te :: acc) rest
   in
   go env false [] body
 
-and check_elem (env : env) (e : expr) (want : ty option) : env * T.texpr =
+and check_elem (env : env) (e : expr) (use : result_use) : env * T.texpr =
   match e.desc with
   | Binding (kind, name, nspan, ann, init) ->
       let env', tb = check_binding env kind name nspan ann init in
-      (match want with
-      | Some w when strip_alias w <> TVoid ->
-          emit env
-            (Error.type_mismatch e.span ~expected:(show_ty env w)
-               ~found:(show_ty env TVoid))
-      | _ -> ());
+      check_void_result env e.span use;
       (env', tb)
-  | _ ->
-      let te =
-        match want with Some w -> check env e w | None -> synth env e
-      in
-      (env, te)
+  | _ -> (env, check_value_for_use env e use)
 
 (* Push a scope for the block then flag any leftover bindings *)
 and check_scoped_block (env : env) (span : Ast.span) (body : block)
-    (want : ty option) (in_loop : bool) : T.tblock * ty =
+    (use : result_use) (in_loop : bool) : T.tblock * ty =
   let base = if in_loop then { env with in_loop = true } else env in
   let inner = push_scope base in
-  let final_inner, tb = check_block inner span body want in
+  let final_inner, tb = check_block inner span body use in
   warn_unused_in_scope final_inner;
   (tb, tblock_ty tb)
 
@@ -629,7 +652,7 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
   in
   let inner = push_scope { env with in_loop = true } in
   let inner = extend_var inner nspan name elem_ty in
-  let final_inner, tb = check_block inner span body None in
+  let final_inner, tb = check_block inner span body Discard in
   warn_unused_in_scope final_inner;
   T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
 
@@ -642,7 +665,7 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
         List.map
           (fun (c, body) ->
             ( check env c TBool,
-              fst (check_scoped_block env span body None false) ))
+              fst (check_scoped_block env span body Discard false) ))
           branches
       in
       T.mk TVoid (T.TIf (tbranches, None))
@@ -654,13 +677,13 @@ and check_if (env : env) (span : Ast.span) (branches : (expr * block) list)
         List.map
           (fun (c, body) ->
             ( check env c TBool,
-              fst (check_scoped_block env span body (Some w) false) ))
+              fst (check_scoped_block env span body (Expect w) false) ))
           branches
       in
       let telse =
         match else_body with
         | Some body ->
-            Some (fst (check_scoped_block env span body (Some w) false))
+            Some (fst (check_scoped_block env span body (Expect w) false))
         | None ->
             if strip_alias w <> TVoid then
               emit env
@@ -785,7 +808,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
     ->
       T.mk want (T.TBinOp (op, check env l want, synth env r))
   | Block body ->
-      let tb, ty = check_scoped_block env e.span body (Some want) false in
+      let tb, ty = check_scoped_block env e.span body (Expect want) false in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) ->
       check_if env e.span branches else_body (Some want)
@@ -1489,8 +1512,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   let implicit_return =
     (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.span)
   in
-  let want_tail = if implicit_return then Some ret_ty else None in
-  let final_env, tbody0 = check_block param_env fd.span fd.body want_tail in
+  let body_use = if implicit_return then Expect ret_ty else Discard in
+  let final_env, tbody0 = check_block param_env fd.span fd.body body_use in
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with

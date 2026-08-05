@@ -3672,8 +3672,34 @@ let%expect_test "collapse: continue as a value runs the step" =
     \ return x }; return 9 }";
   [%expect {| ok |}]
 
-let%expect_test "collapse: a discarded value in statement position is ok" =
+let%expect_test "collapse: discarded arithmetic warns" =
   run_src "func f() i32 { 1 + 2\n return 5 }";
+  [%expect
+    {|
+    warning: discarded operation result
+      at <test>:1:16
+        func f() i32 { 1 + 2
+                       ^~~~~
+    help: use `let _ = ...` when this is intentional
+    ok |}]
+
+let%expect_test "collapse: discarded call stays quiet" =
+  run_src "extern func run() i32\nfunc f() { run() }";
+  [%expect {| ok |}]
+
+let%expect_test "collapse: discarded tail arithmetic warns" =
+  run_src "func f() { 1 + 2 }";
+  [%expect
+    {|
+    warning: discarded operation result
+      at <test>:1:12
+        func f() { 1 + 2 }
+                   ^~~~~
+    help: use `let _ = ...` when this is intentional
+    ok |}]
+
+let%expect_test "collapse: explicit discard stays quiet" =
+  run_src "func f() { let _ = 1 + 2 }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: implicit return of a wrong tail type" =

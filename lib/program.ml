@@ -98,7 +98,9 @@ let probe_header (src : string) : string option =
   let lexbuf = Lexing.from_string src in
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
-    match read lexbuf with Tokens.SEMI, _ -> first_item () | tok, _ -> tok
+    match read lexbuf with
+    | (Tokens.AUTOSEMI | Tokens.SEMI), _ -> first_item ()
+    | tok, _ -> tok
   in
   match first_item () with
   | Tokens.MODULE -> (
