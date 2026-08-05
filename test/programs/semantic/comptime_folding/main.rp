@@ -7,7 +7,7 @@ comptime LAST: i32 = 100
 let STORED: i32 = M + 1
 
 struct pt { x: i32, y: i32 }
-comptime SIZE: i64 = sizeof(pt)
+comptime SIZE: usize = sizeof(pt)
 
 func main() i32 {
   comptime local: i32 = M * 10
