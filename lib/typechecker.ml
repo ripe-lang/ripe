@@ -73,7 +73,7 @@ let show_ty (env : env) (t : ty) : string = Types.show_ty_in env.reader_path t
 let decl_span : decl -> Ast.span = function
   | Func fd | Extern fd -> fd.span
   | Global gd -> gd.span
-  | Struct sd -> sd.span
+  | Struct sd -> sd.struct_span
   | TypeAlias td | Newtype td -> td.alias_span
 
 (* The path comes off the declaration being checked not off the root module *)
@@ -1319,25 +1319,32 @@ let type_name_taken (env : env) (span : Ast.span) : bool =
 
 (* The name goes in first so a field can name this struct or one defined later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
-  if not (type_name_taken env sd.span) then (
+  if not (type_name_taken env sd.struct_span) then (
     let seen = Hashtbl.create 8 in
     List.iter
       (fun (f : field) ->
-        if Hashtbl.mem seen f.name then
-          emit env (Error.named f.span "duplicate field" f.name)
-        else Hashtbl.add seen f.name ())
+        if Hashtbl.mem seen f.field_name then
+          emit env (Error.named f.field_span "duplicate field" f.field_name)
+        else Hashtbl.add seen f.field_name ())
       sd.fields;
-    Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys = [] });
-    Hashtbl.replace env.struct_fields (key_at env sd.span) [])
+    Hashtbl.replace env.types
+      (key_at env sd.struct_span)
+      (DStruct { field_tys = [] });
+    Hashtbl.replace env.struct_fields (key_at env sd.struct_span) [])
 
 let resolve_struct_fields (env : env) (sd : struct_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env sd.span) with
+  match Hashtbl.find_opt env.types (key_at env sd.struct_span) with
   | Some (DStruct _) ->
       let field_tys =
-        List.map (fun (f : field) -> (f.name, ty_of_ast env f.typ)) sd.fields
+        List.map
+          (fun (f : field) -> (f.field_name, ty_of_ast env f.field_typ))
+          sd.fields
       in
-      Hashtbl.replace env.types (key_at env sd.span) (DStruct { field_tys });
-      Hashtbl.replace env.struct_fields (key_at env sd.span)
+      Hashtbl.replace env.types
+        (key_at env sd.struct_span)
+        (DStruct { field_tys });
+      Hashtbl.replace env.struct_fields
+        (key_at env sd.struct_span)
         (List.map snd field_tys)
   | _ -> ()
 
@@ -1360,9 +1367,11 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
     | TArray (elem, _) -> reaches target elem
     | _ -> false
   in
-  let key = key_at env sd.span in
+  let key = key_at env sd.struct_span in
   if List.exists (reaches key) (fields_of key) then
-    emit env (Error.named sd.span "recursive struct has infinite size" sd.name)
+    emit env
+      (Error.named sd.struct_span "recursive struct has infinite size"
+         sd.struct_name)
 
 (* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
@@ -1618,6 +1627,17 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     kind = gd.kind;
   }
 
+let typed_struct_decl (env : env) (sd : struct_def) (fields : ty list) : T.tdecl
+    =
+  let name = qname_at env sd.struct_span sd.struct_name in
+  let is_local =
+    Option.fold ~none:false
+      ~some:(fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
+      (Resolve.sym_at_opt env.uses sd.struct_span)
+  in
+  if is_local then T.TLocalStruct (name, fields)
+  else T.TStruct (name, fields, sd.struct_modifiers)
+
 let check_decl (env : env) (decl : decl) : T.tdecl =
   let env = reading env decl in
   match decl with
@@ -1630,15 +1650,14 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   | Struct sd ->
       (* A rejected duplicate never landed in the table and its fields are read directly *)
       let field_tys =
-        match Hashtbl.find_opt env.types (key_at env sd.span) with
+        match Hashtbl.find_opt env.types (key_at env sd.struct_span) with
         | Some (DStruct info) -> info.field_tys
         | _ ->
             List.map
-              (fun (f : field) -> (f.name, ty_of_ast env f.typ))
+              (fun (f : field) -> (f.field_name, ty_of_ast env f.field_typ))
               sd.fields
       in
-      T.TStruct
-        (qname_at env sd.span sd.name, List.map snd field_tys, sd.modifiers)
+      typed_struct_decl env sd (List.map snd field_tys)
   | Global gd -> T.TGlobal (check_global env gd)
   (* A rejected duplicate never landed in the table and falls back to the written type *)
   | TypeAlias td ->

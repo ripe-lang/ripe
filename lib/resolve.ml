@@ -359,6 +359,7 @@ and resolve_typ (st : state) (t : typ) : unit =
 
 and declare_block_item (st : state) (d : local_decl) : unit =
   (match d with
+  | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
   | LocalTypeAlias td | LocalNewtype td ->
       declare_local_type st td.alias_name td.alias_span);
   st.out.local_decls <- decl_of_local d :: st.out.local_decls
@@ -392,7 +393,8 @@ and resolve_decl (st : state) : decl -> unit = function
   | Global gd ->
       resolve_typ st gd.typ;
       Option.iter (resolve_expr st) gd.init
-  | Struct sd -> List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
+  | Struct sd ->
+      List.iter (fun (f : field) -> resolve_typ st f.field_typ) sd.fields
   | TypeAlias td | Newtype td -> resolve_typ st td.alias_typ
 
 let visibility modifiers =
@@ -426,7 +428,10 @@ let declare_decls (st : state) (decls : decl list) : unit =
       | Global gd ->
           declare_global st Symbol.Global (visibility gd.modifiers) gd.name
             gd.span
-      | Struct sd -> declare_type st (visibility sd.modifiers) sd.name sd.span
+      | Struct sd ->
+          declare_type st
+            (visibility sd.struct_modifiers)
+            sd.struct_name sd.struct_span
       | TypeAlias td | Newtype td ->
           declare_type st
             (visibility td.alias_modifiers)

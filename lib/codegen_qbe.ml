@@ -114,6 +114,7 @@ let qbe_store (t : ty) : string =
 
 type ctx = {
   structs : (Symbol.key, ty list) Hashtbl.t;
+  struct_names : (Symbol.key, string) Hashtbl.t;
   locals : (Symbol.id, string) Hashtbl.t;
   used_slots : (string, unit) Hashtbl.t;
   globals : (string, unit) Hashtbl.t;
@@ -1158,7 +1159,10 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   ctx.terminated := false;
   emit ctx "}\n\n"
 
-let rec qbe_ext_ty (t : ty) : string =
+let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
+  Hashtbl.find ctx.struct_names (Qname.key name)
+
+let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   match resolve_ty t with
   | TInt (I8 | U8) | TBool -> "b"
   | TInt (I16 | U16) -> "h"
@@ -1169,7 +1173,7 @@ let rec qbe_ext_ty (t : ty) : string =
       "l"
   | TFloat F32 -> "s"
   | TFloat F64 -> "d"
-  | TStruct (sn, _) -> ":" ^ Qname.show sn
+  | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
   | TArray (e, n) ->
       (* A QBE field cannot nest counts, so every dimension collapses into one *)
@@ -1177,7 +1181,7 @@ let rec qbe_ext_ty (t : ty) : string =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)
         | TSlice _ -> ("l", reps * 2)
-        | base -> (qbe_ext_ty base, reps)
+        | base -> (qbe_ext_ty struct_name base, reps)
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
@@ -1189,8 +1193,8 @@ let rec qbe_ext_ty (t : ty) : string =
   | TError -> Error.ice "TError has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
-  let field_strs = List.map qbe_ext_ty fields in
-  emit ctx "type :%s = { %s }\n" (Qname.show name)
+  let field_strs = List.map (qbe_ext_ty (qbe_struct_name ctx)) fields in
+  emit ctx "type :%s = { %s }\n" (qbe_struct_name ctx name)
     (String.concat ", " field_strs)
 
 (* The typechecker already folded everything so this only formats values *)
@@ -1231,7 +1235,10 @@ let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
       if total > !off then
         parts := Printf.sprintf "z %d" (total - !off) :: !parts;
       String.concat ", " (List.rev !parts)
-  | _ -> Printf.sprintf "%s %s" (qbe_ext_ty te.T.ty) (fold_const_value ctx te)
+  | _ ->
+      Printf.sprintf "%s %s"
+        (qbe_ext_ty (qbe_struct_name ctx) te.T.ty)
+        (fold_const_value ctx te)
 
 let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
   let align = ty_align ctx.structs gd.T.ty in
@@ -1245,7 +1252,7 @@ let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
           emit ctx "data $%s = align %d { %s }\n" gd.T.name align
             (const_array_fields ctx te)
       | _ ->
-          let letter = qbe_ext_ty gd.T.ty in
+          let letter = qbe_ext_ty (qbe_struct_name ctx) gd.T.ty in
           let value = fold_const_value ctx te in
           emit ctx "data $%s = align %d { %s %s }\n" gd.T.name align letter
             value)
@@ -1266,10 +1273,17 @@ let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
 let emit_qbe (tdecls : T.cdecl list) : string =
   (* Collect struct layouts for offset comp *)
   let structs = Hashtbl.create 8 in
+  let struct_names = Hashtbl.create 8 in
   List.iter
     (function
       | T.CStruct (name, fields, _) ->
-          Hashtbl.replace structs (Qname.key name) fields
+          Hashtbl.replace structs (Qname.key name) fields;
+          Hashtbl.replace struct_names (Qname.key name) (Qname.show name)
+      | T.CLocalStruct (name, fields) ->
+          let module_id, id = Qname.key name in
+          Hashtbl.replace structs (Qname.key name) fields;
+          Hashtbl.replace struct_names (Qname.key name)
+            (Printf.sprintf "_Rlocal%d_%d" module_id id)
       | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
@@ -1277,6 +1291,7 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   let ctx =
     {
       structs;
+      struct_names;
       locals = Hashtbl.create 16;
       used_slots = Hashtbl.create 16;
       globals = Hashtbl.create 16;
@@ -1294,20 +1309,22 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   List.iter
     (function
       | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.T.name ()
-      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _ ->
+      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
+      | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
 
   List.iter
     (function
       | T.CStruct (name, fields, _) -> emit_struct_type ctx name fields
+      | T.CLocalStruct (name, fields) -> emit_struct_type ctx name fields
       | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
   let has_structs =
     List.exists
       (function
-        | T.CStruct _ -> true
+        | T.CStruct _ | T.CLocalStruct _ -> true
         | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _
           ->
             false)
@@ -1318,15 +1335,16 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   List.iter
     (function
       | T.CGlobal gd -> emit_global_data ctx gd
-      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _ ->
+      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
+      | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
   let has_globals =
     List.exists
       (function
         | T.CGlobal _ -> true
-        | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CTypeAlias _ | T.CNewtype _
-          ->
+        | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
+        | T.CTypeAlias _ | T.CNewtype _ ->
             false)
       tdecls
   in
@@ -1335,8 +1353,8 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   List.iter
     (function
       | T.CFunc tfd -> emit_func ctx tfd
-      | T.CExtern _ | T.CStruct _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _
-        ->
+      | T.CExtern _ | T.CStruct _ | T.CLocalStruct _ | T.CGlobal _
+      | T.CTypeAlias _ | T.CNewtype _ ->
           ())
     tdecls;
 

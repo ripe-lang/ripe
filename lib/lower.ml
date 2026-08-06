@@ -268,6 +268,7 @@ let lower_decl (d : S.tdecl) : D.cdecl =
   match d with
   | S.TFunc fd -> D.CFunc (lower_func fd)
   | S.TStruct (name, fields, mods) -> D.CStruct (name, fields, mods)
+  | S.TLocalStruct (name, fields) -> D.CLocalStruct (name, fields)
   | S.TExtern fd -> D.CExtern (lower_func fd)
   | S.TGlobal g -> D.CGlobal (lower_global g)
   | S.TTypeAlias (name, ty) -> D.CTypeAlias (name, ty)
