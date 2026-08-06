@@ -372,6 +372,27 @@ and parse_struct st mods =
   let hi = st.prev_end in
   Struct { name; fields; modifiers = mods; span = make_span st lo hi }
 
+(* type binop = (i32, i32) i32 / newtype Celsius = f32 *)
+and parse_alias_def st mods =
+  let lo = cur_pos st in
+  let depth = st.tok_depth in
+  advance st;
+  (* TYPE or NEWTYPE *)
+  let name = expect_ident st in
+  let typ =
+    recover_typ_to st depth [] (fun () ->
+        expect st ASSIGN;
+        parse_typ st)
+  in
+  let hi = st.prev_end in
+  ({
+     alias_name = name;
+     alias_typ = typ;
+     alias_modifiers = mods;
+     alias_span = make_span st lo hi;
+   }
+    : type_alias_def)
+
 (* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
 and parse_params st =
   expect st LPAREN;
@@ -712,7 +733,10 @@ and parse_stmts st =
     try
       let s = parse_stmt st in
       if follows_auto_semi then
-        diagnose_dropped_continuation st start_token start_span s;
+        begin match s with
+        | Expr e -> diagnose_dropped_continuation st start_token start_span e
+        | Decl _ -> ()
+        end;
       stmts := s :: !stmts;
       if st.recovered then (
         st.recovered <- false;
@@ -727,7 +751,7 @@ and parse_stmts st =
       after_auto_semi := false;
       Diagnostic.emit st.diags d;
       sync_to_stmt st depth line false;
-      stmts := error_expr st d :: !stmts;
+      stmts := Expr (error_expr st d) :: !stmts;
       skip_semi st
   done;
   List.rev !stmts
@@ -735,13 +759,24 @@ and parse_stmts st =
 and parse_stmt st =
   let lo = cur_pos st in
   match st.tok with
-  | IF -> parse_if st
-  | WHILE -> parse_while st
-  | FOR -> parse_for st
+  | IF -> Expr (parse_if st)
+  | WHILE -> Expr (parse_while st)
+  | FOR -> Expr (parse_for st)
   | LBRACE ->
       let body = parse_block st in
-      mk lo st (Block body)
-  | _ -> parse_simple_stmt st
+      Expr (mk lo st (Block body))
+  | PUBLIC | TYPE | NEWTYPE -> parse_local_decl st
+  | _ -> Expr (parse_simple_stmt st)
+
+and parse_local_decl st =
+  let modifiers = parse_modifiers st in
+  let decl =
+    match st.tok with
+    | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
+    | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
+    | _ -> fail_found st "expected local declaration"
+  in
+  Decl decl
 
 (* if x < 0 { return lo } else if x > 0 { 1 } else { 0 } *)
 and parse_if st =
@@ -805,7 +840,7 @@ let parse_func st mods =
       let slo = cur_pos st in
       advance st;
       let e = parse_expr st 1 in
-      [ mk slo st (Return (Some e)) ]
+      [ Expr (mk slo st (Return (Some e))) ]
     end
     else parse_block st
   in
@@ -844,36 +879,6 @@ let parse_global st mods =
   let hi = st.prev_end in
   Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
 
-(* type binop = (i32, i32) i32 *)
-let parse_type_alias st mods =
-  let lo = cur_pos st in
-  let depth = st.tok_depth in
-  advance st;
-  (* TYPE *)
-  let name = expect_ident st in
-  let typ =
-    recover_typ_to st depth [] (fun () ->
-        expect st ASSIGN;
-        parse_typ st)
-  in
-  let hi = st.prev_end in
-  Ast.TypeAlias { name; typ; modifiers = mods; span = make_span st lo hi }
-
-(* newtype Celsius = f32 *)
-let parse_newtype st mods =
-  let lo = cur_pos st in
-  let depth = st.tok_depth in
-  advance st;
-  (* NEWTYPE *)
-  let name = expect_ident st in
-  let typ =
-    recover_typ_to st depth [] (fun () ->
-        expect st ASSIGN;
-        parse_typ st)
-  in
-  let hi = st.prev_end in
-  Ast.Newtype { name; typ; modifiers = mods; span = make_span st lo hi }
-
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
@@ -901,8 +906,8 @@ let parse_decl st =
   (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st
   | _, (LET | COMPTIME | VAR) -> parse_global st mods
-  | _, TYPE -> parse_type_alias st mods
-  | _, NEWTYPE -> parse_newtype st mods
+  | _, TYPE -> TypeAlias (parse_alias_def st mods)
+  | _, NEWTYPE -> Newtype (parse_alias_def st mods)
   | _ -> err ()
 
 (* import math.vector *)

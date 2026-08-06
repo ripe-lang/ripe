@@ -74,7 +74,7 @@ let decl_span : decl -> Ast.span = function
   | Func fd | Extern fd -> fd.span
   | Global gd -> gd.span
   | Struct sd -> sd.span
-  | TypeAlias td | Newtype td -> td.span
+  | TypeAlias td | Newtype td -> td.alias_span
 
 (* The path comes off the declaration being checked not off the root module *)
 let reading (env : env) (decl : decl) : env =
@@ -153,8 +153,8 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
 let symbol_name (env : env) (symbol : Symbol.t) : string =
   match symbol.Symbol.kind with
   | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> symbol.Symbol.name
-  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.Type | Symbol.Module
-  | Symbol.Error ->
+  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.Type | Symbol.LocalType
+  | Symbol.Module | Symbol.Error ->
       Qname.show_in env.reader_path (Resolve.qname_of env.uses symbol)
 
 let decl_name (env : env) (span : Ast.span) (fallback : string) : string =
@@ -471,7 +471,9 @@ and arm_is_flexible (e : expr) : bool =
   | _ -> false
 
 and block_is_flexible (body : block) : bool =
-  match List.rev body with last :: _ -> arm_is_flexible last | [] -> false
+  match List.rev body with
+  | Expr last :: _ -> arm_is_flexible last
+  | Decl _ :: _ | [] -> false
 
 (* Probe a block's result type with diagnostics muted so a sibling can anchor it *)
 and block_result_ty (env : env) (body : block) : ty =
@@ -534,7 +536,7 @@ and check_value_for_use (env : env) (e : expr) : result_use -> T.texpr =
 (* Thread env so a binding is visible to later elements *)
 and check_block (env : env) (span : Ast.span) (body : block) (use : result_use)
     : env * T.tblock =
-  let rec go env diverged acc (elems : expr list) =
+  let rec go env diverged acc (elems : block_item list) =
     match elems with
     | [] ->
         check_void_result env span use;
@@ -542,24 +544,33 @@ and check_block (env : env) (span : Ast.span) (body : block) (use : result_use)
     | [ last ] ->
         (* A dead tail keeps only its warning and its type need not match *)
         let tail_use = if diverged then Infer else use in
-        if diverged then add_warning env last.span "unreachable code";
+        if diverged then
+          add_warning env (block_item_span last) "unreachable code";
         let env, te = check_elem env last tail_use in
         (env, List.rev (te :: acc))
     | e :: rest ->
-        if diverged then add_warning env e.span "unreachable code";
+        if diverged then add_warning env (block_item_span e) "unreachable code";
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
         go env (diverged || te.T.ty = TNever) (te :: acc) rest
   in
   go env false [] body
 
-and check_elem (env : env) (e : expr) (use : result_use) : env * T.texpr =
-  match e.desc with
-  | Binding (kind, name, nspan, ann, init) ->
+and block_item_span = function
+  | Expr e -> e.span
+  | Decl d -> decl_span (decl_of_local d)
+
+and check_elem (env : env) (item : block_item) (use : result_use) :
+    env * T.texpr =
+  match item with
+  | Decl _ ->
+      check_void_result env (block_item_span item) use;
+      (env, T.mk TVoid T.TLocalDecl)
+  | Expr ({ desc = Binding (kind, name, nspan, ann, init); _ } as e) ->
       let env', tb = check_binding env kind name nspan ann init in
       check_void_result env e.span use;
       (env', tb)
-  | _ -> (env, check_value_for_use env e use)
+  | Expr e -> (env, check_value_for_use env e use)
 
 (* Push a scope for the block then flag any leftover bindings *)
 and check_scoped_block (env : env) (span : Ast.span) (body : block)
@@ -1355,25 +1366,25 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
 
 (* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
-  if not (type_name_taken env td.span) then
-    Hashtbl.replace env.types (key_at env td.span) (DAlias TError)
+  if not (type_name_taken env td.alias_span) then
+    Hashtbl.replace env.types (key_at env td.alias_span) (DAlias TError)
 
 let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
-  if not (type_name_taken env td.span) then
-    Hashtbl.replace env.types (key_at env td.span) (DNewtype TError)
+  if not (type_name_taken env td.alias_span) then
+    Hashtbl.replace env.types (key_at env td.alias_span) (DNewtype TError)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env td.span) with
+  match Hashtbl.find_opt env.types (key_at env td.alias_span) with
   | Some (DAlias TError) ->
-      Hashtbl.replace env.types (key_at env td.span)
-        (DAlias (ty_of_ast env td.typ))
+      Hashtbl.replace env.types (key_at env td.alias_span)
+        (DAlias (ty_of_ast env td.alias_typ))
   | _ -> ()
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env td.span) with
+  match Hashtbl.find_opt env.types (key_at env td.alias_span) with
   | Some (DNewtype TError) ->
-      Hashtbl.replace env.types (key_at env td.span)
-        (DNewtype (ty_of_ast env td.typ))
+      Hashtbl.replace env.types (key_at env td.alias_span)
+        (DNewtype (ty_of_ast env td.alias_typ))
   | _ -> ()
 
 let rec named_type_spans (t : typ) : Ast.span list =
@@ -1393,7 +1404,7 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | TypeAlias td | Newtype td ->
         (* Only the first one counts because a repeat name already got turned down *)
         (* An unresolved name shares one key so two broken types would look mutually recursive *)
-        let key = key_at env td.span in
+        let key = key_at env td.alias_span in
         if key <> unresolved_key && not (Hashtbl.mem defs key) then
           Hashtbl.add defs key decl
     | Func _ | Extern _ | Global _ | Struct _ -> ()
@@ -1401,9 +1412,11 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
   let unfilled (decl : decl) : bool =
     match decl with
     | TypeAlias td ->
-        Hashtbl.find_opt env.types (key_at env td.span) = Some (DAlias TError)
+        Hashtbl.find_opt env.types (key_at env td.alias_span)
+        = Some (DAlias TError)
     | Newtype td ->
-        Hashtbl.find_opt env.types (key_at env td.span) = Some (DNewtype TError)
+        Hashtbl.find_opt env.types (key_at env td.alias_span)
+        = Some (DNewtype TError)
     | Func _ | Extern _ | Global _ | Struct _ -> false
   in
   let fill (decl : decl) : unit =
@@ -1418,11 +1431,11 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | None -> ()
     | Some ((TypeAlias td | Newtype td) as decl) ->
         if Hashtbl.mem on_path key then
-          emit env (Error.named td.span "recursive type" td.name)
+          emit env (Error.named td.alias_span "recursive type" td.alias_name)
         else if unfilled decl then begin
           Hashtbl.add on_path key ();
           let step span = force (key_at env span) in
-          List.iter step (named_type_spans td.typ);
+          List.iter step (named_type_spans td.alias_typ);
           Hashtbl.remove on_path key;
           if unfilled decl then fill decl
         end
@@ -1432,7 +1445,7 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
   (* The order here follows the file so the same type gets blamed every time *)
   List.iter
     (function
-      | TypeAlias td | Newtype td -> force (key_at env td.span)
+      | TypeAlias td | Newtype td -> force (key_at env td.alias_span)
       | Func _ | Extern _ | Global _ | Struct _ -> ())
     decls
 
@@ -1560,7 +1573,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
   | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
   | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak
-  | T.TContinue ->
+  | T.TContinue | T.TLocalDecl ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false
@@ -1630,18 +1643,18 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   (* A rejected duplicate never landed in the table and falls back to the written type *)
   | TypeAlias td ->
       let t =
-        match Hashtbl.find_opt env.types (key_at env td.span) with
+        match Hashtbl.find_opt env.types (key_at env td.alias_span) with
         | Some (DAlias t) -> t
-        | _ -> ty_of_ast env td.typ
+        | _ -> ty_of_ast env td.alias_typ
       in
-      T.TTypeAlias (qname_at env td.span td.name, t)
+      T.TTypeAlias (qname_at env td.alias_span td.alias_name, t)
   | Newtype td ->
       let t =
-        match Hashtbl.find_opt env.types (key_at env td.span) with
+        match Hashtbl.find_opt env.types (key_at env td.alias_span) with
         | Some (DNewtype t) -> t
-        | _ -> ty_of_ast env td.typ
+        | _ -> ty_of_ast env td.alias_typ
       in
-      T.TNewtype (qname_at env td.span td.name, t)
+      T.TNewtype (qname_at env td.alias_span td.alias_name, t)
 
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)
@@ -1660,6 +1673,7 @@ let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
 let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
     : T.tdecl list =
   let env = make_env diags uses in
+  let decls = decls @ Resolve.local_decls uses in
   (* An early array size can demand any later const so defs go in first *)
   List.iter
     (function

@@ -123,6 +123,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TBreak -> D.CBreak
     | S.TContinue -> D.CContinue
     | S.TPairAssign (ft, st, fv, sv) -> D.CBlock (lower_pair_assign ft st fv sv)
+    | S.TLocalDecl -> Error.ice ~span "local declaration reached value lowering"
   in
   { D.desc; ty; span }
 
@@ -131,6 +132,7 @@ and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
 
 and lower_elem (te : S.texpr) : D.cblock =
   match te.S.desc with
+  | S.TLocalDecl -> []
   | S.TWhile (cond, body) -> lower_while cond body
   | S.TFor (sym, elem_ty, iter, body) -> lower_for sym elem_ty iter body
   | S.TBinOp (op, l, r) when base_binop_of op <> None ->

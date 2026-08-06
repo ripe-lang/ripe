@@ -3,7 +3,12 @@
 open Ast
 
 (* A break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break (body : block) : bool = List.exists expr_has_break body
+let rec loop_has_break (body : block) : bool =
+  List.exists block_item_has_break body
+
+and block_item_has_break = function
+  | Expr e -> expr_has_break e
+  | Decl _ -> false
 
 and expr_has_break (e : expr) : bool =
   match e.desc with

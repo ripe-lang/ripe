@@ -95,7 +95,7 @@ let parse_expr src =
   let wrapped = "func _f() { return " ^ src ^ " }" in
   try
     match parse wrapped with
-    | [ Ripe.Ast.Func { body = [ { desc = Return (Some e); _ } ]; _ } ] ->
+    | [ Ripe.Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->
         print_endline (Dump.dump_expr e)
     | _ -> print_endline "<parse_expr: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render wrapped) diags

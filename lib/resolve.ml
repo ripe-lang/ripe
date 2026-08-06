@@ -11,6 +11,7 @@ type t = {
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
   imports : (Symbol.module_id * string list, scope) Hashtbl.t;
   prelude : scope;
+  mutable local_decls : Ast.decl list;
 }
 
 type state = {
@@ -57,6 +58,7 @@ let make_output (modules : int) : t =
       file_modules = Hashtbl.create modules;
       imports = Hashtbl.create modules;
       prelude;
+      local_decls = [];
     }
   in
   Hashtbl.add out.module_paths Symbol.prelude_module_id [];
@@ -85,6 +87,8 @@ let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
 let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
+
+let local_decls (r : t) : Ast.decl list = List.rev r.local_decls
 
 let builtins (r : t) : (Symbol.key * Types.builtin) list =
   let entry (name, builtin) =
@@ -162,6 +166,9 @@ let declare_global (st : state) kind visibility name span : unit =
 let declare_type (st : state) visibility name span : unit =
   declare_in st.top.types st Symbol.Type visibility name span
 
+let declare_local_type (st : state) name span : unit =
+  declare_in st.scope.types st Symbol.LocalType Symbol.Private name span
+
 let values_of (scope : scope) = scope.values
 let types_of (scope : scope) = scope.types
 
@@ -234,6 +241,15 @@ let use (st : state) ~(what : string) name span : unit =
   | None ->
       Diagnostic.emit st.diags (Error.undefined_name span what name);
       ignore (mint st Symbol.Error name span)
+
+(* Body binders can redeclare but params can't repeat *)
+let declare_param (st : state) (p : param) : unit =
+  match Hashtbl.find_opt st.scope.values p.name with
+  | Some prev ->
+      Diagnostic.emit st.diags
+        (Error.redefinition p.span ~prev:prev.Symbol.span p.name);
+      Hashtbl.replace st.out.syms p.span prev
+  | None -> declare_local st Symbol.Param p.name p.span
 
 let rec access_path (e : expr) : string list option =
   match e.desc with
@@ -313,7 +329,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st iter;
       push_scope st;
       declare_local st Symbol.ForVar name nspan;
-      List.iter (resolve_expr st) body;
+      resolve_block_contents st body;
       pop_scope st
   | Binding (kind, name, nspan, ann, e) ->
       Option.iter (resolve_typ st) ann;
@@ -341,21 +357,26 @@ and resolve_typ (st : state) (t : typ) : unit =
       List.iter (resolve_typ st) ps;
       Option.iter (resolve_typ st) ret
 
+and declare_block_item (st : state) (d : local_decl) : unit =
+  (match d with
+  | LocalTypeAlias td | LocalNewtype td ->
+      declare_local_type st td.alias_name td.alias_span);
+  st.out.local_decls <- decl_of_local d :: st.out.local_decls
+
+and resolve_block_item (st : state) = function
+  | Expr e -> resolve_expr st e
+  | Decl d -> resolve_decl st (decl_of_local d)
+
+and resolve_block_contents (st : state) (body : block) : unit =
+  List.iter (function Expr _ -> () | Decl d -> declare_block_item st d) body;
+  List.iter (resolve_block_item st) body
+
 and resolve_block (st : state) (body : block) : unit =
   push_scope st;
-  List.iter (resolve_expr st) body;
+  resolve_block_contents st body;
   pop_scope st
 
-(* Body binders can redeclare but params can't repeat *)
-let declare_param (st : state) (p : param) : unit =
-  match Hashtbl.find_opt st.scope.values p.name with
-  | Some prev ->
-      Diagnostic.emit st.diags
-        (Error.redefinition p.span ~prev:prev.Symbol.span p.name);
-      Hashtbl.replace st.out.syms p.span prev
-  | None -> declare_local st Symbol.Param p.name p.span
-
-let resolve_func (st : state) (fd : func_def) : unit =
+and resolve_func (st : state) (fd : func_def) : unit =
   push_scope st;
   List.iter
     (fun (p : param) ->
@@ -363,8 +384,16 @@ let resolve_func (st : state) (fd : func_def) : unit =
       declare_param st p)
     fd.params;
   Option.iter (resolve_typ st) fd.ret;
-  List.iter (resolve_expr st) fd.body;
+  resolve_block_contents st fd.body;
   pop_scope st
+
+and resolve_decl (st : state) : decl -> unit = function
+  | Func fd | Extern fd -> resolve_func st fd
+  | Global gd ->
+      resolve_typ st gd.typ;
+      Option.iter (resolve_expr st) gd.init
+  | Struct sd -> List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
+  | TypeAlias td | Newtype td -> resolve_typ st td.alias_typ
 
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
@@ -399,19 +428,9 @@ let declare_decls (st : state) (decls : decl list) : unit =
             gd.span
       | Struct sd -> declare_type st (visibility sd.modifiers) sd.name sd.span
       | TypeAlias td | Newtype td ->
-          declare_type st (visibility td.modifiers) td.name td.span)
-    decls
-
-let resolve_decls (st : state) (decls : decl list) : unit =
-  List.iter
-    (function
-      | Func fd | Extern fd -> resolve_func st fd
-      | Global gd ->
-          resolve_typ st gd.typ;
-          Option.iter (resolve_expr st) gd.init
-      | Struct sd ->
-          List.iter (fun (f : field) -> resolve_typ st f.typ) sd.fields
-      | TypeAlias td | Newtype td -> resolve_typ st td.typ)
+          declare_type st
+            (visibility td.alias_modifiers)
+            td.alias_name td.alias_span)
     decls
 
 let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
@@ -423,7 +442,7 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
       ~is_root:true
   in
   declare_decls st decls;
-  resolve_decls st decls;
+  List.iter (resolve_decl st) decls;
   out
 
 let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
@@ -474,7 +493,8 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
     declare_decls (state_of module_) (Program.module_decls module_)
   in
   let resolve module_ =
-    resolve_decls (state_of module_) (Program.module_decls module_)
+    let st = state_of module_ in
+    List.iter (resolve_decl st) (Program.module_decls module_)
   in
   Array.iter start program.Program.modules;
   Array.iter link_imports program.Program.modules;
