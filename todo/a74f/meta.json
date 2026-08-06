@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-05 21:10:03.561444",
+  "depends": [],
+  "id": "a74f",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [],
+  "title": "Diagnose cast precedence in binary operands",
+  "updated_at": "2026-08-05 21:10:03.561461"
+}
