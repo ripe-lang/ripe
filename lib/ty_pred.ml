@@ -50,7 +50,7 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak | T.TContinue ->
       false
-  | T.TPairAssign _ -> false
+  | T.TPairAssign _ | T.TLocalDecl -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_binding (te : T.texpr) : Symbol.t option =
@@ -65,7 +65,7 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak | T.TContinue ->
       None
-  | T.TPairAssign _ -> None
+  | T.TPairAssign _ | T.TLocalDecl -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through (base : T.texpr) : Symbol.t option =

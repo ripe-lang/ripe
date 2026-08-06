@@ -4024,3 +4024,34 @@ func add_two(x: i64) i64 {
 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "typecheck: a local type may be used before its declaration" =
+  run_src {|func f() i32 {
+  let x: Coord = 4
+  type Coord = i32
+  x
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: local aliases may repeat in separate blocks" =
+  run_src
+    {|func f() {
+  { type Value = i32; let _x: Value = 1 }
+  { type Value = bool; let _x: Value = true }
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a local newtype keeps its identity" =
+  run_src
+    {|func f() {
+  newtype Id = i32
+  let base: i32 = 1
+  let _id: Id = base
+}|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:17
+          let _id: Id = base
+                        ^~~~ expected Id, found i32
+    |}]

@@ -7,7 +7,7 @@ let decl_name_span = function
   | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
   | Ripe.Ast.Struct sd -> (sd.name, sd.span)
   | Ripe.Ast.Global gd -> (gd.name, gd.span)
-  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.name, td.span)
+  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.alias_name, td.alias_span)
 
 let compare_module_symbols src =
   let first_symbol module_id =
@@ -589,4 +589,17 @@ pub func main() {}
   [%expect {|
     main -> main
     main -> _R4math4main
+    |}]
+
+let%expect_test "resolve: a local declaration stays in its block" =
+  run_src {|func f() {
+  { type Coord = i32 }
+  let x: Coord = 1
+}|};
+  [%expect
+    {|
+    error: undefined type: Coord
+      at <test>:3:10
+          let x: Coord = 1
+                 ^~~~~
     |}]

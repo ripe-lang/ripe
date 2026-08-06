@@ -94,7 +94,13 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"
 
 and dump_block (body : Ripe.Ast.block) : string =
-  "(block " ^ String.concat " " (List.map dump_expr body) ^ ")"
+  let dump_item (item : Ripe.Ast.block_item) =
+    match item with
+    | Expr e -> dump_expr e
+    | Decl (LocalTypeAlias td) -> "(local type " ^ td.alias_name ^ ")"
+    | Decl (LocalNewtype td) -> "(local newtype " ^ td.alias_name ^ ")"
+  in
+  "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 
 (* a compact core dump where the flat list is the whole point *)
 let rec dump_cstmt (e : C.cexpr) : string =

@@ -1076,7 +1076,10 @@ let%expect_test "parse: expression body desugars to return" =
   (match parse src with
   | [
    Ripe.Ast.Func
-     { body = [ { desc = Return (Some expression); span = return_span } ]; _ };
+     {
+       body = [ Expr { desc = Return (Some expression); span = return_span } ];
+       _;
+     };
   ] ->
       Printf.printf "%s\nreturn %s\nexpression %s\n" (dump_expr expression)
         (Ripe.Span.show return_span)
@@ -1457,5 +1460,20 @@ let%expect_test
   run_src {|func f(p: *i32) {
   let _x = 1
   *p = 2
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: declarations may appear in a block" =
+  (match parse {|func f() {
+  type Coord = i32
+  newtype Score = i32
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (local type Coord) (local newtype Score)) |}]
+
+let%expect_test "parse: pub on a local declaration is accepted" =
+  run_src {|func f() {
+  pub type Coord = i32
 }|};
   [%expect {| ok |}]

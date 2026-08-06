@@ -130,7 +130,10 @@ type expr_desc =
 and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
 
-and block = expr list [@@deriving show { with_path = false }]
+and block = block_item list [@@deriving show { with_path = false }]
+
+and block_item = Expr of expr | Decl of local_decl
+[@@deriving show { with_path = false }]
 
 and typ_desc =
   | ErrorType
@@ -142,6 +145,19 @@ and typ_desc =
 [@@deriving show { with_path = false }]
 
 and typ = { tdesc : typ_desc; tspan : span }
+[@@deriving show { with_path = false }]
+
+and type_alias_def = {
+  alias_name : string;
+  alias_typ : typ;
+  alias_modifiers : modifier list;
+  alias_span : span;
+}
+[@@deriving show { with_path = false }]
+
+and local_decl =
+  | LocalTypeAlias of type_alias_def
+  | LocalNewtype of type_alias_def
 [@@deriving show { with_path = false }]
 
 let show_named (path : string list) (name : string) : string =
@@ -177,14 +193,6 @@ type struct_def = {
 }
 [@@deriving show { with_path = false }]
 
-type type_alias_def = {
-  name : string;
-  typ : typ;
-  modifiers : modifier list;
-  span : span;
-}
-[@@deriving show { with_path = false }]
-
 type global_def = {
   name : string;
   typ : typ;
@@ -203,6 +211,11 @@ type decl =
   | TypeAlias of type_alias_def
   | Newtype of type_alias_def
 [@@deriving show { with_path = false }]
+
+(* A local declaration carries the same payload so it checks like a global one *)
+let decl_of_local : local_decl -> decl = function
+  | LocalTypeAlias td -> TypeAlias td
+  | LocalNewtype td -> Newtype td
 
 type import = { path : string list; span : span }
 [@@deriving show { with_path = false }]

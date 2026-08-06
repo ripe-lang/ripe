@@ -1,0 +1,7 @@
+type Value = i32
+
+func main() i32 {
+  type Value = bool
+  let value: Value = true
+  return if value { 20 } else { 0 }
+}
