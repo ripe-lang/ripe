@@ -4069,3 +4069,48 @@ let%expect_test "typecheck: an unreachable local declaration warns" =
           ^~~~~~~~~~~~~~~~~~~~~~~
     ok
     |}]
+
+let%expect_test "typecheck: write to an array parameter" =
+  run_src "func f(a: [3]i32) { a[0] = 9 }";
+  [%expect
+    {|
+    error: cannot assign to a by value parameter: a
+      at <test>:1:21
+        func f(a: [3]i32) { a[0] = 9 }
+                            ^~~~ the caller keeps its own copy
+    help: take a pointer to write through it: a: *[3]i32
+    |}]
+
+let%expect_test "typecheck: write to a struct parameter field" =
+  run_src "struct P { x: i32 }\nfunc f(p: P) { p.x = 9 }";
+  [%expect
+    {|
+    error: cannot assign to a by value parameter: p
+      at <test>:2:16
+        func f(p: P) { p.x = 9 }
+                       ^~~ the caller keeps its own copy
+    help: take a pointer to write through it: p: *P
+    |}]
+
+let%expect_test "typecheck: write to a whole aggregate parameter" =
+  run_src "func f(a: [3]i32) { a = [4, 5, 6] }";
+  [%expect
+    {|
+    error: cannot assign to a by value parameter: a
+      at <test>:1:21
+        func f(a: [3]i32) { a = [4, 5, 6] }
+                            ^ the caller keeps its own copy
+    help: take a pointer to write through it: a: *[3]i32
+    |}]
+
+let%expect_test "typecheck: write through a slice parameter" =
+  run_src "func f(s: []i32) { s[0] = 9 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: write through a pointer parameter" =
+  run_src "struct P { x: i32 }\nfunc f(p: *P) { p.x = 9 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: write to a copy of an array parameter" =
+  run_src "func f(a: [3]i32) { var local: [3]i32 = a; local[0] = 9 }";
+  [%expect {| ok |}]

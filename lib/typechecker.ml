@@ -941,6 +941,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     T.texpr * T.texpr =
   let tl = synth env l in
   if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
+  check_param_copy_write env l.span tl;
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
       emit env
@@ -985,6 +986,22 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     | _ -> check env r t
   in
   (tl, tr)
+
+(* An array or struct parameter arrives as a copy so the caller never sees the write *)
+and check_param_copy_write (env : env) (span : Ast.span) (tl : T.texpr) : unit =
+  match root_lvalue tl with
+  | Some { T.desc = T.TIdent s; ty; _ }
+    when s.Symbol.kind = Symbol.Param
+         && match resolve_ty ty with TArray _ | TStruct _ -> true | _ -> false
+    ->
+      emit env
+        (Error.named span "cannot assign to a by value parameter"
+           (symbol_name env s)
+        |> Diagnostic.label "the caller keeps its own copy"
+        |> Diagnostic.help
+             (Printf.sprintf "take a pointer to write through it: %s: *%s"
+                s.Symbol.name (show_ty env ty)))
+  | Some _ | None -> ()
 
 and synth_pair_assign (env : env) (ft : expr) (st : expr) (fv : expr)
     (sv : expr) : T.texpr =

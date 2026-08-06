@@ -1,0 +1,16 @@
+struct Point { x: i32, y: i32 }
+
+func clobber_array(a: [3]i32) {
+  a[0] = 99
+}
+
+func clobber_struct(p: Point) {
+  p.x = 99
+}
+
+func main() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  clobber_array(a)
+  clobber_struct(Point { x: 1, y: 2 })
+  return a[0]
+}

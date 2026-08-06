@@ -1,7 +1,11 @@
-func clobber(a: [3]i32) { a[0] = 99 }
+func clobber(a: [3]i32) i32 {
+  var local: [3]i32 = a
+  local[0] = 99
+  return local[0]
+}
 
 func main() i32 {
   var a: [3]i32 = [1, 2, 3]
-  clobber(a)
-  return a[0]
+  let seen: i32 = clobber(a)
+  return a[0] + seen
 }
