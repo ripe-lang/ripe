@@ -83,11 +83,11 @@ let reading (env : env) (decl : decl) : env =
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
-let add_error (env : env) span msg = Diagnostic.error_at env.diags span msg
+let add_error (env : env) span msg = Diagnostic.emit_error_at env.diags span msg
 let dummy_texpr = T.mk TError T.TErrorExpr
 
 let add_warning (env : env) (span : Ast.span) (msg : string) : unit =
-  if not env.suppress_warnings then Diagnostic.warn_at env.diags span msg
+  if not env.suppress_warnings then Diagnostic.emit_warn_at env.diags span msg
 
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
@@ -256,7 +256,7 @@ and lookup_var (env : env) (span : Ast.span) : ty =
           match Hashtbl.find_opt env.g_state key with
           (* A global whose own size names it would loop forever *)
           | Some st when st.busy ->
-              emit env (Diagnostic.simple span "cyclic constant");
+              emit env (Diagnostic.error_at span "cyclic constant");
               TError
           | Some st ->
               st.busy <- true;
@@ -304,7 +304,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let s = sym env e.span in
       if s.Symbol.kind = Symbol.Error then dummy_texpr
       else if s.Symbol.kind = Symbol.Module then (
-        emit env (Diagnostic.simple e.span "module requires a member");
+        emit env (Diagnostic.error_at e.span "module requires a member");
         dummy_texpr)
       else
         let t = lookup_var env e.span in
@@ -390,9 +390,9 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           List.iter
             (fun (fname, fspan, _) ->
               if not (List.mem_assoc fname info.field_tys) then
-                emit env (Diagnostic.simple fspan "no field")
+                emit env (Diagnostic.error_at fspan "no field")
               else if Hashtbl.mem seen fname then
-                emit env (Diagnostic.simple fspan "duplicate field")
+                emit env (Diagnostic.error_at fspan "duplicate field")
               else Hashtbl.replace seen fname ())
             inits;
           (* Omitted fields are zero-initialized *)
@@ -592,14 +592,14 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
     | None, Some e ->
         let te = synth env e in
         if te.T.ty = TVoid then (
-          emit env (Diagnostic.simple e.span "cannot bind void value");
+          emit env (Diagnostic.error_at e.span "cannot bind void value");
           (TError, te))
         else (te.T.ty, te)
     | Some a, None ->
         let want = ty_of_ast env a in
         (want, T.mk want T.TZero)
     | None, None ->
-        emit env (Diagnostic.simple nspan "cannot infer type");
+        emit env (Diagnostic.error_at nspan "cannot infer type");
         (* A real type here makes every later use mismatch against a type nobody wrote *)
         (TError, dummy_texpr)
   in
@@ -971,7 +971,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
   check_param_copy_write env l.span tl;
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
-      emit env (Diagnostic.simple l.span "cannot assign to function")
+      emit env (Diagnostic.error_at l.span "cannot assign to function")
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> (
       (* This catches assignment to an immutable binding whether it's local or global. *)
       match root_binding tl with
@@ -979,7 +979,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
         when Symbol.is_immutable s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
                 && is_const_global env (Symbol.key s) ->
-          emit env (Diagnostic.simple l.span "cannot assign to immutable")
+          emit env (Diagnostic.error_at l.span "cannot assign to immutable")
       | _ -> ())
   | _ -> ());
   let t = tl.T.ty in
@@ -1020,7 +1020,7 @@ and check_param_copy_write (env : env) (span : Ast.span) (tl : T.texpr) : unit =
          && match resolve_ty ty with TArray _ | TStruct _ -> true | _ -> false
     ->
       emit env
-        (Diagnostic.simple span "cannot assign to a by value parameter"
+        (Diagnostic.error_at span "cannot assign to a by value parameter"
         |> Diagnostic.label "the caller keeps its own copy"
         |> Diagnostic.help
              (Printf.sprintf "take a pointer to write through it: %s: *%s"
@@ -1076,7 +1076,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
              || Symbol.is_global s.Symbol.kind
                 && is_comptime_global env (Symbol.key s) ->
           emit env
-            (Diagnostic.simple e.span "cannot take address of a constant"
+            (Diagnostic.error_at e.span "cannot take address of a constant"
             |> Diagnostic.help "a const has no storage, use let")
       | _ ->
           (* TODO(abe2): In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes *)
@@ -1096,7 +1096,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string)
       | "ptr" -> T.mk (TPointer elem) (T.TDataPtr te)
       | _ ->
           emit env
-            (Diagnostic.simple fspan "no field"
+            (Diagnostic.error_at fspan "no field"
             |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
           dummy_texpr)
   | TOpaquePtr ->
@@ -1116,13 +1116,13 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
   | None when strip_alias ty = TError -> dummy_texpr
   | None ->
       emit env
-        (Diagnostic.simple span "type has no fields"
+        (Diagnostic.error_at span "type has no fields"
         |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
       let hint = Printf.sprintf "dereference first: `(*p).%s`" fname in
       emit env
-        (Diagnostic.simple span "too many pointer levels"
+        (Diagnostic.error_at span "too many pointer levels"
         |> Diagnostic.help hint);
       dummy_texpr
   | Some (sname, _) -> (
@@ -1136,7 +1136,7 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
       | Some (field_id, ft) -> T.mk ft (T.TFieldAccess (te, field_id))
       | None ->
           emit env
-            (Diagnostic.simple fspan "no field"
+            (Diagnostic.error_at fspan "no field"
             |> Diagnostic.label
                  (Printf.sprintf "on struct %s" (Qname.show sname)));
           dummy_texpr)
@@ -1240,7 +1240,7 @@ and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
   | Some v -> v
   | None ->
       if st.busy then
-        raise (Diagnostic.Errors [ Diagnostic.simple span "cyclic constant" ]);
+        raise (Diagnostic.Errors [ Diagnostic.error_at span "cyclic constant" ]);
       let te =
         match global_typed_init env span key with
         | te -> te
@@ -1277,7 +1277,7 @@ and global_typed_init (env : env) (span : Ast.span) (key : Symbol.key) : T.texpr
   | Some te -> te
   | None ->
       if st.busy then
-        raise (Diagnostic.Errors [ Diagnostic.simple span "cyclic constant" ]);
+        raise (Diagnostic.Errors [ Diagnostic.error_at span "cyclic constant" ]);
       let e, typ =
         match st.def with
         | { init = Some e; typ; _ } -> (e, typ)
@@ -1354,7 +1354,7 @@ let reserve_struct_name (env : env) (sd : struct_def) : unit =
     List.iter
       (fun (f : field) ->
         if Hashtbl.mem seen f.field_name then
-          emit env (Diagnostic.simple f.field_span "duplicate field")
+          emit env (Diagnostic.error_at f.field_span "duplicate field")
         else Hashtbl.add seen f.field_name ())
       sd.fields;
     Hashtbl.replace env.types
@@ -1400,7 +1400,7 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
   let key = key_at env sd.struct_span in
   if List.exists (reaches key) (fields_of key) then
     emit env
-      (Diagnostic.simple sd.struct_name_span
+      (Diagnostic.error_at sd.struct_name_span
          "recursive struct has infinite size")
 
 (* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
@@ -1470,7 +1470,7 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | None -> ()
     | Some ((TypeAlias td | Newtype td) as decl) ->
         if Hashtbl.mem on_path key then
-          emit env (Diagnostic.simple td.alias_name_span "recursive type")
+          emit env (Diagnostic.error_at td.alias_name_span "recursive type")
         else if unfilled decl then begin
           Hashtbl.add on_path key ();
           let step span = force (key_at env span) in
@@ -1493,10 +1493,10 @@ let collect_global (env : env) (gd : global_def) : unit =
      match gd.kind with
      | Var -> ()
      | Let ->
-         emit env (Diagnostic.simple gd.name_span "let without initializer")
+         emit env (Diagnostic.error_at gd.name_span "let without initializer")
      | Comptime ->
          emit env
-           (Diagnostic.simple gd.name_span "comptime without initializer"));
+           (Diagnostic.error_at gd.name_span "comptime without initializer"));
   let t = ty_of_ast env gd.typ in
   Hashtbl.replace env.globals (key_at env gd.span) (t, gd.kind)
 
@@ -1655,7 +1655,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           else check env e t
         in
         if not (is_const_texpr env te) then (
-          emit env (Diagnostic.simple e.span "initializer must be constant");
+          emit env (Diagnostic.error_at e.span "initializer must be constant");
           None)
         else Some te
   in

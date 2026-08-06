@@ -255,7 +255,7 @@ let captured_value (st : state) (name : string) : Symbol.t option =
 
 let missing_value (st : state) ~(what : string) name span : Diagnostic.t =
   match captured_value st name with
-  | Some _ -> Diagnostic.simple span "local function cannot capture variable"
+  | Some _ -> Diagnostic.error_at span "local function cannot capture variable"
   | None -> Diagnostic.undefined_name span what
 
 (* The name comes off the symbol not off the spelling at the use site *)
@@ -265,7 +265,7 @@ let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
     && sym.Symbol.visibility = Symbol.Private
   then
     Diagnostic.emit st.diags
-      (Diagnostic.simple span "private declaration"
+      (Diagnostic.error_at span "private declaration"
       |> Diagnostic.secondary sym.Symbol.span "declared private here")
 
 let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =

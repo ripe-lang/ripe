@@ -144,7 +144,7 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   match unit_.ast.Ast.header with
   | Some header when header.Ast.name <> expected ->
       let wrong =
-        Diagnostic.simple header.Ast.span "module name mismatch"
+        Diagnostic.error_at header.Ast.span "module name mismatch"
         |> Diagnostic.label ("expected " ^ expected)
       in
       (* A header naming its own directory means the import went too deep *)

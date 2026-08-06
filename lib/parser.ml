@@ -1002,7 +1002,7 @@ let tokenize_all read lexbuf diags =
   let rec scan stack depth =
     match read lexbuf with
     | ERROR msg, sp ->
-        Diagnostic.error_at diags sp msg;
+        Diagnostic.emit_error_at diags sp msg;
         scan stack depth
     | t, sp -> (
         let info =
