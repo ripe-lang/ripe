@@ -208,7 +208,38 @@ func main() i32 {
 ### Slices
 
 ```ripe
-func sum(xs: []i32) i32 { return xs[0] }
+func sum(xs: []i32) i32 {
+  var t: i32 = 0
+  for i in 0..xs.len { t += xs[i] }
+  return t
+}
+
+func main() i32 {
+  var a: [3]i32 = [4, 5, 6]
+  return sum(a)
+}
+```
+
+### Slicing
+
+```ripe
+func main() i32 {
+  var a: [4]i32 = [1, 2, 3, 4]
+  var s: []i32 = a[1..3]
+  var t: []i32 = a[1..=2]
+  return s[0] + t[1]
+}
+```
+
+### Slice length and data pointer
+
+```ripe
+func main() i32 {
+  var a: [3]i32 = [4, 5, 6]
+  var s: []i32 = a[0..2]
+  var p: *i32 = s.ptr
+  return *p
+}
 ```
 
 ### Function pointers
