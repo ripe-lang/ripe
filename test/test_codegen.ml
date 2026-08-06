@@ -1817,20 +1817,22 @@ func f() i32 {
     function w $f() {
     @start
         %a =l alloc4 12
-        storel 0, %a
-        %t0 =l add %a, 8
+        storew 0, %a
+        %t0 =l add %a, 4
         storew 0, %t0
-        %t1 =l extsw 0
-        %t2 =w cugel %t1, 3
-        jnz %t2, @bounds.fail.3, @bounds.ok.3
-    @bounds.fail.3
-        call $ripe_panic_bounds(l %t1, l 3)
+        %t1 =l add %a, 8
+        storew 0, %t1
+        %t2 =l extsw 0
+        %t3 =w cugel %t2, 3
+        jnz %t3, @bounds.fail.4, @bounds.ok.4
+    @bounds.fail.4
+        call $ripe_panic_bounds(l %t2, l 3)
         hlt
-    @bounds.ok.3
-        %t4 =l mul %t1, 4
-        %t5 =l add %a, %t4
-        %t6 =w loadsw %t5
-        ret %t6
+    @bounds.ok.4
+        %t5 =l mul %t2, 4
+        %t6 =l add %a, %t5
+        %t7 =w loadsw %t6
+        ret %t7
     }
     |}]
 
@@ -1923,7 +1925,13 @@ func f() {
     @start
         %a =l alloc4 4
         %b =l alloc4 4
-        storew 0, %b
+        storeb 0, %b
+        %t0 =l add %b, 1
+        storeb 0, %t0
+        %t1 =l add %b, 2
+        storeb 0, %t1
+        %t2 =l add %b, 3
+        storeb 0, %t2
         ret
     }
     |}]
@@ -2002,10 +2010,14 @@ func f() i32 {
 
     function w $f() {
     @start
-        %g =l alloc8 16
-        storel 0, %g
-        %t0 =l add %g, 8
-        storel 0, %t0
+        %g =l alloc4 16
+        storew 0, %g
+        %t0 =l add %g, 4
+        storew 0, %t0
+        %t1 =l add %g, 8
+        storew 0, %t1
+        %t2 =l add %g, 12
+        storew 0, %t2
         ret 0
     }
     |}]
@@ -2022,7 +2034,7 @@ func f(p: pt) i32 { return p.y }
 
     function w $f(l %t0) {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         blit %t0, %p, 8
         %t1 =l add %p, 4
         %t2 =w loadsw %t1
@@ -2045,8 +2057,8 @@ func f(a: pt) i32 {
 
     function w $f(l %t0) {
     @start
-        %b =l alloc8 8
-        %a =l alloc8 8
+        %b =l alloc4 8
+        %a =l alloc4 8
         blit %t0, %a, 8
         blit %a, %b, 8
         %t1 =w loadsw %b
@@ -2069,23 +2081,27 @@ func f() i32 {
 
     function w $f() {
     @start
-        %b =l alloc8 20
-        storel 0, %b
-        %t0 =l add %b, 8
-        storel 0, %t0
-        %t1 =l add %b, 16
+        %b =l alloc4 20
+        storew 0, %b
+        %t0 =l add %b, 4
+        storew 0, %t0
+        %t1 =l add %b, 8
         storew 0, %t1
-        %t2 =l extsw 2
-        %t3 =w cugel %t2, 4
-        jnz %t3, @bounds.fail.4, @bounds.ok.4
-    @bounds.fail.4
-        call $ripe_panic_bounds(l %t2, l 4)
+        %t2 =l add %b, 12
+        storew 0, %t2
+        %t3 =l add %b, 16
+        storew 0, %t3
+        %t4 =l extsw 2
+        %t5 =w cugel %t4, 4
+        jnz %t5, @bounds.fail.6, @bounds.ok.6
+    @bounds.fail.6
+        call $ripe_panic_bounds(l %t4, l 4)
         hlt
-    @bounds.ok.4
-        %t5 =l mul %t2, 4
-        %t6 =l add %b, %t5
-        %t7 =w loadsw %t6
-        ret %t7
+    @bounds.ok.6
+        %t7 =l mul %t4, 4
+        %t8 =l add %b, %t7
+        %t9 =w loadsw %t8
+        ret %t9
     }
     |}]
 
@@ -2104,7 +2120,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         storew 3, %p
         %t0 =l add %p, 4
         storew 4, %t0
@@ -2129,7 +2145,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         storew 3, %p
         %t0 =l add %p, 4
         storew 0, %t0
@@ -2156,7 +2172,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %o =l alloc8 8
+        %o =l alloc4 8
         storew 1, %o
         %t0 =l add %o, 4
         storew 2, %t0
@@ -2182,7 +2198,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %t0 =l alloc8 8
+        %t0 =l alloc4 8
         storew 1, %t0
         %t1 =l add %t0, 4
         storew 2, %t1
@@ -2458,8 +2474,8 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
-        %p.3 =l alloc8 8
+        %p =l alloc4 8
+        %p.3 =l alloc4 8
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
@@ -3208,7 +3224,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         %q =l alloc8 8
         storew 34, %p
         %t0 =l add %p, 4
@@ -3276,7 +3292,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         storew 1, %p
         %t0 =l add %p, 4
         storew 2, %t0
@@ -3302,7 +3318,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         %compound.p.0 =l alloc8 8
         storew 1, %p
         %t0 =l add %p, 4
@@ -3392,7 +3408,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         %px =l alloc8 8
         storew 7, %p
         %t0 =l add %p, 4
@@ -3428,7 +3444,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         %pt1 =l alloc8 8
         %pt2 =l alloc8 8
         storew 3, %p
@@ -3808,7 +3824,7 @@ func f() i32 {
 
     function w $read_x(l %t0) {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         blit %t0, %p, 8
         %t1 =w loadsw %p
         ret %t1
@@ -3816,7 +3832,7 @@ func f() i32 {
 
     function w $f() {
     @start
-        %p =l alloc8 8
+        %p =l alloc4 8
         storew 5, %p
         %t0 =l add %p, 4
         storew 6, %t0
@@ -3940,11 +3956,11 @@ let%expect_test "codegen ICE: TVoid has no size" =
 
 let%expect_test "codegen ICE: TVoid has no alloc instruction" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen_qbe.alloc_instr Ripe.Types.TVoid));
+      ignore (Ripe.Codegen_qbe.alloc_instr (empty_structs ()) Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error
-    TVoid has no alloc instruction
+    TVoid has no alignment
     help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
     |}]
 

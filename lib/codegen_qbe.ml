@@ -62,20 +62,13 @@ let format_const_num (ty : ty) (n : const_num) : string =
   | Ni64 n -> Int64.to_string n
   | Nf f -> float_lit ty f
 
-let rec alloc_instr (t : ty) : string =
-  match resolve_ty t with
-  | TInt (I64 | U64 | Isize | Usize)
-  | TFloat F64
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TStruct _ | TFunc _ ->
-      "alloc8"
-  | TArray (e, _) -> alloc_instr e
-  | TSlice _ -> "alloc8"
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TFloat F32 | TBool | TChar ->
-      "alloc4"
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Error.ice "TVoid has no alloc instruction"
-  | TNever -> Error.ice "TNever has no alloc instruction"
-  | TError -> Error.ice "TError has no alloc instruction"
+let alloc_instr (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : string =
+  match ty_align structs t with
+  | 1 | 2 | 4 -> "alloc4"
+  | 8 -> "alloc8"
+  | 16 -> "alloc16"
+  | a ->
+      Error.ice (Printf.sprintf "no alloc instruction for %d byte alignment" a)
 
 let qbe_load (t : ty) : string =
   match resolve_ty t with
@@ -241,7 +234,7 @@ let offset_addr ctx base off =
     a
 
 let alloc_slot ctx t =
-  Printf.sprintf "%s %d" (alloc_instr t) (ty_size ctx.structs t)
+  Printf.sprintf "%s %d" (alloc_instr ctx.structs t) (ty_size ctx.structs t)
 
 let array_elem_ty ~span t =
   match t with
@@ -646,9 +639,11 @@ and emit_zero_into ctx dest t =
       if size > bulk_mem_threshold then
         emit ctx "    call $memset(l %s, w 0, l %d)\n" dest size
       else begin
+        (* Writing 8 bytes at a time only works if the address is a multiple of 8 *)
+        let align = ty_align ctx.structs t in
         let off = ref 0 in
         let step w store =
-          while !off + w <= size do
+          while w <= align && !off + w <= size do
             emit ctx "    %s 0, %s\n" store (offset_addr ctx dest !off);
             off := !off + w
           done
