@@ -1552,11 +1552,20 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
       func_env params_typed
   in
 
-  (* A non-void body's trailing value is its return value so it flows against the declared return type while main and void bodies just run for effect *)
+  let is_entry_point = is_entry env fd.func_span in
+  (* An unwritten i32 on the main function comes from the C runtime
+     so its tail is not an exit code the user asked for *)
   let implicit_return =
-    (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.func_span)
+    (not is_extern) && ret_ty <> TVoid
+    && ((not is_entry_point) || fd.ret <> None)
   in
-  let body_use = if implicit_return then Expect ret_ty else Discard in
+  let body_use =
+    if not implicit_return then Discard
+    else if is_entry_point then
+      (* The main function can fall off the end with 0 so a void tail stays fine *)
+      Infer
+    else Expect ret_ty
+  in
   let final_env, tbody0 = check_block param_env fd.func_span fd.body body_use in
   warn_unused_in_scope final_env;
   let tbody =
