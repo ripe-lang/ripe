@@ -59,7 +59,11 @@ let digit   = ['0'-'9']
 let hexdig  = ['0'-'9' 'a'-'f' 'A'-'F']
 let bindig  = ['0'-'1']
 let octdig  = ['0'-'7']
-let exp     = ['e' 'E'] ['+' '-']? digit+
+let decimals = digit (digit | '_')*
+let hexdigs = hexdig (hexdig | '_')*
+let bindigs = bindig (bindig | '_')*
+let octdigs = octdig (octdig | '_')*
+let exp     = ['e' 'E'] ['+' '-']? decimals
 let alpha   = ['a'-'z' 'A'-'Z' '_']
 let alnum   = alpha | digit
 let intsuf  = ('i' | 'u') ("8" | "16" | "32" | "64" | "size")
@@ -78,18 +82,18 @@ rule read_main st = parse
                          match st.last_token with
                          | Some t when can_end_stmt t -> AUTOSEMI
                          | _ -> read_main st lexbuf }
-  | ('0' ['x' 'X'] hexdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | ('0' ['b' 'B'] bindig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | ('0' ['o' 'O'] octdig+ as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | (digit+ as n) (intsuf as suf)  { int_token st lexbuf ~suf ("0u" ^ n) }
-  | ('0' ['x' 'X'] hexdig+) as n  { int_token st lexbuf n }
-  | ('0' ['b' 'B'] bindig+) as n  { int_token st lexbuf n }
-  | ('0' ['o' 'O'] octdig+) as n  { int_token st lexbuf n }
+  | ('0' ['x' 'X'] hexdigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | ('0' ['b' 'B'] bindigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | ('0' ['o' 'O'] octdigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
+  | (decimals as n) (intsuf as suf)  { int_token st lexbuf ~suf ("0u" ^ n) }
+  | ('0' ['x' 'X'] hexdigs) as n  { int_token st lexbuf n }
+  | ('0' ['b' 'B'] bindigs) as n  { int_token st lexbuf n }
+  | ('0' ['o' 'O'] octdigs) as n  { int_token st lexbuf n }
   | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum* as n
       { ERROR ("invalid number literal: " ^ n) }
-  | digit+ '.' digit+ exp? as f { FLOAT (float_of_string f) }
-  | digit+ exp as f    { FLOAT (float_of_string f) }
-  | digit+ as n        { int_token st lexbuf ("0u" ^ n) }
+  | decimals '.' decimals exp? as f { FLOAT (float_of_string f) }
+  | decimals exp as f  { FLOAT (float_of_string f) }
+  | decimals as n      { int_token st lexbuf ("0u" ^ n) }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t

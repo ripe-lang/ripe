@@ -496,3 +496,44 @@ let%expect_test "lexer: leading UTF 8 BOM is ignored" =
     AUTOSEMI
     EOF
     |}]
+
+let%expect_test "lexer: digit separators" =
+  dump_tokens
+    "1_000_000 1000_000 0xff_ff 0b1010_1010 0o1_7 1_000.000_1 1.5e1_0 2_5_5u8\n";
+  [%expect
+    {|
+    INT 1000000
+    INT 1000000
+    INT 65535
+    INT 170
+    INT 15
+    FLOAT 1000.0001
+    FLOAT 15000000000.
+    INT 255u8
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: separators anywhere after the first digit" =
+  dump_tokens "1_0__0_ 1_u8\n";
+  [%expect {|
+    INT 100
+    INT 1u8
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: separator right after a base prefix" =
+  dump_tokens "0x_ff\n";
+  [%expect {|
+    ERROR invalid number literal: 0x_ff
+    EOF
+    |}]
+
+let%expect_test "lexer: a leading separator is a name" =
+  dump_tokens "_1000\n";
+  [%expect {|
+    IDENT _1000
+    AUTOSEMI
+    EOF
+    |}]

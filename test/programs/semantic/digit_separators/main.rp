@@ -1,0 +1,13 @@
+func main() i32 {
+  var a: int = 1_000_000
+  var b: int = 1000_000
+  var c: i32 = 0xff_ff
+  var d: i32 = 0b1010_1010
+  var e: i32 = 0o1_7
+  var f: f64 = 1_000.000_1
+  var g: u8 = 2_5_5u8
+  if a == b && c == 65535 && d == 170 && e == 15 && f > 1000.0 && g == 255 {
+    return 9
+  }
+  return 0
+}
