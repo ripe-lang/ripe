@@ -559,3 +559,18 @@ func main() i32 {
   return a + b + c
 }
 ```
+
+### Digit separators
+
+An underscore anywhere after the first digit is ignored, so group them however
+you like. The only case that won't work is one right after a base prefix.
+
+```ripe
+func main() i32 {
+  var a: int = 1_000_000
+  var b: i32 = 0xff_ff
+  var c: f64 = 1_000.000_1
+  // var d: i32 = 0x_ff        // rejected
+  return (a as i32) + b + (c as i32)
+}
+```
