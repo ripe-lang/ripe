@@ -79,6 +79,15 @@ var n: cstr
 var o: char
 ```
 
+### Short names
+
+`int` and `float` are other spellings for `i64` and `f64`.
+
+```ripe
+var a: int = 5
+var b: float = 1.5
+```
+
 ### Float literals
 
 ```ripe

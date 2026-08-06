@@ -4132,3 +4132,45 @@ let%expect_test "typecheck: if arms still agree where the value is used" =
         func f() i32 { let x = if true { printf("x") } else {}; return x }
                                                             ^~ expected i32, found void
     |}]
+
+let%expect_test "typecheck: int is i64" =
+  run_src "func f() i64 { let a: int = 1\n  return a }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: float is f64" =
+  run_src "func f() f64 { let a: float = 1.5\n  return a }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: int is not i32" =
+  run_src "func f() i32 { let a: int = 1\n  return a }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:10
+          return a }
+                 ^ expected i32, found i64
+    |}]
+
+let%expect_test "typecheck: float is not f32" =
+  run_src "func f() f32 { let a: float = 1.5\n  return a }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:10
+          return a }
+                 ^ expected f32, found f64
+    |}]
+
+let%expect_test "typecheck: literal too big for int" =
+  run_src "func f() { let _a: int = 9223372036854775808 }";
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:26
+        func f() { let _a: int = 9223372036854775808 }
+                                 ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+    |}]
+
+let%expect_test "typecheck: int shadowed by an alias" =
+  run_src "type int = i32\nfunc f() i32 { let a: int = 1\n  return a }";
+  [%expect {| ok |}]
