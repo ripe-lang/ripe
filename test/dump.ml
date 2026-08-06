@@ -97,6 +97,7 @@ and dump_block (body : Ripe.Ast.block) : string =
   let dump_item (item : Ripe.Ast.block_item) =
     match item with
     | Expr e -> dump_expr e
+    | Decl (LocalStruct sd) -> "(local struct " ^ sd.struct_name ^ ")"
     | Decl (LocalTypeAlias td) -> "(local type " ^ td.alias_name ^ ")"
     | Decl (LocalNewtype td) -> "(local newtype " ^ td.alias_name ^ ")"
   in

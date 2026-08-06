@@ -3968,7 +3968,7 @@ let%expect_test "codegen ICE: TVoid has no store instruction" =
 
 let%expect_test "codegen ICE: TVoid has no extended type" =
   expect_errors (fun () ->
-      ignore (Ripe.Codegen_qbe.qbe_ext_ty Ripe.Types.TVoid));
+      ignore (Ripe.Codegen_qbe.qbe_ext_ty Ripe.Qname.show Ripe.Types.TVoid));
   [%expect
     {|
     error: internal compiler error

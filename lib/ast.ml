@@ -147,6 +147,22 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
+and field = {
+  field_name : string;
+  field_typ : typ;
+  field_modifiers : modifier list;
+  field_span : span;
+}
+[@@deriving show { with_path = false }]
+
+and struct_def = {
+  struct_name : string;
+  fields : field list;
+  struct_modifiers : modifier list;
+  struct_span : span;
+}
+[@@deriving show { with_path = false }]
+
 and type_alias_def = {
   alias_name : string;
   alias_typ : typ;
@@ -156,6 +172,7 @@ and type_alias_def = {
 [@@deriving show { with_path = false }]
 
 and local_decl =
+  | LocalStruct of struct_def
   | LocalTypeAlias of type_alias_def
   | LocalNewtype of type_alias_def
 [@@deriving show { with_path = false }]
@@ -166,14 +183,6 @@ let show_named (path : string list) (name : string) : string =
 type param = { name : string; typ : typ; span : span }
 [@@deriving show { with_path = false }]
 
-type field = {
-  name : string;
-  typ : typ;
-  modifiers : modifier list;
-  span : span;
-}
-[@@deriving show { with_path = false }]
-
 type func_def = {
   name : string;
   params : param list;
@@ -181,14 +190,6 @@ type func_def = {
   body : block;
   modifiers : modifier list;
   variadic : bool;
-  span : span;
-}
-[@@deriving show { with_path = false }]
-
-type struct_def = {
-  name : string;
-  fields : field list;
-  modifiers : modifier list;
   span : span;
 }
 [@@deriving show { with_path = false }]
@@ -214,6 +215,7 @@ type decl =
 
 (* A local declaration carries the same payload so it checks like a global one *)
 let decl_of_local : local_decl -> decl = function
+  | LocalStruct sd -> Struct sd
   | LocalTypeAlias td -> TypeAlias td
   | LocalNewtype td -> Newtype td
 

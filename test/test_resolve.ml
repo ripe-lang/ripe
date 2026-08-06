@@ -5,7 +5,7 @@ open Pipeline
 
 let decl_name_span = function
   | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
-  | Ripe.Ast.Struct sd -> (sd.name, sd.span)
+  | Ripe.Ast.Struct sd -> (sd.struct_name, sd.struct_span)
   | Ripe.Ast.Global gd -> (gd.name, gd.span)
   | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.alias_name, td.alias_span)
 

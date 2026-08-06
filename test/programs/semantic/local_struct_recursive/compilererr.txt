@@ -1,0 +1,4 @@
+error: recursive struct has infinite size: Node
+  at main.rp:2:3
+      struct Node { next: Node }
+      ^~~~~~~~~~~~~~~~~~~~~~~~~~

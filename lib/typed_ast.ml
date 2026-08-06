@@ -76,6 +76,7 @@ type tdecl =
   | TFunc of tfunc_def
   | TStruct of Qname.t * ty list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
+  | TLocalStruct of Qname.t * ty list
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
   | TTypeAlias of Qname.t * ty

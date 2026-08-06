@@ -1464,13 +1464,18 @@ let%expect_test
   [%expect {| ok |}]
 
 let%expect_test "parse: declarations may appear in a block" =
-  (match parse {|func f() {
+  (match
+     parse
+       {|func f() {
   type Coord = i32
   newtype Score = i32
-}|} with
+  struct Point { x: Coord }
+}|}
+   with
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
-  [%expect {| (block (local type Coord) (local newtype Score)) |}]
+  [%expect
+    {| (block (local type Coord) (local newtype Score) (local struct Point)) |}]
 
 let%expect_test "parse: pub on a local declaration is accepted" =
   run_src {|func f() {

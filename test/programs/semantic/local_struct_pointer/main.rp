@@ -1,0 +1,4 @@
+func main() i32 {
+  struct Node { value: i32, next: *Node }
+  return sizeof(Node) as i32
+}

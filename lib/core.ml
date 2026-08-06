@@ -63,6 +63,7 @@ type cdecl =
   | CFunc of cfunc_def
   | CStruct of Qname.t * ty list * Ast.modifier list
     (* This has a name typed fields and modifiers *)
+  | CLocalStruct of Qname.t * ty list
   | CExtern of cfunc_def
   | CGlobal of cglobal_def
   | CTypeAlias of Qname.t * ty

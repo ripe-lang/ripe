@@ -355,13 +355,20 @@ and parse_fields st =
           parse_typ st)
     in
     fields :=
-      ({ name; typ = t; modifiers = []; span = nspan } : field) :: !fields;
+      ({
+         field_name = name;
+         field_typ = t;
+         field_modifiers = [];
+         field_span = nspan;
+       }
+        : field)
+      :: !fields;
     expect_field_sep st
   done;
   List.rev !fields
 
 (* struct point { x: i32, y: i32 } *)
-and parse_struct st mods =
+and parse_struct_def st mods =
   let lo = cur_pos st in
   advance st;
   (* STRUCT *)
@@ -370,7 +377,12 @@ and parse_struct st mods =
   let fields = parse_fields st in
   expect st RBRACE;
   let hi = st.prev_end in
-  Struct { name; fields; modifiers = mods; span = make_span st lo hi }
+  {
+    struct_name = name;
+    fields;
+    struct_modifiers = mods;
+    struct_span = make_span st lo hi;
+  }
 
 (* type binop = (i32, i32) i32 / newtype Celsius = f32 *)
 and parse_alias_def st mods =
@@ -765,13 +777,14 @@ and parse_stmt st =
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
-  | PUBLIC | TYPE | NEWTYPE -> parse_local_decl st
+  | PUBLIC | STRUCT | TYPE | NEWTYPE -> parse_local_decl st
   | _ -> Expr (parse_simple_stmt st)
 
 and parse_local_decl st =
   let modifiers = parse_modifiers st in
   let decl =
     match st.tok with
+    | STRUCT -> LocalStruct (parse_struct_def st modifiers)
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
     | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
     | _ -> fail_found st "expected local declaration"
@@ -901,7 +914,7 @@ let parse_decl st =
   let err () = fail_found st "expected declaration" in
   let mods = parse_modifiers st in
   match (mods, st.tok) with
-  | _, STRUCT -> parse_struct st mods
+  | _, STRUCT -> Struct (parse_struct_def st mods)
   | _, FUNC -> parse_func st mods
   (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st

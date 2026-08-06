@@ -1,0 +1,4 @@
+func main() i32 {
+  struct Node { next: Node }
+  return 0
+}
