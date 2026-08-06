@@ -37,13 +37,13 @@ func x() i32 { return 0 }
 |};
   [%expect
     {|
-    error: already defined: x
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         func x() i32 { return 0 }
-        ^~~~~~~~~~~~~~~~~~~~~~~~~
-      at <test>:2:1
+             ^
+      at <test>:2:5
         var x: i32 = 1
-        ^~~~~~~~~~~~~~ previous definition here
+            ^ previous definition here
     |}]
 
 let%expect_test "resolve: collision reported in either order" =
@@ -53,13 +53,13 @@ var x: i32 = 1
 |};
   [%expect
     {|
-    error: already defined: x
-      at <test>:3:1
+    error: already defined
+      at <test>:3:5
         var x: i32 = 1
-        ^~~~~~~~~~~~~~
-      at <test>:2:1
+            ^
+      at <test>:2:6
         func x() i32 { return 0 }
-        ^~~~~~~~~~~~~~~~~~~~~~~~~ previous definition here
+             ^ previous definition here
     |}]
 
 let%expect_test "resolve: duplicate function same signature" =
@@ -69,13 +69,13 @@ func f() {}
 |};
   [%expect
     {|
-    error: already defined: f
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         func f() {}
-        ^~~~~~~~~~~
-      at <test>:2:1
+             ^
+      at <test>:2:6
         func f() {}
-        ^~~~~~~~~~~ previous definition here
+             ^ previous definition here
     |}]
 
 let%expect_test "resolve: duplicate function different signature" =
@@ -85,13 +85,13 @@ func f(a: i32) i32 { return a }
 |};
   [%expect
     {|
-    error: already defined: f
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         func f(a: i32) i32 { return a }
-        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      at <test>:2:1
+             ^
+      at <test>:2:6
         func f() i32 { return 0 }
-        ^~~~~~~~~~~~~~~~~~~~~~~~~ previous definition here
+             ^ previous definition here
     |}]
 
 let%expect_test "resolve: nested block shadow does not leak" =
@@ -153,7 +153,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    error: cannot assign to function: g
+    error: cannot assign to function
       at <test>:4:3
           g = g
           ^
@@ -202,7 +202,7 @@ func f(a: i32, a: i32) i32 { return a }
 |};
   [%expect
     {|
-    error: already defined: a
+    error: already defined
       at <test>:2:16
         func f(a: i32, a: i32) i32 { return a }
                        ^~~~~~
@@ -223,7 +223,7 @@ let%expect_test "resolve: poison variable lets type checking continue" =
 func g() i32 { return true }|};
   [%expect
     {|
-    error: undefined variable: missing
+    error: undefined variable
       at <test>:1:23
         func f() i32 { return missing }
                               ^~~~~~~
@@ -238,7 +238,7 @@ let%expect_test "resolve: poison type lets type checking continue" =
 func g() i32 { return true }|};
   [%expect
     {|
-    error: undefined type: Missing
+    error: undefined type
       at <test>:1:11
         func f(x: Missing) {}
                   ^~~~~~~
@@ -301,7 +301,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    error: undefined variable: i
+    error: undefined variable
       at <test>:5:10
           return i
                  ^
@@ -335,7 +335,7 @@ func main() i32 { return nope() }
 |};
   [%expect
     {|
-    error: undefined function: nope
+    error: undefined function
       at <test>:2:26
         func main() i32 { return nope() }
                                  ^~~~
@@ -432,7 +432,7 @@ pub func add(x: i32) {}
     ];
   [%expect
     {|
-    error: undefined function: math.nope
+    error: undefined function
       at <test>:3:15
         func main() { math.nope(1) }
                       ^~~~~~~~~
@@ -465,10 +465,10 @@ pub func add(x: i32) {}
     ];
   [%expect
     {|
-    error: already defined: math
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         func math() {}
-        ^~~~~~~~~~~~~~
+             ^~~~
       at <test>:2:1
         import math
         ^~~~~~~~~~~ previous definition here
@@ -520,7 +520,7 @@ pub func scale(x: i32) {}
     ];
   [%expect
     {|
-    error: already defined: vector
+    error: already defined
       at <test>:3:1
         import geometry.vector
         ^~~~~~~~~~~~~~~~~~~~~~
@@ -555,7 +555,7 @@ type meters = i32
     ];
   [%expect
     {|
-    error: private declaration: math.meters
+    error: private declaration
       at <test>:3:22
         func main() { var d: math.meters = 0 }
                              ^~~~~~~~~~~
@@ -608,7 +608,7 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 }|};
   [%expect
     {|
-    error: local function cannot capture variable: x
+    error: local function cannot capture variable
       at <test>:3:21
           func read() i32 { x }
                             ^
@@ -621,7 +621,7 @@ let%expect_test "resolve: a local declaration stays in its block" =
 }|};
   [%expect
     {|
-    error: undefined type: Coord
+    error: undefined type
       at <test>:3:10
           let x: Coord = 1
                  ^~~~~
@@ -637,7 +637,7 @@ func outer() i32 {
 }|};
   [%expect
     {|
-    error: local function cannot capture variable: x
+    error: local function cannot capture variable
       at <test>:4:22
           func inner() i32 { x() }
                              ^

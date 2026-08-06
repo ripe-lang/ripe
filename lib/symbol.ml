@@ -27,6 +27,7 @@ type t = {
   visibility : visibility;
   entry_point : bool;
   span : Ast.span;
+  name_span : Ast.span;
 }
 [@@deriving show { with_path = false }]
 

@@ -51,7 +51,7 @@ def diff(want, actual, golden):
     return indented("".join(lines))
 
 
-def check_one(ripec, testdir, workdir):
+def check_one(ripec, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
     compile = subprocess.run(
@@ -72,6 +72,10 @@ def check_one(ripec, testdir, workdir):
         )
         if actual == want:
             return "ok", ""
+        if promote:
+            with open(err_golden, "w", encoding="utf-8") as f:
+                f.write(actual)
+            return "promoted", ""
         return "mismatch", diff(want, actual, "compilererr.txt")
 
     if compile.returncode != 0:
@@ -88,6 +92,10 @@ def check_one(ripec, testdir, workdir):
         want = f.read()
     if actual == want:
         return "ok", ""
+    if promote:
+        with open(out_golden, "w", encoding="utf-8") as f:
+            f.write(actual)
+        return "promoted", ""
     return "mismatch", diff(want, actual, "out.txt")
 
 
@@ -110,7 +118,7 @@ def report(results, succeeded, failed):
         print("Failed: %d" % len(failed))
 
 
-def check(ripec, testname, verbose):
+def check(ripec, testname, verbose, promote=False):
     results = []
     succeeded = []
     failed = []
@@ -118,11 +126,11 @@ def check(ripec, testname, verbose):
     with tempfile.TemporaryDirectory() as workdir:
         for testdir in tests(testname):
             name = os.path.relpath(testdir, TEST_DIR)
-            status, log = check_one(ripec, testdir, workdir)
+            status, log = check_one(ripec, testdir, workdir, promote)
 
             results.append((name, status))
 
-            if status == "ok":
+            if status in ("ok", "promoted"):
                 succeeded.append(name)
             else:
                 failed.append((name, status, log))
@@ -151,11 +159,16 @@ def main():
         action="store_true",
         help="print the full report even when every test passes",
     )
+    parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="overwrite the golden files with what the compiler produced",
+    )
     args = parser.parse_args()
 
     ripec = find_ripec(args.ripec)
 
-    return check(ripec, args.testname, args.verbose)
+    return check(ripec, args.testname, args.verbose, args.promote)
 
 
 if __name__ == "__main__":

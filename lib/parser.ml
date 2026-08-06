@@ -57,16 +57,16 @@ let is_expr_start (tok : token) : bool =
       true
   | _ -> false
 
-let require_expr_start st tok span =
+let require_expr_start st span =
   if not (is_expr_start st.tok) then
-    raise (ParseError (Error.expected_expression_after span (show_token tok)))
+    raise (ParseError (Diagnostic.expected_expression span))
 
 let is_type_start (tok : token) : bool =
   match tok with IDENT _ | STAR | LPAREN | LBRACKET -> true | _ -> false
 
-let expect_type_after st op span =
+let expect_type_after st span =
   if not (is_type_start st.tok) then
-    raise (ParseError (Error.expected_type_after span op))
+    raise (ParseError (Diagnostic.expected_type span))
 
 let parse_cast_kind st op_span =
   match st.tok with
@@ -285,7 +285,7 @@ let binop_of = function
 let rec dotted_name (e : expr) : string list option =
   match e.desc with
   | Ident name -> Some [ name ]
-  | FieldAccess (inner, name) ->
+  | FieldAccess (inner, name, _) ->
       Option.map (fun path -> path @ [ name ]) (dotted_name inner)
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
@@ -372,13 +372,14 @@ and parse_struct_def st mods =
   let lo = cur_pos st in
   advance st;
   (* STRUCT *)
-  let name = expect_ident st in
+  let name, name_span = expect_ident_span st in
   expect st LBRACE;
   let fields = parse_fields st in
   expect st RBRACE;
   let hi = st.prev_end in
   {
     struct_name = name;
+    struct_name_span = name_span;
     fields;
     struct_modifiers = mods;
     struct_span = make_span st lo hi;
@@ -390,7 +391,7 @@ and parse_alias_def st mods =
   let depth = st.tok_depth in
   advance st;
   (* TYPE or NEWTYPE *)
-  let name = expect_ident st in
+  let name, name_span = expect_ident_span st in
   let typ =
     recover_typ_to st depth [] (fun () ->
         expect st ASSIGN;
@@ -399,6 +400,7 @@ and parse_alias_def st mods =
   let hi = st.prev_end in
   ({
      alias_name = name;
+     alias_name_span = name_span;
      alias_typ = typ;
      alias_modifiers = mods;
      alias_span = make_span st lo hi;
@@ -449,15 +451,15 @@ and parse_ret_type st =
 (* func NAME(params) ret *)
 and parse_signature st =
   expect st FUNC;
-  let name = expect_ident st in
+  let name, name_span = expect_ident_span st in
   let params, variadic = parse_params st in
   let ret = parse_ret_type st in
-  (name, params, ret, variadic)
+  (name, name_span, params, ret, variadic)
 
 (* func add(a: i32, b: i32) i32 { ... } *)
 and parse_func_def st mods =
   let lo = cur_pos st in
-  let name, params, ret, variadic = parse_signature st in
+  let name, name_span, params, ret, variadic = parse_signature st in
   let body =
     if st.tok = ASSIGN then begin
       let slo = cur_pos st in
@@ -470,6 +472,7 @@ and parse_func_def st mods =
   let hi = st.prev_end in
   {
     func_name = name;
+    func_name_span = name_span;
     params;
     ret;
     body;
@@ -494,13 +497,13 @@ and parse_expr ?(no_struct_lit = false) st min_prec =
         let op_tok = st.tok in
         let op_span = cur_span st in
         advance st;
-        if op_tok <> AS then require_expr_start st op_tok op_span;
+        if op_tok <> AS then require_expr_start st op_span;
         let next_min_prec =
           match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
         if op_tok = AS then begin
           let kind, cast_op_span = parse_cast_kind st op_span in
-          expect_type_after st (show_cast_op kind) cast_op_span;
+          expect_type_after st cast_op_span;
           let ty = parse_typ st in
           lhs := mk lo st (Cast (!lhs, ty, kind));
           if is_postfix_tok st.tok then
@@ -549,19 +552,19 @@ and parse_expr ?(no_struct_lit = false) st min_prec =
 (* -x *)
 and parse_prefix ?(no_struct_lit = false) st =
   let lo = cur_pos st in
-  let unary op desc =
+  let unary desc =
     let span = cur_span st in
     advance st;
-    require_expr_start st op span;
+    require_expr_start st span;
     mk lo st (UnOp (desc, parse_prefix ~no_struct_lit st))
   in
   match st.tok with
-  | BANG -> unary BANG Not
-  | PLUS -> unary PLUS Pos
-  | MINUS -> unary MINUS Neg
-  | TILDE -> unary TILDE BitNot
-  | AMP -> unary AMP AddressOf
-  | STAR -> unary STAR Deref
+  | BANG -> unary Not
+  | PLUS -> unary Pos
+  | MINUS -> unary Neg
+  | TILDE -> unary BitNot
+  | AMP -> unary AddressOf
+  | STAR -> unary Deref
   | _ -> parse_postfix ~no_struct_lit st (parse_primary ~no_struct_lit st)
 
 (* x.field, arr[i], f(args) *)
@@ -571,8 +574,8 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
   match st.tok with
   | DOT -> (
       advance st;
-      let name = expect_ident st in
-      let access = mk lo st (FieldAccess (lhs, name)) in
+      let name, name_span = expect_ident_span st in
+      let access = mk lo st (FieldAccess (lhs, name, name_span)) in
       (* The brace means this path names a type from another module *)
       match dotted_name access with
       | Some path when at st LBRACE && not no_struct_lit ->
@@ -758,11 +761,15 @@ and parse_pair_assign (state : state) (lo : int) (ft : expr) : expr =
   mk lo state (PairAssign (ft, st, fv, sv))
 
 (* { return a + b } *)
-and parse_block st =
+and parse_block st = (parse_block_span st).value
+
+(* The braces are the arm a diagnostic points at *)
+and parse_block_span st =
+  let lo = cur_pos st in
   expect st LBRACE;
   let body = parse_stmts st in
   expect st RBRACE;
-  body
+  spanned body (make_span st lo st.prev_end)
 
 and parse_stmts st =
   let stmts = ref [] in
@@ -831,7 +838,7 @@ and parse_if st =
   advance st;
   (* IF *)
   let cond = parse_header_expr st in
-  let body = parse_block st in
+  let body = parse_block_span st in
   let rec parse_elseifs acc =
     if st.tok = ELSE then begin
       advance st;
@@ -840,10 +847,9 @@ and parse_if st =
         advance st;
         (* IF *)
         let c = parse_header_expr st in
-        let b = parse_block st in
-        parse_elseifs ((c, b) :: acc)
+        parse_elseifs ((c, parse_block_span st) :: acc)
       end
-      else (List.rev acc, Some (parse_block st))
+      else (List.rev acc, Some (parse_block_span st))
     end
     else (List.rev acc, None)
   in
@@ -878,7 +884,7 @@ let parse_global st mods =
     match st.tok with LET -> Ast.Let | COMPTIME -> Ast.Comptime | _ -> Ast.Var
   in
   advance st;
-  let name = expect_ident st in
+  let name, name_span = expect_ident_span st in
   let typ =
     recover_typ_to st depth [ ASSIGN ] (fun () ->
         expect st COLON;
@@ -891,18 +897,28 @@ let parse_global st mods =
     else None
   in
   let hi = st.prev_end in
-  Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
+  Global
+    {
+      name;
+      name_span;
+      typ;
+      init;
+      kind;
+      modifiers = mods;
+      span = make_span st lo hi;
+    }
 
 (* extern func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
-  let name, params, ret, variadic = parse_signature st in
+  let name, name_span, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
   Extern
     {
       func_name = name;
+      func_name_span = name_span;
       params;
       ret;
       body = [];
@@ -986,7 +1002,7 @@ let tokenize_all read lexbuf diags =
   let rec scan stack depth =
     match read lexbuf with
     | ERROR msg, sp ->
-        Diagnostic.error_at diags sp msg;
+        Diagnostic.emit_error_at diags sp msg;
         scan stack depth
     | t, sp -> (
         let info =

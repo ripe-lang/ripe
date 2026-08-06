@@ -1,9 +1,9 @@
-error: cannot assign to a by value parameter: a
+error: cannot assign to a by value parameter
   at main.rp:4:3
       a[0] = 99
       ^~~~ the caller keeps its own copy
 help: take a pointer to write through it: a: *[3]i32
-error: cannot assign to a by value parameter: p
+error: cannot assign to a by value parameter
   at main.rp:8:3
       p.x = 99
       ^~~ the caller keeps its own copy

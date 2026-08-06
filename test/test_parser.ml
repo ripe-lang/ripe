@@ -8,10 +8,10 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: expected `)`
+    error: mismatched delimiter
       at <test>:1:15
         func f() { g( }
-                      ^ found }
+                      ^ expected `)`
       at <test>:1:13
         func f() { g( }
                     ^ unclosed `(`
@@ -31,7 +31,7 @@ let%expect_test "parse: unterminated string" =
   run_src "func f() { let s = \"oops";
   [%expect
     {|
-    error: unclosed `{`
+    error: unclosed delimiter
       at <test>:1:10
         func f() { let s = "oops
                  ^
@@ -254,15 +254,15 @@ let%expect_test "parse: recover, repeated incomplete unary plus" =
 }|};
   [%expect
     {|
-    error: expected expression after `+`
+    error: expected expression
       at <test>:2:10
           return +
                  ^
-    error: expected expression after `+`
+    error: expected expression
       at <test>:3:10
           return +
                  ^
-    error: expected expression after `+`
+    error: expected expression
       at <test>:4:10
           return +
                  ^
@@ -283,15 +283,15 @@ let%expect_test "parse: recover, repeated incomplete binary plus" =
 }|};
   [%expect
     {|
-    error: expected expression after `+`
+    error: expected expression
       at <test>:2:12
           return 1 +
                    ^
-    error: expected expression after `+`
+    error: expected expression
       at <test>:3:12
           return 2 +
                    ^
-    error: expected expression after `+`
+    error: expected expression
       at <test>:4:12
           return 3 +
                    ^
@@ -500,11 +500,11 @@ let%expect_test "parse: recover incomplete cast operators" =
   run_parse src;
   [%expect
     {|
-    error: expected type after `as`
+    error: expected type
       at <test>:2:12
           return 1 as
                    ^~
-    error: expected type after `as!`
+    error: expected type
       at <test>:3:12
           return 2 as!
                    ^~~
@@ -525,31 +525,31 @@ let%expect_test "parse: recover operators across statement forms" =
   run_parse src;
   [%expect
     {|
-    error: expected expression after `*`
+    error: expected expression
       at <test>:2:8
           if 1 *
                ^
-    error: expected expression after `+`
+    error: expected expression
       at <test>:3:11
           let a = +
                   ^
-    error: expected expression after `-`
+    error: expected expression
       at <test>:4:18
           comptime b = 1 -
                          ^
-    error: expected expression after `!`
+    error: expected expression
       at <test>:5:11
           var c = !
                   ^
-    error: expected expression after `/`
+    error: expected expression
       at <test>:6:11
           while 2 /
                   ^
-    error: expected expression after `%`
+    error: expected expression
       at <test>:7:14
           for x in 3 %
                      ^
-    error: expected expression after `==`
+    error: expected expression
       at <test>:8:12
           return 4 ==
                    ^~
@@ -757,7 +757,7 @@ let%expect_test "parse: array missing size" =
   run_src "func f(a: [xyz]i32) {}";
   [%expect
     {|
-    error: undefined variable: xyz
+    error: undefined variable
       at <test>:1:12
         func f(a: [xyz]i32) {}
                    ^~~
@@ -930,10 +930,10 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: expected `}`
+    error: mismatched delimiter
       at <test>:1:12
         func f() { ) }
-                   ^ found )
+                   ^ expected `}`
       at <test>:1:10
         func f() { ) }
                  ^ unclosed `{`
@@ -1187,7 +1187,7 @@ let%expect_test "parse: block expression needs a trailing value" =
   run_src "func f() i32 {\n  let x = { var a = 1 }\n  return x\n}";
   [%expect
     {|
-    error: cannot bind void value: x
+    error: cannot bind void value
       at <test>:2:11
           let x = { var a = 1 }
                   ^~~~~~~~~~~~~
@@ -1202,7 +1202,7 @@ let%expect_test "parse: if expression needs an else branch" =
   run_src "func f() i32 {\n  let x = if true { 1 }\n  return x\n}";
   [%expect
     {|
-    error: cannot bind void value: x
+    error: cannot bind void value
       at <test>:2:11
           let x = if true { 1 }
                   ^~~~~~~~~~~~~
@@ -1257,10 +1257,10 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
   run_src "func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }";
   [%expect
     {|
-    error: expected `)`
+    error: mismatched delimiter
       at <test>:1:59
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                                                  ^ found }
+                                                                  ^ expected `)`
       at <test>:1:28
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
                                    ^ unclosed `(`
@@ -1270,10 +1270,10 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
   run_src "func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
   [%expect
     {|
-    error: expected `]`
+    error: mismatched delimiter
       at <test>:1:48
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                                       ^ found }
+                                                       ^ expected `]`
       at <test>:1:39
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
                                               ^ unclosed `[`
@@ -1283,33 +1283,33 @@ let%expect_test "parse: stray closing paren with nothing open" =
   run_src ")";
   [%expect
     {|
-                 error: unexpected closing delimiter
-                   at <test>:1:1
-                     )
-                     ^ found )
-                 error: expected declaration
-                   at <test>:1:1
-                     )
-                     ^ found )
-                 |}]
+    error: unexpected closing delimiter
+      at <test>:1:1
+        )
+        ^
+    error: expected declaration
+      at <test>:1:1
+        )
+        ^ found )
+    |}]
 
 let%expect_test "parse: multiple unclosed delimiters at eof" =
   run_src "func f() { ( [";
   [%expect
     {|
-                              error: unclosed `{`
-                                at <test>:1:10
-                                  func f() { ( [
-                                           ^
-                              error: unclosed `(`
-                                at <test>:1:12
-                                  func f() { ( [
-                                             ^
-                              error: unclosed `[`
-                                at <test>:1:14
-                                  func f() { ( [
-                                               ^
-                              |}]
+    error: unclosed delimiter
+      at <test>:1:10
+        func f() { ( [
+                 ^
+    error: unclosed delimiter
+      at <test>:1:12
+        func f() { ( [
+                   ^
+    error: unclosed delimiter
+      at <test>:1:14
+        func f() { ( [
+                     ^
+    |}]
 
 let%expect_test "parse: spans from different files are distinct" =
   let src = "func f() {}" in

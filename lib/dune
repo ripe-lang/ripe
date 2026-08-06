@@ -6,7 +6,6 @@
   ast
   source_map
   diagnostic
-  error
   tokens
   lexer
   bracket_check

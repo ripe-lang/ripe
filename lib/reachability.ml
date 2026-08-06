@@ -16,8 +16,12 @@ and expr_has_break (e : expr) : bool =
   | Break -> true
   | Block body -> loop_has_break body
   | If (branches, else_body) ->
-      Option.fold ~none:false ~some:loop_has_break else_body
-      || List.exists (fun (_, b) -> loop_has_break b) branches
+      Option.fold ~none:false
+        ~some:(fun { Ast.value = b; _ } -> loop_has_break b)
+        else_body
+      || List.exists
+           (fun (_, { Ast.value = b; _ }) -> loop_has_break b)
+           branches
   (* A break can hide in a value if that a binding or return holds *)
   | Binding (_, _, _, _, init) ->
       Option.fold ~none:false ~some:expr_has_break init

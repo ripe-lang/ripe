@@ -1,4 +1,4 @@
-error: already defined: value
+error: already defined
   at main.rp:3:3
       func value() i32 { 2 }
       ^~~~~~~~~~~~~~~~~~~~~~

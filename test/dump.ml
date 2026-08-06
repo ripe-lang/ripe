@@ -51,7 +51,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
-  | FieldAccess (e, f) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
+  | FieldAccess (e, f, _) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
   | Cast (e, t, kind) ->
       "(" ^ Ripe.Ast.show_cast_op kind ^ " " ^ dump_expr e ^ " " ^ dump_typ t
       ^ ")"
@@ -72,10 +72,14 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | Block body -> dump_block body
   | If (branches, else_body) ->
-      let arm (c, body) = "(" ^ dump_expr c ^ " " ^ dump_block body ^ ")" in
+      let arm (c, body) =
+        "(" ^ dump_expr c ^ " " ^ dump_block body.Ripe.Ast.value ^ ")"
+      in
       "(if "
       ^ String.concat " " (List.map arm branches)
-      ^ (match else_body with Some b -> " " ^ dump_block b | None -> "")
+      ^ (match else_body with
+        | Some b -> " " ^ dump_block b.Ripe.Ast.value
+        | None -> "")
       ^ ")"
   | While (c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
   | For (name, _, iter, body) ->

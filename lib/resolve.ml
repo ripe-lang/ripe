@@ -16,6 +16,7 @@ type t = {
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
   imports : (Symbol.module_id * string list, scope) Hashtbl.t;
+  failed_imports : (Symbol.module_id * string list, unit) Hashtbl.t;
   prelude : scope;
   mutable local_decls : Ast.decl list;
 }
@@ -34,7 +35,7 @@ type state = {
 }
 
 type resolved_program = { uses : t; decls : Ast.decl list }
-type qualified = Local | Found of Symbol.t | Missing of string
+type qualified = Local | Found of Symbol.t | Missing of string list * string
 
 let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
   {
@@ -46,6 +47,7 @@ let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
     visibility = Symbol.Public;
     entry_point = false;
     span = Ast.dummy_span;
+    name_span = Ast.dummy_span;
   }
 
 let new_scope (parent : scope option) : scope =
@@ -69,6 +71,7 @@ let make_output (modules : int) : t =
       module_paths = Hashtbl.create modules;
       file_modules = Hashtbl.create modules;
       imports = Hashtbl.create modules;
+      failed_imports = Hashtbl.create modules;
       prelude;
       local_decls = [];
     }
@@ -91,7 +94,7 @@ let dump (r : t) : string =
 let sym_at (r : t) (span : Ast.span) : Symbol.t =
   match Hashtbl.find_opt r.syms span with
   | Some s -> s
-  | None -> Error.ice ~span "no symbol resolved here"
+  | None -> Diagnostic.ice ~span "no symbol resolved here"
 
 let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
   Hashtbl.find_opt r.syms span
@@ -131,7 +134,7 @@ let declaration_link_name (st : state) (kind : Symbol.kind) (name : string) :
     | Symbol.Extern -> name
     | _ -> Mangle.declaration st.module_path name
 
-let mint ?(visibility = Symbol.Private) ?link_name (st : state)
+let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
     (kind : Symbol.kind) (name : string) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
   st.next_id <- id + 1;
@@ -146,6 +149,7 @@ let mint ?(visibility = Symbol.Private) ?link_name (st : state)
       visibility;
       entry_point = is_entry st kind name;
       span;
+      name_span = Option.value ~default:span name_span;
     }
   in
   Hashtbl.replace st.out.syms span sym;
@@ -161,24 +165,27 @@ let pop_scope (st : state) =
 let declare_local (st : state) kind name span : unit =
   Hashtbl.replace st.scope.values name (mint st kind name span)
 
-let declare_in ?link_name (table : (string, Symbol.t) Hashtbl.t) (st : state)
-    (kind : Symbol.kind) (visibility : Symbol.visibility) (name : string)
-    (span : Ast.span) : unit =
+let declare_in ?link_name ?name_span (table : (string, Symbol.t) Hashtbl.t)
+    (st : state) (kind : Symbol.kind) (visibility : Symbol.visibility)
+    (name : string) (span : Ast.span) : unit =
   match Hashtbl.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
-        (Error.redefinition span ~prev:prev.Symbol.span name)
+        (Diagnostic.redefinition
+           (Option.value ~default:span name_span)
+           ~prev:prev.Symbol.name_span)
   | None ->
       let link_name =
         Option.value ~default:(declaration_link_name st kind name) link_name
       in
-      Hashtbl.replace table name (mint ~visibility ~link_name st kind name span)
+      Hashtbl.replace table name
+        (mint ~visibility ~link_name ?name_span st kind name span)
 
-let declare_global (st : state) kind visibility name span : unit =
-  declare_in st.top.values st kind visibility name span
+let declare_global ?name_span (st : state) kind visibility name span : unit =
+  declare_in ?name_span st.top.values st kind visibility name span
 
-let declare_type (st : state) visibility name span : unit =
-  declare_in st.top.types st Symbol.Type visibility name span
+let declare_type ?name_span (st : state) visibility name span : unit =
+  declare_in ?name_span st.top.types st Symbol.Type visibility name span
 
 let declare_local_type (st : state) name span : unit =
   declare_in st.scope.types st Symbol.LocalType Symbol.Private name span
@@ -248,8 +255,8 @@ let captured_value (st : state) (name : string) : Symbol.t option =
 
 let missing_value (st : state) ~(what : string) name span : Diagnostic.t =
   match captured_value st name with
-  | Some _ -> Error.named span "local function cannot capture variable" name
-  | None -> Error.undefined_name span what name
+  | Some _ -> Diagnostic.error_at span "local function cannot capture variable"
+  | None -> Diagnostic.undefined_name span what
 
 (* The name comes off the symbol not off the spelling at the use site *)
 let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
@@ -257,9 +264,8 @@ let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
     sym.Symbol.module_id <> st.module_id
     && sym.Symbol.visibility = Symbol.Private
   then
-    let shown = Qname.show_in st.module_path (qname_of st.out sym) in
     Diagnostic.emit st.diags
-      (Error.named span "private declaration" shown
+      (Diagnostic.error_at span "private declaration"
       |> Diagnostic.secondary sym.Symbol.span "declared private here")
 
 let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
@@ -281,6 +287,9 @@ let find_module (st : state) (path : string list) : scope option =
           Hashtbl.find_opt st.out.imports (st.module_id, path)
       | Some _ | None -> None)
 
+let failed_import (st : state) (path : string list) : bool =
+  Hashtbl.mem st.out.failed_imports (st.module_id, path)
+
 (* math.Vec goes through the import and Vec walks out to the builtins *)
 let find_type (st : state) (path : string list) (name : string) :
     Symbol.t option =
@@ -295,7 +304,8 @@ let use_type (st : state) (path : string list) (name : string) (span : Ast.span)
   | Some sym -> use_symbol st span sym
   | None ->
       let shown = Ast.show_named path name in
-      Diagnostic.emit st.diags (Error.undefined_name span "type" shown);
+      if not (failed_import st path) then
+        Diagnostic.emit st.diags (Diagnostic.undefined_name span "type");
       ignore (mint st Symbol.Error shown span)
 
 (* The typechecker already reports an unknown struct literal *)
@@ -316,14 +326,14 @@ let declare_param (st : state) (p : param) : unit =
   match Hashtbl.find_opt st.scope.values p.param_name with
   | Some prev ->
       Diagnostic.emit st.diags
-        (Error.redefinition p.param_span ~prev:prev.Symbol.span p.param_name);
+        (Diagnostic.redefinition p.param_span ~prev:prev.Symbol.span);
       Hashtbl.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
 let rec access_path (e : expr) : string list option =
   match e.desc with
   | Ident name -> Some [ name ]
-  | FieldAccess (inner, name) ->
+  | FieldAccess (inner, name, _) ->
       Option.map (fun path -> path @ [ name ]) (access_path inner)
   | _ -> None
 
@@ -336,7 +346,7 @@ let qualified_use (st : state) (e : expr) : qualified =
       | Some scope -> (
           match Hashtbl.find_opt scope.values member with
           | Some sym -> Found sym
-          | None -> Missing (String.concat "." (module_path @ [ member ]))))
+          | None -> Missing (module_path, member)))
 
 let use_qualified (st : state) ~(what : string) (e : expr) : bool =
   match qualified_use st e with
@@ -344,10 +354,15 @@ let use_qualified (st : state) ~(what : string) (e : expr) : bool =
   | Found sym ->
       use_symbol st e.span sym;
       true
-  | Missing name ->
-      Diagnostic.emit st.diags (Error.undefined_name e.span what name);
+  | Missing (module_path, member) ->
+      (* The import already failed so every name under it would say the same thing twice *)
+      if not (failed_import st module_path) then
+        Diagnostic.emit st.diags (Diagnostic.undefined_name e.span what);
       (* The stages after this read a symbol back off every span they walk *)
-      ignore (mint st Symbol.Error name e.span);
+      ignore
+        (mint st Symbol.Error
+           (String.concat "." (module_path @ [ member ]))
+           e.span);
       true
 
 let rec resolve_expr (st : state) (e : expr) : unit =
@@ -369,7 +384,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Range (l, r) | RangeInclusive (l, r) ->
       resolve_expr st l;
       resolve_expr st r
-  | FieldAccess (inner, _) ->
+  | FieldAccess (inner, _, _) ->
       if not (use_qualified st ~what:"variable" e) then resolve_expr st inner
   | Cast (inner, ty, _) ->
       resolve_expr st inner;
@@ -386,11 +401,11 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Block body -> resolve_block st body
   | If (branches, else_body) ->
       List.iter
-        (fun (cond, body) ->
+        (fun (cond, { Ast.value = body; _ }) ->
           resolve_expr st cond;
           resolve_block st body)
         branches;
-      Option.iter (resolve_block st) else_body
+      Option.iter (fun { Ast.value = b; _ } -> resolve_block st b) else_body
   | While (cond, body) ->
       resolve_expr st cond;
       resolve_block st body
@@ -505,21 +520,21 @@ let declare_decls (st : state) (decls : decl list) : unit =
   List.iter
     (function
       | Func fd ->
-          declare_global st Symbol.Func
+          declare_global ~name_span:fd.func_name_span st Symbol.Func
             (visibility fd.func_modifiers)
             fd.func_name fd.func_span
       | Extern fd ->
-          declare_global st Symbol.Extern Symbol.Private fd.func_name
-            fd.func_span
+          declare_global ~name_span:fd.func_name_span st Symbol.Extern
+            Symbol.Private fd.func_name fd.func_span
       | Global gd ->
-          declare_global st Symbol.Global (visibility gd.modifiers) gd.name
-            gd.span
+          declare_global ~name_span:gd.name_span st Symbol.Global
+            (visibility gd.modifiers) gd.name gd.span
       | Struct sd ->
-          declare_type st
+          declare_type ~name_span:sd.struct_name_span st
             (visibility sd.struct_modifiers)
             sd.struct_name sd.struct_span
       | TypeAlias td | Newtype td ->
-          declare_type st
+          declare_type ~name_span:td.alias_name_span st
             (visibility td.alias_modifiers)
             td.alias_name td.alias_span)
     decls
@@ -559,6 +574,12 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
          ~module_path:module_.Program.path ~qualify:true ~is_root)
   in
   (* The scope is shared so an import sees names declared after this *)
+  let failed_ids = Hashtbl.create count in
+  Array.iter
+    (fun (module_ : Program.module_) ->
+      if module_.Program.failed then
+        Hashtbl.replace failed_ids module_.Program.module_id ())
+    program.Program.modules;
   let link_imports (module_ : Program.module_) =
     let st = state_of module_ in
     let bind (dependency : Program.dependency) =
@@ -570,11 +591,15 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
           match Hashtbl.find_opt st.top.values name with
           | Some prev ->
               Diagnostic.emit st.diags
-                (Error.redefinition import.Ast.span ~prev:prev.Symbol.span name)
+                (Diagnostic.redefinition import.Ast.span ~prev:prev.Symbol.span)
           | None ->
               Hashtbl.replace out.imports
                 (module_.Program.module_id, [ name ])
                 target.top;
+              if Hashtbl.mem failed_ids dependency.Program.target then
+                Hashtbl.replace out.failed_imports
+                  (module_.Program.module_id, [ name ])
+                  ();
               Hashtbl.replace st.top.values name
                 (mint st Symbol.Module name import.Ast.span))
     in
