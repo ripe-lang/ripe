@@ -53,9 +53,9 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TPairAssign _ | T.TLocalDecl -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
-let rec root_binding (te : T.texpr) : Symbol.t option =
+let rec root_lvalue (te : T.texpr) : T.texpr option =
   match te.T.desc with
-  | T.TIdent s -> Some s
+  | T.TIdent _ -> Some te
   | T.TFieldAccess (base, _) -> root_through base
   | T.TIndex (base, _) -> root_through base
   | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
@@ -68,10 +68,15 @@ let rec root_binding (te : T.texpr) : Symbol.t option =
   | T.TPairAssign _ | T.TLocalDecl -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
-and root_through (base : T.texpr) : Symbol.t option =
+and root_through (base : T.texpr) : T.texpr option =
   match strip_alias base.T.ty with
   | TPointer _ | TSlice _ -> None
-  | _ -> root_binding base
+  | _ -> root_lvalue base
+
+let root_binding (te : T.texpr) : Symbol.t option =
+  match root_lvalue te with
+  | Some { T.desc = T.TIdent s; _ } -> Some s
+  | Some _ | None -> None
 
 let is_numeric t =
   match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false

@@ -6,11 +6,11 @@
   "id": "dc57",
   "priority": "medium",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "bug",
     "medium"
   ],
   "title": "Diagnose writes to by value aggregate parameters",
-  "updated_at": "2026-08-02 00:55:03.287920"
+  "updated_at": "2026-08-06 00:11:16.956227"
 }
