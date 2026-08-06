@@ -6,11 +6,11 @@
   "id": "d6a4",
   "priority": "low",
   "source": "",
-  "status": "open",
+  "status": "resolved",
   "tags": [
     "bug",
     "low"
   ],
   "title": "Respect struct alignment in allocation",
-  "updated_at": "2026-08-02 00:55:03.696536"
+  "updated_at": "2026-08-06 01:14:51.295032"
 }
