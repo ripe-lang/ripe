@@ -1,0 +1,13 @@
+func main() i32 {
+  let first = {
+    func value() i32 { 8 }
+    value()
+  }
+
+  let second = {
+    func value() i32 { 10 }
+    value()
+  }
+
+  return first + second
+}

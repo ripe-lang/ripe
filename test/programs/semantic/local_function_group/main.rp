@@ -1,0 +1,19 @@
+func main() i32 {
+  func first(value: i32) i32 {
+    second(value)
+  }
+
+  func second(value: i32) i32 {
+    third(value)
+  }
+
+  func third(value: i32) i32 {
+    fourth(value)
+  }
+
+  func fourth(value: i32) i32 {
+    value + 1
+  }
+
+  return first(13)
+}

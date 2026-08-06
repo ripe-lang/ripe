@@ -100,6 +100,8 @@ and dump_block (body : Ripe.Ast.block) : string =
     | Decl (LocalStruct sd) -> "(local struct " ^ sd.struct_name ^ ")"
     | Decl (LocalTypeAlias td) -> "(local type " ^ td.alias_name ^ ")"
     | Decl (LocalNewtype td) -> "(local newtype " ^ td.alias_name ^ ")"
+    | Decl (LocalFunc fd) ->
+        "(local func " ^ fd.func_name ^ " " ^ dump_block fd.body ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 

@@ -1,0 +1,4 @@
+func main() i32 {
+  return 23
+  func unused() i32 { 0 }
+}

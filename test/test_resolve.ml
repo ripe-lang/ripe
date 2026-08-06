@@ -4,7 +4,7 @@ open Span_utils
 open Pipeline
 
 let decl_name_span = function
-  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.name, fd.span)
+  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.func_name, fd.func_span)
   | Ripe.Ast.Struct sd -> (sd.struct_name, sd.struct_span)
   | Ripe.Ast.Global gd -> (gd.name, gd.span)
   | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.alias_name, td.alias_span)
@@ -580,7 +580,7 @@ pub func main() {}
   let show (decl : Ripe.Ast.decl) =
     match decl with
     | Ripe.Ast.Func fd ->
-        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.span in
+        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.func_span in
         Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
           sym.Ripe.Symbol.link_name
     | _ -> ()
@@ -589,6 +589,29 @@ pub func main() {}
   [%expect {|
     main -> main
     main -> _R4math4main
+    |}]
+
+let%expect_test "resolve: a local function may call a later sibling" =
+  run_src
+    {|func f() i32 {
+  func first(x: i32) i32 { second(x) }
+  func second(x: i32) i32 { x + 1 }
+  first(4)
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a local function cannot capture a variable" =
+  run_src {|func f() i32 {
+  let x = 4
+  func read() i32 { x }
+  read()
+}|};
+  [%expect
+    {|
+    error: local function cannot capture variable: x
+      at <test>:3:21
+          func read() i32 { x }
+                            ^
     |}]
 
 let%expect_test "resolve: a local declaration stays in its block" =
@@ -602,4 +625,20 @@ let%expect_test "resolve: a local declaration stays in its block" =
       at <test>:3:10
           let x: Coord = 1
                  ^~~~~
+    |}]
+
+let%expect_test "resolve: a captured variable shadows a module function" =
+  run_src
+    {|func x() i32 { 7 }
+func outer() i32 {
+  let x = 1
+  func inner() i32 { x() }
+  inner()
+}|};
+  [%expect
+    {|
+    error: local function cannot capture variable: x
+      at <test>:4:22
+          func inner() i32 { x() }
+                             ^
     |}]

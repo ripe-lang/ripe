@@ -1315,7 +1315,7 @@ let%expect_test "parse: spans from different files are distinct" =
   let src = "func f() {}" in
   let first_span file =
     match parse ~file src with
-    | Ripe.Ast.Func fd :: _ -> fd.span
+    | Ripe.Ast.Func fd :: _ -> fd.func_span
     | _ -> failwith "expected a function"
   in
   Printf.printf "%b" (first_span 0 = first_span 1);
@@ -1470,12 +1470,14 @@ let%expect_test "parse: declarations may appear in a block" =
   type Coord = i32
   newtype Score = i32
   struct Point { x: Coord }
+  func read(p: Point) Coord { p.x }
 }|}
    with
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
   [%expect
-    {| (block (local type Coord) (local newtype Score) (local struct Point)) |}]
+    {|
+    (block (local type Coord) (local newtype Score) (local struct Point) (local func read (block (. p x)))) |}]
 
 let%expect_test "parse: pub on a local declaration is accepted" =
   run_src {|func f() {

@@ -135,6 +135,22 @@ type byte = u8
 newtype Celsius = f32
 ```
 
+### Local declarations
+
+```ripe
+func distance() i32 {
+  struct Point { x: i32, y: i32 }
+  type Coord = i32
+
+  func add(left: Coord, right: Coord) Coord {
+    left + right
+  }
+
+  let point = Point { x: 3, y: 4 }
+  add(point.x, point.y)
+}
+```
+
 ### Pointers
 
 ```ripe

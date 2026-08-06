@@ -1,0 +1,7 @@
+error: already defined: value
+  at main.rp:3:3
+      func value() i32 { 2 }
+      ^~~~~~~~~~~~~~~~~~~~~~
+  at main.rp:2:3
+      func value() i32 { 1 }
+      ^~~~~~~~~~~~~~~~~~~~~~ previous definition here

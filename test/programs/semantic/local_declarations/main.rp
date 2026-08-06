@@ -1,0 +1,29 @@
+func main() i32 {
+  let first = {
+    let p = Point { x: 3 }
+    struct Point { x: i32 }
+    p.x
+  }
+
+  let second = {
+    struct Point { x: i32, y: i32 }
+    let p = Point { x: 1, y: 5 }
+    p.y
+  }
+
+  func add(x: Coord, y: Coord) Coord {
+    plus(x, y)
+  }
+
+  func plus(x: Coord, y: Coord) Coord {
+    x + y
+  }
+
+  func count(n: Coord) Coord {
+    if n == 0 { 0 } else { 1 + count(n - 1) }
+  }
+
+  type Coord = i32
+  let offset: Coord = 4
+  return add(first + second, offset) + count(3)
+}
