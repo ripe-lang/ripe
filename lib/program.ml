@@ -16,6 +16,7 @@ type module_ = {
   path : string list;
   units : unit_ list;
   dependencies : dependency list;
+  failed : bool;
 }
 
 type t = {
@@ -143,7 +144,7 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   match unit_.ast.Ast.header with
   | Some header when header.Ast.name <> expected ->
       let wrong =
-        Error.named header.Ast.span "module name mismatch" header.Ast.name
+        Diagnostic.simple header.Ast.span "module name mismatch"
         |> Diagnostic.label ("expected " ^ expected)
       in
       (* A header naming its own directory means the import went too deep *)
@@ -157,8 +158,9 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   | Some _ -> ()
   | None when merged ->
       Diagnostic.emit diags
-        (Diagnostic.error ("missing `module " ^ expected ^ "` header")
+        (Diagnostic.error "missing module header"
         |> Diagnostic.at (Span.make unit_.source.file_id 0 0)
+        |> Diagnostic.label ("expected `module " ^ expected ^ "`")
         |> Diagnostic.help
              "every file beside a module header needs the same header")
   | None -> ()
@@ -198,8 +200,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         let module_id = fresh_module_id () in
         (* The ID comes first because an import can lead right back here *)
         Hashtbl.add states path (Loading module_id);
-        let record units dependencies =
-          let module_ = { module_id; path; units; dependencies } in
+        let record ?(failed = false) units dependencies =
+          let module_ = { module_id; path; units; dependencies; failed } in
           Hashtbl.replace states path (Loaded module_);
           modules := module_ :: !modules;
           module_id
@@ -214,7 +216,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
               source_map = Source_map.create "";
             }
           in
-          record [ { source; ast = empty_ast } ] []
+          record ~failed:true [ { source; ast = empty_ast } ] []
         in
         let read_unit filename =
           let src = read_file filename in
@@ -264,10 +266,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           | Some _ -> locate_module ~read_file ~list_dir source_root path
         in
         match located with
-        | Not_found -> missing ("module not found: " ^ show_module_path path)
-        | Clash ->
-            missing
-              ("module is both a file and a directory: " ^ show_module_path path)
+        | Not_found -> missing "module not found"
+        | Clash -> missing "module is both a file and a directory"
         | Single filename -> load_units false [ filename ]
         | Merged filenames -> load_units true filenames)
   in
@@ -285,6 +285,6 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
   let root_source =
     match root.units with
     | unit_ :: _ -> unit_.source
-    | [] -> Error.ice ("module has no units: " ^ show_module_path root.path)
+    | [] -> Diagnostic.ice ("module has no units: " ^ show_module_path root.path)
   in
   { root; root_source; modules }
