@@ -1107,7 +1107,9 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
 
   let is_main = tfd.T.entry_point && tfd.T.ret_ty = TInt I32 in
   ctx.in_main := is_main;
-  let export_part = if is_main then "export " else "" in
+  let export_part =
+    if is_main || List.mem Ast.Pub tfd.T.modifiers then "export " else ""
+  in
   let ret_part =
     match tfd.T.ret_ty with
     | TVoid | TNever -> ""
@@ -1237,19 +1239,20 @@ let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
 
 let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
   let align = ty_align ctx.structs gd.T.ty in
+  let ex = if List.mem Ast.Pub gd.T.modifiers then "export " else "" in
   match gd.T.init with
   | None ->
       let size = ty_size ctx.structs gd.T.ty in
-      emit ctx "data $%s = align %d { z %d }\n" gd.T.name align size
+      emit ctx "%sdata $%s = align %d { z %d }\n" ex gd.T.name align size
   | Some te -> (
       match resolve_ty gd.T.ty with
       | TArray _ | TStruct _ ->
-          emit ctx "data $%s = align %d { %s }\n" gd.T.name align
+          emit ctx "%sdata $%s = align %d { %s }\n" ex gd.T.name align
             (const_array_fields ctx te)
       | _ ->
           let letter = qbe_ext_ty (qbe_struct_name ctx) gd.T.ty in
           let value = fold_const_value ctx te in
-          emit ctx "data $%s = align %d { %s %s }\n" gd.T.name align letter
+          emit ctx "%sdata $%s = align %d { %s %s }\n" ex gd.T.name align letter
             value)
 
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =

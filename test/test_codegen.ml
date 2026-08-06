@@ -4449,3 +4449,29 @@ func spin() never { exit(3) }
         hlt
     }
     |}]
+
+let%expect_test "codegen: pub exports functions and globals" =
+  run_codegen
+    {|
+pub let counter: i32 = 7
+let hidden: i32 = 1
+pub func answer() i32 { return counter }
+func helper() i32 { return hidden }
+|};
+  [%expect
+    {|
+    export data $counter = align 4 { w 7 }
+    data $hidden = align 4 { w 1 }
+
+    export function w $answer() {
+    @start
+        %t0 =w loadsw $counter
+        ret %t0
+    }
+
+    function w $helper() {
+    @start
+        %t0 =w loadsw $hidden
+        ret %t0
+    }
+    |}]

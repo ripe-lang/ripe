@@ -262,6 +262,7 @@ let lower_global (g : S.tglobal_def) : D.cglobal_def =
     ty = g.S.ty;
     init = Option.map lower_expr g.S.init;
     kind = g.S.kind;
+    modifiers = g.S.modifiers;
   }
 
 let lower_decl (d : S.tdecl) : D.cdecl =

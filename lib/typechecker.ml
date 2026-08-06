@@ -1656,6 +1656,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     ty = t;
     init = tinit;
     kind = gd.kind;
+    modifiers = gd.modifiers;
   }
 
 let typed_struct_decl (env : env) (sd : struct_def) (fields : ty list) : T.tdecl

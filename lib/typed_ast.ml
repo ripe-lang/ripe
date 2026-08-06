@@ -69,6 +69,7 @@ type tglobal_def = {
   ty : ty;
   init : texpr option;
   kind : Ast.binding_kind;
+  modifiers : Ast.modifier list;
 }
 [@@deriving show { with_path = false }]
 
