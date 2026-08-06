@@ -4114,3 +4114,21 @@ let%expect_test "typecheck: write through a pointer parameter" =
 let%expect_test "typecheck: write to a copy of an array parameter" =
   run_src "func f(a: [3]i32) { var local: [3]i32 = a; local[0] = 9 }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: discarded if arms need not agree" =
+  run_src
+    "extern func printf(fmt: *i8, ...) i32\n\
+     func f() { if true { printf(\"x\") } else {} }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: if arms still agree where the value is used" =
+  run_src
+    "extern func printf(fmt: *i8, ...) i32\n\
+     func f() i32 { let x = if true { printf(\"x\") } else {}; return x }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:53
+        func f() i32 { let x = if true { printf("x") } else {}; return x }
+                                                            ^~ expected i32, found void
+    |}]

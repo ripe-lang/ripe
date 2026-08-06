@@ -520,10 +520,18 @@ and check_value_for_use (env : env) (e : expr) : result_use -> T.texpr =
   function
   | Infer -> synth env e
   | Expect want -> check env e want
-  | Discard ->
-      let te = synth env e in
-      warn_discarded_operation env e te;
-      te
+  | Discard -> (
+      match e.desc with
+      (* Nothing reads the result so the arms have no reason to agree *)
+      | If (branches, else_body) ->
+          {
+            (check_if_discarded env e.span branches else_body) with
+            T.span = e.span;
+          }
+      | _ ->
+          let te = synth env e in
+          warn_discarded_operation env e te;
+          te)
 
 (* Thread env so a binding is visible to later elements *)
 and check_block (env : env) (span : Ast.span) (body : block) (use : result_use)
@@ -657,6 +665,29 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
   let final_inner, tb = check_block inner span body Discard in
   warn_unused_in_scope final_inner;
   T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
+
+(* An arm can end in a call whose value nobody wanted so each one is checked on its own *)
+and check_if_discarded (env : env) (span : Ast.span)
+    (branches : (expr * block Ast.spanned) list)
+    (else_body : block Ast.spanned option) : T.texpr =
+  let arm body = fst (check_scoped_block env span body Discard false) in
+  let tbranches =
+    List.map
+      (fun (c, { Ast.value = body; _ }) -> (check env c TBool, arm body))
+      branches
+  in
+  let telse = Option.map (fun { Ast.value = body; _ } -> arm body) else_body in
+  let arm_tys =
+    (match telse with Some tb -> [ tblock_ty tb ] | None -> [])
+    @ List.map (fun (_, tb) -> tblock_ty tb) tbranches
+  in
+  (* Every arm diverges so whatever follows is unreachable *)
+  let ty =
+    if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys then
+      TNever
+    else TVoid
+  in
+  T.mk ty (T.TIf (tbranches, telse))
 
 (* One if handles both a value and a plain statement and want None means synthesize *)
 and check_if (env : env) (span : Ast.span)
