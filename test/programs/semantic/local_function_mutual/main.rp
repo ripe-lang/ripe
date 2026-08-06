@@ -1,0 +1,11 @@
+func main() i32 {
+  func first(value: i32) i32 {
+    if value == 0 { 17 } else { second(value - 1) }
+  }
+
+  func second(value: i32) i32 {
+    if value == 0 { 17 } else { first(value - 1) }
+  }
+
+  return first(4)
+}

@@ -71,7 +71,7 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
 let show_ty (env : env) (t : ty) : string = Types.show_ty_in env.reader_path t
 
 let decl_span : decl -> Ast.span = function
-  | Func fd | Extern fd -> fd.span
+  | Func fd | Extern fd -> fd.func_span
   | Global gd -> gd.span
   | Struct sd -> sd.struct_span
   | TypeAlias td | Newtype td -> td.alias_span
@@ -152,7 +152,8 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
 (* A local is only visible where it was written so its module is noise *)
 let symbol_name (env : env) (symbol : Symbol.t) : string =
   match symbol.Symbol.kind with
-  | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> symbol.Symbol.name
+  | Symbol.LocalFunc | Symbol.Local _ | Symbol.Param | Symbol.ForVar ->
+      symbol.Symbol.name
   | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.Type | Symbol.LocalType
   | Symbol.Module | Symbol.Error ->
       Qname.show_in env.reader_path (Resolve.qname_of env.uses symbol)
@@ -1304,13 +1305,15 @@ and eval_array_size (env : env) (e : expr) : int =
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some t -> return_ty_of_ast env t
-  | None -> if is_entry env fd.span then TInt I32 else TVoid
+  | None -> if is_entry env fd.func_span then TInt I32 else TVoid
 
 (* First pass collecting signatures so that the compiler can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
-  let param_tys = List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params in
+  let param_tys =
+    List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
+  in
   let ret_ty = ret_ty_of env fd in
-  Hashtbl.replace env.funcs (key_at env fd.span)
+  Hashtbl.replace env.funcs (key_at env fd.func_span)
     { param_tys; ret_ty; variadic = fd.variadic }
 
 (* A repeat name is already reported with both spans by the resolver *)
@@ -1497,14 +1500,16 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* The collected signature is reused so a bad array size errors once *)
-  let collected = Hashtbl.find_opt env.funcs (key_at env fd.span) in
+  let collected = Hashtbl.find_opt env.funcs (key_at env fd.func_span) in
   let param_tys =
     match collected with
     | Some s when List.length s.param_tys = List.length fd.params -> s.param_tys
-    | _ -> List.map (fun (p : param) -> ty_of_ast env p.typ) fd.params
+    | _ -> List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
   let params_typed =
-    List.map2 (fun (p : param) t -> (p.name, t, p.span)) fd.params param_tys
+    List.map2
+      (fun (p : param) t -> (p.param_name, t, p.param_span))
+      fd.params param_tys
   in
   let params = List.map (fun (_, t, span) -> (sym env span, t)) params_typed in
 
@@ -1513,15 +1518,15 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   in
 
   (* Main always returns a 32 bit integer so any other type the user writes is rejected *)
-  if is_entry env fd.span && ret_ty <> TError && ret_ty <> TInt I32 then begin
-    let span = match fd.ret with Some t -> t.tspan | None -> fd.span in
+  if is_entry env fd.func_span && ret_ty <> TError && ret_ty <> TInt I32 then begin
+    let span = match fd.ret with Some t -> t.tspan | None -> fd.func_span in
     emit env
       (Error.type_mismatch span ~expected:(show_ty env (TInt I32))
          ~found:(show_ty env ret_ty))
   end;
 
   let func_env =
-    push_scope { env with ret_ty; in_main = is_entry env fd.span }
+    push_scope { env with ret_ty; in_main = is_entry env fd.func_span }
   in
   (* An extern has no body so its params can't be used and stay quiet *)
   let param_env =
@@ -1532,10 +1537,10 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   (* A non-void body's trailing value is its return value so it flows against the declared return type while main and void bodies just run for effect *)
   let implicit_return =
-    (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.span)
+    (not is_extern) && ret_ty <> TVoid && not (is_entry env fd.func_span)
   in
   let body_use = if implicit_return then Expect ret_ty else Discard in
-  let final_env, tbody0 = check_block param_env fd.span fd.body body_use in
+  let final_env, tbody0 = check_block param_env fd.func_span fd.body body_use in
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
@@ -1547,13 +1552,13 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   in
 
   {
-    T.key = key_at env fd.span;
-    name = link_name_at env fd.span fd.name;
-    entry_point = is_entry env fd.span;
+    T.key = key_at env fd.func_span;
+    name = link_name_at env fd.func_span fd.func_name;
+    entry_point = is_entry env fd.func_span;
     params;
     ret_ty;
     body = tbody;
-    modifiers = fd.modifiers;
+    modifiers = fd.func_modifiers;
     variadic = fd.variadic;
   }
 

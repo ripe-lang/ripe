@@ -1,0 +1,11 @@
+func main() i32 {
+  func outer(value: i32) i32 {
+    func inner(value: i32) i32 {
+      if value == 0 { 16 } else { outer(value - 1) }
+    }
+
+    inner(value)
+  }
+
+  return outer(3)
+}

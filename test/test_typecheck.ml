@@ -4055,3 +4055,17 @@ let%expect_test "typecheck: a local newtype keeps its identity" =
           let _id: Id = base
                         ^~~~ expected Id, found i32
     |}]
+
+let%expect_test "typecheck: an unreachable local declaration warns" =
+  run_src {|func f() i32 {
+  return 1
+  func unused() i32 { 0 }
+}|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:3:3
+          func unused() i32 { 0 }
+          ^~~~~~~~~~~~~~~~~~~~~~~
+    ok
+    |}]

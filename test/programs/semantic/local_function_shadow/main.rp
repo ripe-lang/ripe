@@ -1,0 +1,6 @@
+func value() i32 { 1 }
+
+func main() i32 {
+  func value() i32 { 19 }
+  return value()
+}

@@ -171,28 +171,29 @@ and type_alias_def = {
 }
 [@@deriving show { with_path = false }]
 
+and param = { param_name : string; param_typ : typ; param_span : span }
+[@@deriving show { with_path = false }]
+
+and func_def = {
+  func_name : string;
+  params : param list;
+  ret : typ option;
+  body : block;
+  func_modifiers : modifier list;
+  variadic : bool;
+  func_span : span;
+}
+[@@deriving show { with_path = false }]
+
 and local_decl =
   | LocalStruct of struct_def
   | LocalTypeAlias of type_alias_def
   | LocalNewtype of type_alias_def
+  | LocalFunc of func_def
 [@@deriving show { with_path = false }]
 
 let show_named (path : string list) (name : string) : string =
   String.concat "." (path @ [ name ])
-
-type param = { name : string; typ : typ; span : span }
-[@@deriving show { with_path = false }]
-
-type func_def = {
-  name : string;
-  params : param list;
-  ret : typ option;
-  body : block;
-  modifiers : modifier list;
-  variadic : bool;
-  span : span;
-}
-[@@deriving show { with_path = false }]
 
 type global_def = {
   name : string;
@@ -218,6 +219,7 @@ let decl_of_local : local_decl -> decl = function
   | LocalStruct sd -> Struct sd
   | LocalTypeAlias td -> TypeAlias td
   | LocalNewtype td -> Newtype td
+  | LocalFunc fd -> Func fd
 
 type import = { path : string list; span : span }
 [@@deriving show { with_path = false }]

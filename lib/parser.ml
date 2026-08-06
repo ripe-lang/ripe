@@ -420,7 +420,8 @@ and parse_params st =
           parse_typ st)
     in
     let hi = st.prev_end in
-    ({ name; typ = t; span = make_span st lo hi } : param)
+    ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
+      : param)
   in
   if st.tok <> RPAREN then begin
     params := [ parse_one () ];
@@ -444,6 +445,38 @@ and parse_ret_type st =
   | _ ->
       let depth = st.tok_depth in
       Some (recover_typ_to st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st))
+
+(* func NAME(params) ret *)
+and parse_signature st =
+  expect st FUNC;
+  let name = expect_ident st in
+  let params, variadic = parse_params st in
+  let ret = parse_ret_type st in
+  (name, params, ret, variadic)
+
+(* func add(a: i32, b: i32) i32 { ... } *)
+and parse_func_def st mods =
+  let lo = cur_pos st in
+  let name, params, ret, variadic = parse_signature st in
+  let body =
+    if st.tok = ASSIGN then begin
+      let slo = cur_pos st in
+      advance st;
+      let e = parse_expr st 1 in
+      [ Expr (mk slo st (Return (Some e))) ]
+    end
+    else parse_block st
+  in
+  let hi = st.prev_end in
+  {
+    func_name = name;
+    params;
+    ret;
+    body;
+    func_modifiers = mods;
+    variadic;
+    func_span = make_span st lo hi;
+  }
 
 (* Postfix binds tighter than infix so a.b + c means (a.b) + c *)
 
@@ -777,7 +810,7 @@ and parse_stmt st =
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
-  | PUBLIC | STRUCT | TYPE | NEWTYPE -> parse_local_decl st
+  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE -> parse_local_decl st
   | _ -> Expr (parse_simple_stmt st)
 
 and parse_local_decl st =
@@ -787,6 +820,7 @@ and parse_local_decl st =
     | STRUCT -> LocalStruct (parse_struct_def st modifiers)
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
     | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
+    | FUNC -> LocalFunc (parse_func_def st modifiers)
     | _ -> fail_found st "expected local declaration"
   in
   Decl decl
@@ -836,39 +870,6 @@ and parse_for st =
   let body = parse_block st in
   mk lo st (For (name, nspan, iter, body))
 
-(* func NAME(params) ret *)
-let parse_signature st =
-  expect st FUNC;
-  let name = expect_ident st in
-  let params, variadic = parse_params st in
-  let ret = parse_ret_type st in
-  (name, params, ret, variadic)
-
-(* func add(a: i32, b: i32) i32 { ... } *)
-let parse_func st mods =
-  let lo = cur_pos st in
-  let name, params, ret, variadic = parse_signature st in
-  let body =
-    if st.tok = ASSIGN then begin
-      let slo = cur_pos st in
-      advance st;
-      let e = parse_expr st 1 in
-      [ Expr (mk slo st (Return (Some e))) ]
-    end
-    else parse_block st
-  in
-  let hi = st.prev_end in
-  Func
-    {
-      name;
-      params;
-      ret;
-      body;
-      modifiers = mods;
-      variadic;
-      span = make_span st lo hi;
-    }
-
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st mods =
   let lo = cur_pos st in
@@ -901,13 +902,13 @@ let parse_extern st =
   let hi = st.prev_end in
   Extern
     {
-      name;
+      func_name = name;
       params;
       ret;
       body = [];
-      modifiers = [];
+      func_modifiers = [];
       variadic;
-      span = make_span st lo hi;
+      func_span = make_span st lo hi;
     }
 
 let parse_decl st =
@@ -915,7 +916,7 @@ let parse_decl st =
   let mods = parse_modifiers st in
   match (mods, st.tok) with
   | _, STRUCT -> Struct (parse_struct_def st mods)
-  | _, FUNC -> parse_func st mods
+  | _, FUNC -> Func (parse_func_def st mods)
   (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st
   | _, (LET | COMPTIME | VAR) -> parse_global st mods

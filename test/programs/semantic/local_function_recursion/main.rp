@@ -1,0 +1,7 @@
+func main() i32 {
+  func count(value: i32) i32 {
+    if value == 0 { 0 } else { 1 + count(value - 1) }
+  }
+
+  return count(9)
+}
