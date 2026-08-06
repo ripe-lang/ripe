@@ -7,7 +7,7 @@ open Diag
 let%expect_test "error: type mismatch" =
   let src = "var x: i32 = true\n" in
   render src
-    (Error.type_mismatch (span src "true") ~expected:"i32" ~found:"bool");
+    (Diagnostic.type_mismatch (span src "true") ~expected:"i32" ~found:"bool");
   [%expect
     {|
     error: type mismatch
@@ -18,10 +18,10 @@ let%expect_test "error: type mismatch" =
 
 let%expect_test "error: undefined name" =
   let src = "return foo\n" in
-  render src (Error.undefined_name (span src "foo") "variable" "foo");
+  render src (Diagnostic.undefined_name (span src "foo") "variable");
   [%expect
     {|
-    error: undefined variable: foo
+    error: undefined variable
       at <test>:1:8
         return foo
                ^~~
@@ -32,10 +32,10 @@ let%expect_test "error: redefinition points at the previous binder" =
   let first = substring_offset src "x" in
   let prev = Span.make 0 first (first + 1) in
   let second = first + String.length "var x = 1\nvar " in
-  render src (Error.redefinition (Span.make 0 second (second + 1)) ~prev "x");
+  render src (Diagnostic.redefinition (Span.make 0 second (second + 1)) ~prev);
   [%expect
     {|
-    error: already defined: x
+    error: already defined
       at <test>:2:9
         var x = 2
                 ^
@@ -47,18 +47,19 @@ let%expect_test "error: redefinition points at the previous binder" =
 let%expect_test "error: arity" =
   let src = "f(1, 2)\n" in
   render src
-    (Error.arity (span src "f(1, 2)") ~expected:"expected 1 argument" ~found:2);
+    (Diagnostic.arity (span src "f(1, 2)") ~expected:"expected 1 argument"
+       ~found:2);
   [%expect
     {|
-    error: expected 1 argument, found 2
+    error: wrong number of arguments
       at <test>:1:1
         f(1, 2)
-        ^~~~~~~
+        ^~~~~~~ expected 1 argument, found 2
     |}]
 
 let%expect_test "error: integer literal out of range" =
   let src = "var x: i8 = 300\n" in
-  render src (Error.int_out_of_range (span src "300") ~ty:"i8");
+  render src (Diagnostic.int_out_of_range (span src "300") ~ty:"i8");
   [%expect
     {|
     error: integer literal out of range
@@ -67,20 +68,9 @@ let%expect_test "error: integer literal out of range" =
                     ^~~ does not fit in i8
     |}]
 
-let%expect_test "error: unsupported feature" =
-  let src = "return 0..5\n" in
-  render src (Error.unsupported (span src "0..5") "range expressions");
-  [%expect
-    {|
-    error: range expressions is not yet supported
-      at <test>:1:8
-        return 0..5
-               ^~~~
-    |}]
-
 let%expect_test "error: internal compiler error" =
   let src = "func main() {}\n" in
-  render src (Error.internal ~span:(span src "main") "TVoid has no size");
+  render src (Diagnostic.internal ~span:(span src "main") "TVoid has no size");
   [%expect
     {|
     error: internal compiler error
@@ -93,10 +83,10 @@ let%expect_test "error: internal compiler error" =
 
 let%expect_test "error: expected expression after operator" =
   let src = "return +\n" in
-  render src (Error.expected_expression_after (span src "+") "+");
+  render src (Diagnostic.expected_expression (span src "+"));
   [%expect
     {|
-    error: expected expression after `+`
+    error: expected expression
       at <test>:1:8
         return +
                ^
@@ -104,10 +94,10 @@ let%expect_test "error: expected expression after operator" =
 
 let%expect_test "error: expected type after operator" =
   let src = "return x as!\n" in
-  render src (Error.expected_type_after (span src "as!") "as!");
+  render src (Diagnostic.expected_type (span src "as!"));
   [%expect
     {|
-    error: expected type after `as!`
+    error: expected type
       at <test>:1:10
         return x as!
                  ^~~
@@ -115,11 +105,12 @@ let%expect_test "error: expected type after operator" =
 
 let%expect_test "error: message with type" =
   let src = "return value[0]\n" in
-  render src (Error.with_type (span src "value[0]") "cannot index type" "i32");
+  render src
+    (Diagnostic.with_type (span src "value[0]") "cannot index type" "i32");
   [%expect
     {|
-    error: cannot index type i32
+    error: cannot index type
       at <test>:1:8
         return value[0]
-               ^~~~~~~~
+               ^~~~~~~~ on i32
     |}]

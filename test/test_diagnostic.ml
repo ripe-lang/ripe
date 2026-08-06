@@ -82,6 +82,6 @@ let%expect_test "caret aligns past a leading tab" =
     {|
     error: bad
       at <test>:2:13
-        var x = 1
+                var x = 1
                     ^
     |}]

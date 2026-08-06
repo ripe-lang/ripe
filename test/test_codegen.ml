@@ -2890,7 +2890,7 @@ func f() i32 { return X }
 |};
   [%expect
     {|
-    error: cyclic constant: X
+    error: cyclic constant
       at <test>:2:14
         let X: i32 = X
                      ^
@@ -2904,7 +2904,7 @@ func f() i32 { return A }
 |};
   [%expect
     {|
-    error: cyclic constant: B
+    error: cyclic constant
       at <test>:2:14
         let A: i32 = B
                      ^

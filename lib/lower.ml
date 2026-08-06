@@ -18,6 +18,7 @@ let fresh_sym name : Symbol.t =
     visibility = Symbol.Private;
     entry_point = false;
     span = Ast.dummy_span;
+    name_span = Ast.dummy_span;
   }
 
 let voidc (desc : D.cexpr_desc) : D.cexpr = D.mk Types.TVoid desc
@@ -72,7 +73,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   let desc =
     match te.S.desc with
     | S.TErrorExpr ->
-        Error.ice ~span:te.S.span "error expression reached lowering"
+        Diagnostic.ice ~span:te.S.span "error expression reached lowering"
     | S.TInt n -> D.CInt n
     | S.TFloat f -> D.CFloat f
     | S.TBool b -> D.CBool b
@@ -97,7 +98,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TCast (e, kind) -> D.CCast (lower_expr e, kind)
     | S.TSizeOf t -> D.CSizeOf t
     | S.TRange _ | S.TRangeInclusive _ ->
-        Error.ice ~span "range outside a for loop"
+        Diagnostic.ice ~span "range outside a for loop"
     | S.TArrayLit es -> D.CArrayLit (List.map lower_expr es)
     | S.TIndex (base, idx) -> D.CIndex (lower_expr base, lower_expr idx)
     | S.TLen e -> D.CLen (lower_expr e)
@@ -123,7 +124,8 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TBreak -> D.CBreak
     | S.TContinue -> D.CContinue
     | S.TPairAssign (ft, st, fv, sv) -> D.CBlock (lower_pair_assign ft st fv sv)
-    | S.TLocalDecl -> Error.ice ~span "local declaration reached value lowering"
+    | S.TLocalDecl ->
+        Diagnostic.ice ~span "local declaration reached value lowering"
   in
   { D.desc; ty; span }
 
@@ -178,7 +180,7 @@ and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cblock =
   let base =
     match base_binop_of op with
     | Some b -> b
-    | None -> Error.ice ~span "expected a compound assignment operator"
+    | None -> Diagnostic.ice ~span "expected a compound assignment operator"
   in
   let psym = fresh_sym "compound.p" in
   let pvar = ident ptr_ty psym in

@@ -1,4 +1,4 @@
-error: cannot assign to function: math.add
+error: cannot assign to function
   at main.rp:4:3
       math.add = math.add
       ^~~~~~~~

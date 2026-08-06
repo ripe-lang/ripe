@@ -138,7 +138,7 @@ let int_kind_of (t : ty) : int_kind =
   | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
   | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
   | TAlias _ | TError ->
-      Error.ice "expected an integer type"
+      Diagnostic.ice "expected an integer type"
 
 (* The value fits UNLESS the target range can't hold every source value *)
 let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
@@ -157,15 +157,15 @@ let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   | TBool -> 1
   | TChar -> 4
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no alignment"
-  | TNever -> Error.ice "TNever has no alignment"
-  | TError -> Error.ice "TError has no alignment"
+  | TVoid -> Diagnostic.ice "TVoid has no alignment"
+  | TNever -> Diagnostic.ice "TNever has no alignment"
+  | TError -> Diagnostic.ice "TError has no alignment"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs (Qname.key name) with
       | Some fields ->
           List.fold_left (fun acc ft -> max acc (ty_align structs ft)) 1 fields
       | None ->
-          Error.ice
+          Diagnostic.ice
             (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
       )
   | TArray (e, _) -> ty_align structs e
@@ -182,9 +182,9 @@ let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   | TBool -> 1
   | TChar -> 4
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> 8
-  | TVoid -> Error.ice "TVoid has no size"
-  | TNever -> Error.ice "TNever has no size"
-  | TError -> Error.ice "TError has no size"
+  | TVoid -> Diagnostic.ice "TVoid has no size"
+  | TNever -> Diagnostic.ice "TNever has no size"
+  | TError -> Diagnostic.ice "TError has no size"
   | TStruct (name, _) -> (
       match Hashtbl.find_opt structs (Qname.key name) with
       | Some fields ->
@@ -199,7 +199,7 @@ let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
           in
           align_to offset struct_align
       | None ->
-          Error.ice
+          Diagnostic.ice
             (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
       )
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)

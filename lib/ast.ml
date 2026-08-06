@@ -6,6 +6,11 @@ let pp_span = Span.pp
 let show_span = Span.show
 let dummy_span = Span.dummy
 
+type 'a spanned = { value : 'a; span : span }
+[@@deriving show { with_path = false }]
+
+let spanned value span = { value; span }
+
 type binop =
   | Add
   | Sub
@@ -109,7 +114,7 @@ type expr_desc =
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr
-  | FieldAccess of expr * string
+  | FieldAccess of expr * string * span
   | Cast of expr * typ * cast_kind
   | SizeOf of typ
   | ArrayLit of expr list
@@ -117,7 +122,7 @@ type expr_desc =
   | Undefined
   | StructLit of string list * string * span * (string * span * expr) list
   | Block of block
-  | If of (expr * block) list * block option
+  | If of (expr * block spanned) list * block spanned option
   | While of expr * block
   | For of string * span * expr * block
   | Binding of binding_kind * string * span * typ option * expr option
@@ -157,6 +162,7 @@ and field = {
 
 and struct_def = {
   struct_name : string;
+  struct_name_span : span;
   fields : field list;
   struct_modifiers : modifier list;
   struct_span : span;
@@ -165,6 +171,7 @@ and struct_def = {
 
 and type_alias_def = {
   alias_name : string;
+  alias_name_span : span;
   alias_typ : typ;
   alias_modifiers : modifier list;
   alias_span : span;
@@ -176,6 +183,7 @@ and param = { param_name : string; param_typ : typ; param_span : span }
 
 and func_def = {
   func_name : string;
+  func_name_span : span;
   params : param list;
   ret : typ option;
   body : block;
@@ -197,6 +205,7 @@ let show_named (path : string list) (name : string) : string =
 
 type global_def = {
   name : string;
+  name_span : span;
   typ : typ;
   init : expr option;
   kind : binding_kind;

@@ -401,11 +401,11 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Block body -> resolve_block st body
   | If (branches, else_body) ->
       List.iter
-        (fun (cond, body, _) ->
+        (fun (cond, { Ast.value = body; _ }) ->
           resolve_expr st cond;
           resolve_block st body)
         branches;
-      Option.iter (fun (b, _) -> resolve_block st b) else_body
+      Option.iter (fun { Ast.value = b; _ } -> resolve_block st b) else_body
   | While (cond, body) ->
       resolve_expr st cond;
       resolve_block st body

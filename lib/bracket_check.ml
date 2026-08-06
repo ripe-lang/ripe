@@ -28,27 +28,22 @@ let closer_repr (tok : token) : string =
 let is_closer (tok : token) : bool =
   match tok with RPAREN | RBRACKET | RBRACE -> true | _ -> false
 
-let report_mismatch (diags : Diagnostic.sink) (span : Ast.span) (tok : token)
+let report_mismatch (diags : Diagnostic.sink) (span : Ast.span)
     (open_span : Ast.span) (open_tok : token) : unit =
   let want = Option.get (closer_of open_tok) in
   Diagnostic.emit diags
     Diagnostic.(
-      error (Printf.sprintf "expected %s" (closer_repr want))
+      error "mismatched delimiter"
       |> at span
-      |> label (Printf.sprintf "found %s" (show_token tok))
+      |> label (Printf.sprintf "expected %s" (closer_repr want))
       |> secondary open_span ("unclosed " ^ opener_repr open_tok))
 
-let report_stray (diags : Diagnostic.sink) (span : Ast.span) (tok : token) :
-    unit =
+let report_stray (diags : Diagnostic.sink) (span : Ast.span) : unit =
   Diagnostic.emit diags
-    Diagnostic.(
-      error "unexpected closing delimiter"
-      |> at span
-      |> label (Printf.sprintf "found %s" (show_token tok)))
+    Diagnostic.(error "unexpected closing delimiter" |> at span)
 
-let report_unclosed (diags : Diagnostic.sink) (open_tok, open_span) : unit =
-  Diagnostic.emit diags
-    Diagnostic.(error ("unclosed " ^ opener_repr open_tok) |> at open_span)
+let report_unclosed (diags : Diagnostic.sink) (_open_tok, open_span) : unit =
+  Diagnostic.emit diags Diagnostic.(error "unclosed delimiter" |> at open_span)
 
 (* This checks the token against open delimiters from the inside out *)
 let step (diags : Diagnostic.sink) (stack : (token * Ast.span) list)
@@ -57,11 +52,11 @@ let step (diags : Diagnostic.sink) (stack : (token * Ast.span) list)
     match stack with
     | (open_tok, _) :: _ when closer_of open_tok = Some tok -> Done
     | (open_tok, open_span) :: _ ->
-        report_mismatch diags span tok open_span open_tok;
+        report_mismatch diags span open_span open_tok;
         (* This mismatch throws everything off so stop before the cascade *)
         raise (Diagnostic.Errors (Diagnostic.drain diags))
     | [] ->
-        report_stray diags span tok;
+        report_stray diags span;
         Stray)
   else if tok = EOF then
     if stack <> [] then begin

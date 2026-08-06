@@ -27,7 +27,7 @@ let%expect_test "typecheck: unbound variable" =
   run_src "func f() { x }";
   [%expect
     {|
-    error: undefined variable: x
+    error: undefined variable
       at <test>:1:12
         func f() { x }
                    ^
@@ -67,10 +67,10 @@ func f() { g(1) }
 |};
   [%expect
     {|
-    error: expected 0 arguments, found 1
+    error: wrong number of arguments
       at <test>:3:12
         func f() { g(1) }
-                   ^~~~
+                   ^~~~ expected 0 arguments, found 1
     |}]
 
 let%expect_test "typecheck: null assigned to non-pointer" =
@@ -271,10 +271,10 @@ func f() {
 |};
   [%expect
     {|
-    error: expected 2 arguments, found 1
+    error: wrong number of arguments
       at <test>:5:3
           op(1)
-          ^~~~~
+          ^~~~~ expected 2 arguments, found 1
     |}]
 
 let%expect_test "typecheck: fn ptr forward reference" =
@@ -348,7 +348,7 @@ func f() { X = 2 }
 |};
   [%expect
     {|
-    error: cannot assign to immutable: X
+    error: cannot assign to immutable
       at <test>:3:12
         func f() { X = 2 }
                    ^
@@ -365,7 +365,7 @@ func f() {
 |};
   [%expect
     {|
-    error: cannot assign to immutable: p
+    error: cannot assign to immutable
       at <test>:5:3
           p.x = 5
           ^~~
@@ -380,7 +380,7 @@ func f() {
 |};
   [%expect
     {|
-    error: cannot assign to immutable: arr
+    error: cannot assign to immutable
       at <test>:4:3
           arr[0] = 9
           ^~~~~~
@@ -403,7 +403,7 @@ let X: i32 = g()
 |};
   [%expect
     {|
-    error: initializer must be constant: X
+    error: initializer must be constant
       at <test>:3:14
         let X: i32 = g()
                      ^~~
@@ -413,20 +413,20 @@ let%expect_test "typecheck: let requires initializer" =
   run_src "let X: i32";
   [%expect
     {|
-    error: let without initializer: X
-      at <test>:1:1
+    error: let without initializer
+      at <test>:1:5
         let X: i32
-        ^~~~~~~~~~
+            ^
     |}]
 
 let%expect_test "typecheck: comptime requires initializer" =
   run_src "comptime X: i32";
   [%expect
     {|
-    error: comptime without initializer: X
-      at <test>:1:1
+    error: comptime without initializer
+      at <test>:1:10
         comptime X: i32
-        ^~~~~~~~~~~~~~~
+                 ^
     |}]
 
 let%expect_test "typecheck: comptime cannot be undefined" =
@@ -447,7 +447,7 @@ func f() *i32 { return &N }
 |};
   [%expect
     {|
-    error: cannot take address of a constant: N
+    error: cannot take address of a constant
       at <test>:3:25
         func f() *i32 { return &N }
                                 ^
@@ -468,7 +468,7 @@ func f() {
           var p: *i32 = &c
               ^
     help: prefix with an underscore: _p
-    error: cannot take address of a constant: c
+    error: cannot take address of a constant
       at <test>:4:18
           var p: *i32 = &c
                          ^
@@ -483,10 +483,10 @@ func f() {
 |};
   [%expect
     {|
-    error: comptime must be a scalar, found [2]i32
+    error: comptime must be a scalar
       at <test>:3:12
           comptime a: [2]i32 = [1, 2]
-                   ^
+                   ^ on [2]i32
     help: use let for values that need storage
     warning: unused variable: a
       at <test>:3:12
@@ -501,10 +501,10 @@ comptime S: cstr = "x"
 |};
   [%expect
     {|
-    error: comptime must be a scalar, found cstr
+    error: comptime must be a scalar
       at <test>:2:1
         comptime S: cstr = "x"
-        ^~~~~~~~~~~~~~~~~~~~~~
+        ^~~~~~~~~~~~~~~~~~~~~~ on cstr
     help: use let for values that need storage
     |}]
 
@@ -533,7 +533,7 @@ comptime B: i32 = A
 |};
   [%expect
     {|
-    error: cyclic constant: A
+    error: cyclic constant
       at <test>:3:19
         comptime B: i32 = A
                           ^
@@ -549,7 +549,7 @@ func f() i32 {
 |};
   [%expect
     {|
-    error: cannot assign to immutable: c
+    error: cannot assign to immutable
       at <test>:4:3
           c = 3
           ^
@@ -743,7 +743,7 @@ comptime M: i32 = sizeof([N]i32)
       at <test>:3:19
         comptime M: i32 = sizeof([N]i32)
                           ^~~~~~~~~~~~~~ expected i32, found usize
-    error: cyclic constant: N
+    error: cyclic constant
       at <test>:3:27
         comptime M: i32 = sizeof([N]i32)
                                   ^
@@ -783,10 +783,10 @@ let%expect_test "typecheck: bool arithmetic rejected" =
         func f() { let x = true + false }
                        ^
     help: prefix with an underscore: _x
-    error: cannot apply `+` to bool
+    error: invalid operand
       at <test>:1:20
         func f() { let x = true + false }
-                           ^~~~
+                           ^~~~ cannot apply `+` to bool
     |}]
 
 let%expect_test "typecheck: comparison yields bool" =
@@ -859,10 +859,10 @@ let%expect_test "typecheck: bitwise on bool rejected" =
         func f() { let x = true & false }
                        ^
     help: prefix with an underscore: _x
-    error: cannot apply `&` to bool
+    error: invalid operand
       at <test>:1:20
         func f() { let x = true & false }
-                           ^~~~
+                           ^~~~ cannot apply `&` to bool
     |}]
 
 let%expect_test "typecheck: int to int cast" =
@@ -1016,7 +1016,7 @@ func f() {
 |};
   [%expect
     {|
-    error: cannot assign to immutable: x
+    error: cannot assign to immutable
       at <test>:4:3
           x = 2
           ^
@@ -1097,7 +1097,7 @@ func f() {
 |};
   [%expect
     {|
-    error: undefined variable: x
+    error: undefined variable
       at <test>:3:3
           x
           ^
@@ -1117,10 +1117,10 @@ func f() {
           let y = *x
               ^
     help: prefix with an underscore: _y
-    error: cannot dereference type i32
+    error: cannot dereference
       at <test>:4:12
           let y = *x
-                   ^
+                   ^ on i32
     |}]
 
 let%expect_test "typecheck: a failed check does not cascade" =
@@ -1132,10 +1132,10 @@ func f() {
 |};
   [%expect
     {|
-    error: type has no fields: i32
+    error: type has no fields
       at <test>:4:13
           let _y = *n.x + 1
-                    ^~~
+                    ^~~ on i32
     |}]
 
 let%expect_test "typecheck: address-of and deref roundtrip" =
@@ -1162,10 +1162,10 @@ func f(p: pt) i32 { return p.z }
 |};
   [%expect
     {|
-    error: no field: z
-      at <test>:3:28
+    error: no field
+      at <test>:3:30
         func f(p: pt) i32 { return p.z }
-                                   ^~~ on struct pt
+                                     ^ on struct pt
     |}]
 
 let%expect_test "typecheck: field access on non-struct" =
@@ -1182,10 +1182,10 @@ func f() {
           let y = x.foo
               ^
     help: prefix with an underscore: _y
-    error: type has no fields: i32
+    error: type has no fields
       at <test>:4:11
           let y = x.foo
-                  ^~~~~
+                  ^~~~~ on i32
     |}]
 
 let%expect_test "typecheck: field access auto-deref through ptr" =
@@ -1202,7 +1202,7 @@ func f(p: **pt) i32 { return p.x }
 |};
   [%expect
     {|
-    error: too many pointer levels: **pt
+    error: too many pointer levels
       at <test>:3:30
         func f(p: **pt) i32 { return p.x }
                                      ^~~
@@ -1216,13 +1216,13 @@ func f() {}
 |};
   [%expect
     {|
-    error: already defined: f
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         func f() {}
-        ^~~~~~~~~~~
-      at <test>:2:1
+             ^
+      at <test>:2:6
         func f() {}
-        ^~~~~~~~~~~ previous definition here
+             ^ previous definition here
     |}]
 
 let%expect_test "typecheck: arg type mismatch" =
@@ -1286,10 +1286,10 @@ let%expect_test "typecheck: array wrong element count" =
         func f() { var a: [3]i32 = [1, 2] }
                        ^
     help: prefix with an underscore: _a
-    error: expected 3 elements, found 2
+    error: wrong number of arguments
       at <test>:1:28
         func f() { var a: [3]i32 = [1, 2] }
-                                   ^~~~~~
+                                   ^~~~~~ expected 3 elements, found 2
     |}]
 
 let%expect_test "typecheck: heterogeneous inferred literal" =
@@ -1321,10 +1321,10 @@ let%expect_test "typecheck: index non-array" =
   run_src "func f() { var x: i32 = 0; x[0] }";
   [%expect
     {|
-    error: cannot index type i32
+    error: cannot index
       at <test>:1:28
         func f() { var x: i32 = 0; x[0] }
-                                   ^~~~
+                                   ^~~~ on i32
     |}]
 
 let%expect_test "typecheck: index non-integer" =
@@ -1359,10 +1359,10 @@ let%expect_test "typecheck: array no such field" =
   run_src "func f() { var a: [2]i32 = [1, 2]; a.foo }";
   [%expect
     {|
-    error: no field: foo
-      at <test>:1:36
+    error: no field
+      at <test>:1:38
         func f() { var a: [2]i32 = [1, 2]; a.foo }
-                                           ^~~~~ on [2]i32
+                                             ^~~ on [2]i32
     |}]
 
 let%expect_test "typecheck: assign to index" =
@@ -1446,10 +1446,10 @@ let%expect_test "typecheck: for over non-iterable" =
   run_src "func f() { for x in 5 { let y = x } }";
   [%expect
     {|
-    error: cannot iterate over type i32
+    error: cannot iterate
       at <test>:1:21
         func f() { for x in 5 { let y = x } }
-                            ^
+                            ^ on i32
     warning: unused variable: y
       at <test>:1:29
         func f() { for x in 5 { let y = x } }
@@ -1890,10 +1890,10 @@ let%expect_test "typecheck: multidim wrong inner count" =
         func f() { var m: [2][2]i32 = [[1,2],[3]] }
                        ^
     help: prefix with an underscore: _m
-    error: expected 2 elements, found 1
+    error: wrong number of arguments
       at <test>:1:38
         func f() { var m: [2][2]i32 = [[1,2],[3]] }
-                                             ^~~
+                                             ^~~ expected 2 elements, found 1
     |}]
 
 let%expect_test "typecheck: global array" =
@@ -1910,7 +1910,7 @@ var g: [2]i32 = [k(), 2]
 |};
   [%expect
     {|
-    error: initializer must be constant: g
+    error: initializer must be constant
       at <test>:3:17
         var g: [2]i32 = [k(), 2]
                         ^~~~~~~~
@@ -1981,7 +1981,7 @@ let%expect_test "typecheck: var without type or value cannot infer" =
   run_src "func f() { var x }";
   [%expect
     {|
-    error: cannot infer type: x
+    error: cannot infer type
       at <test>:1:16
         func f() { var x }
                        ^
@@ -1996,7 +1996,7 @@ let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
   run_src "func f() { var x\n  x = [1,2,3,4] }";
   [%expect
     {|
-    error: cannot infer type: x
+    error: cannot infer type
       at <test>:1:16
         func f() { var x
                        ^
@@ -2099,7 +2099,7 @@ func f() {
           let p = pt { z: 1 }
               ^
     help: prefix with an underscore: _p
-    error: no field: z
+    error: no field
       at <test>:4:16
           let p = pt { z: 1 }
                        ^
@@ -2120,7 +2120,7 @@ func f() {
           let p = pt { x: 1, x: 2 }
               ^
     help: prefix with an underscore: _p
-    error: duplicate field: x
+    error: duplicate field
       at <test>:4:22
           let p = pt { x: 1, x: 2 }
                              ^
@@ -2160,7 +2160,7 @@ func f() {
           let p = nope { x: 1 }
               ^
     help: prefix with an underscore: _p
-    error: undefined struct: nope
+    error: undefined struct
       at <test>:3:11
           let p = nope { x: 1 }
                   ^~~~
@@ -2184,7 +2184,7 @@ let p: pt = pt { x: g(), y: 2 }
 |};
   [%expect
     {|
-    error: initializer must be constant: p
+    error: initializer must be constant
       at <test>:4:13
         let p: pt = pt { x: g(), y: 2 }
                     ^~~~~~~~~~~~~~~~~~~
@@ -2196,7 +2196,7 @@ struct pt { x: i32, x: i64 }
 |};
   [%expect
     {|
-    error: duplicate field: x
+    error: duplicate field
       at <test>:2:21
         struct pt { x: i32, x: i64 }
                             ^
@@ -2208,11 +2208,11 @@ struct pt { x: i32, x: i64, x: bool }
 |};
   [%expect
     {|
-    error: duplicate field: x
+    error: duplicate field
       at <test>:2:21
         struct pt { x: i32, x: i64, x: bool }
                             ^
-    error: duplicate field: x
+    error: duplicate field
       at <test>:2:29
         struct pt { x: i32, x: i64, x: bool }
                                     ^
@@ -2426,10 +2426,10 @@ func f() { printf() }
 |};
   [%expect
     {|
-    error: expected at least 1 argument, found 0
+    error: wrong number of arguments
       at <test>:3:12
         func f() { printf() }
-                   ^~~~~~~~
+                   ^~~~~~~~ expected at least 1 argument, found 0
     |}]
 
 let%expect_test "typecheck: continue inside while" =
@@ -2447,10 +2447,10 @@ func f() bool {
 |};
   [%expect
     {|
-    error: cannot apply `<` to bool
+    error: invalid operand
       at <test>:5:10
           return a < b
-                 ^
+                 ^ cannot apply `<` to bool
     |}]
 
 let%expect_test "typecheck: struct equality rejected" =
@@ -2465,10 +2465,10 @@ func f() bool {
 |};
   [%expect
     {|
-    error: cannot apply `==` to P
+    error: invalid operand
       at <test>:6:10
           return a == b
-                 ^
+                 ^ cannot apply `==` to P
     |}]
 
 let%expect_test "typecheck: void equality rejected" =
@@ -2480,10 +2480,10 @@ func f() bool {
 |};
   [%expect
     {|
-    error: cannot apply `==` to void
+    error: invalid operand
       at <test>:4:10
           return g() == g()
-                 ^~~
+                 ^~~ cannot apply `==` to void
     |}]
 
 let%expect_test "typecheck: float modulo rejected" =
@@ -2494,10 +2494,10 @@ func f() f64 {
 |};
   [%expect
     {|
-    error: cannot apply `%` to f64
+    error: invalid operand
       at <test>:3:10
           return 5.0 % 2.0
-                 ^~~
+                 ^~~ cannot apply `%` to f64
     |}]
 
 let%expect_test "typecheck: bare return in main accepted" =
@@ -2877,10 +2877,10 @@ func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a == b }
 |};
   [%expect
     {|
-    error: cannot apply `==` to Id
+    error: invalid operand
       at <test>:3:66
         func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a == b }
-                                                                         ^
+                                                                         ^ cannot apply `==` to Id
     |}]
 
 let%expect_test "typecheck: newtype does not compare with its base" =
@@ -2891,10 +2891,10 @@ func f() bool { var a: Id = 5 as Id; return a == 5 }
 |};
   [%expect
     {|
-    error: cannot apply `==` to Id
+    error: invalid operand
       at <test>:3:45
         func f() bool { var a: Id = 5 as Id; return a == 5 }
-                                                    ^
+                                                    ^ cannot apply `==` to Id
     error: type mismatch
       at <test>:3:50
         func f() bool { var a: Id = 5 as Id; return a == 5 }
@@ -2909,10 +2909,10 @@ func f() i32 { var a: Id = 5 as Id; var b: Id = a + a; return b as i32 }
 |};
   [%expect
     {|
-    error: cannot apply `+` to Id
+    error: invalid operand
       at <test>:3:49
         func f() i32 { var a: Id = 5 as Id; var b: Id = a + a; return b as i32 }
-                                                        ^
+                                                        ^ cannot apply `+` to Id
     |}]
 
 let%expect_test "typecheck: newtype of a struct hides its fields" =
@@ -2924,10 +2924,10 @@ func f() i32 { var q: Q = P { x: 3 } as Q; return q.x }
 |};
   [%expect
     {|
-    error: type has no fields: Q
+    error: type has no fields
       at <test>:4:51
         func f() i32 { var q: Q = P { x: 3 } as Q; return q.x }
-                                                          ^~~
+                                                          ^~~ on Q
     |}]
 
 let%expect_test "typecheck: newtype has no ordering without a cast" =
@@ -2938,10 +2938,10 @@ func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a < b }
 |};
   [%expect
     {|
-    error: cannot apply `<` to Id
+    error: invalid operand
       at <test>:3:66
         func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a < b }
-                                                                         ^
+                                                                         ^ cannot apply `<` to Id
     |}]
 
 let%expect_test "typecheck: newtype of a float has no comparisons" =
@@ -2952,10 +2952,10 @@ func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a =
 |};
   [%expect
     {|
-    error: cannot apply `==` to Temp
+    error: invalid operand
       at <test>:3:78
         func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a == b }
-                                                                                     ^
+                                                                                     ^ cannot apply `==` to Temp
     |}]
 
 let%expect_test "typecheck: newtype of a float has no ordering" =
@@ -2966,10 +2966,10 @@ func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a <
 |};
   [%expect
     {|
-    error: cannot apply `<=` to Temp
+    error: invalid operand
       at <test>:3:78
         func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a <= b }
-                                                                                     ^
+                                                                                     ^ cannot apply `<=` to Temp
     |}]
 
 let%expect_test "typecheck: newtype of a bool has no equality" =
@@ -2980,10 +2980,10 @@ func f() bool { var a: Flag = true as Flag; var b: Flag = false as Flag; return 
 |};
   [%expect
     {|
-    error: cannot apply `!=` to Flag
+    error: invalid operand
       at <test>:3:81
         func f() bool { var a: Flag = true as Flag; var b: Flag = false as Flag; return a != b }
-                                                                                        ^
+                                                                                        ^ cannot apply `!=` to Flag
     |}]
 
 let%expect_test "typecheck: newtype has no compound assignment" =
@@ -2993,10 +2993,10 @@ func f() { var a: Id = 5 as Id; a += 6 as Id }
 |};
   [%expect
     {|
-    error: cannot apply `+=` to Id
+    error: invalid operand
       at <test>:3:33
         func f() { var a: Id = 5 as Id; a += 6 as Id }
-                                        ^
+                                        ^ cannot apply `+=` to Id
     |}]
 
 let%expect_test "typecheck: newtype has no unary negation" =
@@ -3007,10 +3007,10 @@ func f() i32 { var a: Id = 5 as Id; return (-a) as i32 }
 |};
   [%expect
     {|
-    error: cannot apply `-` to Id
+    error: invalid operand
       at <test>:3:46
         func f() i32 { var a: Id = 5 as Id; return (-a) as i32 }
-                                                     ^
+                                                     ^ cannot apply `-` to Id
     |}]
 
 let%expect_test "typecheck: unary plus accepts numeric operands" =
@@ -3026,10 +3026,10 @@ let%expect_test "typecheck: unary plus rejects bool" =
   run_src "func f() { let _x = +true }";
   [%expect
     {|
-    error: cannot apply `+` to bool
+    error: invalid operand
       at <test>:1:22
         func f() { let _x = +true }
-                             ^~~~
+                             ^~~~ cannot apply `+` to bool
     |}]
 
 let%expect_test "typecheck: newtype has no unary plus" =
@@ -3040,10 +3040,10 @@ func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
 |};
   [%expect
     {|
-    error: cannot apply `+` to Id
+    error: invalid operand
       at <test>:3:46
         func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
-                                                     ^
+                                                     ^ cannot apply `+` to Id
     |}]
 
 let%expect_test "typecheck: suffixed unary plus range includes operator" =
@@ -3074,10 +3074,10 @@ func f() i32 { var a: Id = 5 as Id; return (a % a) as i32 }
 |};
   [%expect
     {|
-    error: cannot apply `%` to Id
+    error: invalid operand
       at <test>:3:45
         func f() i32 { var a: Id = 5 as Id; return (a % a) as i32 }
-                                                    ^
+                                                    ^ cannot apply `%` to Id
     |}]
 
 let%expect_test "typecheck: newtype compares after casting both sides" =
@@ -3133,10 +3133,10 @@ func f() f32 { var a: Temp = 5.0; return a % a }
 |};
   [%expect
     {|
-    error: cannot apply `%` to Temp
+    error: invalid operand
       at <test>:3:42
         func f() f32 { var a: Temp = 5.0; return a % a }
-                                                 ^
+                                                 ^ cannot apply `%` to Temp
     |}]
 
 let%expect_test "typecheck: type alias mixes with its base in comparisons" =
@@ -3156,10 +3156,10 @@ func f() bool { var a: Handle = 5 as Id; var b: Handle = 6 as Id; return a == b 
 |};
   [%expect
     {|
-    error: cannot apply `==` to Handle
+    error: invalid operand
       at <test>:4:74
         func f() bool { var a: Handle = 5 as Id; var b: Handle = 6 as Id; return a == b }
-                                                                                 ^
+                                                                                 ^ cannot apply `==` to Handle
     |}]
 
 let%expect_test "typecheck: a type alias name collides with a struct" =
@@ -3169,13 +3169,13 @@ struct Foo { x: i32 }
 |};
   [%expect
     {|
-    error: already defined: Foo
-      at <test>:3:1
+    error: already defined
+      at <test>:3:8
         struct Foo { x: i32 }
-        ^~~~~~~~~~~~~~~~~~~~~
-      at <test>:2:1
+               ^~~
+      at <test>:2:6
         type Foo = i32
-        ^~~~~~~~~~~~~~ previous definition here
+             ^~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type alias name collides with a newtype" =
@@ -3185,13 +3185,13 @@ type Foo = i64
 |};
   [%expect
     {|
-    error: already defined: Foo
-      at <test>:3:1
+    error: already defined
+      at <test>:3:6
         type Foo = i64
-        ^~~~~~~~~~~~~~
-      at <test>:2:1
+             ^~~
+      at <test>:2:9
         newtype Foo = i32
-        ^~~~~~~~~~~~~~~~~ previous definition here
+                ^~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type name shadows a builtin" =
@@ -3241,10 +3241,10 @@ let%expect_test "typecheck: a struct that holds itself by value has no size" =
   run_src "struct Node { n: Node }";
   [%expect
     {|
-    error: recursive struct has infinite size: Node
-      at <test>:1:1
+    error: recursive struct has infinite size
+      at <test>:1:8
         struct Node { n: Node }
-        ^~~~~~~~~~~~~~~~~~~~~~~
+               ^~~~
     |}]
 
 let%expect_test
@@ -3255,14 +3255,14 @@ struct B { a: A }
 |};
   [%expect
     {|
-    error: recursive struct has infinite size: A
-      at <test>:2:1
+    error: recursive struct has infinite size
+      at <test>:2:8
         struct A { b: B }
-        ^~~~~~~~~~~~~~~~~
-    error: recursive struct has infinite size: B
-      at <test>:3:1
+               ^
+    error: recursive struct has infinite size
+      at <test>:3:8
         struct B { a: A }
-        ^~~~~~~~~~~~~~~~~
+               ^
     |}]
 
 let%expect_test "typecheck: int literal suffix pins the type" =
@@ -3333,7 +3333,7 @@ let%expect_test "typecheck: assign to for loop variable" =
   run_src "func f() { for i in 0..3 { i = 99 } }";
   [%expect
     {|
-    error: cannot assign to immutable: i
+    error: cannot assign to immutable
       at <test>:1:28
         func f() { for i in 0..3 { i = 99 } }
                                    ^
@@ -3496,10 +3496,10 @@ let%expect_test "typecheck: no arithmetic on *opaque" =
   run_src "func f(a: *opaque) *opaque { return a + 1 }";
   [%expect
     {|
-    error: cannot apply `+` to *opaque
+    error: invalid operand
       at <test>:1:37
         func f(a: *opaque) *opaque { return a + 1 }
-                                            ^
+                                            ^ cannot apply `+` to *opaque
     error: type mismatch
       at <test>:1:41
         func f(a: *opaque) *opaque { return a + 1 }
@@ -3751,10 +3751,10 @@ let%expect_test "typecheck: no arithmetic on a char" =
   run_src "func f() i32 { return ('A' + 1) as i32 }";
   [%expect
     {|
-    error: cannot apply `+` to char
+    error: invalid operand
       at <test>:1:24
         func f() i32 { return ('A' + 1) as i32 }
-                               ^~~
+                               ^~~ cannot apply `+` to char
     error: type mismatch
       at <test>:1:30
         func f() i32 { return ('A' + 1) as i32 }
@@ -3788,7 +3788,7 @@ let%expect_test "typecheck: binding a void call is rejected" =
         func foo() { }; func f() { var x = foo() }
                                        ^
     help: prefix with an underscore: _x
-    error: cannot bind void value: x
+    error: cannot bind void value
       at <test>:1:36
         func foo() { }; func f() { var x = foo() }
                                            ^~~~~
@@ -3812,7 +3812,7 @@ let%expect_test "typecheck: pair assignment checks each target" =
   run_src "func f(a: i32, b: i32) { let x = 1; x, b = b, a }";
   [%expect
     {|
-    error: cannot assign to immutable: x
+    error: cannot assign to immutable
       at <test>:1:37
         func f(a: i32, b: i32) { let x = 1; x, b = b, a }
                                             ^
@@ -3874,10 +3874,10 @@ type Loop = Loop
 |};
   [%expect
     {|
-    error: recursive type: Loop
-      at <test>:2:1
+    error: recursive type
+      at <test>:2:6
         type Loop = Loop
-        ^~~~~~~~~~~~~~~~
+             ^~~~
     |}]
 
 let%expect_test "typecheck: two aliases name each other" =
@@ -3887,10 +3887,10 @@ type Second = First
 |};
   [%expect
     {|
-    error: recursive type: First
-      at <test>:2:1
+    error: recursive type
+      at <test>:2:6
         type First = Second
-        ^~~~~~~~~~~~~~~~~~~
+             ^~~~~
     |}]
 
 let%expect_test "typecheck: an alias names itself through a pointer" =
@@ -3899,10 +3899,10 @@ type Loop = *Loop
 |};
   [%expect
     {|
-    error: recursive type: Loop
-      at <test>:2:1
+    error: recursive type
+      at <test>:2:6
         type Loop = *Loop
-        ^~~~~~~~~~~~~~~~~
+             ^~~~
     |}]
 
 let%expect_test "typecheck: a newtype names itself" =
@@ -3911,10 +3911,10 @@ newtype Loop = Loop
 |};
   [%expect
     {|
-    error: recursive type: Loop
-      at <test>:2:1
+    error: recursive type
+      at <test>:2:9
         newtype Loop = Loop
-        ^~~~~~~~~~~~~~~~~~~
+                ^~~~
     |}]
 
 let%expect_test "typecheck: an alias chain resolves in either order" =
@@ -3982,7 +3982,7 @@ func main() { let _value = math }
 pub func add(_x: i32) {}
 |});
     ];
-  [%expect {| module requires a member: math |}]
+  [%expect {| module requires a member |}]
 
 let%expect_test "typecheck: modules can repeat a type spelling" =
   run_program
@@ -4008,10 +4008,10 @@ func main() { take() }
 |};
   [%expect
     {|
-    error: expected 1 argument, found 0
+    error: wrong number of arguments
       at <test>:2:15
         func main() { take() }
-                      ^~~~~~
+                      ^~~~~~ expected 1 argument, found 0
     |}]
 
 let%expect_test "typecheck: nonliteral operand types binary expression" =
@@ -4074,7 +4074,7 @@ let%expect_test "typecheck: write to an array parameter" =
   run_src "func f(a: [3]i32) { a[0] = 9 }";
   [%expect
     {|
-    error: cannot assign to a by value parameter: a
+    error: cannot assign to a by value parameter
       at <test>:1:21
         func f(a: [3]i32) { a[0] = 9 }
                             ^~~~ the caller keeps its own copy
@@ -4085,7 +4085,7 @@ let%expect_test "typecheck: write to a struct parameter field" =
   run_src "struct P { x: i32 }\nfunc f(p: P) { p.x = 9 }";
   [%expect
     {|
-    error: cannot assign to a by value parameter: p
+    error: cannot assign to a by value parameter
       at <test>:2:16
         func f(p: P) { p.x = 9 }
                        ^~~ the caller keeps its own copy
@@ -4096,7 +4096,7 @@ let%expect_test "typecheck: write to a whole aggregate parameter" =
   run_src "func f(a: [3]i32) { a = [4, 5, 6] }";
   [%expect
     {|
-    error: cannot assign to a by value parameter: a
+    error: cannot assign to a by value parameter
       at <test>:1:21
         func f(a: [3]i32) { a = [4, 5, 6] }
                             ^ the caller keeps its own copy

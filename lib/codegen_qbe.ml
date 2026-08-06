@@ -18,9 +18,9 @@ let qbe_base (t : ty) : qbe_base =
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Error.ice "TVoid has no QBE base type"
-  | TNever -> Error.ice "TNever has no QBE base type"
-  | TError -> Error.ice "TError has no QBE base type"
+  | TVoid -> Diagnostic.ice "TVoid has no QBE base type"
+  | TNever -> Diagnostic.ice "TNever has no QBE base type"
+  | TError -> Diagnostic.ice "TError has no QBE base type"
 
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
@@ -52,7 +52,7 @@ let float_lit (ty : ty) (f : float) : string =
     | TInt _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
     | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
     | TAlias _ | TError ->
-        Error.ice "float literal requires a float type"
+        Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
@@ -68,7 +68,8 @@ let alloc_instr (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : string =
   | 8 -> "alloc8"
   | 16 -> "alloc16"
   | a ->
-      Error.ice (Printf.sprintf "no alloc instruction for %d byte alignment" a)
+      Diagnostic.ice
+        (Printf.sprintf "no alloc instruction for %d byte alignment" a)
 
 let qbe_load (t : ty) : string =
   match resolve_ty t with
@@ -85,9 +86,9 @@ let qbe_load (t : ty) : string =
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Error.ice "TVoid has no load instruction"
-  | TNever -> Error.ice "TNever has no load instruction"
-  | TError -> Error.ice "TError has no load instruction"
+  | TVoid -> Diagnostic.ice "TVoid has no load instruction"
+  | TNever -> Diagnostic.ice "TNever has no load instruction"
+  | TError -> Diagnostic.ice "TError has no load instruction"
 
 let qbe_store (t : ty) : string =
   match resolve_ty t with
@@ -101,9 +102,9 @@ let qbe_store (t : ty) : string =
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Error.ice "TVoid has no store instruction"
-  | TNever -> Error.ice "TNever has no store instruction"
-  | TError -> Error.ice "TError has no store instruction"
+  | TVoid -> Diagnostic.ice "TVoid has no store instruction"
+  | TNever -> Diagnostic.ice "TNever has no store instruction"
+  | TError -> Diagnostic.ice "TError has no store instruction"
 
 type ctx = {
   structs : (Symbol.key, ty list) Hashtbl.t;
@@ -157,8 +158,8 @@ let local_slot ctx (id : Symbol.id) = Hashtbl.find_opt ctx.locals id
 let sym_addr ctx (s : Symbol.t) : string =
   match s.kind with
   | Symbol.Error ->
-      Error.ice ~span:s.span "error symbol reached code generation"
-  | Module -> Error.ice ~span:s.span "module reached code generation"
+      Diagnostic.ice ~span:s.span "error symbol reached code generation"
+  | Module -> Diagnostic.ice ~span:s.span "module reached code generation"
   | Global -> "$" ^ s.link_name
   | Func | LocalFunc | Extern | Type | LocalType | Local _ | Param | ForVar -> (
       match local_slot ctx s.id with
@@ -213,7 +214,7 @@ let emit_jnz ctx v then_lbl else_lbl =
 
 let field_offset structs fields field_id =
   let rec go index off = function
-    | [] -> Error.ice (Printf.sprintf "unknown field index %d" field_id)
+    | [] -> Diagnostic.ice (Printf.sprintf "unknown field index %d" field_id)
     | ft :: rest ->
         let a = ty_align structs ft in
         let off = align_to off a in
@@ -239,7 +240,7 @@ let alloc_slot ctx t =
 let array_elem_ty ~span t =
   match t with
   | TArray (el, _) -> el
-  | _ -> Error.ice ~span "expected an array type"
+  | _ -> Diagnostic.ice ~span "expected an array type"
 
 let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
   let v = emit_expr_desc ctx e in
@@ -343,7 +344,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           let addr = emit_expr ctx e in
           load_slice_len ctx addr
       | t ->
-          Error.ice ~span:e.T.span
+          Diagnostic.ice ~span:e.T.span
             (Printf.sprintf "TLen on non-array type: %s" (show_ty t)))
   | T.CDataPtr e -> (
       match resolve_ty e.T.ty with
@@ -353,7 +354,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       (* An array's base address is already the pointer to its first element *)
       | TArray _ -> emit_expr ctx e
       | t ->
-          Error.ice ~span:e.T.span
+          Diagnostic.ice ~span:e.T.span
             (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t)))
   | T.CToSlice arr ->
       let arr_addr = emit_expr ctx arr in
@@ -361,7 +362,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
         match resolve_ty arr.T.ty with
         | TArray (_, n) -> n
         | t ->
-            Error.ice ~span:arr.T.span
+            Diagnostic.ice ~span:arr.T.span
               (Printf.sprintf "cannot coerce to slice: %s" (show_ty t))
       in
       (* Build a { ptr = &arr[0], len = n } fat pointer on the stack *)
@@ -442,7 +443,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
 
 and emit_unop ctx op e t =
   match op with
-  | Ast.Pos -> Error.ice ~span:e.T.span "unary plus reached code generation"
+  | Ast.Pos ->
+      Diagnostic.ice ~span:e.T.span "unary plus reached code generation"
   (* Dereferencing a struct pointer just yields its address like any other aggregate lvalue *)
   | Ast.Deref when is_aggregate t ->
       let ptr = emit_expr ctx e in
@@ -462,12 +464,12 @@ and emit_unop ctx op e t =
           emit_null_check ctx ev;
           emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
       | Ast.Pos | Ast.AddressOf ->
-          Error.ice ~span:e.T.span "unexpected unary operator");
+          Diagnostic.ice ~span:e.T.span "unexpected unary operator");
       match op with
       | Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t
       | Ast.Not | Ast.Deref -> tmp
       | Ast.Pos | Ast.AddressOf ->
-          Error.ice ~span:e.T.span "unexpected unary operator")
+          Diagnostic.ice ~span:e.T.span "unexpected unary operator")
   | Ast.AddressOf ->
       let addr = emit_lvalue_addr ctx e in
       let tmp = fresh ctx in
@@ -488,7 +490,7 @@ and emit_slice_expr ctx (span : Ast.span) base lo hi t =
   let elem =
     match t with
     | TSlice e -> e
-    | _ -> Error.ice ~span "slice expression on non-slice type"
+    | _ -> Diagnostic.ice ~span "slice expression on non-slice type"
   in
   let base_addr = emit_expr ctx base in
   let storage, blen =
@@ -496,7 +498,7 @@ and emit_slice_expr ctx (span : Ast.span) base lo hi t =
     | TArray (_, n) -> (base_addr, string_of_int n)
     | TSlice _ -> load_slice_fields ctx base_addr
     | t ->
-        Error.ice ~span:base.T.span
+        Diagnostic.ice ~span:base.T.span
           (Printf.sprintf "cannot slice: %s" (show_ty t))
   in
   let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
@@ -612,7 +614,7 @@ and emit_lvalue_addr ctx (e : T.cexpr) =
   | T.CIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
   | T.CFieldAccess (base, field) -> emit_field_addr ctx base field
   | T.CUnOp (Ast.Deref, inner) -> emit_expr ctx inner
-  | _ -> Error.ice ~span:e.T.span "expected an lvalue"
+  | _ -> Diagnostic.ice ~span:e.T.span "expected an lvalue"
 
 (* Address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
 and emit_field_addr ctx base field =
@@ -624,7 +626,7 @@ and emit_field_addr ctx base field =
     | TStruct (n, _) -> n
     | TAlias (_, inner) -> peel inner
     | TPointer t -> peel t
-    | _ -> Error.ice ~span:base.T.span "field access on non-struct type"
+    | _ -> Diagnostic.ice ~span:base.T.span "field access on non-struct type"
   in
   let struct_name = peel base.T.ty in
   let fields = Hashtbl.find ctx.structs (Qname.key struct_name) in
@@ -872,7 +874,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
   | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
   | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
-  | _ -> Error.ice ~span "unexpected binary operator");
+  | _ -> Diagnostic.ice ~span "unexpected binary operator");
   match op with
   | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
   | _ -> tmp
@@ -919,7 +921,7 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
           emit ctx "    %s =%s and %s, %s\n" res qt raw
             (shift_mask ctx ty in_range);
           if is_lshift then narrow_int_to ctx res ty else res
-      | _ -> Error.ice "emit_shift on non-shift op")
+      | _ -> Diagnostic.ice "emit_shift on non-shift op")
 
 (* The shift wants a word count so a long one drops to its low word *)
 and word_count ctx count_ty rv =
@@ -1005,7 +1007,7 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
           emit ctx "    %s =w or %s, %s\n" t a b;
           t
       | Some x, None | None, Some x -> x
-      | None, None -> Error.ice "checked cast with no possible loss"
+      | None, None -> Diagnostic.ice "checked cast with no possible loss"
     in
     emit_guard ctx ~tag:"cast" ~cond:bad ~panic:(fun () ->
         emit ctx "    call $ripe_panic_cast()\n")
@@ -1041,7 +1043,7 @@ and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
             | L, true -> "ultof"
             | L, false -> "sltof"
             | (S | D), _ ->
-                Error.ice "float to float conversion in integer path"
+                Diagnostic.ice "float to float conversion in integer path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v
       (* A float turns into an integer *)
@@ -1053,7 +1055,7 @@ and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
             | D, true -> "dtoui"
             | D, false -> "dtosi"
             | (W | L), _ ->
-                Error.ice "integer to integer conversion in float path"
+                Diagnostic.ice "integer to integer conversion in float path"
           in
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
@@ -1185,9 +1187,9 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   (* Fat pointer stored inline as two longs *)
   | TSlice _ -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Error.ice "TVoid has no extended type"
-  | TNever -> Error.ice "TNever has no extended type"
-  | TError -> Error.ice "TError has no extended type"
+  | TVoid -> Diagnostic.ice "TVoid has no extended type"
+  | TNever -> Diagnostic.ice "TNever has no extended type"
+  | TError -> Diagnostic.ice "TError has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
   let field_strs = List.map (qbe_ext_ty (qbe_struct_name ctx)) fields in
