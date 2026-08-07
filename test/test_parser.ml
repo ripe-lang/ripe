@@ -1484,3 +1484,83 @@ let%expect_test "parse: pub on a local declaration is accepted" =
   pub type Coord = i32
 }|};
   [%expect {| ok |}]
+
+let%expect_test "parse: a bare loop takes a block" =
+  (match parse "func f() { loop { break } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break)))) |}]
+
+let%expect_test "parse: a loop takes a label" =
+  run_src "func f() { outer: loop { loop { break :outer } } }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: a loop rejects a condition" =
+  run_src "func f(x: bool) { loop x { } }";
+  [%expect
+    {|
+    error: expected {
+      at <test>:1:24
+        func f(x: bool) { loop x { } }
+                               ^ found x
+    |}]
+
+let%expect_test "parse: a block is a value in a call argument" =
+  parse_expr "f({ g(); 1 })";
+  [%expect {| (call f (block (call g) 1)) |}]
+
+let%expect_test "parse: a block is a value in a binop operand" =
+  parse_expr "1 + { 2 }";
+  [%expect {| (+ 1 (block 2)) |}]
+
+let%expect_test "parse: a block is a value in an assignment" =
+  parse_expr "x = { 1 }";
+  [%expect {| (= x (block 1)) |}]
+
+let%expect_test "parse: a block is a value in an array element" =
+  parse_expr "[{ 1 }, 2]";
+  [%expect {| (array (block 1) 2) |}]
+
+let%expect_test "parse: a block is a value in an index" =
+  parse_expr "xs[{ 1 }]";
+  [%expect {| (index xs (block 1)) |}]
+
+let%expect_test "parse: a block takes a postfix field read" =
+  parse_expr "{ p }.x";
+  [%expect {| (. (block p) x) |}]
+
+let%expect_test "parse: a statement block is still a statement" =
+  (match parse "func f() { { g() } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (block (call g))) |}]
+
+let%expect_test "parse: a struct literal still wins over a block" =
+  parse_expr "Point { x: 1 }";
+  [%expect {| (struct Point (x 1)) |}]
+
+let%expect_test "parse: break takes a value" =
+  (match parse "func f() { loop { break 42 } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break 42)))) |}]
+
+let%expect_test "parse: break takes a label and a value" =
+  (match parse "func f() { outer: loop { loop { break :outer 42 } } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (loop (block (break 42)))))) |}]
+
+let%expect_test "parse: a bare break ends at a newline" =
+  (match parse {|func f() {
+  loop {
+    break
+  }
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break)))) |}]
+
+let%expect_test "parse: a loop is a value in a binding" =
+  parse_expr "x = loop { break 1 }";
+  [%expect {| (= x (loop (block (break 1)))) |}]

@@ -1,0 +1,9 @@
+extern func printf(fmt: cstr, ...) i32
+
+func twice(x: i32) i32 { return x * 2 }
+
+func main() i32 {
+  var n = 0
+  printf("%d\n", twice(loop { n += 1; if n == 5 { break n } }))
+  return twice(loop { break 3 })
+}

@@ -27,6 +27,13 @@ type gstate = {
   mutable busy : bool;
 }
 
+type loop_ctx = {
+  lbl : string option;
+  valued : bool;
+  mutable result : (ty * Ast.span) option;
+  mutable bare_break : Ast.span option;
+}
+
 type env = {
   vars : (Symbol.key * var_info) list list;
   funcs : (Symbol.key, func_sig) Hashtbl.t;
@@ -38,8 +45,7 @@ type env = {
   g_state : (Symbol.key, gstate) Hashtbl.t;
   l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
-  in_loop : bool;
-  loop_labels : string list;
+  loops : loop_ctx list;
   in_main : bool;
   suppress_warnings : bool;
   (* Whoever reads the message is inside this module so its path drops out *)
@@ -61,8 +67,7 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
     g_state = Hashtbl.create 16;
     l_vals = Hashtbl.create 16;
     ret_ty = TVoid;
-    in_loop = false;
-    loop_labels = [];
+    loops = [];
     in_main = false;
     suppress_warnings = Diagnostic.has_errors diags;
     reader_path = [];
@@ -417,18 +422,17 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           emit env (Diagnostic.undefined_name name_span "struct");
           dummy_texpr)
   | Block body ->
-      let tb, ty = check_scoped_block env e.span body Infer false in
+      let tb, ty = check_scoped_block env e.span body Infer in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) -> check_if env e.span branches else_body None
   | While (label, cond, body) ->
       let tc = check env cond TBool in
-      let tb, _ =
-        check_scoped_block (declare_label env label) e.span body Discard true
-      in
+      let loop = new_loop label ~valued:false in
+      let tb, _ = check_scoped_block ~loop env e.span body Discard in
       (* A while true with no break loops forever so it never yields control *)
       let diverges =
         match cond.desc with
-        | Bool true -> not (Reachability.loop_has_break body)
+        | Bool true -> not (Reachability.loop_has_break ?label body)
         | _ -> false
       in
       T.mk (if diverges then TNever else TVoid) (T.TWhile (label, tc, tb))
@@ -437,13 +441,21 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | Binding (kind, name, nspan, ann, init) ->
       snd (check_binding env kind name nspan ann init)
   | Return init -> synth_return env e.span init
-  | Break label ->
-      check_loop_target env e.span "`break` outside a loop" label;
-      T.mk TNever (T.TBreak label)
+  | Break (label, value) -> synth_break env e.span label value
   | Continue label ->
-      check_loop_target env e.span "`continue` outside a loop" label;
+      ignore (check_loop_target env e.span "`continue` outside a loop" label);
       T.mk TNever (T.TContinue label)
   | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
+  | Loop (label, body) ->
+      let loop = new_loop label ~valued:true in
+      let tb, _ = check_scoped_block ~loop env e.span body Discard in
+      let ty =
+        match (loop.result, loop.bare_break) with
+        | Some (t, _), _ -> t
+        | None, Some _ -> TVoid
+        | None, None -> TNever
+      in
+      T.mk ty (T.TLoop (label, tb))
 
 (* The value of a block is its last element and void when the block is empty *)
 and tblock_ty (tb : T.tblock) : ty =
@@ -578,9 +590,13 @@ and check_elem (env : env) (item : block_item) (use : result_use) :
   | Expr e -> (env, check_value_for_use env e use)
 
 (* Push a scope for the block then flag any leftover bindings *)
-and check_scoped_block (env : env) (span : Ast.span) (body : block)
-    (use : result_use) (in_loop : bool) : T.tblock * ty =
-  let base = if in_loop then { env with in_loop = true } else env in
+and check_scoped_block ?loop (env : env) (span : Ast.span) (body : block)
+    (use : result_use) : T.tblock * ty =
+  let base =
+    match loop with
+    | Some lc -> { env with loops = lc :: env.loops }
+    | None -> env
+  in
   let inner = push_scope base in
   let final_inner, tb = check_block inner span body use in
   warn_unused_in_scope final_inner;
@@ -643,18 +659,77 @@ and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
       | None -> ());
       T.mk TNever (T.TReturn (Some te))
 
-and declare_label (env : env) (label : Ast.loop_label option) : env =
+and new_loop (label : Ast.loop_label option) ~(valued : bool) : loop_ctx =
+  {
+    lbl = Option.map (fun (l : Ast.loop_label) -> l.Ast.value) label;
+    valued;
+    result = None;
+    bare_break = None;
+  }
+
+and find_loop (env : env) (label : Ast.loop_label option) : loop_ctx option =
   match label with
-  | None -> env
-  | Some l -> { env with loop_labels = l.Ast.value :: env.loop_labels }
+  | None -> ( match env.loops with lc :: _ -> Some lc | [] -> None)
+  | Some l -> List.find_opt (fun lc -> lc.lbl = Some l.Ast.value) env.loops
 
 and check_loop_target (env : env) (span : Ast.span) (headline : string)
-    (label : Ast.loop_label option) : unit =
-  match label with
-  | None -> if not env.in_loop then add_error env span headline
-  | Some l ->
-      if not (List.mem l.Ast.value env.loop_labels) then
-        emit env (Diagnostic.undefined_name l.Ast.span "loop label")
+    (label : Ast.loop_label option) : loop_ctx option =
+  let found = find_loop env label in
+  (match (found, label) with
+  | None, None -> add_error env span headline
+  | None, Some l -> emit env (Diagnostic.undefined_name l.Ast.span "loop label")
+  | Some _, _ -> ());
+  found
+
+and check_bare_break (env : env) (span : Ast.span) (lc : loop_ctx) : unit =
+  if lc.bare_break = None then lc.bare_break <- Some span;
+  match lc.result with
+  | None -> ()
+  | Some (t, first) ->
+      emit env
+        (Diagnostic.error "`break` values disagree"
+        |> Diagnostic.at span
+        |> Diagnostic.label "no value here"
+        |> Diagnostic.secondary first
+             (Printf.sprintf "breaks with %s" (show_ty env t)))
+
+(* The first valued break fixes the type and the rest have to match it *)
+and check_valued_break (env : env) (lc : loop_ctx) (ve : expr) : T.texpr =
+  match lc.result with
+  | Some (want, _) -> check env ve want
+  | None ->
+      let te = synth env ve in
+      let disagrees first =
+        emit env
+          (Diagnostic.error "`break` values disagree"
+          |> Diagnostic.at ve.span
+          |> Diagnostic.label
+               (Printf.sprintf "breaks with %s" (show_ty env te.T.ty))
+          |> Diagnostic.secondary first "no value here")
+      in
+      Option.iter disagrees lc.bare_break;
+      lc.result <- Some (te.T.ty, ve.span);
+      te
+
+and synth_break (env : env) (span : Ast.span) (label : Ast.loop_label option)
+    (value : expr option) : T.texpr =
+  let target = check_loop_target env span "`break` outside a loop" label in
+  let tv =
+    match (value, target) with
+    | None, None -> None
+    | None, Some lc ->
+        check_bare_break env span lc;
+        None
+    | Some ve, None -> Some (synth env ve)
+    | Some ve, Some lc when not lc.valued ->
+        emit env
+          (Diagnostic.error "`break` with a value outside a `loop`"
+          |> Diagnostic.at ve.span
+          |> Diagnostic.help "use `loop` when the loop produces a value");
+        Some (synth env ve)
+    | Some ve, Some lc -> Some (check_valued_break env lc ve)
+  in
+  T.mk TNever (T.TBreak (label, tv))
 
 and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
     (name : string) (nspan : Ast.span) (iter : expr) (body : block) : T.texpr =
@@ -678,7 +753,8 @@ and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
               (Diagnostic.with_type iter.span "cannot iterate" (show_ty env t));
             (ti, TInt I32))
   in
-  let inner = push_scope { (declare_label env label) with in_loop = true } in
+  let loop = new_loop label ~valued:false in
+  let inner = push_scope { env with loops = loop :: env.loops } in
   let inner = extend_var inner nspan name elem_ty in
   let final_inner, tb = check_block inner span body Discard in
   warn_unused_in_scope final_inner;
@@ -688,7 +764,7 @@ and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
 and check_if_discarded (env : env) (span : Ast.span)
     (branches : (expr * block Ast.spanned) list)
     (else_body : block Ast.spanned option) : T.texpr =
-  let arm body = fst (check_scoped_block env span body Discard false) in
+  let arm body = fst (check_scoped_block env span body Discard) in
   let tbranches =
     List.map
       (fun (c, { Ast.value = body; _ }) -> (check env c TBool, arm body))
@@ -716,8 +792,7 @@ and check_if (env : env) (span : Ast.span)
       let tbranches =
         List.map
           (fun (c, { Ast.value = body; _ }) ->
-            ( check env c TBool,
-              fst (check_scoped_block env span body Discard false) ))
+            (check env c TBool, fst (check_scoped_block env span body Discard)))
           branches
       in
       T.mk TVoid (T.TIf (tbranches, None))
@@ -730,13 +805,13 @@ and check_if (env : env) (span : Ast.span)
         List.map
           (fun (c, { Ast.value = body; span = bspan }) ->
             ( check env c TBool,
-              fst (check_scoped_block env bspan body (Expect w) false) ))
+              fst (check_scoped_block env bspan body (Expect w)) ))
           branches
       in
       let telse =
         match else_body with
         | Some { Ast.value = body; span = bspan } ->
-            Some (fst (check_scoped_block env bspan body (Expect w) false))
+            Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
             if strip_alias w <> TVoid then
               emit env
@@ -866,7 +941,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
     ->
       T.mk want (T.TBinOp (op, check env l want, synth env r))
   | Block body ->
-      let tb, ty = check_scoped_block env e.span body (Expect want) false in
+      let tb, ty = check_scoped_block env e.span body (Expect want) in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) ->
       check_if env e.span branches else_body (Some want)
@@ -1657,7 +1732,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
   | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ | T.TLocalDecl ->
+  | T.TBreak _ | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

@@ -36,10 +36,11 @@ type texpr_desc =
   | TFor of Ast.loop_label option * Symbol.t * ty * texpr * tblock
   | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
   | TReturn of texpr option
-  | TBreak of Ast.loop_label option
+  | TBreak of Ast.loop_label option * texpr option
   | TContinue of Ast.loop_label option
   | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
+  | TLoop of Ast.loop_label option * tblock
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]

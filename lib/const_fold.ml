@@ -84,10 +84,12 @@ let run ~(emit : Diagnostic.t -> unit)
         mk (T.TFor (l, s, t, sub_expr iter, sub_block body))
     | T.TBinding (kind, s, t, e) -> mk (T.TBinding (kind, s, t, sub_expr e))
     | T.TReturn e -> mk (T.TReturn (Option.map sub_expr e))
-    | T.TBreak _ | T.TContinue _ -> te
+    | T.TBreak (l, value) -> mk (T.TBreak (l, Option.map sub_expr value))
+    | T.TContinue _ -> te
     | T.TPairAssign (ft, st, fv, sv) ->
         mk (T.TPairAssign (sub_expr ft, sub_expr st, sub_expr fv, sub_expr sv))
     | T.TLocalDecl -> te
+    | T.TLoop (l, body) -> mk (T.TLoop (l, sub_block body))
   (* A const binding folded while checking so it just vanishes from the block *)
   and sub_block (body : T.tblock) : T.tblock =
     List.filter_map

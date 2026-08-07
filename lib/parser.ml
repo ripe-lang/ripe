@@ -71,7 +71,7 @@ let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF ->
+  | IF | LBRACE | LOOP ->
       true
   | _ -> false
 
@@ -128,7 +128,7 @@ let is_stmt_start (tok : token) : bool =
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | LET | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK
   | CONTINUE | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACE | LBRACKET
-  | UNDEFINED ->
+  | UNDEFINED | LOOP ->
       true
   | _ -> false
 
@@ -308,7 +308,8 @@ let rec dotted_name (e : expr) : string list option =
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
-  | Continue _ | Undefined | Range _ | RangeInclusive _ | PairAssign _ ->
+  | Continue _ | Undefined | Range _ | RangeInclusive _ | PairAssign _ | Loop _
+    ->
       None
 
 (* i32, *i32, (i32, i32) i32 *)
@@ -655,6 +656,7 @@ and parse_primary ?(no_struct_lit = false) st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
+  | IDENT name when (peek st).token = COLON -> parse_labeled_loop st name
   | IDENT name ->
       let nspan = st.tok_span in
       advance st;
@@ -672,6 +674,8 @@ and parse_primary ?(no_struct_lit = false) st =
       advance st;
       mk lo st Undefined
   | IF -> parse_if st
+  | LBRACE -> mk lo st (Block (parse_block st))
+  | LOOP -> parse_loop st
   | ELSE ->
       raise
         (ParseError
@@ -684,13 +688,6 @@ and parse_primary ?(no_struct_lit = false) st =
   | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
-
-(* A block is a value too and where it sits decides if the value is used *)
-and parse_value st =
-  let lo = cur_pos st in
-  match st.tok with
-  | LBRACE -> mk lo st (Block (parse_block st))
-  | _ -> parse_expr st 1
 
 (* x: 3, y: 4 *)
 and parse_struct_lit_fields st =
@@ -733,16 +730,19 @@ and parse_simple_stmt st =
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
+          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
         else if at st ASSIGN then (
           advance st;
-          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
+          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
   | BREAK ->
       advance st;
-      mk lo st (Break (parse_loop_target st))
+      let target = parse_loop_target st in
+      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
+        mk lo st (Break (target, None))
+      else mk lo st (Break (target, Some (parse_expr st 1)))
   | CONTINUE ->
       advance st;
       mk lo st (Continue (parse_loop_target st))
@@ -752,7 +752,7 @@ and parse_simple_stmt st =
       if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
         mk lo st (Return None)
       else
-        let e = parse_value st in
+        let e = parse_expr st 1 in
         mk lo st (Return (Some e))
   | _ ->
       let first = parse_expr st 1 in
@@ -826,6 +826,7 @@ and parse_stmt st =
   | IF -> Expr (parse_if st)
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
+  | LOOP -> Expr (parse_loop st)
   | IDENT name when (peek st).token = COLON -> Expr (parse_labeled_loop st name)
   | LBRACE ->
       let body = parse_block st in
@@ -897,6 +898,14 @@ and parse_for ?label st =
   let body = parse_block st in
   mk lo st (For (label, name, nspan, iter, body))
 
+(* loop { } *)
+and parse_loop ?label st =
+  let lo = loop_lo st label in
+  advance st;
+  (* LOOP *)
+  let body = parse_block st in
+  mk lo st (Loop (label, body))
+
 (* outer: for row in grid { } *)
 and parse_labeled_loop st name =
   let nspan = cur_span st in
@@ -908,6 +917,7 @@ and parse_labeled_loop st name =
   match st.tok with
   | WHILE -> parse_while ~label st
   | FOR -> parse_for ~label st
+  | LOOP -> parse_loop ~label st
   | _ -> fail_found st "expected a loop after a label"
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)

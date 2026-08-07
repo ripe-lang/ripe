@@ -1,0 +1,13 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var n = 0
+  outer: loop {
+    loop {
+      n += 1
+      if n == 4 { break :outer }
+    }
+  }
+  printf("n=%d\n", n)
+  return n
+}

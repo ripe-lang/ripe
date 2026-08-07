@@ -116,7 +116,8 @@ type ctx = {
   str_headers : (string * string * int) list ref;
   tmp : int ref;
   str_ctr : int ref;
-  loops : (T.loop_id * (string * string)) list ref;
+  (* A loop knows its continue and break labels and the temp a break fills *)
+  loops : (T.loop_id * (string * string * (string * string) option)) list ref;
   terminated : bool ref;
   entry : Buffer.t ref;
   in_main : bool ref;
@@ -411,9 +412,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       emit_struct_lit_into ctx slot sname tfields;
       slot
   | T.CBlock body -> emit_block_value ctx body
-  | T.CLoop (id, body, step) ->
-      emit_loop ctx id body step;
-      ""
+  | T.CLoop (id, body, step) -> emit_loop ctx id body step t
   | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
       ignore (emit_expr ctx e);
       ""
@@ -447,15 +446,16 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
       ctx.terminated := true;
       ""
-  | T.CBreak id -> (
+  | T.CBreak (id, value) -> (
       match List.assoc_opt id !(ctx.loops) with
-      | Some (_, brk) ->
+      | Some (_, brk, res) ->
+          emit_break_value ctx res value;
           emit_jmp ctx brk;
           ""
       | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
   | T.CContinue id -> (
       match List.assoc_opt id !(ctx.loops) with
-      | Some (cont, _) ->
+      | Some (cont, _, _) ->
           emit_jmp ctx cont;
           ""
       | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
@@ -1084,20 +1084,33 @@ and emit_cast ctx ~span ~(kind : Ast.cast_kind) v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_loop ctx loop_id body step =
+and emit_loop ctx loop_id body step ty =
   let id = fresh_id ctx in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
   let step_lbl = Printf.sprintf "@loop.step%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
+  (* Only a break reaches the end so the temp is always written before it's read *)
+  let res =
+    if ty = TNever || ty = TVoid then None else Some (fresh ctx, qbe_ty ty)
+  in
   emit_label ctx body_lbl;
-  ctx.loops := (loop_id, (step_lbl, end_lbl)) :: !(ctx.loops);
+  ctx.loops := (loop_id, (step_lbl, end_lbl, res)) :: !(ctx.loops);
   emit_block ctx body;
   emit_label ctx step_lbl;
   emit_block ctx step;
   (ctx.loops :=
      match !(ctx.loops) with _ :: loops -> loops | [] -> assert false);
   emit_jmp ctx body_lbl;
-  emit_label ctx end_lbl
+  emit_label ctx end_lbl;
+  match res with Some (slot, _) -> slot | None -> ""
+
+and emit_break_value ctx res value =
+  match (value, res) with
+  | None, _ -> ()
+  | Some ve, None -> ignore (emit_expr ctx ve)
+  | Some ve, Some (slot, qt) ->
+      let v = emit_expr ctx ve in
+      emit ctx "    %s =%s copy %s\n" slot qt v
 
 (* A block in statement position runs each element only for its effect *)
 and emit_block ctx (body : T.cblock) : unit =

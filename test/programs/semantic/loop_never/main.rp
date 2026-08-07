@@ -1,0 +1,6 @@
+func spin() never { loop {} }
+
+func main() i32 {
+  if false { spin() }
+  return 42
+}

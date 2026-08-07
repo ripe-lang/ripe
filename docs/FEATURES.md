@@ -4,10 +4,14 @@ Reference for the language as it exists today.
 
 ## Expression-based language
 
+An `if`, a block, and a `loop` are values anywhere a value is expected.
+
 ```ripe
+func twice(x: i32) i32 { x * 2 }
+
 func main() i32 {
   let value = if true { 21 } else { 0 }
-  value * 2
+  twice({ value })
 }
 ```
 
@@ -423,19 +427,29 @@ func main() i32 {
 }
 ```
 
+### loop
+
 ```ripe
 func main() i32 {
-  var i: i32 = 0
-  outer: while i < 5 {
-    i += 1
-    var j: i32 = 0
-    while j < 5 {
-      j += 1
-      if j == 2 { continue :outer }
-      if i == 4 { break :outer }
-    }
+  var n: i32 = 0
+  loop {
+    n += 1
+    if n == 5 { break }
   }
-  return i
+  return n
+}
+```
+
+### Loop values
+
+```ripe
+func main() i32 {
+  var n: i32 = 0
+  let answer: i32 = loop {
+    n += 1
+    if n == 7 { break n * 6 }
+  }
+  return answer
 }
 ```
 

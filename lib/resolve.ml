@@ -409,6 +409,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | While (_, cond, body) ->
       resolve_expr st cond;
       resolve_block st body
+  | Loop (_, body) -> resolve_block st body
   | For (_, name, nspan, iter, body) ->
       resolve_expr st iter;
       push_scope st;
@@ -420,7 +421,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       Option.iter (resolve_expr st) e;
       declare_local st (Symbol.Local kind) name nspan
   | Return e -> Option.iter (resolve_expr st) e
-  | Break _ | Continue _ -> ()
+  | Break (_, value) -> Option.iter (resolve_expr st) value
+  | Continue _ -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
   | PairAssign (ft, st', fv, sv) ->
       resolve_expr st ft;

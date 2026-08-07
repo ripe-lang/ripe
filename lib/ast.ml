@@ -128,9 +128,10 @@ type expr_desc =
   | For of loop_label option * string * span * expr * block
   | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
-  | Break of loop_label option
+  | Break of loop_label option * expr option
   | Continue of loop_label option
   | PairAssign of expr * expr * expr * expr
+  | Loop of loop_label option * block
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
