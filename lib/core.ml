@@ -45,6 +45,7 @@ let mk ?(span = Ast.dummy_span) (ty : ty) (desc : cexpr_desc) : cexpr =
 
 type cfunc_def = {
   name : string;
+  source_name : string;
   entry_point : bool;
   params : (Symbol.t * ty) list;
   ret_ty : ty;

@@ -109,7 +109,12 @@ let run_src src =
 
 let run_codegen src =
   try
-    let il = Ripe.Codegen_qbe.emit_qbe (lower_src src) in
+    let sm = Ripe.Source_map.create src in
+    let il =
+      Ripe.Codegen_qbe.emit_qbe
+        ~source_of:(fun _ -> ("test.rp", sm))
+        (lower_src src)
+    in
     print_string il;
     check_qbe il
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags

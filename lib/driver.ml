@@ -9,18 +9,19 @@ end
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 let list_dir dir = Array.to_list (Sys.readdir dir)
 
+let use_color () =
+  match Sys.getenv_opt "NO_COLOR" with
+  | Some value when value <> "" -> false
+  | _ -> Unix.isatty Unix.stderr
+
 let die msg =
-  let label =
-    Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
-  in
+  let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
   Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
 let run cmd =
   if Sys.command cmd <> 0 then (
-    let label =
-      Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
-    in
+    let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
@@ -94,19 +95,24 @@ let source_ctx color (source : Program.source) : Diagnostic.ctx =
   }
 
 (* A span carries a file ID so every module renders against its own source *)
-let program_context (program : Program.t) :
-    (Span.file_id -> Diagnostic.ctx) * Diagnostic.ctx =
-  let color = Unix.isatty Unix.stderr in
-  let contexts = Hashtbl.create 16 in
+let program_source (program : Program.t) : Span.file_id -> Program.source =
+  let sources = Hashtbl.create 16 in
   let add (unit_ : Program.unit_) =
-    Hashtbl.replace contexts unit_.Program.source.Program.file_id
-      (source_ctx color unit_.Program.source)
+    Hashtbl.replace sources unit_.Program.source.Program.file_id
+      unit_.Program.source
   in
   Array.iter
     (fun (module_ : Program.module_) -> List.iter add module_.Program.units)
     program.Program.modules;
-  let default = source_ctx color program.Program.root_source in
-  ((fun file -> Option.value (Hashtbl.find_opt contexts file) ~default), default)
+  let default = program.Program.root_source in
+  fun file -> Option.value (Hashtbl.find_opt sources file) ~default
+
+let program_context (program : Program.t) :
+    (Span.file_id -> Diagnostic.ctx) * Diagnostic.ctx =
+  let color = use_color () in
+  let source_for_file = program_source program in
+  ( (fun file -> source_ctx color (source_for_file file)),
+    source_ctx color program.Program.root_source )
 
 let render_program program diags =
   let context_for_file, default = program_context program in
@@ -194,7 +200,16 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~filename =
     render_and_exit_if_failed ();
     let cdecls = Lower.lower tdecls in
     stop_at Core (fun () -> output_text (show_cdecls cdecls));
-    let il = match backend with Backend.Qbe -> Codegen_qbe.emit_qbe cdecls in
+    let il =
+      match backend with
+      | Backend.Qbe ->
+          let source_for_file = program_source program in
+          let source_of file =
+            let source = source_for_file file in
+            (source.Program.filename, source.Program.source_map)
+          in
+          Codegen_qbe.emit_qbe ~source_of cdecls
+    in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
     output_binary il

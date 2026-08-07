@@ -121,6 +121,7 @@ type ctx = {
   terminated : bool ref;
   entry : Buffer.t ref;
   in_main : bool ref;
+  panics : Panic_table.t;
 }
 
 (* Fresh temps use names like %t0 and %t1 *)
@@ -197,6 +198,9 @@ let intern_string ctx s =
   incr ctx.str_ctr;
   ctx.strings := (lbl, s) :: !(ctx.strings);
   lbl
+
+let panic_site (ctx : ctx) (span : Ast.span) : int =
+  Panic_table.record ctx.panics span
 
 (* An aggregate is its address here so the header's label is the whole value *)
 let intern_str ctx s =
@@ -324,10 +328,10 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
   | T.CIf (branches, else_body) -> emit_if ctx branches else_body t
   | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
-  | T.CUnOp (op, e) -> emit_unop ctx op e t
+  | T.CUnOp (op, operand) -> emit_unop ctx ~span:e.T.span op operand t
   | T.CCast (e, kind) ->
       let v = emit_expr ctx e in
-      emit_cast ctx ~kind v e.T.ty t
+      emit_cast ctx ~span:e.T.span ~kind v e.T.ty t
   | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
   | T.CFieldAccess (e, field) ->
       let ft = t in
@@ -457,14 +461,14 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           ""
       | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
 
-and emit_unop ctx op e t =
+and emit_unop ctx ~span op e t =
   match op with
   | Ast.Pos ->
       Diagnostic.ice ~span:e.T.span "unary plus reached code generation"
   (* Dereferencing a struct pointer just yields its address like any other aggregate lvalue *)
   | Ast.Deref when is_aggregate t ->
       let ptr = emit_expr ctx e in
-      emit_null_check ctx ptr;
+      emit_null_check ctx ~span ptr;
       ptr
   | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref -> (
       let ev = emit_expr ctx e in
@@ -477,7 +481,7 @@ and emit_unop ctx op e t =
           emit ctx "    %s =w ceqw %s, 0\n" tmp ev
       | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
       | Ast.Deref ->
-          emit_null_check ctx ev;
+          emit_null_check ctx ~span ev;
           emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
       | Ast.Pos | Ast.AddressOf ->
           Diagnostic.ice ~span:e.T.span "unexpected unary operator");
@@ -519,7 +523,7 @@ and emit_slice_expr ctx (span : Ast.span) base lo hi t =
   in
   let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
   let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
-  emit_slice_bounds_check ctx lo_l hi_l blen;
+  emit_slice_bounds_check ctx ~span lo_l hi_l blen;
   let off = fresh ctx in
   emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
   let ptr = fresh ctx in
@@ -546,7 +550,9 @@ and emit_index_addr ctx base idx elem =
   in
   let iv = emit_expr ctx idx in
   let iw = widen_to_l ctx iv idx.T.ty in
-  (match len with Some len -> emit_bounds_check ctx iw len | None -> ());
+  (match len with
+  | Some len -> emit_bounds_check ctx ~span:base.T.span iw len
+  | None -> ());
   let off = fresh ctx in
   emit ctx "    %s =l mul %s, %d\n" off iw (stride ctx.structs elem);
   let addr = fresh ctx in
@@ -554,38 +560,39 @@ and emit_index_addr ctx base idx elem =
   addr
 
 (* Every runtime check jumps to a panic when cond is nonzero and otherwise falls into the ok block *)
-and emit_guard ctx ~tag ~cond ~panic =
+and emit_guard ctx ~tag ~span ~cond ~panic =
   let id = fresh_id ctx in
   let fail_lbl = Printf.sprintf "@%s.fail.%d" tag id in
   let ok_lbl = Printf.sprintf "@%s.ok.%d" tag id in
   emit_jnz ctx cond fail_lbl ok_lbl;
   emit_label ctx fail_lbl;
-  panic ();
+  panic (panic_site ctx span);
   emit ctx "    hlt\n";
   ctx.terminated := true;
   emit_label ctx ok_lbl
 
-and emit_bounds_check ctx idx len =
+and emit_bounds_check ctx ~span idx len =
   let cond = fresh ctx in
   emit ctx "    %s =w cugel %s, %s\n" cond idx len;
-  emit_guard ctx ~tag:"bounds" ~cond ~panic:(fun () ->
-      emit ctx "    call $ripe_panic_bounds(l %s, l %s)\n" idx len)
+  emit_guard ctx ~tag:"bounds" ~span ~cond ~panic:(fun site ->
+      emit ctx "    call $ripe_panic_bounds(w %d, l %s, l %s)\n" site idx len)
 
-and emit_slice_bounds_check ctx lo hi len =
+and emit_slice_bounds_check ctx ~span lo hi len =
   let hi_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" lo_bad lo hi;
   let bad = fresh ctx in
   emit ctx "    %s =w or %s, %s\n" bad hi_bad lo_bad;
-  emit_guard ctx ~tag:"slice" ~cond:bad ~panic:(fun () ->
-      emit ctx "    call $ripe_panic_slice_bounds(l %s, l %s, l %s)\n" lo hi len)
+  emit_guard ctx ~tag:"slice" ~span ~cond:bad ~panic:(fun site ->
+      emit ctx "    call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n"
+        site lo hi len)
 
-and emit_divzero_check ctx divisor op_qt =
+and emit_divzero_check ctx ~span divisor op_qt =
   let zero = fresh ctx in
   emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
-  emit_guard ctx ~tag:"divzero" ~cond:zero ~panic:(fun () ->
-      emit ctx "    call $ripe_panic_divzero()\n")
+  emit_guard ctx ~tag:"divzero" ~span ~cond:zero ~panic:(fun site ->
+      emit ctx "    call $ripe_panic_divzero(w %d)\n" site)
 
 (* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware divide when the divisor is -1 *)
 and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
@@ -609,17 +616,17 @@ and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
   emit ctx "    %s =%s phi %s %s, %s %s\n" dest qt neg1_lbl neg_res norm_lbl
     norm_res
 
-and emit_null_check ctx ptr =
+and emit_null_check ctx ~span ptr =
   let isnull = fresh ctx in
   emit ctx "    %s =w ceql %s, 0\n" isnull ptr;
-  emit_guard ctx ~tag:"null" ~cond:isnull ~panic:(fun () ->
-      emit ctx "    call $ripe_panic_null()\n")
+  emit_guard ctx ~tag:"null" ~span ~cond:isnull ~panic:(fun site ->
+      emit ctx "    call $ripe_panic_null(w %d)\n" site)
 
-and emit_negshift_check ctx count count_qt =
+and emit_negshift_check ctx ~span count count_qt =
   let neg = fresh ctx in
   emit ctx "    %s =w cslt%s %s, 0\n" neg count_qt count;
-  emit_guard ctx ~tag:"negshift" ~cond:neg ~panic:(fun () ->
-      emit ctx "    call $ripe_panic_shift()\n")
+  emit_guard ctx ~tag:"negshift" ~span ~cond:neg ~panic:(fun site ->
+      emit ctx "    call $ripe_panic_shift(w %d)\n" site)
 
 (* Address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
 and emit_lvalue_addr ctx (e : T.cexpr) =
@@ -636,7 +643,7 @@ and emit_lvalue_addr ctx (e : T.cexpr) =
 and emit_field_addr ctx base field =
   let addr = emit_expr ctx base in
   (match resolve_ty base.T.ty with
-  | TPointer _ -> emit_null_check ctx addr
+  | TPointer _ -> emit_null_check ctx ~span:base.T.span addr
   | _ -> ());
   let rec peel = function
     | TStruct (n, _) -> n
@@ -735,7 +742,7 @@ and emit_assign ctx l r _t =
       emit_store_into ctx l.T.ty addr r
   | T.CUnOp (Ast.Deref, inner) ->
       let addr = emit_expr ctx inner in
-      emit_null_check ctx addr;
+      emit_null_check ctx ~span:l.T.span addr;
       emit_store_into ctx l.T.ty addr r
   | _ -> emit_expr ctx r
 
@@ -840,7 +847,7 @@ and emit_binop ctx op l r t =
   match op with
   | Ast.Lshift | Ast.Rshift ->
       let const_count = match r.T.desc with T.CInt n -> Some n | _ -> None in
-      emit_shift ctx op ?const_count ~ty:t ~count_ty:r.T.ty
+      emit_shift ctx ~span:l.T.span op ?const_count ~ty:t ~count_ty:r.T.ty
         ~unsigned:(is_unsigned lty) lv rv
   | _ ->
       emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
@@ -859,14 +866,14 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.Div ->
       if is_float lty then emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
       else begin
-        emit_divzero_check ctx rv op_qt;
+        emit_divzero_check ctx ~span rv op_qt;
         if unsigned then emit ctx "    %s =%s udiv %s, %s\n" tmp qt lv rv
         else if div_overflows_at_reg_width lty then
           emit_div_overflow_guard ctx ~instr:"div" ~qt ~op_qt ~dest:tmp lv rv
         else emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
       end
   | Ast.Mod ->
-      emit_divzero_check ctx rv op_qt;
+      emit_divzero_check ctx ~span rv op_qt;
       if unsigned then emit ctx "    %s =%s urem %s, %s\n" tmp qt lv rv
       else if div_overflows_at_reg_width lty then
         emit_div_overflow_guard ctx ~instr:"rem" ~qt ~op_qt ~dest:tmp lv rv
@@ -896,7 +903,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | _ -> tmp
 
 (* This rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
-and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
+and emit_shift ctx ~span op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
   let bits = match qbe_base ty with L -> 64 | _ -> 32 in
   match (op, const_count) with
@@ -912,7 +919,8 @@ and emit_shift ctx op ?const_count ~ty ~count_ty ~unsigned lv rv =
         | Some n -> Int64.compare n 0L >= 0
         | None -> is_unsigned count_ty
       in
-      if not known_nonneg then emit_negshift_check ctx rv (qbe_ty count_ty);
+      if not known_nonneg then
+        emit_negshift_check ctx ~span rv (qbe_ty count_ty);
       (* The range check runs in the count width so a huge count is caught before the truncation *)
       let in_range = fresh ctx in
       emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
@@ -977,7 +985,7 @@ and narrow_int_to ctx v target_ty =
       emit ctx "    %s =w %s %s\n" tmp instr v;
       tmp
 
-and emit_checked_cast_guard ctx v src_ty target_ty =
+and emit_checked_cast_guard ctx ~span v src_ty target_ty =
   let src_k = int_kind_of src_ty in
   let tgt_k = int_kind_of target_ty in
   if cast_int_needs_check src_k tgt_k then begin
@@ -1025,12 +1033,13 @@ and emit_checked_cast_guard ctx v src_ty target_ty =
       | Some x, None | None, Some x -> x
       | None, None -> Diagnostic.ice "checked cast with no possible loss"
     in
-    emit_guard ctx ~tag:"cast" ~cond:bad ~panic:(fun () ->
-        emit ctx "    call $ripe_panic_cast()\n")
+    emit_guard ctx ~tag:"cast" ~span ~cond:bad ~panic:(fun site ->
+        emit ctx "    call $ripe_panic_cast(w %d)\n" site)
   end
 
-and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
-  if kind = Ast.Checked then emit_checked_cast_guard ctx v src_ty target_ty;
+and emit_cast ctx ~span ~(kind : Ast.cast_kind) v src_ty target_ty =
+  if kind = Ast.Checked then
+    emit_checked_cast_guard ctx ~span v src_ty target_ty;
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
   (* The extend already truncates so the copy would be redundant *)
@@ -1108,6 +1117,7 @@ and emit_block_value ctx (body : T.cblock) : string =
 
 let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   (* Temporaries and locals are function scoped *)
+  Panic_table.enter_func ctx.panics tfd.T.source_name;
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
   Hashtbl.clear ctx.used_slots;
@@ -1276,7 +1286,7 @@ let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
           emit ctx "%sdata $%s = align %d { %s %s }\n" ex gd.T.name align letter
             value)
 
-let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
+let escape_data_string (content : string) : string =
   let buf = Buffer.create (String.length content) in
   String.iter
     (fun c ->
@@ -1287,9 +1297,28 @@ let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
       | '\t' -> Buffer.add_string buf "\\t"
       | c -> Buffer.add_char buf c)
     content;
-  emit ctx "data %s = { b \"%s\", b 0 }\n" lbl (Buffer.contents buf)
+  Buffer.contents buf
 
-let emit_qbe (tdecls : T.cdecl list) : string =
+let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
+  emit ctx "data %s = { b \"%s\", b 0 }\n" lbl (escape_data_string content)
+
+(* A program with no checks emits neither table and the runtime declares both weak so it still links *)
+let emit_panic_tables (ctx : ctx) =
+  match Panic_table.sites ctx.panics with
+  | [] -> ()
+  | sites ->
+      let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
+      let entry (s : Panic_table.site) =
+        Printf.sprintf "w %d, w %d, w %d, w %d" s.Panic_table.file
+          s.Panic_table.line s.Panic_table.col s.Panic_table.func
+      in
+      emit ctx "export data $ripe_panic_strtab = { %s }\n"
+        (String.concat ", " (List.map chunk (Panic_table.strings ctx.panics)));
+      emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
+        (String.concat ", " (List.map entry sites))
+
+let emit_qbe ~(source_of : Span.file_id -> string * Source_map.t)
+    (tdecls : T.cdecl list) : string =
   (* Collect struct layouts for offset comp *)
   let structs = Hashtbl.create 8 in
   let struct_names = Hashtbl.create 8 in
@@ -1323,6 +1352,7 @@ let emit_qbe (tdecls : T.cdecl list) : string =
       terminated = ref false;
       entry = ref (Buffer.create 64);
       in_main = ref false;
+      panics = Panic_table.create ~source_of;
     }
   in
 
@@ -1387,4 +1417,5 @@ let emit_qbe (tdecls : T.cdecl list) : string =
       emit ctx "data %s = align 8 { l %s, l %d }\n" lbl data len)
     (List.rev !(ctx.str_headers));
 
+  emit_panic_tables ctx;
   Buffer.contents !(ctx.buf)
