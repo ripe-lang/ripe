@@ -8,6 +8,8 @@ import sys
 import tempfile
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+IMPORT_PATH = os.path.dirname(os.path.dirname(TEST_DIR))
+IMPORT_PATH_LABEL = "<import-path>"
 
 
 def indented(text):
@@ -55,7 +57,7 @@ def check_one(ripec, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
     compile = subprocess.run(
-        [ripec, "-o", binary, "main.rp"],
+        [ripec, "-I", IMPORT_PATH, "-o", binary, "main.rp"],
         cwd=testdir,
         capture_output=True,
         text=True,
@@ -67,8 +69,10 @@ def check_one(ripec, testdir, workdir, promote=False):
             want = f.read()
         if compile.returncode == 0:
             return "compiled clean", "expected a compile error, got none\n"
-        actual = (compile.stdout + compile.stderr).replace(
-            os.path.realpath(testdir) + os.sep, ""
+        actual = (
+            (compile.stdout + compile.stderr)
+            .replace(os.path.realpath(testdir) + os.sep, "")
+            .replace(IMPORT_PATH + os.sep, IMPORT_PATH_LABEL + os.sep)
         )
         if actual == want:
             return "ok", ""

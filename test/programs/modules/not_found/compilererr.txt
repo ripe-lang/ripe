@@ -3,3 +3,4 @@ error: module not found
     import math
     ^~~~~~~~~~~
   tried math.rp
+        <import-path>/math.rp
