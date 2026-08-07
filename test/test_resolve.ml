@@ -389,7 +389,7 @@ newtype celsius = f32
     celsius Private
     |}]
 
-let resolve_program_src (files : (string * string) list) =
+let resolve_program_src ?(search_roots = []) (files : (string * string) list) =
   let read_file name =
     match List.assoc_opt name files with
     | Some src -> src
@@ -398,7 +398,8 @@ let resolve_program_src (files : (string * string) list) =
   let list_dir name = raise (Sys_error name) in
   let diags = Ripe.Diagnostic.sink () in
   let program =
-    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp"
+    Ripe.Program.load ~diags ~read_file ~list_dir ~search_roots
+      ~root_filename:"main.rp" ()
   in
   let resolved = Ripe.Resolve.resolve_program ~diags program in
   match Diag.finish diags resolved with
@@ -641,4 +642,53 @@ func outer() i32 {
       at <test>:4:22
           func inner() i32 { x() }
                              ^
+    |}]
+
+let%expect_test "resolve: an import resolves through a search root" =
+  resolve_program_src ~search_roots:[ "/libs" ]
+    [
+      ("main.rp", {|
+import std.io
+func main() { io.write() }
+|});
+      ("/libs/std/io.rp", {|
+module io
+pub func write() {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a relative module shadows a search root" =
+  resolve_program_src ~search_roots:[ "/libs" ]
+    [
+      ("main.rp", {|
+import std.io
+func main() { io.here() }
+|});
+      ("std/io.rp", {|
+module io
+pub func here() {}
+|});
+      ("/libs/std/io.rp", {|
+module io
+pub func write() {}
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a missing import lists every root tried" =
+  resolve_program_src ~search_roots:[ "/libs"; "/other" ]
+    [ ("main.rp", {|
+import std.io
+func main() {}
+|}) ];
+  [%expect
+    {|
+    error: module not found
+      at <test>:2:1
+        import std.io
+        ^~~~~~~~~~~~~
+      tried std/io.rp
+            /libs/std/io.rp
+            /other/std/io.rp
     |}]

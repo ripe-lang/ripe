@@ -166,10 +166,23 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   | None -> ()
 
 let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
-    ~(list_dir : string -> string list) ~(root_filename : string) : t =
+    ~(list_dir : string -> string list) ?(search_roots : string list = [])
+    ~(root_filename : string) () : t =
   (* A bare filename has no directory so every import would start with "./" *)
   let source_root =
     match Filename.dirname root_filename with "." -> "" | dir -> dir
+  in
+  (* An import tries each root in turn and the first hit wins
+     1. beside the root file so a local copy shadows an installed one
+     2. every -I on the command line in the order they were given
+     3. every dir in RIPE_PATH *)
+  let roots = source_root :: search_roots in
+  let rec locate_in path = function
+    | [] -> (Not_found : located)
+    | root :: rest -> (
+        match locate_module ~read_file ~list_dir root path with
+        | Not_found -> locate_in path rest
+        | found -> found)
   in
   let next_file_id = ref 0 in
   let next_module_id = ref 0 in
@@ -207,8 +220,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           module_id
         in
         (* A file that won't read becomes a module so lookups never fail *)
-        let unreadable import headline =
-          import_error ~diags import headline;
+        let unreadable ?detail import headline =
+          import_error ?detail ~diags import headline;
           let source =
             {
               file_id = fresh_file_id ();
@@ -245,11 +258,12 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           record units dependencies
         in
         (* The root has no import to blame so it throws instead *)
-        let missing headline =
+        let missing_with ?detail headline =
           match imported_by with
           | None -> raise (Sys_error (file_of_path source_root path))
-          | Some import -> unreadable import headline
+          | Some import -> unreadable ?detail import headline
         in
+        let missing headline = missing_with headline in
         let load_units merged filenames =
           match loaded merged filenames with
           | module_id -> module_id
@@ -263,10 +277,18 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         let located =
           match imported_by with
           | None -> Single root_filename
-          | Some _ -> locate_module ~read_file ~list_dir source_root path
+          | Some _ -> locate_in path roots
         in
         match located with
-        | Not_found -> missing "module not found"
+        | Not_found ->
+            let tried =
+              roots
+              |> List.mapi (fun i root ->
+                  let lead = if i = 0 then "  tried " else "        " in
+                  lead ^ file_of_path root path ^ "\n")
+              |> String.concat ""
+            in
+            missing_with ~detail:tried "module not found"
         | Clash -> missing "module is both a file and a directory"
         | Single filename -> load_units false [ filename ]
         | Merged filenames -> load_units true filenames)
