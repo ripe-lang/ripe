@@ -1,0 +1,14 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var hits = 0
+  outer: for i in 0..4 {
+    for j in 0..4 {
+      if i * 4 + j == 6 { break :outer }
+      hits += 1
+    }
+    printf("|")
+  }
+  printf(" hits=%d\n", hits)
+  return hits
+}

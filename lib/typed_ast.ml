@@ -32,12 +32,12 @@ type texpr_desc =
   | TStructLit of Qname.t * (int * texpr) list
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
-  | TWhile of texpr * tblock
-  | TFor of Symbol.t * ty * texpr * tblock
+  | TWhile of Ast.loop_label option * texpr * tblock
+  | TFor of Ast.loop_label option * Symbol.t * ty * texpr * tblock
   | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
   | TReturn of texpr option
-  | TBreak
-  | TContinue
+  | TBreak of Ast.loop_label option
+  | TContinue of Ast.loop_label option
   | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
 

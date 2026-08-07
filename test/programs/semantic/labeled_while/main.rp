@@ -1,0 +1,19 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var i = 0
+  var steps = 0
+  outer: while i < 5 {
+    i += 1
+    var j = 0
+    while j < 5 {
+      j += 1
+      if i == 3 { continue :outer }
+      if i == 4 { break :outer }
+      steps += 1
+    }
+    printf("%d", i)
+  }
+  printf(" steps=%d i=%d\n", steps, i)
+  return steps
+}

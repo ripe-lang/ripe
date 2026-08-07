@@ -1,0 +1,4 @@
+error: expected a loop after a label
+  at main.rp:2:10
+      outer: return 0
+             ^~~~~~ found `return`

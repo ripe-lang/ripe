@@ -81,8 +81,8 @@ and dump_expr (e : Ripe.Ast.expr) =
         | Some b -> " " ^ dump_block b.Ripe.Ast.value
         | None -> "")
       ^ ")"
-  | While (c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
-  | For (name, _, iter, body) ->
+  | While (_, c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
+  | For (_, name, _, iter, body) ->
       "(for " ^ name ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
   | Binding (_, name, _, _, init) ->
       "(let " ^ name
@@ -92,8 +92,8 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(return"
       ^ (match e with Some e -> " " ^ dump_expr e | None -> "")
       ^ ")"
-  | Break -> "(break)"
-  | Continue -> "(continue)"
+  | Break _ -> "(break)"
+  | Continue _ -> "(continue)"
   | PairAssign (ft, st, fv, sv) ->
       "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"
 
@@ -114,14 +114,14 @@ let rec dump_cstmt (e : C.cexpr) : string =
   match e.C.desc with
   | C.CBinding (_, s, _, _) -> "bind " ^ s.Ripe.Symbol.name
   | C.CReturn _ -> "return"
-  | C.CBreak -> "break"
-  | C.CContinue -> "continue"
+  | C.CBreak _ -> "break"
+  | C.CContinue _ -> "continue"
   | C.CIf (branches, else_body) -> (
       let arm (_, body) = "if " ^ dump_cstmts body in
       String.concat " " (List.map arm branches)
       ^ match else_body with Some b -> " else " ^ dump_cstmts b | None -> "")
-  | C.CLoop (body, []) -> "loop " ^ dump_cstmts body
-  | C.CLoop (body, step) ->
+  | C.CLoop (_, body, []) -> "loop " ^ dump_cstmts body
+  | C.CLoop (_, body, step) ->
       "loop " ^ dump_cstmts body ^ " step " ^ dump_cstmts step
   | C.CBlock body -> "block " ^ dump_cstmts body
   | _ -> "expr"

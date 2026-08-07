@@ -1,0 +1,4 @@
+error: undefined loop label
+  at main.rp:4:15
+        continue :outer
+                  ^~~~~

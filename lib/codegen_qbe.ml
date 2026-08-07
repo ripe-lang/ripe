@@ -117,7 +117,7 @@ type ctx = {
   str_headers : (string * string * int) list ref;
   tmp : int ref;
   str_ctr : int ref;
-  loops : (string * string) list ref;
+  loops : (T.loop_id * (string * string)) list ref;
   terminated : bool ref;
   entry : Buffer.t ref;
   in_main : bool ref;
@@ -408,8 +408,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       emit_struct_lit_into ctx slot sname tfields;
       slot
   | T.CBlock body -> emit_block_value ctx body
-  | T.CLoop (body, step) ->
-      emit_loop ctx body step;
+  | T.CLoop (id, body, step) ->
+      emit_loop ctx id body step;
       ""
   | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
       ignore (emit_expr ctx e);
@@ -444,12 +444,18 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
       ctx.terminated := true;
       ""
-  | T.CBreak ->
-      (match !(ctx.loops) with (_, brk) :: _ -> emit_jmp ctx brk | [] -> ());
-      ""
-  | T.CContinue ->
-      (match !(ctx.loops) with (cont, _) :: _ -> emit_jmp ctx cont | [] -> ());
-      ""
+  | T.CBreak id -> (
+      match List.assoc_opt id !(ctx.loops) with
+      | Some (_, brk) ->
+          emit_jmp ctx brk;
+          ""
+      | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
+  | T.CContinue id -> (
+      match List.assoc_opt id !(ctx.loops) with
+      | Some (cont, _) ->
+          emit_jmp ctx cont;
+          ""
+      | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
 
 and emit_unop ctx op e t =
   match op with
@@ -1070,13 +1076,13 @@ and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_loop ctx body step =
+and emit_loop ctx loop_id body step =
   let id = fresh_id ctx in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
   let step_lbl = Printf.sprintf "@loop.step%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
   emit_label ctx body_lbl;
-  ctx.loops := (step_lbl, end_lbl) :: !(ctx.loops);
+  ctx.loops := (loop_id, (step_lbl, end_lbl)) :: !(ctx.loops);
   emit_block ctx body;
   emit_label ctx step_lbl;
   emit_block ctx step;

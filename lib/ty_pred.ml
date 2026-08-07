@@ -48,7 +48,7 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak | T.TContinue ->
+  | T.TBreak _ | T.TContinue _ ->
       false
   | T.TPairAssign _ | T.TLocalDecl -> false
 
@@ -63,7 +63,7 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TSizeOf _ | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _
   | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef
   | T.TStructLit _ | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _
-  | T.TReturn _ | T.TBreak | T.TContinue ->
+  | T.TReturn _ | T.TBreak _ | T.TContinue _ ->
       None
   | T.TPairAssign _ | T.TLocalDecl -> None
 

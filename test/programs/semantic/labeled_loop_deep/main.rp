@@ -1,0 +1,18 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var n = 0
+  a: for i in 0..3 {
+    b: for j in 0..3 {
+      for k in 0..3 {
+        if k == 1 { continue :b }
+        if j == 2 { continue :a }
+        if i == 2 { break :a }
+        n += 1
+        printf("%d%d%d ", i, j, k)
+      }
+    }
+  }
+  printf("n=%d\n", n)
+  return n
+}
