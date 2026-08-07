@@ -163,19 +163,16 @@ and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
   let hisym = fresh_sym "for.hi" in
   let hivar = ident elem_ty hisym in
   let init = [ bind sym elem_ty lo; bind hisym elem_ty hi ] in
-  let cond =
-    binop Types.TBool (if inclusive then Ast.Lte else Ast.Lt) ivar hivar
-  in
   let incr = assign ivar (binop elem_ty Ast.Add ivar (int elem_ty 1L)) in
-  (* The guard keeps an inclusive range from incrementing past the type's max *)
-  let step =
-    if inclusive then
-      [
-        if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc D.CBreak ]; incr;
-      ]
-    else [ incr ]
-  in
-  loop ~init ~cond ~step ~body
+  if inclusive then
+    let stop =
+      if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc D.CBreak ]
+    in
+    let bare = voidc (D.CLoop (body, [ stop; incr ])) in
+    init @ [ if_then (binop Types.TBool Ast.Lte ivar hivar) [ bare ] ]
+  else
+    let cond = binop Types.TBool Ast.Lt ivar hivar in
+    loop ~init ~cond ~step:[ incr ] ~body
 
 and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
   let usize = Types.TInt Types.Usize in

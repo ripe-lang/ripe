@@ -988,17 +988,13 @@ func f() i32 {
         storew 0, %sum
         storew 0, %i
         storew 3, %for.hi.1
-    @loop.body0
-    @if.cond1_0
-        %t2 =w loadsw %i
-        %t3 =w loadsw %for.hi.1
-        %t4 =w cslew %t2, %t3
-        jnz %t4, @if.else1, @if.then1_0
-    @if.then1_0
-        jmp @loop.end0
-    @if.else1
-        jmp @if.end1
-    @if.end1
+    @if.cond0_0
+        %t1 =w loadsw %i
+        %t2 =w loadsw %for.hi.1
+        %t3 =w cslew %t1, %t2
+        jnz %t3, @if.then0_0, @if.else0
+    @if.then0_0
+    @loop.body4
         %t5 =l copy %sum
         storel %t5, %compound.p.0
         %t6 =l loadl %compound.p.0
@@ -1019,22 +1015,26 @@ func f() i32 {
         %t13 =w loadsw %i
         %t14 =w add %t10, %t13
         storew %t14, %t6
-    @loop.step0
+    @loop.step4
     @if.cond15_0
         %t16 =w loadsw %i
         %t17 =w loadsw %for.hi.1
         %t18 =w ceqw %t16, %t17
         jnz %t18, @if.then15_0, @if.else15
     @if.then15_0
-        jmp @loop.end0
+        jmp @loop.end4
     @if.else15
         jmp @if.end15
     @if.end15
         %t19 =w loadsw %i
         %t20 =w add %t19, 1
         storew %t20, %i
-        jmp @loop.body0
-    @loop.end0
+        jmp @loop.body4
+    @loop.end4
+        jmp @if.end0
+    @if.else0
+        jmp @if.end0
+    @if.end0
         %t21 =w loadsw %sum
         ret %t21
     }
