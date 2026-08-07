@@ -3,7 +3,6 @@
 type span = Span.t = { file : Span.file_id; lo : int; hi : int }
 
 let pp_span = Span.pp
-let show_span = Span.show
 let dummy_span = Span.dummy
 
 type 'a spanned = { value : 'a; span : span }
