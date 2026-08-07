@@ -5,6 +5,7 @@
 
 #define PANIC_RED "\033[1;31m"
 #define PANIC_RESET "\033[0m"
+#define RIPE_PANIC_STATUS 79
 
 struct ripe_site {
     unsigned int file;
@@ -36,7 +37,9 @@ static _Noreturn void report(unsigned int site, const char *fmt, ...) {
             s->col);
     fprintf(stderr, "  in %s\n", &ripe_panic_strtab[s->func]);
 
-    abort();
+    /* A status clear of the sysexits.h range and of the 128+N a shell reports
+       for a signal keeps a panic from looking like an ordinary failure */
+    exit(RIPE_PANIC_STATUS);
 }
 
 _Noreturn void ripe_panic(unsigned int site, const char *msg) {
