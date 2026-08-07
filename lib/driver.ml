@@ -9,18 +9,19 @@ end
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 let list_dir dir = Array.to_list (Sys.readdir dir)
 
+let use_color () =
+  match Sys.getenv_opt "NO_COLOR" with
+  | Some value when value <> "" -> false
+  | _ -> Unix.isatty Unix.stderr
+
 let die msg =
-  let label =
-    Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
-  in
+  let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
   Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
 let run cmd =
   if Sys.command cmd <> 0 then (
-    let label =
-      Diagnostic.severity_label (Unix.isatty Unix.stderr) Diagnostic.Error
-    in
+    let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1)
 
@@ -108,7 +109,7 @@ let program_source (program : Program.t) : Span.file_id -> Program.source =
 
 let program_context (program : Program.t) :
     (Span.file_id -> Diagnostic.ctx) * Diagnostic.ctx =
-  let color = Unix.isatty Unix.stderr in
+  let color = use_color () in
   let source_for_file = program_source program in
   ( (fun file -> source_ctx color (source_for_file file)),
     source_ctx color program.Program.root_source )

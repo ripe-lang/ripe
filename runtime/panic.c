@@ -19,8 +19,17 @@ struct ripe_site {
 extern const struct ripe_site ripe_panic_sites[] __attribute__((weak));
 extern const char ripe_panic_strtab[] __attribute__((weak));
 
+static int use_color(void) {
+    const char *no_color = getenv("NO_COLOR");
+
+    if (no_color != NULL && no_color[0] != '\0') {
+        return 0;
+    }
+    return isatty(fileno(stderr));
+}
+
 static const char *panic_prefix(void) {
-    return isatty(fileno(stderr)) ? PANIC_RED "panic:" PANIC_RESET : "panic:";
+    return use_color() ? PANIC_RED "panic:" PANIC_RESET : "panic:";
 }
 
 static _Noreturn void report(unsigned int site, const char *fmt, ...) {
