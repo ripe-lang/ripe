@@ -31,14 +31,29 @@ dune test
 
 ## Adding Tests
 
-Tests in `test/` use `let%expect_test` with an `[%expect {| |}]` block. Leave it
-empty and let dune fill in the output:
+Tests in `test/` use `let%expect_test` with an `[%expect {| |}]` block that dune
+fills in when it starts empty:
 
 ```sh
 dune test --auto-promote
 ```
 
-Same command promotes new output after an intentional change.
+The same command promotes new output after a real change.
+
+`test/programs/` uses golden files instead of `%expect` blocks:
+
+```
+test/programs/<name>/
+  main.rp           # input
+  out.txt           # golden stdout
+  compilererr.txt   # golden compile error
+```
+
+Promote a new golden file with:
+
+```sh
+test/programs/run.py --promote
+```
 
 ## Formatting Code
 
