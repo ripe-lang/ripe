@@ -4,10 +4,14 @@ Reference for the language as it exists today.
 
 ## Expression-based language
 
+An `if` or a block is a value anywhere a value is expected.
+
 ```ripe
+func twice(x: i32) i32 { x * 2 }
+
 func main() i32 {
   let value = if true { 21 } else { 0 }
-  value * 2
+  twice({ value })
 }
 ```
 

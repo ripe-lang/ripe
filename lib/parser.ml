@@ -71,7 +71,7 @@ let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF ->
+  | IF | LBRACE ->
       true
   | _ -> false
 
@@ -673,6 +673,7 @@ and parse_primary ?(no_struct_lit = false) st =
       advance st;
       mk lo st Undefined
   | IF -> parse_if st
+  | LBRACE -> mk lo st (Block (parse_block st))
   | ELSE ->
       raise
         (ParseError
@@ -685,13 +686,6 @@ and parse_primary ?(no_struct_lit = false) st =
   | _ -> fail_found st "expected expression"
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
-
-(* A block is a value too and where it sits decides if the value is used *)
-and parse_value st =
-  let lo = cur_pos st in
-  match st.tok with
-  | LBRACE -> mk lo st (Block (parse_block st))
-  | _ -> parse_expr st 1
 
 (* x: 3, y: 4 *)
 and parse_struct_lit_fields st =
@@ -734,10 +728,10 @@ and parse_simple_stmt st =
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
+          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
         else if at st ASSIGN then (
           advance st;
-          Some (recover_expr_to st depth [] (fun () -> parse_value st)))
+          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
@@ -753,7 +747,7 @@ and parse_simple_stmt st =
       if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
         mk lo st (Return None)
       else
-        let e = parse_value st in
+        let e = parse_expr st 1 in
         mk lo st (Return (Some e))
   | _ ->
       let first = parse_expr st 1 in
