@@ -1,0 +1,2 @@
+02|02|02|013 inner=6 outer=6 skipped=4
+exit: 0

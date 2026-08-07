@@ -1,0 +1,2 @@
+0134 calls=4 sum=14 x=3 picked=40
+exit: 0
