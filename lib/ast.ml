@@ -3,7 +3,6 @@
 type span = Span.t = { file : Span.file_id; lo : int; hi : int }
 
 let pp_span = Span.pp
-let show_span = Span.show
 let dummy_span = Span.dummy
 
 type 'a spanned = { value : 'a; span : span }
@@ -154,12 +153,7 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
-and field = {
-  field_name : string;
-  field_typ : typ;
-  field_modifiers : modifier list;
-  field_span : span;
-}
+and field = { field_name : string; field_typ : typ; field_span : span }
 [@@deriving show { with_path = false }]
 
 and struct_def = {

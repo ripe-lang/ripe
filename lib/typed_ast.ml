@@ -62,8 +62,6 @@ type tfunc_def = {
 }
 [@@deriving show { with_path = false }]
 
-let tfunc_name (fd : tfunc_def) : string = fd.name
-
 type tglobal_def = {
   key : Symbol.key;
   name : string;
