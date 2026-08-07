@@ -36,6 +36,8 @@ let usage_msg =
     \  -b, --backend <NAME>  Select the code generator: %s (default qbe)\n\
     \  -o, --output <FILE>   Write the compiler output to <FILE>\n\
     \  -l, --library <NAME>  Link with the named library\n\
+    \  -I, --import-path <DIR>\n\
+    \                        Add a directory to the import search path\n\
     \  -h, --help            Display this list of options\n\n\
      Examples:\n\
     \  ripec source.rp\n\
@@ -58,9 +60,12 @@ let command =
   and+ out =
     named_with_default [ "o"; "output" ] file ~default:"" ~value_name:"FILE"
   and+ libraries = named_multi [ "l"; "library" ] string ~value_name:"NAME"
+  and+ import_paths =
+    named_multi [ "I"; "import-path" ] string ~value_name:"DIR"
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
-  Driver.compile ~stage ~backend ~out ~libraries ~filename
+  let search_roots = import_paths @ Config.search_roots () in
+  Driver.compile ~stage ~backend ~out ~libraries ~search_roots ~filename
 
 let is_help arg = arg = "-h" || arg = "--help"
 

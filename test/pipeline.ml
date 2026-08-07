@@ -34,7 +34,7 @@ let load_program (files : (string * string) list) =
   let list_dir name = raise (Sys_error name) in
   let diags = Ripe.Diagnostic.sink () in
   let program =
-    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp"
+    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp" ()
   in
   (Ripe.Resolve.resolve_program ~diags program, diags)
 

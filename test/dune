@@ -19,4 +19,5 @@
   test_symbol
   test_resolve
   test_error
-  test_mangle))
+  test_mangle
+  test_config))

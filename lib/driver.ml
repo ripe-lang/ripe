@@ -138,12 +138,15 @@ let root_tokens filename =
   Lexing.set_filename lexbuf filename;
   dump_tokens (Lexer.read (Lexer.make_state 0)) lexbuf
 
-let load ~diags ~filename =
-  try Program.load ~diags ~read_file ~list_dir ~root_filename:filename with
+let load ~diags ~search_roots ~filename =
+  try
+    Program.load ~diags ~read_file ~list_dir ~search_roots
+      ~root_filename:filename ()
+  with
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
 
-let compile ~stage ~backend ~out ~libraries ~filename =
+let compile ~stage ~backend ~out ~libraries ~search_roots ~filename =
   (* Write to -o if set or stdout *)
   let output_text s =
     if out = "" then print_string s
@@ -160,7 +163,7 @@ let compile ~stage ~backend ~out ~libraries ~filename =
     output_text (root_tokens filename);
     exit 0);
   let diags = Diagnostic.sink () in
-  let program = load ~diags ~filename in
+  let program = load ~diags ~search_roots ~filename in
   (* A missing main is noise once the program failed to load *)
   let load_had_errors = Diagnostic.has_errors diags in
   let render_and_exit_if_failed () =

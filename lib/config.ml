@@ -30,3 +30,11 @@ let runtime_object () : string =
   | None ->
       failwith
         "cannot find the ripe runtime object (set RIPE_RUNTIME to its path)"
+
+let path_separator = if Sys.win32 then ';' else ':'
+
+let split_paths ?(sep = path_separator) (v : string) : string list =
+  String.split_on_char sep v |> List.filter (fun p -> String.trim p <> "")
+
+let search_roots () : string list =
+  match Sys.getenv_opt "RIPE_PATH" with Some v -> split_paths v | None -> []
