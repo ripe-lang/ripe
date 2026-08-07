@@ -2,6 +2,8 @@
 
 open Types
 
+type loop_id = int [@@deriving show { with_path = false }]
+
 type cexpr_desc =
   | CInt of int64
   | CFloat of float
@@ -29,11 +31,11 @@ type cexpr_desc =
   | CStructLit of Qname.t * (int * cexpr) list
   | CBlock of cblock
   | CIf of (cexpr * cblock) list * cblock option
-  | CLoop of cblock
+  | CLoop of loop_id * cblock * cblock
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
-  | CBreak
-  | CContinue
+  | CBreak of loop_id
+  | CContinue of loop_id
 
 and cexpr = { desc : cexpr_desc; ty : ty; span : Ast.span }
 and cblock = cexpr list [@@deriving show { with_path = false }]

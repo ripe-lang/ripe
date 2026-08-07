@@ -11,6 +11,8 @@ type 'a spanned = { value : 'a; span : span }
 
 let spanned value span = { value; span }
 
+type loop_label = string spanned [@@deriving show { with_path = false }]
+
 type binop =
   | Add
   | Sub
@@ -123,12 +125,12 @@ type expr_desc =
   | StructLit of string list * string * span * (string * span * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
-  | While of expr * block
-  | For of string * span * expr * block
+  | While of loop_label option * expr * block
+  | For of loop_label option * string * span * expr * block
   | Binding of binding_kind * string * span * typ option * expr option
   | Return of expr option
-  | Break
-  | Continue
+  | Break of loop_label option
+  | Continue of loop_label option
   | PairAssign of expr * expr * expr * expr
 [@@deriving show { with_path = false }]
 

@@ -1,0 +1,7 @@
+func main() i32 {
+  outer: for _i in 0..2 { }
+  for _j in 0..2 {
+    continue :outer
+  }
+  return 0
+}

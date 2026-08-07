@@ -407,6 +407,38 @@ func main() i32 {
 }
 ```
 
+### Loop labels
+
+```ripe
+func main() i32 {
+  var s: i32 = 0
+  outer: for i in 0..4 {
+    for j in 0..4 {
+      if j == 2 { continue :outer }
+      if i == 3 { break :outer }
+      s += i * j
+    }
+  }
+  return s
+}
+```
+
+```ripe
+func main() i32 {
+  var i: i32 = 0
+  outer: while i < 5 {
+    i += 1
+    var j: i32 = 0
+    while j < 5 {
+      j += 1
+      if j == 2 { continue :outer }
+      if i == 4 { break :outer }
+    }
+  }
+  return i
+}
+```
+
 ## Operators
 
 ### Arithmetic and comparison

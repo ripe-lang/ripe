@@ -1,0 +1,16 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var pairs = 0
+  var rows = 0
+  outer: for i in 0..4 {
+    for j in 0..4 {
+      if j == 2 { continue :outer }
+      printf("%d%d ", i, j)
+      pairs += 1
+    }
+    rows += 1
+  }
+  printf("pairs=%d rows=%d\n", pairs, rows)
+  return pairs
+}

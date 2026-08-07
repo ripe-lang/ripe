@@ -16,6 +16,7 @@ type state = {
   diags : Diagnostic.sink;
   mutable prev_end : int;
   mutable recovered : bool;
+  mutable ahead : token_info option;
 }
 
 type chain = Comparison | Range
@@ -25,9 +26,23 @@ type infix = { prec : int; assoc : assoc; chain : chain option }
 (* Span of the current lookahead token so the caret lands under it *)
 let cur_span st = st.tok_span
 
+let peek st =
+  match st.ahead with
+  | Some info -> info
+  | None ->
+      let info = st.read () in
+      st.ahead <- Some info;
+      info
+
 let advance st =
   st.prev_end <- st.tok_span.hi;
-  let info = st.read () in
+  let info =
+    match st.ahead with
+    | Some info ->
+        st.ahead <- None;
+        info
+    | None -> st.read ()
+  in
   st.tok <- info.token;
   st.tok_span <- info.span;
   st.tok_line <- info.line;
@@ -37,6 +52,9 @@ let at st t = st.tok = t
 
 (* Start of the current lookahead token *)
 let cur_pos st = st.tok_span.lo
+
+let loop_lo st (label : Ast.loop_label option) : int =
+  match label with Some (l : Ast.loop_label) -> l.span.lo | None -> cur_pos st
 
 let fail st headline =
   raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
@@ -289,8 +307,8 @@ let rec dotted_name (e : expr) : string list option =
       Option.map (fun path -> path @ [ name ]) (dotted_name inner)
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
-  | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break | Continue
-  | Undefined | Range _ | RangeInclusive _ | PairAssign _ ->
+  | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
+  | Continue _ | Undefined | Range _ | RangeInclusive _ | PairAssign _ ->
       None
 
 (* i32, *i32, (i32, i32) i32 *)
@@ -730,10 +748,10 @@ and parse_simple_stmt st =
       mk lo st (Binding (kind, name, nspan, ann, e))
   | BREAK ->
       advance st;
-      mk lo st Break
+      mk lo st (Break (parse_loop_target st))
   | CONTINUE ->
       advance st;
-      mk lo st Continue
+      mk lo st (Continue (parse_loop_target st))
   | RETURN ->
       (* Return with no value ends at a newline or closing brace *)
       advance st;
@@ -814,6 +832,7 @@ and parse_stmt st =
   | IF -> Expr (parse_if st)
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
+  | IDENT name when (peek st).token = COLON -> Expr (parse_labeled_loop st name)
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
@@ -857,24 +876,45 @@ and parse_if st =
   mk lo st (If ((cond, body) :: elseifs, else_body))
 
 (* while i < len { } *)
-and parse_while st =
-  let lo = cur_pos st in
+and parse_while ?label st =
+  let lo = loop_lo st label in
   advance st;
   (* WHILE *)
   let cond = parse_header_expr st in
   let body = parse_block st in
-  mk lo st (While (cond, body))
+  mk lo st (While (label, cond, body))
+
+(* break :outer *)
+and parse_loop_target st =
+  if at st COLON then (
+    advance st;
+    let name, nspan = expect_ident_span st in
+    Some (Ast.spanned name nspan))
+  else None
 
 (* for i in 0..len { } *)
-and parse_for st =
-  let lo = cur_pos st in
+and parse_for ?label st =
+  let lo = loop_lo st label in
   advance st;
   (* FOR *)
   let name, nspan = expect_ident_span st in
   expect st IN;
   let iter = parse_header_expr st in
   let body = parse_block st in
-  mk lo st (For (name, nspan, iter, body))
+  mk lo st (For (label, name, nspan, iter, body))
+
+(* outer: for row in grid { } *)
+and parse_labeled_loop st name =
+  let nspan = cur_span st in
+  advance st;
+  (* IDENT *)
+  advance st;
+  (* COLON *)
+  let label = Ast.spanned name nspan in
+  match st.tok with
+  | WHILE -> parse_while ~label st
+  | FOR -> parse_for ~label st
+  | _ -> fail_found st "expected a loop after a label"
 
 (* let PAGE_SIZE: i32 = 4096 / var n: i32 = 0 / var flag: bool *)
 let parse_global st mods =
@@ -1046,6 +1086,7 @@ let parse ~(diags : Diagnostic.sink)
       diags;
       prev_end = 0;
       recovered = false;
+      ahead = None;
     }
   in
   advance st;

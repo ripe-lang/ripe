@@ -29,43 +29,36 @@ let binop ty op a b = D.mk ty (D.CBinOp (op, a, b))
 let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
 let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
 let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
+let loop_counter = ref 0
+let loop_stack : (string option * D.loop_id) list ref = ref []
 
-(* A for-loop continue still has to run the step so drop a copy in front of each one *)
-(* Nested loops aren't touched here since their continues belong to them *)
-let rec paste_step step (stmts : D.cblock) : D.cblock =
-  let on_stmt (st : D.cexpr) =
-    match st.D.desc with
-    | D.CContinue -> step @ [ st ]
-    (* A nested loop owns its own continues *)
-    | D.CLoop _ -> [ st ]
-    | D.CReturn (Some e) ->
-        [ { st with D.desc = D.CReturn (Some (paste_in_expr step e)) } ]
-    | D.CIf _ | D.CBlock _ | D.CBinding _ -> [ paste_in_expr step st ]
-    | _ -> [ st ]
+let enter_loop (label : Ast.loop_label option) : D.loop_id =
+  let id = !loop_counter in
+  incr loop_counter;
+  let name = Option.map (fun (l : Ast.loop_label) -> l.Ast.value) label in
+  loop_stack := (name, id) :: !loop_stack;
+  id
+
+let leave_loop () =
+  loop_stack := match !loop_stack with _ :: rest -> rest | [] -> []
+
+let target_loop ~(span : Ast.span) (label : Ast.loop_label option) : D.loop_id =
+  let found =
+    match label with
+    | None -> ( match !loop_stack with (_, id) :: _ -> Some id | [] -> None)
+    | Some l ->
+        List.find_map
+          (fun (name, id) -> if name = Some l.Ast.value then Some id else None)
+          !loop_stack
   in
-  List.concat_map on_stmt stmts
+  match found with
+  | Some id -> id
+  | None -> Diagnostic.ice ~span "loop target reached lowering with no loop"
 
-(* A continue can hide inside a value from a binding or return *)
-and paste_in_expr step (e : D.cexpr) : D.cexpr =
-  match e.D.desc with
-  | D.CIf (branches, else_body) ->
-      let branches =
-        List.map (fun (c, body) -> (c, paste_step step body)) branches
-      in
-      {
-        e with
-        D.desc = D.CIf (branches, Option.map (paste_step step) else_body);
-      }
-  | D.CBlock body -> { e with D.desc = D.CBlock (paste_step step body) }
-  | D.CBinding (k, s, t, init) ->
-      { e with D.desc = D.CBinding (k, s, t, paste_in_expr step init) }
-  | _ -> e
-
-let loop ~init ~cond ~step ~body : D.cblock =
+let loop ~id ~init ~cond ~step ~body : D.cblock =
   let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
-  let guard = if_then not_cond [ neverc D.CBreak ] in
-  let body = if step = [] then body else paste_step step body @ step in
-  let bare = voidc (D.CLoop (guard :: body)) in
+  let guard = if_then not_cond [ neverc (D.CBreak id) ] in
+  let bare = voidc (D.CLoop (id, guard :: body, step)) in
   init @ [ bare ]
 
 let rec lower_expr (te : S.texpr) : D.cexpr =
@@ -117,13 +110,13 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
           ( List.map (fun (c, body) -> (lower_expr c, lower_block body)) branches,
             Option.map lower_block else_body )
     (* While and for are void so they only reach here from an unused value slot *)
-    | S.TWhile (cond, body) -> D.CBlock (lower_while cond body)
-    | S.TFor (sym, elem_ty, iter, body) ->
-        D.CBlock (lower_for sym elem_ty iter body)
+    | S.TWhile (label, cond, body) -> D.CBlock (lower_while label cond body)
+    | S.TFor (label, sym, elem_ty, iter, body) ->
+        D.CBlock (lower_for label sym elem_ty iter body)
     | S.TBinding (kind, sym, t, e) -> D.CBinding (kind, sym, t, lower_expr e)
     | S.TReturn e -> D.CReturn (Option.map lower_expr e)
-    | S.TBreak -> D.CBreak
-    | S.TContinue -> D.CContinue
+    | S.TBreak label -> D.CBreak (target_loop ~span label)
+    | S.TContinue label -> D.CContinue (target_loop ~span label)
     | S.TPairAssign (ft, st, fv, sv) -> D.CBlock (lower_pair_assign ft st fv sv)
     | S.TLocalDecl ->
         Diagnostic.ice ~span "local declaration reached value lowering"
@@ -136,8 +129,9 @@ and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
 and lower_elem (te : S.texpr) : D.cblock =
   match te.S.desc with
   | S.TLocalDecl -> []
-  | S.TWhile (cond, body) -> lower_while cond body
-  | S.TFor (sym, elem_ty, iter, body) -> lower_for sym elem_ty iter body
+  | S.TWhile (label, cond, body) -> lower_while label cond body
+  | S.TFor (label, sym, elem_ty, iter, body) ->
+      lower_for label sym elem_ty iter body
   | S.TBinOp (op, l, r) when base_binop_of op <> None ->
       lower_compound_assign op l r
   | S.TPairAssign (ft, st, fv, sv) -> lower_pair_assign ft st fv sv
@@ -156,8 +150,12 @@ and lower_pair_assign (ft : S.texpr) (st : S.texpr) (fv : S.texpr)
     assign (lower_expr st) (ident sv.D.ty second_sym);
   ]
 
-and lower_while cond body : D.cblock =
-  loop ~init:[] ~cond:(lower_expr cond) ~step:[] ~body:(lower_block body)
+and lower_while label cond body : D.cblock =
+  let id = enter_loop label in
+  let cond = lower_expr cond in
+  let body = lower_block body in
+  leave_loop ();
+  loop ~id ~init:[] ~cond ~step:[] ~body
 
 (* X op= r runs as x = x op r and likewise for every other compound form *)
 and base_binop_of = function
@@ -190,26 +188,23 @@ and lower_compound_assign op (l : S.texpr) (r : S.texpr) : D.cblock =
   let updated = binop elem base place (lower_expr r) in
   [ bind psym ptr_ty addr; assign place updated ]
 
-and lower_range_for sym elem_ty lo hi ~inclusive body : D.cblock =
+and lower_range_for ~id sym elem_ty lo hi ~inclusive body : D.cblock =
   let ivar = ident elem_ty sym in
   let hisym = fresh_sym "for.hi" in
   let hivar = ident elem_ty hisym in
   let init = [ bind sym elem_ty lo; bind hisym elem_ty hi ] in
-  let cond =
-    binop Types.TBool (if inclusive then Ast.Lte else Ast.Lt) ivar hivar
-  in
   let incr = assign ivar (binop elem_ty Ast.Add ivar (int elem_ty 1L)) in
-  (* The guard keeps an inclusive range from incrementing past the type's max *)
-  let step =
-    if inclusive then
-      [
-        if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc D.CBreak ]; incr;
-      ]
-    else [ incr ]
-  in
-  loop ~init ~cond ~step ~body
+  if inclusive then
+    let stop =
+      if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc (D.CBreak id) ]
+    in
+    let bare = voidc (D.CLoop (id, body, [ stop; incr ])) in
+    init @ [ if_then (binop Types.TBool Ast.Lte ivar hivar) [ bare ] ]
+  else
+    let cond = binop Types.TBool Ast.Lt ivar hivar in
+    loop ~id ~init ~cond ~step:[ incr ] ~body
 
-and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
+and lower_each_for ~id sym elem_ty (iter : D.cexpr) body : D.cblock =
   let usize = Types.TInt Types.Usize in
   let ptr_ty = Types.TPointer elem_ty in
   (* A slice is snapshotted so its pointer and length come from one evaluation *)
@@ -236,17 +231,26 @@ and lower_each_for sym elem_ty (iter : D.cexpr) body : D.cblock =
   let elem = D.mk elem_ty (D.CIndex (ident ptr_ty psym, ivar)) in
   let incr = assign ivar (binop usize Ast.Add ivar (int usize 1L)) in
   let body = bind sym elem_ty elem :: body in
-  loop ~init ~cond ~step:[ incr ] ~body
+  loop ~id ~init ~cond ~step:[ incr ] ~body
 
-and lower_for sym elem_ty iter body : D.cblock =
+and lower_for label sym elem_ty iter body : D.cblock =
   match iter.S.desc with
-  | S.TRange (lo, hi) ->
-      lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
-        ~inclusive:false (lower_block body)
-  | S.TRangeInclusive (lo, hi) ->
-      lower_range_for sym elem_ty (lower_expr lo) (lower_expr hi)
-        ~inclusive:true (lower_block body)
-  | _ -> lower_each_for sym elem_ty (lower_expr iter) (lower_block body)
+  | S.TRange (lo, hi) | S.TRangeInclusive (lo, hi) ->
+      let inclusive =
+        match iter.S.desc with S.TRangeInclusive _ -> true | _ -> false
+      in
+      let lo = lower_expr lo in
+      let hi = lower_expr hi in
+      let id = enter_loop label in
+      let body = lower_block body in
+      leave_loop ();
+      lower_range_for ~id sym elem_ty lo hi ~inclusive body
+  | _ ->
+      let iter = lower_expr iter in
+      let id = enter_loop label in
+      let body = lower_block body in
+      leave_loop ();
+      lower_each_for ~id sym elem_ty iter body
 
 let lower_func (fd : S.tfunc_def) : D.cfunc_def =
   {

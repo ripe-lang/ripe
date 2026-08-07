@@ -7,7 +7,7 @@ let%expect_test "typecheck: break outside loop" =
   run_src "func f() { break }";
   [%expect
     {|
-    error: break outside loop
+    error: `break` outside a loop
       at <test>:1:12
         func f() { break }
                    ^~~~~
@@ -17,7 +17,7 @@ let%expect_test "typecheck: continue outside loop" =
   run_src "func f() { continue }";
   [%expect
     {|
-    error: continue outside loop
+    error: `continue` outside a loop
       at <test>:1:12
         func f() { continue }
                    ^~~~~~~~
@@ -3721,7 +3721,7 @@ let%expect_test "collapse: break as a value outside a loop still errors" =
     "func f() i32 { let x: i32 = if true { 1 } else { break }\n return x }";
   [%expect
     {|
-    error: break outside loop
+    error: `break` outside a loop
       at <test>:1:50
         func f() i32 { let x: i32 = if true { 1 } else { break }
                                                          ^~~~~

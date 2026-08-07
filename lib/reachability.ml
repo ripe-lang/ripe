@@ -13,7 +13,8 @@ and block_item_has_break = function
 and expr_has_break (e : expr) : bool =
   match e.desc with
   | ErrorExpr -> false
-  | Break -> true
+  | Break None -> true
+  | Break (Some _) -> false
   | Block body -> loop_has_break body
   | If (branches, else_body) ->
       Option.fold ~none:false

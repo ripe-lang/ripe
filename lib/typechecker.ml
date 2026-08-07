@@ -39,6 +39,7 @@ type env = {
   l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
   ret_ty : ty;
   in_loop : bool;
+  loop_labels : string list;
   in_main : bool;
   suppress_warnings : bool;
   (* Whoever reads the message is inside this module so its path drops out *)
@@ -61,6 +62,7 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
     l_vals = Hashtbl.create 16;
     ret_ty = TVoid;
     in_loop = false;
+    loop_labels = [];
     in_main = false;
     suppress_warnings = Diagnostic.has_errors diags;
     reader_path = [];
@@ -418,26 +420,29 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let tb, ty = check_scoped_block env e.span body Infer false in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) -> check_if env e.span branches else_body None
-  | While (cond, body) ->
+  | While (label, cond, body) ->
       let tc = check env cond TBool in
-      let tb, _ = check_scoped_block env e.span body Discard true in
+      let tb, _ =
+        check_scoped_block (declare_label env label) e.span body Discard true
+      in
       (* A while true with no break loops forever so it never yields control *)
       let diverges =
         match cond.desc with
         | Bool true -> not (Reachability.loop_has_break body)
         | _ -> false
       in
-      T.mk (if diverges then TNever else TVoid) (T.TWhile (tc, tb))
-  | For (name, nspan, iter, body) -> synth_for env e.span name nspan iter body
+      T.mk (if diverges then TNever else TVoid) (T.TWhile (label, tc, tb))
+  | For (label, name, nspan, iter, body) ->
+      synth_for env e.span label name nspan iter body
   | Binding (kind, name, nspan, ann, init) ->
       snd (check_binding env kind name nspan ann init)
   | Return init -> synth_return env e.span init
-  | Break ->
-      if not env.in_loop then add_error env e.span "break outside loop";
-      T.mk TNever T.TBreak
-  | Continue ->
-      if not env.in_loop then add_error env e.span "continue outside loop";
-      T.mk TNever T.TContinue
+  | Break label ->
+      check_loop_target env e.span "`break` outside a loop" label;
+      T.mk TNever (T.TBreak label)
+  | Continue label ->
+      check_loop_target env e.span "`continue` outside a loop" label;
+      T.mk TNever (T.TContinue label)
   | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
 
 (* The value of a block is its last element and void when the block is empty *)
@@ -638,8 +643,21 @@ and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
       | None -> ());
       T.mk TNever (T.TReturn (Some te))
 
-and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
-    (iter : expr) (body : block) : T.texpr =
+and declare_label (env : env) (label : Ast.loop_label option) : env =
+  match label with
+  | None -> env
+  | Some l -> { env with loop_labels = l.Ast.value :: env.loop_labels }
+
+and check_loop_target (env : env) (span : Ast.span) (headline : string)
+    (label : Ast.loop_label option) : unit =
+  match label with
+  | None -> if not env.in_loop then add_error env span headline
+  | Some l ->
+      if not (List.mem l.Ast.value env.loop_labels) then
+        emit env (Diagnostic.undefined_name l.Ast.span "loop label")
+
+and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
+    (name : string) (nspan : Ast.span) (iter : expr) (body : block) : T.texpr =
   let titer, elem_ty =
     match iter.desc with
     | Range (lo, hi) | RangeInclusive (lo, hi) ->
@@ -660,11 +678,11 @@ and synth_for (env : env) (span : Ast.span) (name : string) (nspan : Ast.span)
               (Diagnostic.with_type iter.span "cannot iterate" (show_ty env t));
             (ti, TInt I32))
   in
-  let inner = push_scope { env with in_loop = true } in
+  let inner = push_scope { (declare_label env label) with in_loop = true } in
   let inner = extend_var inner nspan name elem_ty in
   let final_inner, tb = check_block inner span body Discard in
   warn_unused_in_scope final_inner;
-  T.mk TVoid (T.TFor (sym env nspan, elem_ty, titer, tb))
+  T.mk TVoid (T.TFor (label, sym env nspan, elem_ty, titer, tb))
 
 (* An arm can end in a call whose value nobody wanted so each one is checked on its own *)
 and check_if_discarded (env : env) (span : Ast.span)
@@ -1637,7 +1655,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
   | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak | T.TContinue | T.TLocalDecl ->
+  | T.TBreak _ | T.TContinue _ | T.TLocalDecl ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

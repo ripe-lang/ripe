@@ -1,0 +1,13 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var i = 0
+  var seen = 0
+  while i < 5 {
+    i += 1
+    printf("%d", if i == 3 { continue } else { i })
+    seen += 1
+  }
+  printf(" seen=%d\n", seen)
+  return seen
+}

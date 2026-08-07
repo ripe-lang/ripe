@@ -1,0 +1,28 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var calls = 0
+  for i in 0..5 {
+    printf("%d", if i == 2 { continue } else { i })
+    calls += 1
+  }
+
+  var sum = 0
+  for i in 0..5 {
+    sum += 1 + if i == 0 { continue } else { i }
+  }
+
+  var x = 0
+  for i in 0..4 {
+    x = if i == 1 { continue } else { i }
+  }
+
+  var a: [3]i32 = [10, 20, 30]
+  var picked = 0
+  for i in 0..3 {
+    picked += a[if i == 1 { continue } else { i }]
+  }
+
+  printf(" calls=%d sum=%d x=%d picked=%d\n", calls, sum, x, picked)
+  return 0
+}
