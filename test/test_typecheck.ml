@@ -4257,3 +4257,28 @@ let%expect_test "typecheck: a str comptime is rejected" =
         comptime C: str = "a"
                           ^~~
     |}]
+
+let%expect_test "typecheck: a labeled break exits an outer loop" =
+  run_src
+    {|func f() {
+  outer: while true { while true { break :outer } }
+  g()
+}
+func g() {}|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a shadowed label leaves the outer loop diverging" =
+  run_src
+    {|func f() {
+  outer: while true { outer: while true { break :outer } }
+  g()
+}
+func g() {}|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:3:3
+          g()
+          ^~~
+    ok
+    |}]

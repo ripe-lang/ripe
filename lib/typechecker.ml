@@ -428,7 +428,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       (* A while true with no break loops forever so it never yields control *)
       let diverges =
         match cond.desc with
-        | Bool true -> not (Reachability.loop_has_break body)
+        | Bool true -> not (Reachability.loop_has_break ?label body)
         | _ -> false
       in
       T.mk (if diverges then TNever else TVoid) (T.TWhile (label, tc, tb))

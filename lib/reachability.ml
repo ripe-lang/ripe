@@ -2,32 +2,45 @@
 
 open Ast
 
-(* A break inside an inner loop stops that loop and not this one *)
-let rec loop_has_break (body : block) : bool =
-  List.exists block_item_has_break body
+let label_name : loop_label option -> string option =
+  Option.map (fun (l : loop_label) -> l.Ast.value)
 
-and block_item_has_break = function
-  | Expr e -> expr_has_break e
+(* A bare break belongs to the nearest loop and a labeled one to the name *)
+let rec loop_has_break ?label (body : block) : bool =
+  block_has_break ~own:true (label_name label) body
+
+and block_has_break ~own (target : string option) (body : block) : bool =
+  List.exists (block_item_has_break ~own target) body
+
+and block_item_has_break ~own target = function
+  | Expr e -> expr_has_break ~own target e
   | Decl _ -> false
 
-and expr_has_break (e : expr) : bool =
+and expr_has_break ~own (target : string option) (e : expr) : bool =
   match e.desc with
   | ErrorExpr -> false
-  | Break None -> true
-  | Break (Some _) -> false
-  | Block body -> loop_has_break body
+  | Break None -> own
+  | Break (Some l) -> target <> None && target = Some l.Ast.value
+  | Block body -> block_has_break ~own target body
   | If (branches, else_body) ->
       Option.fold ~none:false
-        ~some:(fun { Ast.value = b; _ } -> loop_has_break b)
+        ~some:(fun { Ast.value = b; _ } -> block_has_break ~own target b)
         else_body
       || List.exists
-           (fun (_, { Ast.value = b; _ }) -> loop_has_break b)
+           (fun (_, { Ast.value = b; _ }) -> block_has_break ~own target b)
            branches
   (* A break can hide in a value if that a binding or return holds *)
   | Binding (_, _, _, _, init) ->
-      Option.fold ~none:false ~some:expr_has_break init
-  | Return e -> Option.fold ~none:false ~some:expr_has_break e
-  (* A nested loop owns its own breaks *)
-  | While _ | For _ -> false
+      Option.fold ~none:false ~some:(expr_has_break ~own target) init
+  | Return e -> Option.fold ~none:false ~some:(expr_has_break ~own target) e
+  | While (label, _, body) -> nested_has_break target label body
+  | For (label, _, _, _, body) -> nested_has_break target label body
   | PairAssign _ -> false
   | _ -> false
+
+(* The innermost label wins so a loop reusing the name hides ours *)
+and nested_has_break (target : string option) (label : loop_label option)
+    (body : block) : bool =
+  target <> None
+  && label_name label <> target
+  && block_has_break ~own:false target body
