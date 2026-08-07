@@ -408,8 +408,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       emit_struct_lit_into ctx slot sname tfields;
       slot
   | T.CBlock body -> emit_block_value ctx body
-  | T.CLoop body ->
-      emit_loop ctx body;
+  | T.CLoop (body, step) ->
+      emit_loop ctx body step;
       ""
   | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
       ignore (emit_expr ctx e);
@@ -1070,13 +1070,16 @@ and emit_cast ctx ~(kind : Ast.cast_kind) v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_loop ctx body =
+and emit_loop ctx body step =
   let id = fresh_id ctx in
   let body_lbl = Printf.sprintf "@loop.body%d" id in
+  let step_lbl = Printf.sprintf "@loop.step%d" id in
   let end_lbl = Printf.sprintf "@loop.end%d" id in
   emit_label ctx body_lbl;
-  ctx.loops := (body_lbl, end_lbl) :: !(ctx.loops);
+  ctx.loops := (step_lbl, end_lbl) :: !(ctx.loops);
   emit_block ctx body;
+  emit_label ctx step_lbl;
+  emit_block ctx step;
   (ctx.loops :=
      match !(ctx.loops) with _ :: loops -> loops | [] -> assert false);
   emit_jmp ctx body_lbl;

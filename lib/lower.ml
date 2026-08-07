@@ -30,42 +30,10 @@ let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
 let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
 let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
 
-(* A for-loop continue still has to run the step so drop a copy in front of each one *)
-(* Nested loops aren't touched here since their continues belong to them *)
-let rec paste_step step (stmts : D.cblock) : D.cblock =
-  let on_stmt (st : D.cexpr) =
-    match st.D.desc with
-    | D.CContinue -> step @ [ st ]
-    (* A nested loop owns its own continues *)
-    | D.CLoop _ -> [ st ]
-    | D.CReturn (Some e) ->
-        [ { st with D.desc = D.CReturn (Some (paste_in_expr step e)) } ]
-    | D.CIf _ | D.CBlock _ | D.CBinding _ -> [ paste_in_expr step st ]
-    | _ -> [ st ]
-  in
-  List.concat_map on_stmt stmts
-
-(* A continue can hide inside a value from a binding or return *)
-and paste_in_expr step (e : D.cexpr) : D.cexpr =
-  match e.D.desc with
-  | D.CIf (branches, else_body) ->
-      let branches =
-        List.map (fun (c, body) -> (c, paste_step step body)) branches
-      in
-      {
-        e with
-        D.desc = D.CIf (branches, Option.map (paste_step step) else_body);
-      }
-  | D.CBlock body -> { e with D.desc = D.CBlock (paste_step step body) }
-  | D.CBinding (k, s, t, init) ->
-      { e with D.desc = D.CBinding (k, s, t, paste_in_expr step init) }
-  | _ -> e
-
 let loop ~init ~cond ~step ~body : D.cblock =
   let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
   let guard = if_then not_cond [ neverc D.CBreak ] in
-  let body = if step = [] then body else paste_step step body @ step in
-  let bare = voidc (D.CLoop (guard :: body)) in
+  let bare = voidc (D.CLoop (guard :: body, step)) in
   init @ [ bare ]
 
 let rec lower_expr (te : S.texpr) : D.cexpr =

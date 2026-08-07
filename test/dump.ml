@@ -120,7 +120,9 @@ let rec dump_cstmt (e : C.cexpr) : string =
       let arm (_, body) = "if " ^ dump_cstmts body in
       String.concat " " (List.map arm branches)
       ^ match else_body with Some b -> " else " ^ dump_cstmts b | None -> "")
-  | C.CLoop body -> "loop " ^ dump_cstmts body
+  | C.CLoop (body, []) -> "loop " ^ dump_cstmts body
+  | C.CLoop (body, step) ->
+      "loop " ^ dump_cstmts body ^ " step " ^ dump_cstmts step
   | C.CBlock body -> "block " ^ dump_cstmts body
   | _ -> "expr"
 

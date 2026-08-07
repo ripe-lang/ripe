@@ -29,7 +29,7 @@ type cexpr_desc =
   | CStructLit of Qname.t * (int * cexpr) list
   | CBlock of cblock
   | CIf of (cexpr * cblock) list * cblock option
-  | CLoop of cblock
+  | CLoop of cblock * cblock
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
   | CBreak
