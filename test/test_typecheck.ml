@@ -4174,3 +4174,86 @@ let%expect_test "typecheck: literal too big for int" =
 let%expect_test "typecheck: int shadowed by an alias" =
   run_src "type int = i32\nfunc f() i32 { let a: int = 1\n  return a }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: str literal and len" =
+  run_src "func f() usize { let s: str = \"hello\"\n  return s.len }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: str is not cstr" =
+  run_src "func f() { let s: str = \"a\"\n  let _c: cstr = s }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:18
+          let _c: cstr = s }
+                         ^ expected cstr, found str
+    |}]
+
+let%expect_test "typecheck: cstr is not str" =
+  run_src "func f() { let s: cstr = \"a\"\n  let _t: str = s }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:17
+          let _t: str = s }
+                        ^ expected str, found cstr
+    |}]
+
+let%expect_test "typecheck: a bare literal is still cstr" =
+  run_src "func f() { let _s = \"a\" }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: str has no ptr field" =
+  run_src "func f() { let s: str = \"a\"\n  let _p = s.ptr }";
+  [%expect
+    {|
+    error: no field
+      at <test>:2:14
+          let _p = s.ptr }
+                     ^~~ on str
+    |}]
+
+let%expect_test "typecheck: str cannot be indexed" =
+  run_src "func f() { let s: str = \"a\"\n  let _b = s[0] }";
+  [%expect
+    {|
+    error: cannot index
+      at <test>:2:12
+          let _b = s[0] }
+                   ^~~~ on str
+    |}]
+
+let%expect_test "typecheck: str cannot be compared" =
+  run_src "func f() bool { let s: str = \"a\"\n  return s == \"a\" }";
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:10
+          return s == "a" }
+                 ^ cannot apply `==` to str
+    |}]
+
+let%expect_test "typecheck: a str global is not constant" =
+  run_src "var g: str = \"a\"";
+  [%expect
+    {|
+    error: initializer must be constant
+      at <test>:1:14
+        var g: str = "a"
+                     ^~~
+    |}]
+
+let%expect_test "typecheck: a str comptime is rejected" =
+  run_src "comptime C: str = \"a\"";
+  [%expect
+    {|
+    error: comptime must be a scalar
+      at <test>:1:1
+        comptime C: str = "a"
+        ^~~~~~~~~~~~~~~~~~~~~ on str
+    help: use let for values that need storage
+    error: initializer must be constant
+      at <test>:1:19
+        comptime C: str = "a"
+                          ^~~
+    |}]

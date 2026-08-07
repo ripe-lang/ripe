@@ -44,8 +44,8 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TUnOp (Deref, _) -> true
   | T.TUnOp _ -> false
   | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
-  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _ | T.TRange _
-  | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
+  | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _
+  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak | T.TContinue ->
@@ -59,11 +59,11 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TFieldAccess (base, _) -> root_through base
   | T.TIndex (base, _) -> root_through base
   | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
-  | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _ | T.TSizeOf _
-  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
-  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
-  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak | T.TContinue ->
+  | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _
+  | T.TSizeOf _ | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _
+  | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef
+  | T.TStructLit _ | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _
+  | T.TReturn _ | T.TBreak | T.TContinue ->
       None
   | T.TPairAssign _ | T.TLocalDecl -> None
 
@@ -94,7 +94,8 @@ let rec is_comparable = function
   | TError ->
       true
   | TAlias (_, base) -> is_comparable base
-  | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _ ->
+  | TStr | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ ->
       false
 
 let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
@@ -106,7 +107,8 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
-  | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError -> Aggregate
+  | TStr | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError ->
+      Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)

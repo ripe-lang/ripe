@@ -8,6 +8,7 @@ type cexpr_desc =
   | CBool of bool
   | CNull
   | CCStr of string
+  | CStr of string
   | CChar of int
   | CIdent of Symbol.t
   | CCall of cexpr * cexpr list * int option

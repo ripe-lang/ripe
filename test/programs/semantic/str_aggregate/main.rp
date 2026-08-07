@@ -1,0 +1,12 @@
+struct named { s: str, n: i32 }
+
+func give() str {
+  return "returned"
+}
+
+func main() i32 {
+  var box: named = named { s: "field", n: 1 }
+  var arr: [2]str = ["one", "three"]
+  let r: str = give()
+  return (box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str)) as i32
+}
