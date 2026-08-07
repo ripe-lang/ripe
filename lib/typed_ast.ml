@@ -9,6 +9,7 @@ type texpr_desc =
   | TBool of bool
   | TNull
   | TCStr of string
+  | TStr of string
   | TChar of int
   | TIdent of Symbol.t
   | TCall of texpr * texpr list * int option

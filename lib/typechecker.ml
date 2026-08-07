@@ -802,6 +802,11 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
             (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
                ~found:"f64");
           T.mk (TFloat F64) (T.TFloat f))
+  (* The whole source file is already checked so a literal can't hold bad UTF 8 *)
+  | String str -> (
+      match target with
+      | TStr -> T.mk want (T.TStr str)
+      | _ -> check_by_synth ())
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match target with
       | TInt kind ->
@@ -1090,6 +1095,14 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string)
   let te = synth env e in
   let ty = te.T.ty in
   match strip_alias ty with
+  | TStr -> (
+      match fname with
+      | "len" -> T.mk (TInt Usize) (T.TLen te)
+      | _ ->
+          emit env
+            (Diagnostic.error_at fspan "no field"
+            |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
+          dummy_texpr)
   | TArray (elem, _) | TSlice elem -> (
       match fname with
       | "len" -> T.mk (TInt Usize) (T.TLen te)
@@ -1621,10 +1634,10 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* Never compile-time by design *)
-  | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
-  | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
-  | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak
-  | T.TContinue | T.TLocalDecl ->
+  | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
+  | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
+  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
+  | T.TBreak | T.TContinue | T.TLocalDecl ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

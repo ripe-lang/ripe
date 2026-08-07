@@ -1,0 +1,10 @@
+func take(s: str) usize {
+  return s.len
+}
+
+func main() i32 {
+  let a: str = "hello"
+  var b: str = a
+  let empty: str = ""
+  return (a.len + take(b) + take("héllo") + empty.len) as i32
+}

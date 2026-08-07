@@ -79,6 +79,7 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TBool b -> D.CBool b
     | S.TNull -> D.CNull
     | S.TCStr s -> D.CCStr s
+    | S.TStr s -> D.CStr s
     | S.TChar c -> D.CChar c
     | S.TIdent sym -> D.CIdent sym
     | S.TCall (f, args, variadic_start) ->

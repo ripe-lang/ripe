@@ -107,6 +107,21 @@ func main() i32 {
 }
 ```
 
+### str
+
+A `str` is a `{ptr, len}` pair pointing at bytes that are always valid UTF 8.
+
+```ripe
+func take(s: str) usize {
+  return s.len
+}
+
+func main() i32 {
+  let s: str = "héllo"   // 5 characters, 6 bytes
+  return take(s) as i32  // 6
+}
+```
+
 ### Char literals
 
 ```ripe

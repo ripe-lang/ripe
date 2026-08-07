@@ -16,7 +16,7 @@ let qbe_base (t : ty) : qbe_base =
       L
   | TFloat F32 -> S
   | TFloat F64 -> D
-  | TStruct _ | TArray _ | TSlice _ -> L
+  | TStruct _ | TArray _ | TSlice _ | TStr -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Diagnostic.ice "TVoid has no QBE base type"
   | TNever -> Diagnostic.ice "TNever has no QBE base type"
@@ -35,9 +35,9 @@ let div_overflows_at_reg_width (t : ty) : bool =
   match resolve_ty t with
   | TInt (I32 | I64 | Isize) -> true
   | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
-  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError ->
+  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
       false
 
 (* This is the hard limit where libc call stops emitting one instruction per word *)
@@ -49,9 +49,9 @@ let float_lit (ty : ty) (f : float) : string =
     match resolve_ty ty with
     | TFloat F32 -> ("s_", 9)
     | TFloat F64 -> ("d_", 17)
-    | TInt _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
-    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-    | TAlias _ | TError ->
+    | TInt _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+    | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+    | TNewtype _ | TAlias _ | TError ->
         Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
@@ -84,7 +84,7 @@ let qbe_load (t : ty) : string =
       "loadl"
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
-  | TStruct _ | TArray _ | TSlice _ -> "loadl"
+  | TStruct _ | TArray _ | TSlice _ | TStr -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Diagnostic.ice "TVoid has no load instruction"
   | TNever -> Diagnostic.ice "TNever has no load instruction"
@@ -100,7 +100,7 @@ let qbe_store (t : ty) : string =
       "storel"
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
-  | TStruct _ | TArray _ | TSlice _ -> "storel"
+  | TStruct _ | TArray _ | TSlice _ | TStr -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Diagnostic.ice "TVoid has no store instruction"
   | TNever -> Diagnostic.ice "TNever has no store instruction"
@@ -114,6 +114,7 @@ type ctx = {
   globals : (string, unit) Hashtbl.t;
   buf : Buffer.t ref;
   strings : (string * string) list ref;
+  str_headers : (string * string * int) list ref;
   tmp : int ref;
   str_ctr : int ref;
   loops : (string * string) list ref;
@@ -197,6 +198,14 @@ let intern_string ctx s =
   ctx.strings := (lbl, s) :: !(ctx.strings);
   lbl
 
+(* An aggregate is its address here so the header's label is the whole value *)
+let intern_str ctx s =
+  let data = intern_string ctx s in
+  let lbl = Printf.sprintf "$strhdr.%d" !(ctx.str_ctr) in
+  incr ctx.str_ctr;
+  ctx.str_headers := (lbl, data, String.length s) :: !(ctx.str_headers);
+  lbl
+
 (* Start a new basic block and clear the terminated flag *)
 let emit_label ctx lbl =
   ctx.terminated := false;
@@ -268,6 +277,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           (sym_addr ctx s);
         tmp
   | T.CCStr s -> intern_string ctx s
+  | T.CStr s -> intern_str ctx s
   | T.CCall (_, args, _)
     when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
       (* The call is dead once a `never` argument diverges so only the args up to it get emitted *)
@@ -340,7 +350,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
   | T.CLen e -> (
       match resolve_ty e.T.ty with
       | TArray (_, n) -> string_of_int n
-      | TSlice _ ->
+      | TSlice _ | TStr ->
           let addr = emit_expr ctx e in
           load_slice_len ctx addr
       | t ->
@@ -1115,7 +1125,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   let ret_part =
     match tfd.T.ret_ty with
     | TVoid | TNever -> ""
-    | TInt _ | TFloat _ | TBool | TChar | TCStr | TNull | TPointer _
+    | TInt _ | TFloat _ | TBool | TChar | TCStr | TStr | TNull | TPointer _
     | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
     | TAlias _ | TError ->
         qbe_ty tfd.T.ret_ty ^ " "
@@ -1179,13 +1189,13 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
       let rec flatten t reps =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)
-        | TSlice _ -> ("l", reps * 2)
+        | TSlice _ | TStr -> ("l", reps * 2)
         | base -> (qbe_ext_ty struct_name base, reps)
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
   (* Fat pointer stored inline as two longs *)
-  | TSlice _ -> "l 2"
+  | TSlice _ | TStr -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
   | TVoid -> Diagnostic.ice "TVoid has no extended type"
   | TNever -> Diagnostic.ice "TNever has no extended type"
@@ -1297,6 +1307,7 @@ let emit_qbe (tdecls : T.cdecl list) : string =
       globals = Hashtbl.create 16;
       buf = ref (Buffer.create 1024);
       strings = ref [];
+      str_headers = ref [];
       tmp = ref 0;
       str_ctr = ref 0;
       loops = ref [];
@@ -1361,5 +1372,10 @@ let emit_qbe (tdecls : T.cdecl list) : string =
   List.iter
     (fun (lbl, content) -> emit_string_data ctx lbl content)
     (List.rev !(ctx.strings));
+
+  List.iter
+    (fun (lbl, data, len) ->
+      emit ctx "data %s = align 8 { l %s, l %d }\n" lbl data len)
+    (List.rev !(ctx.str_headers));
 
   Buffer.contents !(ctx.buf)

@@ -11,6 +11,7 @@ type ty =
   | TBool
   | TChar
   | TCStr
+  | TStr
   | TVoid
   | TNever
   | TNull
@@ -59,6 +60,7 @@ let builtins : (string * builtin) list =
       ("bool", BTy TBool);
       ("char", BTy TChar);
       ("cstr", BTy TCStr);
+      ("str", BTy TStr);
       ("never", BTy TNever);
       ("opaque", BOpaque);
       ("int", BTy (TInt I64));
@@ -78,6 +80,7 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TBool -> "bool"
   | TChar -> "char"
   | TCStr -> "cstr"
+  | TStr -> "str"
   | TVoid -> "void"
   | TNever -> "never"
   | TNull -> "null"
@@ -111,7 +114,7 @@ let rec resolve_ty = function
 let is_float t =
   match resolve_ty t with
   | TFloat _ -> true
-  | TInt _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
+  | TInt _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull | TPointer _
   | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
   | TAlias _ | TError ->
       false
@@ -120,9 +123,9 @@ let is_unsigned t =
   match resolve_ty t with
   | TInt (U8 | U16 | U32 | U64 | Usize) -> true
   | TInt (I8 | I16 | I32 | I64 | Isize)
-  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError ->
+  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
       false
 
 (* A byte size of each integer kind: bit width / 8 *)
@@ -137,9 +140,9 @@ let float_kind_size = function F32 -> 4 | F64 -> 8
 let int_kind_of (t : ty) : int_kind =
   match resolve_ty t with
   | TInt k -> k
-  | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError ->
+  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
       Diagnostic.ice "expected an integer type"
 
 (* The value fits UNLESS the target range can't hold every source value *)
@@ -171,7 +174,7 @@ let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
             (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
       )
   | TArray (e, _) -> ty_align structs e
-  | TSlice _ -> 8
+  | TSlice _ | TStr -> 8
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* `n` and `a` MUST be non-negative *)
@@ -206,13 +209,13 @@ let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
       )
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* Fat pointer: { ptr, len } *)
-  | TSlice _ -> 16
+  | TSlice _ | TStr -> 16
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
   match resolve_ty t with
-  | TArray _ | TSlice _ | TStruct _ -> true
+  | TArray _ | TSlice _ | TStr | TStruct _ -> true
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull
   | TPointer _ | TOpaquePtr | TFunc _ | TNewtype _ | TAlias _ | TError ->
       false
@@ -221,7 +224,7 @@ let is_aggregate t =
 let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
-  | TCStr | TVoid | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
+  | TCStr | TStr | TVoid | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
   | TFunc _ | TArray _ | TSlice _ | TNewtype _ | TAlias _ ->
       false
 
@@ -232,8 +235,8 @@ let is_wide_ty t =
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
   | TInt (I8 | I16 | I32 | U8 | U16 | U32)
-  | TFloat _ | TBool | TChar | TVoid | TNever | TStruct _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError ->
+  | TFloat _ | TBool | TChar | TStr | TVoid | TNever | TStruct _ | TArray _
+  | TSlice _ | TNewtype _ | TAlias _ | TError ->
       false
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t

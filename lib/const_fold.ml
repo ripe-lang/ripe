@@ -51,8 +51,8 @@ let run ~(emit : Diagnostic.t -> unit)
         match local_value s with Some v -> literal_of te v | None -> te)
     | T.TIdent s when Symbol.is_global s.kind -> (
         match global_value s with Some v -> literal_of te v | None -> te)
-    | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TChar _
-    | T.TIdent _ | T.TSizeOf _ | T.TZero | T.TUndef ->
+    | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _ | T.TStr _
+    | T.TChar _ | T.TIdent _ | T.TSizeOf _ | T.TZero | T.TUndef ->
         te
     | T.TCall (callee, args, fixed) ->
         mk (T.TCall (sub_expr callee, List.map sub_expr args, fixed))
