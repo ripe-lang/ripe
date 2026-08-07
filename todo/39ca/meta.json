@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-06 23:00:07.868949",
+  "depends": [],
+  "id": "39ca",
+  "priority": "low",
+  "source": "lib/types.ml",
+  "status": "open",
+  "tags": [],
+  "title": "the ty list stays empty until generics land",
+  "updated_at": "2026-08-06 23:00:07.868949"
+}

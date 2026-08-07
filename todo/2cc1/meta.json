@@ -8,6 +8,6 @@
   "source": "lib/codegen_qbe.ml",
   "status": "open",
   "tags": [],
-  "title": "Fold constant arithmetic on locals",
-  "updated_at": "2026-07-25 21:11:11.553730"
+  "title": "the local arithmetic always emits instructions instead of folding through fold_const_num",
+  "updated_at": "2026-08-06 23:00:07.862567"
 }

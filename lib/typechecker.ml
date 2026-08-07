@@ -1341,7 +1341,7 @@ and eval_array_size (env : env) (e : expr) : int =
     else Int64.to_int n
 
 (* Main implicitly returns i32 for the C runtime and everything else is void *)
-(* FIXME: The default keeps main working until return types are inferred *)
+(* FIXME(80e8): The default keeps main working until return types are inferred *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some t -> return_ty_of_ast env t

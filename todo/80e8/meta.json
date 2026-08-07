@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-06 23:00:07.867274",
+  "depends": [],
+  "id": "80e8",
+  "priority": "low",
+  "source": "lib/typechecker.ml",
+  "status": "open",
+  "tags": [],
+  "title": "The default keeps main working until return types are inferred",
+  "updated_at": "2026-08-06 23:00:07.867274"
+}
