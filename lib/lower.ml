@@ -255,6 +255,7 @@ and lower_for label sym elem_ty iter body : D.cblock =
 let lower_func (fd : S.tfunc_def) : D.cfunc_def =
   {
     D.name = fd.S.name;
+    source_name = fd.S.source_name;
     entry_point = fd.S.entry_point;
     params = fd.S.params;
     ret_ty = fd.S.ret_ty;

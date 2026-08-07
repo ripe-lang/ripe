@@ -1622,6 +1622,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   {
     T.key = key_at env fd.func_span;
     name = link_name_at env fd.func_span fd.func_name;
+    (* A bare name reads the same in two modules so a panic report qualifies it *)
+    source_name = String.concat "." (env.reader_path @ [ fd.func_name ]);
     entry_point = is_entry env fd.func_span;
     params;
     ret_ty;

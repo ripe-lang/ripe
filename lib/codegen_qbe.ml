@@ -1117,7 +1117,7 @@ and emit_block_value ctx (body : T.cblock) : string =
 
 let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   (* Temporaries and locals are function scoped *)
-  Panic_table.enter_func ctx.panics tfd.T.name;
+  Panic_table.enter_func ctx.panics tfd.T.source_name;
   ctx.tmp := 0;
   Hashtbl.clear ctx.locals;
   Hashtbl.clear ctx.used_slots;
