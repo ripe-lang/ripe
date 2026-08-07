@@ -111,7 +111,6 @@ type ctx = {
   struct_names : (Symbol.key, string) Hashtbl.t;
   locals : (Symbol.id, string) Hashtbl.t;
   used_slots : (string, unit) Hashtbl.t;
-  globals : (string, unit) Hashtbl.t;
   buf : Buffer.t ref;
   strings : (string * string) list ref;
   str_headers : (string * string * int) list ref;
@@ -1342,7 +1341,6 @@ let emit_qbe ~(source_of : Span.file_id -> string * Source_map.t)
       struct_names;
       locals = Hashtbl.create 16;
       used_slots = Hashtbl.create 16;
-      globals = Hashtbl.create 16;
       buf = ref (Buffer.create 1024);
       strings = ref [];
       str_headers = ref [];
@@ -1355,14 +1353,6 @@ let emit_qbe ~(source_of : Span.file_id -> string * Source_map.t)
       panics = Panic_table.create ~source_of;
     }
   in
-
-  List.iter
-    (function
-      | T.CGlobal gd -> Hashtbl.replace ctx.globals gd.T.name ()
-      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
-      | T.CTypeAlias _ | T.CNewtype _ ->
-          ())
-    tdecls;
 
   List.iter
     (function
