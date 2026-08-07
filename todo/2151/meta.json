@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-06 23:00:07.861064",
+  "depends": [],
+  "id": "2151",
+  "priority": "low",
+  "source": "lib/lexer.mll",
+  "status": "open",
+  "tags": [],
+  "title": "allow raw newlines for now, revisit them in the future",
+  "updated_at": "2026-08-06 23:00:07.861064"
+}

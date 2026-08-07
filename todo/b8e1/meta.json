@@ -8,6 +8,6 @@
   "source": "lib/ty_pred.ml",
   "status": "open",
   "tags": [],
-  "title": "Settle pointer depth and int width compatibility",
-  "updated_at": "2026-08-02 01:06:09.658203"
+  "title": "Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)?",
+  "updated_at": "2026-08-06 23:00:07.864393"
 }
