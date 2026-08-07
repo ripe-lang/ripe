@@ -1,1 +1,4 @@
-exit: -6
+panic: null pointer dereference
+  at main.rp:3:10
+  in main.main
+exit: 79

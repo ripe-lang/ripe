@@ -21,14 +21,14 @@ func f() { n += 1 }
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l loadl %compound.p.0
         %t6 =w ceql %t4, 0
         jnz %t6, @null.fail.7, @null.ok.7
     @null.fail.7
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.7
         %t5 =w loadsw %t4
@@ -36,6 +36,9 @@ func f() { n += 1 }
         storew %t8, %t1
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 3, w 12, w 0 }
     |}]
 
 let%expect_test "codegen: compound assign on local" =
@@ -58,14 +61,14 @@ func f() {
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l loadl %compound.p.0
         %t6 =w ceql %t4, 0
         jnz %t6, @null.fail.7, @null.ok.7
     @null.fail.7
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.7
         %t5 =w loadsw %t4
@@ -73,6 +76,9 @@ func f() {
         storew %t8, %t1
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: plain assign on global" =
@@ -119,7 +125,7 @@ func main() i32 {
         %t4 =w cugel %t3, 2
         jnz %t4, @bounds.fail.5, @bounds.ok.5
     @bounds.fail.5
-        call $ripe_panic_bounds(l %t3, l 2)
+        call $ripe_panic_bounds(w 0, l %t3, l 2)
         hlt
     @bounds.ok.5
         %t6 =l mul %t3, 8
@@ -131,7 +137,7 @@ func main() i32 {
         %t10 =w cugel %t9, 2
         jnz %t10, @bounds.fail.11, @bounds.ok.11
     @bounds.fail.11
-        call $ripe_panic_bounds(l %t9, l 2)
+        call $ripe_panic_bounds(w 1, l %t9, l 2)
         hlt
     @bounds.ok.11
         %t12 =l mul %t9, 8
@@ -140,7 +146,7 @@ func main() i32 {
         %t15 =w cugel %t14, 2
         jnz %t15, @bounds.fail.16, @bounds.ok.16
     @bounds.fail.16
-        call $ripe_panic_bounds(l %t14, l 2)
+        call $ripe_panic_bounds(w 1, l %t14, l 2)
         hlt
     @bounds.ok.16
         %t17 =l mul %t14, 4
@@ -150,7 +156,7 @@ func main() i32 {
         %t21 =w cugel %t20, 2
         jnz %t21, @bounds.fail.22, @bounds.ok.22
     @bounds.fail.22
-        call $ripe_panic_bounds(l %t20, l 2)
+        call $ripe_panic_bounds(w 2, l %t20, l 2)
         hlt
     @bounds.ok.22
         %t23 =l mul %t20, 8
@@ -159,7 +165,7 @@ func main() i32 {
         %t26 =w cugel %t25, 2
         jnz %t26, @bounds.fail.27, @bounds.ok.27
     @bounds.fail.27
-        call $ripe_panic_bounds(l %t25, l 2)
+        call $ripe_panic_bounds(w 2, l %t25, l 2)
         hlt
     @bounds.ok.27
         %t28 =l mul %t25, 4
@@ -168,6 +174,9 @@ func main() i32 {
         %t31 =w add %t19, %t30
         ret %t31
     }
+
+    export data $ripe_panic_strtab = { b "main", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 5, w 4, w 3, w 0, w 5, w 5, w 10, w 0, w 5, w 5, w 20, w 0 }
     |}]
 
 let%expect_test
@@ -196,7 +205,7 @@ func main() i32 {
         %t4 =w cugel %t3, 2
         jnz %t4, @bounds.fail.5, @bounds.ok.5
     @bounds.fail.5
-        call $ripe_panic_bounds(l %t3, l 2)
+        call $ripe_panic_bounds(w 0, l %t3, l 2)
         hlt
     @bounds.ok.5
         %t6 =l mul %t3, 8
@@ -205,7 +214,7 @@ func main() i32 {
         %t9 =w cugel %t8, 2
         jnz %t9, @bounds.fail.10, @bounds.ok.10
     @bounds.fail.10
-        call $ripe_panic_bounds(l %t8, l 2)
+        call $ripe_panic_bounds(w 1, l %t8, l 2)
         hlt
     @bounds.ok.10
         %t11 =l mul %t8, 8
@@ -215,7 +224,7 @@ func main() i32 {
         %t14 =w cugel %t13, 2
         jnz %t14, @bounds.fail.15, @bounds.ok.15
     @bounds.fail.15
-        call $ripe_panic_bounds(l %t13, l 2)
+        call $ripe_panic_bounds(w 2, l %t13, l 2)
         hlt
     @bounds.ok.15
         %t16 =l mul %t13, 8
@@ -224,7 +233,7 @@ func main() i32 {
         %t19 =w cugel %t18, 2
         jnz %t19, @bounds.fail.20, @bounds.ok.20
     @bounds.fail.20
-        call $ripe_panic_bounds(l %t18, l 2)
+        call $ripe_panic_bounds(w 2, l %t18, l 2)
         hlt
     @bounds.ok.20
         %t21 =l mul %t18, 4
@@ -234,7 +243,7 @@ func main() i32 {
         %t25 =w cugel %t24, 2
         jnz %t25, @bounds.fail.26, @bounds.ok.26
     @bounds.fail.26
-        call $ripe_panic_bounds(l %t24, l 2)
+        call $ripe_panic_bounds(w 3, l %t24, l 2)
         hlt
     @bounds.ok.26
         %t27 =l mul %t24, 8
@@ -243,7 +252,7 @@ func main() i32 {
         %t30 =w cugel %t29, 2
         jnz %t30, @bounds.fail.31, @bounds.ok.31
     @bounds.fail.31
-        call $ripe_panic_bounds(l %t29, l 2)
+        call $ripe_panic_bounds(w 3, l %t29, l 2)
         hlt
     @bounds.ok.31
         %t32 =l mul %t29, 4
@@ -252,6 +261,9 @@ func main() i32 {
         %t35 =w add %t23, %t34
         ret %t35
     }
+
+    export data $ripe_panic_strtab = { b "main", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 5, w 4, w 3, w 0, w 5, w 4, w 10, w 0, w 5, w 5, w 10, w 0, w 5, w 5, w 20, w 0 }
     |}]
 
 let%expect_test "codegen: address-of local" =
@@ -784,12 +796,15 @@ func f() i32 {
         %t3 =w ceql %t1, 0
         jnz %t3, @null.fail.4, @null.ok.4
     @null.fail.4
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.4
         %t2 =w loadsw %t1
         ret %t2
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: array literal init and index read" =
@@ -814,7 +829,7 @@ func f() i32 {
         %t3 =w cugel %t2, 3
         jnz %t3, @bounds.fail.4, @bounds.ok.4
     @bounds.fail.4
-        call $ripe_panic_bounds(l %t2, l 3)
+        call $ripe_panic_bounds(w 0, l %t2, l 3)
         hlt
     @bounds.ok.4
         %t5 =l mul %t2, 4
@@ -822,6 +837,9 @@ func f() i32 {
         %t7 =w loadsw %t6
         ret %t7
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: array index store" =
@@ -843,7 +861,7 @@ func f() {
         %t2 =w cugel %t1, 2
         jnz %t2, @bounds.fail.3, @bounds.ok.3
     @bounds.fail.3
-        call $ripe_panic_bounds(l %t1, l 2)
+        call $ripe_panic_bounds(w 0, l %t1, l 2)
         hlt
     @bounds.ok.3
         %t4 =l mul %t1, 4
@@ -851,6 +869,9 @@ func f() {
         storew 9, %t5
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: array len is a constant" =
@@ -896,7 +917,7 @@ func f() i64 {
         %t2 =w cugel %t1, 2
         jnz %t2, @bounds.fail.3, @bounds.ok.3
     @bounds.fail.3
-        call $ripe_panic_bounds(l %t1, l 2)
+        call $ripe_panic_bounds(w 0, l %t1, l 2)
         hlt
     @bounds.ok.3
         %t4 =l mul %t1, 8
@@ -904,6 +925,9 @@ func f() i64 {
         %t6 =l loadl %t5
         ret %t6
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: for over range" =
@@ -943,14 +967,14 @@ func f() i32 {
         %t7 =w ceql %t6, 0
         jnz %t7, @null.fail.8, @null.ok.8
     @null.fail.8
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.8
         %t9 =l loadl %compound.p.0
         %t11 =w ceql %t9, 0
         jnz %t11, @null.fail.12, @null.ok.12
     @null.fail.12
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.12
         %t10 =w loadsw %t9
@@ -966,6 +990,9 @@ func f() i32 {
         %t17 =w loadsw %sum
         ret %t17
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 19, w 0 }
     |}]
 
 let%expect_test "codegen: for over inclusive range" =
@@ -1001,14 +1028,14 @@ func f() i32 {
         %t7 =w ceql %t6, 0
         jnz %t7, @null.fail.8, @null.ok.8
     @null.fail.8
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.8
         %t9 =l loadl %compound.p.0
         %t11 =w ceql %t9, 0
         jnz %t11, @null.fail.12, @null.ok.12
     @null.fail.12
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.12
         %t10 =w loadsw %t9
@@ -1038,6 +1065,9 @@ func f() i32 {
         %t21 =w loadsw %sum
         ret %t21
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 20, w 0 }
     |}]
 
 let%expect_test "codegen: for over array" =
@@ -1093,14 +1123,14 @@ func f() i32 {
         %t14 =w ceql %t13, 0
         jnz %t14, @null.fail.15, @null.ok.15
     @null.fail.15
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.15
         %t16 =l loadl %compound.p.0
         %t18 =w ceql %t16, 0
         jnz %t18, @null.fail.19, @null.ok.19
     @null.fail.19
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.19
         %t17 =w loadsw %t16
@@ -1116,6 +1146,9 @@ func f() i32 {
         %t24 =w loadsw %sum
         ret %t24
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 16, w 0 }
     |}]
 
 let%expect_test "codegen: break and continue in for" =
@@ -1177,14 +1210,14 @@ func f() i32 {
         %t13 =w ceql %t12, 0
         jnz %t13, @null.fail.14, @null.ok.14
     @null.fail.14
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.14
         %t15 =l loadl %compound.p.0
         %t17 =w ceql %t15, 0
         jnz %t17, @null.fail.18, @null.ok.18
     @null.fail.18
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.18
         %t16 =w loadsw %t15
@@ -1200,6 +1233,9 @@ func f() i32 {
         %t23 =w loadsw %sum
         ret %t23
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 7, w 5, w 0 }
     |}]
 
 let%expect_test "codegen: break in while" =
@@ -1244,14 +1280,14 @@ func f() i32 {
         %t7 =w ceql %t6, 0
         jnz %t7, @null.fail.8, @null.ok.8
     @null.fail.8
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.8
         %t9 =l loadl %compound.p.0
         %t11 =w ceql %t9, 0
         jnz %t11, @null.fail.12, @null.ok.12
     @null.fail.12
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.12
         %t10 =w loadsw %t9
@@ -1263,6 +1299,9 @@ func f() i32 {
         %t14 =w loadsw %i
         ret %t14
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 6, w 5, w 0 }
     |}]
 
 let%expect_test "codegen: array coerces to slice at call" =
@@ -1330,7 +1369,7 @@ func f() i32 {
         %t7 =w or %t5, %t6
         jnz %t7, @slice.fail.8, @slice.ok.8
     @slice.fail.8
-        call $ripe_panic_slice_bounds(l %t3, l %t4, l 4)
+        call $ripe_panic_slice_bounds(w 0, l %t3, l %t4, l 4)
         hlt
     @slice.ok.8
         %t9 =l mul %t3, 4
@@ -1347,7 +1386,7 @@ func f() i32 {
         %t18 =w cugel %t17, %t16
         jnz %t18, @bounds.fail.19, @bounds.ok.19
     @bounds.fail.19
-        call $ripe_panic_bounds(l %t17, l %t16)
+        call $ripe_panic_bounds(w 1, l %t17, l %t16)
         hlt
     @bounds.ok.19
         %t20 =l mul %t17, 4
@@ -1355,6 +1394,9 @@ func f() i32 {
         %t22 =w loadsw %t21
         ret %t22
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 18, w 0, w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: inclusive sub-slice construction" =
@@ -1388,7 +1430,7 @@ func f() i32 {
         %t8 =w or %t6, %t7
         jnz %t8, @slice.fail.9, @slice.ok.9
     @slice.fail.9
-        call $ripe_panic_slice_bounds(l %t3, l %t5, l 4)
+        call $ripe_panic_slice_bounds(w 0, l %t3, l %t5, l 4)
         hlt
     @slice.ok.9
         %t10 =l mul %t3, 4
@@ -1405,7 +1447,7 @@ func f() i32 {
         %t19 =w cugel %t18, %t17
         jnz %t19, @bounds.fail.20, @bounds.ok.20
     @bounds.fail.20
-        call $ripe_panic_bounds(l %t18, l %t17)
+        call $ripe_panic_bounds(w 1, l %t18, l %t17)
         hlt
     @bounds.ok.20
         %t21 =l mul %t18, 4
@@ -1413,6 +1455,9 @@ func f() i32 {
         %t23 =w loadsw %t22
         ret %t23
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 18, w 0, w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: slice len loads from fat pointer" =
@@ -1443,7 +1488,7 @@ func f() usize {
         %t6 =w or %t4, %t5
         jnz %t6, @slice.fail.7, @slice.ok.7
     @slice.fail.7
-        call $ripe_panic_slice_bounds(l %t2, l %t3, l 3)
+        call $ripe_panic_slice_bounds(w 0, l %t2, l %t3, l 3)
         hlt
     @slice.ok.7
         %t8 =l mul %t2, 4
@@ -1457,6 +1502,9 @@ func f() usize {
         %t14 =l loadl %t13
         ret %t14
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 18, w 0 }
     |}]
 
 let%expect_test "codegen: slice param and for iteration" =
@@ -1512,14 +1560,14 @@ func sum(xs: []i32) i32 {
         %t16 =w ceql %t15, 0
         jnz %t16, @null.fail.17, @null.ok.17
     @null.fail.17
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.17
         %t18 =l loadl %compound.p.0
         %t20 =w ceql %t18, 0
         jnz %t20, @null.fail.21, @null.ok.21
     @null.fail.21
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.21
         %t19 =w loadsw %t18
@@ -1535,6 +1583,9 @@ func sum(xs: []i32) i32 {
         %t26 =w loadsw %t
         ret %t26
     }
+
+    export data $ripe_panic_strtab = { b "sum", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 4, w 4, w 17, w 0 }
     |}]
 
 let%expect_test "codegen: slice element store" =
@@ -1565,7 +1616,7 @@ func f() {
         %t6 =w or %t4, %t5
         jnz %t6, @slice.fail.7, @slice.ok.7
     @slice.fail.7
-        call $ripe_panic_slice_bounds(l %t2, l %t3, l 3)
+        call $ripe_panic_slice_bounds(w 0, l %t2, l %t3, l 3)
         hlt
     @slice.ok.7
         %t8 =l mul %t2, 4
@@ -1582,7 +1633,7 @@ func f() {
         %t17 =w cugel %t16, %t15
         jnz %t17, @bounds.fail.18, @bounds.ok.18
     @bounds.fail.18
-        call $ripe_panic_bounds(l %t16, l %t15)
+        call $ripe_panic_bounds(w 1, l %t16, l %t15)
         hlt
     @bounds.ok.18
         %t19 =l mul %t16, 4
@@ -1590,6 +1641,9 @@ func f() {
         storew 9, %t20
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 18, w 0, w 2, w 5, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: compound assign to array element" =
@@ -1616,7 +1670,7 @@ func f() i32 {
         %t3 =w cugel %t2, 3
         jnz %t3, @bounds.fail.4, @bounds.ok.4
     @bounds.fail.4
-        call $ripe_panic_bounds(l %t2, l 3)
+        call $ripe_panic_bounds(w 0, l %t2, l 3)
         hlt
     @bounds.ok.4
         %t5 =l mul %t2, 4
@@ -1627,14 +1681,14 @@ func f() i32 {
         %t9 =w ceql %t8, 0
         jnz %t9, @null.fail.10, @null.ok.10
     @null.fail.10
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.10
         %t11 =l loadl %compound.p.0
         %t13 =w ceql %t11, 0
         jnz %t13, @null.fail.14, @null.ok.14
     @null.fail.14
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.14
         %t12 =w loadsw %t11
@@ -1644,7 +1698,7 @@ func f() i32 {
         %t17 =w cugel %t16, 3
         jnz %t17, @bounds.fail.18, @bounds.ok.18
     @bounds.fail.18
-        call $ripe_panic_bounds(l %t16, l 3)
+        call $ripe_panic_bounds(w 1, l %t16, l 3)
         hlt
     @bounds.ok.18
         %t19 =l mul %t16, 4
@@ -1652,6 +1706,9 @@ func f() i32 {
         %t21 =w loadsw %t20
         ret %t21
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 3, w 0, w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: multidimensional array literal and index" =
@@ -1678,7 +1735,7 @@ func f() i32 {
         %t4 =w cugel %t3, 2
         jnz %t4, @bounds.fail.5, @bounds.ok.5
     @bounds.fail.5
-        call $ripe_panic_bounds(l %t3, l 2)
+        call $ripe_panic_bounds(w 0, l %t3, l 2)
         hlt
     @bounds.ok.5
         %t6 =l mul %t3, 8
@@ -1687,7 +1744,7 @@ func f() i32 {
         %t9 =w cugel %t8, 2
         jnz %t9, @bounds.fail.10, @bounds.ok.10
     @bounds.fail.10
-        call $ripe_panic_bounds(l %t8, l 2)
+        call $ripe_panic_bounds(w 0, l %t8, l 2)
         hlt
     @bounds.ok.10
         %t11 =l mul %t8, 4
@@ -1695,6 +1752,9 @@ func f() i32 {
         %t13 =w loadsw %t12
         ret %t13
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: global array data" =
@@ -1712,7 +1772,7 @@ func f() i32 { return g[1] }
         %t1 =w cugel %t0, 3
         jnz %t1, @bounds.fail.2, @bounds.ok.2
     @bounds.fail.2
-        call $ripe_panic_bounds(l %t0, l 3)
+        call $ripe_panic_bounds(w 0, l %t0, l 3)
         hlt
     @bounds.ok.2
         %t3 =l mul %t0, 4
@@ -1720,6 +1780,9 @@ func f() i32 { return g[1] }
         %t5 =w loadsw %t4
         ret %t5
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 3, w 23, w 0 }
     |}]
 
 let%expect_test "codegen: iterate array of arrays copies element" =
@@ -1776,14 +1839,14 @@ func f() i32 {
         %t14 =w ceql %t13, 0
         jnz %t14, @null.fail.15, @null.ok.15
     @null.fail.15
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.15
         %t16 =l loadl %compound.p.0
         %t18 =w ceql %t16, 0
         jnz %t18, @null.fail.19, @null.ok.19
     @null.fail.19
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.19
         %t17 =w loadsw %t16
@@ -1791,7 +1854,7 @@ func f() i32 {
         %t21 =w cugel %t20, 2
         jnz %t21, @bounds.fail.22, @bounds.ok.22
     @bounds.fail.22
-        call $ripe_panic_bounds(l %t20, l 2)
+        call $ripe_panic_bounds(w 1, l %t20, l 2)
         hlt
     @bounds.ok.22
         %t23 =l mul %t20, 4
@@ -1808,6 +1871,9 @@ func f() i32 {
         %t29 =w loadsw %s
         ret %t29
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 18, w 0, w 2, w 5, w 23, w 0 }
     |}]
 
 let%expect_test "codegen: array zero initialization" =
@@ -1831,7 +1897,7 @@ func f() i32 {
         %t3 =w cugel %t2, 3
         jnz %t3, @bounds.fail.4, @bounds.ok.4
     @bounds.fail.4
-        call $ripe_panic_bounds(l %t2, l 3)
+        call $ripe_panic_bounds(w 0, l %t2, l 3)
         hlt
     @bounds.ok.4
         %t5 =l mul %t2, 4
@@ -1839,6 +1905,9 @@ func f() i32 {
         %t7 =w loadsw %t6
         ret %t7
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: for over array literal materializes it" =
@@ -1893,14 +1962,14 @@ func f() i32 {
         %t15 =w ceql %t14, 0
         jnz %t15, @null.fail.16, @null.ok.16
     @null.fail.16
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.16
         %t17 =l loadl %compound.p.0
         %t19 =w ceql %t17, 0
         jnz %t19, @null.fail.20, @null.ok.20
     @null.fail.20
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.20
         %t18 =w loadsw %t17
@@ -1916,6 +1985,9 @@ func f() i32 {
         %t25 =w loadsw %s
         ret %t25
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 24, w 0 }
     |}]
 
 let%expect_test "codegen: undefined skips zero-init" =
@@ -2101,7 +2173,7 @@ func f() i32 {
         %t5 =w cugel %t4, 4
         jnz %t5, @bounds.fail.6, @bounds.ok.6
     @bounds.fail.6
-        call $ripe_panic_bounds(l %t4, l 4)
+        call $ripe_panic_bounds(w 0, l %t4, l 4)
         hlt
     @bounds.ok.6
         %t7 =l mul %t4, 4
@@ -2109,6 +2181,9 @@ func f() i32 {
         %t9 =w loadsw %t8
         ret %t9
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: struct literal" =
@@ -2559,14 +2634,14 @@ func f() i32 {
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l loadl %compound.p.0
         %t6 =w ceql %t4, 0
         jnz %t6, @null.fail.7, @null.ok.7
     @null.fail.7
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.7
         %t5 =w loadsw %t4
@@ -2575,6 +2650,9 @@ func f() i32 {
         %t9 =w loadsw %x
         ret %t9
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 6, w 5, w 0 }
     |}]
 
 let%expect_test "codegen: && short circuits into branches" =
@@ -2600,7 +2678,7 @@ func check(p: *i32) i32 {
         %t7 =w ceql %t5, 0
         jnz %t7, @null.fail.8, @null.ok.8
     @null.fail.8
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.8
         %t6 =w loadsw %t5
@@ -2615,6 +2693,9 @@ func check(p: *i32) i32 {
     @if.end1
         ret 0
     }
+
+    export data $ripe_panic_strtab = { b "check", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 6, w 3, w 19, w 0 }
     |}]
 
 let%expect_test "codegen: || short circuits into branches" =
@@ -3043,7 +3124,7 @@ func f() i32 { return A[1] }
         %t1 =w cugel %t0, 3
         jnz %t1, @bounds.fail.2, @bounds.ok.2
     @bounds.fail.2
-        call $ripe_panic_bounds(l %t0, l 3)
+        call $ripe_panic_bounds(w 0, l %t0, l 3)
         hlt
     @bounds.ok.2
         %t3 =l mul %t0, 4
@@ -3051,6 +3132,9 @@ func f() i32 { return A[1] }
         %t5 =w loadsw %t4
         ret %t5
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 23, w 0 }
     |}]
 
 let%expect_test "codegen: comptime sizes a local array" =
@@ -3074,7 +3158,7 @@ func f() i32 {
         %t2 =w cugel %t1, 2
         jnz %t2, @bounds.fail.3, @bounds.ok.3
     @bounds.fail.3
-        call $ripe_panic_bounds(l %t1, l 2)
+        call $ripe_panic_bounds(w 0, l %t1, l 2)
         hlt
     @bounds.ok.3
         %t4 =l mul %t1, 4
@@ -3082,6 +3166,9 @@ func f() i32 {
         %t6 =w loadsw %t5
         ret %t6
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: expression array size" =
@@ -3141,13 +3228,16 @@ func f(s: *S) i32 { return s.tail }
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l add %t1, 8
         %t5 =w loadsw %t4
         ret %t5
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 28, w 0 }
     |}]
 
 let%expect_test "codegen: global let arithmetic" =
@@ -3245,13 +3335,16 @@ func f() i32 {
         %t3 =w ceql %t2, 0
         jnz %t3, @null.fail.4, @null.ok.4
     @null.fail.4
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.4
         storew 8, %t2
         %t5 =w loadsw %p
         ret %t5
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 6, w 4, w 0 }
     |}]
 
 let%expect_test "codegen: assign through scalar pointer deref" =
@@ -3277,13 +3370,16 @@ func f() i32 {
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         storew 42, %t1
         %t4 =w loadsw %x
         ret %t4
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: assign to struct field directly" =
@@ -3339,14 +3435,14 @@ func f() i32 {
         %t3 =w ceql %t2, 0
         jnz %t3, @null.fail.4, @null.ok.4
     @null.fail.4
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.4
         %t5 =l loadl %compound.p.0
         %t7 =w ceql %t5, 0
         jnz %t7, @null.fail.8, @null.ok.8
     @null.fail.8
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.8
         %t6 =w loadsw %t5
@@ -3355,6 +3451,9 @@ func f() i32 {
         %t10 =w loadsw %p
         ret %t10
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: compound assign through scalar pointer deref" =
@@ -3384,14 +3483,14 @@ func f() i32 {
         %t4 =w ceql %t3, 0
         jnz %t4, @null.fail.5, @null.ok.5
     @null.fail.5
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.5
         %t6 =l loadl %compound.p.0
         %t8 =w ceql %t6, 0
         jnz %t8, @null.fail.9, @null.ok.9
     @null.fail.9
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.9
         %t7 =w loadsw %t6
@@ -3400,6 +3499,9 @@ func f() i32 {
         %t11 =w loadsw %x
         ret %t11
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: address-of struct field" =
@@ -3429,12 +3531,15 @@ func f() i32 {
         %t4 =w ceql %t2, 0
         jnz %t4, @null.fail.5, @null.ok.5
     @null.fail.5
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.5
         %t3 =w loadsw %t2
         ret %t3
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 6, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: address-of deref" =
@@ -3469,12 +3574,15 @@ func f() i32 {
         %t5 =w ceql %t4, 0
         jnz %t5, @null.fail.6, @null.ok.6
     @null.fail.6
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.6
         %t7 =w loadsw %t4
         ret %t7
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 7, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: address-of array index" =
@@ -3503,7 +3611,7 @@ func f() i32 {
         %t4 =w cugel %t3, 4
         jnz %t4, @bounds.fail.5, @bounds.ok.5
     @bounds.fail.5
-        call $ripe_panic_bounds(l %t3, l 4)
+        call $ripe_panic_bounds(w 0, l %t3, l 4)
         hlt
     @bounds.ok.5
         %t6 =l mul %t3, 4
@@ -3514,12 +3622,15 @@ func f() i32 {
         %t11 =w ceql %t9, 0
         jnz %t11, @null.fail.12, @null.ok.12
     @null.fail.12
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 1)
         hlt
     @null.ok.12
         %t10 =w loadsw %t9
         ret %t10
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 19, w 0, w 2, w 5, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: bitwise or" =
@@ -3571,7 +3682,7 @@ let%expect_test "codegen: right shift on signed int" =
         %t4 =w csltw %t3, 0
         jnz %t4, @negshift.fail.5, @negshift.ok.5
     @negshift.fail.5
-        call $ripe_panic_shift()
+        call $ripe_panic_shift(w 0)
         hlt
     @negshift.ok.5
         %t6 =w cultw %t3, 32
@@ -3580,6 +3691,9 @@ let%expect_test "codegen: right shift on signed int" =
         %t9 =w sar %t2, %t8
         ret %t9
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 1, w 37, w 0 }
     |}]
 
 let%expect_test "codegen: signed right shift by a constant out of range count" =
@@ -3749,14 +3863,14 @@ func f() {
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l loadl %compound.p.0
         %t6 =w ceql %t4, 0
         jnz %t6, @null.fail.7, @null.ok.7
     @null.fail.7
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.7
         %t5 =w loadsw %t4
@@ -3764,6 +3878,9 @@ func f() {
         storew %t8, %t1
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: compound divide assign on local" =
@@ -3786,21 +3903,21 @@ func f() {
         %t2 =w ceql %t1, 0
         jnz %t2, @null.fail.3, @null.ok.3
     @null.fail.3
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.3
         %t4 =l loadl %compound.p.0
         %t6 =w ceql %t4, 0
         jnz %t6, @null.fail.7, @null.ok.7
     @null.fail.7
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.7
         %t5 =w loadsw %t4
         %t9 =w ceqw 4, 0
         jnz %t9, @divzero.fail.10, @divzero.ok.10
     @divzero.fail.10
-        call $ripe_panic_divzero()
+        call $ripe_panic_divzero(w 0)
         hlt
     @divzero.ok.10
         %t12 =w ceqw 4, -1
@@ -3816,6 +3933,9 @@ func f() {
         storew %t8, %t1
         ret
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 3, w 0 }
     |}]
 
 let%expect_test "codegen: struct passed by value to function" =
@@ -4276,7 +4396,7 @@ func main() i32 {
         %t1 =w cugel %t0, 1
         jnz %t1, @bounds.fail.2, @bounds.ok.2
     @bounds.fail.2
-        call $ripe_panic_bounds(l %t0, l 1)
+        call $ripe_panic_bounds(w 0, l %t0, l 1)
         hlt
     @bounds.ok.2
         %t3 =l mul %t0, 8
@@ -4286,7 +4406,7 @@ func main() i32 {
         %t6 =w cugel %t5, 1
         jnz %t6, @bounds.fail.7, @bounds.ok.7
     @bounds.fail.7
-        call $ripe_panic_bounds(l %t5, l 1)
+        call $ripe_panic_bounds(w 1, l %t5, l 1)
         hlt
     @bounds.ok.7
         %t8 =l mul %t5, 8
@@ -4295,6 +4415,9 @@ func main() i32 {
         %t11 =w call %t10(w 4, w 5)
         ret %t11
     }
+
+    export data $ripe_panic_strtab = { b "main", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 5, w 5, w 3, w 0, w 5, w 6, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: call the result of a call returning a fn ptr" =
@@ -4366,13 +4489,16 @@ func main() i32 {
         %t3 =w ceql %t1, 0
         jnz %t3, @null.fail.4, @null.ok.4
     @null.fail.4
-        call $ripe_panic_null()
+        call $ripe_panic_null(w 0)
         hlt
     @null.ok.4
         %t2 =l loadl %t1
         %t5 =w call %t2(w 4, w 5)
         ret %t5
     }
+
+    export data $ripe_panic_strtab = { b "main", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 5, w 6, w 11, w 0 }
     |}]
 
 let%expect_test "codegen: loop var and let allocs hoisted to @start" =
@@ -4438,12 +4564,15 @@ func f() u8 {
         %t4 =w or %t2, %t3
         jnz %t4, @cast.fail.5, @cast.ok.5
     @cast.fail.5
-        call $ripe_panic_cast()
+        call $ripe_panic_cast(w 0)
         hlt
     @cast.ok.5
         %t6 =w extub %t0
         ret %t6
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 4, w 10, w 0 }
     |}]
 
 let%expect_test "codegen: never function lowers to hlt" =

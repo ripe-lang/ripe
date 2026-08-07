@@ -86,7 +86,7 @@ def check_one(ripec, testdir, workdir, promote=False):
         return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
 
     run = subprocess.run([binary], capture_output=True, text=True)
-    actual = run.stdout + "exit: %d\n" % run.returncode
+    actual = run.stdout + run.stderr + "exit: %d\n" % run.returncode
 
     out_golden = os.path.join(testdir, "out.txt")
     if not os.path.isfile(out_golden):

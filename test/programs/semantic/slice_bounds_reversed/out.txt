@@ -1,1 +1,4 @@
-exit: -6
+panic: slice bounds [3:1] out of range for length 5
+  at main.rp:3:18
+  in main.main
+exit: 79

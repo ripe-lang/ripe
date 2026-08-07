@@ -1,1 +1,4 @@
-exit: -6
+panic: integer divide by zero
+  at main.rp:4:10
+  in main.main
+exit: 79

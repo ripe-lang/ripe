@@ -1,0 +1,4 @@
+panic: index 5 is out of range for length 3
+  at main.rp:4:10
+  in main.main
+exit: 79
