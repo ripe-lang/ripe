@@ -1538,3 +1538,29 @@ let%expect_test "parse: a statement block is still a statement" =
 let%expect_test "parse: a struct literal still wins over a block" =
   parse_expr "Point { x: 1 }";
   [%expect {| (struct Point (x 1)) |}]
+
+let%expect_test "parse: break takes a value" =
+  (match parse "func f() { loop { break 42 } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break 42)))) |}]
+
+let%expect_test "parse: break takes a label and a value" =
+  (match parse "func f() { outer: loop { loop { break :outer 42 } } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (loop (block (break 42)))))) |}]
+
+let%expect_test "parse: a bare break ends at a newline" =
+  (match parse {|func f() {
+  loop {
+    break
+  }
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break)))) |}]
+
+let%expect_test "parse: a loop is a value in a binding" =
+  parse_expr "x = loop { break 1 }";
+  [%expect {| (= x (loop (block (break 1)))) |}]

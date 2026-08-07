@@ -421,7 +421,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       Option.iter (resolve_expr st) e;
       declare_local st (Symbol.Local kind) name nspan
   | Return e -> Option.iter (resolve_expr st) e
-  | Break _ | Continue _ -> ()
+  | Break (_, value) -> Option.iter (resolve_expr st) value
+  | Continue _ -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
   | PairAssign (ft, st', fv, sv) ->
       resolve_expr st ft;

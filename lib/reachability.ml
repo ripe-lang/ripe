@@ -19,8 +19,8 @@ and block_item_has_break ~own target = function
 and expr_has_break ~own (target : string option) (e : expr) : bool =
   match e.desc with
   | ErrorExpr -> false
-  | Break None -> own
-  | Break (Some l) -> target <> None && target = Some l.Ast.value
+  | Break (None, _) -> own
+  | Break (Some l, _) -> target <> None && target = Some l.Ast.value
   | Block body -> block_has_break ~own target body
   | If (branches, else_body) ->
       Option.fold ~none:false
@@ -39,7 +39,6 @@ and expr_has_break ~own (target : string option) (e : expr) : bool =
   | PairAssign _ -> false
   | _ -> false
 
-(* The innermost label wins so a loop reusing the name hides ours *)
 and nested_has_break (target : string option) (label : loop_label option)
     (body : block) : bool =
   target <> None

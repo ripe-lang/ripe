@@ -4301,3 +4301,74 @@ func g() {}|};
           ^~~
     ok
     |}]
+
+let%expect_test "typecheck: a loop takes its value from break" =
+  run_src {|func f() i32 {
+  return loop { break 42 }
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: break with a value needs a loop" =
+  run_src "func f() { while true { break 5 } }";
+  [%expect
+    {|
+    error: `break` with a value outside a `loop`
+      at <test>:1:31
+        func f() { while true { break 5 } }
+                                      ^
+    help: use `loop` when the loop produces a value
+    |}]
+
+let%expect_test "typecheck: every valued break has to agree" =
+  run_src
+    {|func f() i32 {
+  return loop {
+    if true { break 1 }
+    break true
+  }
+}|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:11
+            break true
+                  ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: a bare break after a valued one is rejected" =
+  run_src
+    {|func f() i32 {
+  return loop {
+    if true { break 1 }
+    break
+  }
+}|};
+  [%expect
+    {|
+    error: `break` values disagree
+      at <test>:4:5
+            break
+            ^~~~~ no value here
+      at <test>:3:21
+            if true { break 1 }
+                            ^ breaks with i32
+    |}]
+
+let%expect_test "typecheck: a valued break after a bare one is rejected" =
+  run_src
+    {|func f() i32 {
+  return loop {
+    if true { break }
+    break 1
+  }
+}|};
+  [%expect
+    {|
+    error: `break` values disagree
+      at <test>:4:11
+            break 1
+                  ^ breaks with i32
+      at <test>:3:15
+            if true { break }
+                      ^~~~~ no value here
+    |}]

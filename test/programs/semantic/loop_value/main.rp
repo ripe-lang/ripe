@@ -1,0 +1,8 @@
+func main() i32 {
+  var n = 0
+  let answer = loop {
+    n += 1
+    if n == 7 { break n * 6 }
+  }
+  return answer
+}

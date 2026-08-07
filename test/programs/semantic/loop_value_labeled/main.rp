@@ -1,0 +1,14 @@
+extern func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var i = 0
+  let found = outer: loop {
+    var j = 0
+    loop {
+      j += 1
+      if j == 4 { break :outer i * 100 + j }
+    }
+  }
+  printf("found=%d\n", found)
+  return found
+}

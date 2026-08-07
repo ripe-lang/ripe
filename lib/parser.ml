@@ -71,7 +71,7 @@ let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF | LBRACE ->
+  | IF | LBRACE | LOOP ->
       true
   | _ -> false
 
@@ -656,6 +656,7 @@ and parse_primary ?(no_struct_lit = false) st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
+  | IDENT name when (peek st).token = COLON -> parse_labeled_loop st name
   | IDENT name ->
       let nspan = st.tok_span in
       advance st;
@@ -674,6 +675,7 @@ and parse_primary ?(no_struct_lit = false) st =
       mk lo st Undefined
   | IF -> parse_if st
   | LBRACE -> mk lo st (Block (parse_block st))
+  | LOOP -> parse_loop st
   | ELSE ->
       raise
         (ParseError
@@ -737,7 +739,10 @@ and parse_simple_stmt st =
       mk lo st (Binding (kind, name, nspan, ann, e))
   | BREAK ->
       advance st;
-      mk lo st (Break (parse_loop_target st))
+      let target = parse_loop_target st in
+      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
+        mk lo st (Break (target, None))
+      else mk lo st (Break (target, Some (parse_expr st 1)))
   | CONTINUE ->
       advance st;
       mk lo st (Continue (parse_loop_target st))

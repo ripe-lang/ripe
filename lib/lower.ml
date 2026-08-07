@@ -57,7 +57,7 @@ let target_loop ~(span : Ast.span) (label : Ast.loop_label option) : D.loop_id =
 
 let loop ~id ~init ~cond ~step ~body : D.cblock =
   let not_cond = D.mk Types.TBool (D.CUnOp (Ast.Not, cond)) in
-  let guard = if_then not_cond [ neverc (D.CBreak id) ] in
+  let guard = if_then not_cond [ neverc (D.CBreak (id, None)) ] in
   let bare = voidc (D.CLoop (id, guard :: body, step)) in
   init @ [ bare ]
 
@@ -113,10 +113,11 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
     | S.TWhile (label, cond, body) -> D.CBlock (lower_while label cond body)
     | S.TFor (label, sym, elem_ty, iter, body) ->
         D.CBlock (lower_for label sym elem_ty iter body)
-    | S.TLoop (label, body) -> D.CBlock (lower_loop label body)
+    | S.TLoop (label, body) -> D.CBlock (lower_loop ty label body)
     | S.TBinding (kind, sym, t, e) -> D.CBinding (kind, sym, t, lower_expr e)
     | S.TReturn e -> D.CReturn (Option.map lower_expr e)
-    | S.TBreak label -> D.CBreak (target_loop ~span label)
+    | S.TBreak (label, value) ->
+        D.CBreak (target_loop ~span label, Option.map lower_expr value)
     | S.TContinue label -> D.CContinue (target_loop ~span label)
     | S.TPairAssign (ft, st, fv, sv) -> D.CBlock (lower_pair_assign ft st fv sv)
     | S.TLocalDecl ->
@@ -138,7 +139,7 @@ and lower_elem (te : S.texpr) : D.cblock =
   | S.TWhile (label, cond, body) -> lower_while label cond body
   | S.TFor (label, sym, elem_ty, iter, body) ->
       lower_for label sym elem_ty iter body
-  | S.TLoop (label, body) -> lower_loop label body
+  | S.TLoop (label, body) -> lower_loop te.S.ty label body
   | S.TBinOp (op, l, r) when base_binop_of op <> None ->
       lower_compound_assign op l r
   | S.TPairAssign (ft, st, fv, sv) -> lower_pair_assign ft st fv sv
@@ -157,11 +158,11 @@ and lower_pair_assign (ft : S.texpr) (st : S.texpr) (fv : S.texpr)
     assign (lower_expr st) (ident sv.D.ty second_sym);
   ]
 
-and lower_loop label body : D.cblock =
+and lower_loop ty label body : D.cblock =
   let id = enter_loop label in
   let body = lower_block body in
   leave_loop ();
-  [ voidc (D.CLoop (id, body, [])) ]
+  [ D.mk ty (D.CLoop (id, body, [])) ]
 
 and lower_while label cond body : D.cblock =
   let id = enter_loop label in
@@ -209,7 +210,9 @@ and lower_range_for ~id sym elem_ty lo hi ~inclusive body : D.cblock =
   let incr = assign ivar (binop elem_ty Ast.Add ivar (int elem_ty 1L)) in
   if inclusive then
     let stop =
-      if_then (binop Types.TBool Ast.Eq ivar hivar) [ neverc (D.CBreak id) ]
+      if_then
+        (binop Types.TBool Ast.Eq ivar hivar)
+        [ neverc (D.CBreak (id, None)) ]
     in
     let bare = voidc (D.CLoop (id, body, [ stop; incr ])) in
     init @ [ if_then (binop Types.TBool Ast.Lte ivar hivar) [ bare ] ]

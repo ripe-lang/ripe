@@ -93,7 +93,10 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(return"
       ^ (match e with Some e -> " " ^ dump_expr e | None -> "")
       ^ ")"
-  | Break _ -> "(break)"
+  | Break (_, value) -> (
+      match value with
+      | Some e -> "(break " ^ dump_expr e ^ ")"
+      | None -> "(break)")
   | Continue _ -> "(continue)"
   | PairAssign (ft, st, fv, sv) ->
       "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"

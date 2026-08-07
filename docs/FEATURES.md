@@ -4,7 +4,7 @@ Reference for the language as it exists today.
 
 ## Expression-based language
 
-An `if` or a block is a value anywhere a value is expected.
+An `if`, a block, and a `loop` are values anywhere a value is expected.
 
 ```ripe
 func twice(x: i32) i32 { x * 2 }
@@ -437,6 +437,19 @@ func main() i32 {
     if n == 5 { break }
   }
   return n
+}
+```
+
+### Loop values
+
+```ripe
+func main() i32 {
+  var n: i32 = 0
+  let answer: i32 = loop {
+    n += 1
+    if n == 7 { break n * 6 }
+  }
+  return answer
 }
 ```
 

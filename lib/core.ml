@@ -34,7 +34,7 @@ type cexpr_desc =
   | CLoop of loop_id * cblock * cblock
   | CBinding of Ast.binding_kind * Symbol.t * ty * cexpr
   | CReturn of cexpr option
-  | CBreak of loop_id
+  | CBreak of loop_id * cexpr option
   | CContinue of loop_id
 
 and cexpr = { desc : cexpr_desc; ty : ty; span : Ast.span }
