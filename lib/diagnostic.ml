@@ -119,7 +119,7 @@ let visual_col src line_start pos =
 
 let render_location ctx buf (span : Ast.span) =
   let line, _ = Source_map.lookup ctx.sm span.lo in
-  let src = ctx.sm.Source_map.src in
+  let src = Source_map.src ctx.sm in
   let line_start, _ = Source_map.line_bounds ctx.sm span.lo in
   let col = visual_col src line_start span.lo + 1 in
   Buffer.add_string buf (Printf.sprintf "  at %s:%d:%d\n" ctx.filename line col)
@@ -174,7 +174,7 @@ let window_of (cells : string Dynarray.t) caret_lo : string * int =
   end
 
 let render_snippet ctx buf (span : Ast.span) label severity =
-  let src = ctx.sm.Source_map.src in
+  let src = Source_map.src ctx.sm in
   let line_start, line_end = Source_map.line_bounds ctx.sm span.lo in
   let cells = cells_of_line src line_start line_end in
   let caret_lo = visual_col src line_start span.lo in

@@ -26,6 +26,8 @@ let rec search (starts : int array) (pos : int) (lo : int) (hi : int) : int =
     if starts.(mid) <= pos then search starts pos mid hi
     else search starts pos lo (mid - 1)
 
+let src (t : t) : string = t.src
+
 let lookup (t : t) (pos : int) : int * int =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
