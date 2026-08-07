@@ -33,7 +33,8 @@ and expr_has_break ~own (target : string option) (e : expr) : bool =
   | Binding (_, _, _, _, init) ->
       Option.fold ~none:false ~some:(expr_has_break ~own target) init
   | Return e -> Option.fold ~none:false ~some:(expr_has_break ~own target) e
-  | While (label, _, body) -> nested_has_break target label body
+  | While (label, _, body) | Loop (label, body) ->
+      nested_has_break target label body
   | For (label, _, _, _, body) -> nested_has_break target label body
   | PairAssign _ -> false
   | _ -> false

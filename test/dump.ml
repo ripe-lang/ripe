@@ -82,6 +82,7 @@ and dump_expr (e : Ripe.Ast.expr) =
         | None -> "")
       ^ ")"
   | While (_, c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
+  | Loop (_, body) -> "(loop " ^ dump_block body ^ ")"
   | For (_, name, _, iter, body) ->
       "(for " ^ name ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
   | Binding (_, name, _, _, init) ->

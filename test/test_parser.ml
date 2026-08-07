@@ -1484,3 +1484,23 @@ let%expect_test "parse: pub on a local declaration is accepted" =
   pub type Coord = i32
 }|};
   [%expect {| ok |}]
+
+let%expect_test "parse: a bare loop takes a block" =
+  (match parse "func f() { loop { break } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (loop (block (break)))) |}]
+
+let%expect_test "parse: a loop takes a label" =
+  run_src "func f() { outer: loop { loop { break :outer } } }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: a loop rejects a condition" =
+  run_src "func f(x: bool) { loop x { } }";
+  [%expect
+    {|
+    error: expected {
+      at <test>:1:24
+        func f(x: bool) { loop x { } }
+                               ^ found x
+    |}]

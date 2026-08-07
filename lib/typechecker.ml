@@ -444,6 +444,12 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       check_loop_target env e.span "`continue` outside a loop" label;
       T.mk TNever (T.TContinue label)
   | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
+  | Loop (label, body) ->
+      let tb, _ =
+        check_scoped_block (declare_label env label) e.span body Discard true
+      in
+      let diverges = not (Reachability.loop_has_break ?label body) in
+      T.mk (if diverges then TNever else TVoid) (T.TLoop (label, tb))
 
 (* The value of a block is its last element and void when the block is empty *)
 and tblock_ty (tb : T.tblock) : ty =
@@ -1657,7 +1663,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
   | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ | T.TLocalDecl ->
+  | T.TBreak _ | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

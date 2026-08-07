@@ -4282,3 +4282,22 @@ func g() {}|};
           ^~~
     ok
     |}]
+
+let%expect_test "typecheck: break inside loop" =
+  run_src "func f() { loop { break } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a loop with no break diverges" =
+  run_src {|func f() {
+  loop {}
+  g()
+}
+func g() {}|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:3:3
+          g()
+          ^~~
+    ok
+    |}]

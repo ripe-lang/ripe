@@ -409,6 +409,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | While (_, cond, body) ->
       resolve_expr st cond;
       resolve_block st body
+  | Loop (_, body) -> resolve_block st body
   | For (_, name, nspan, iter, body) ->
       resolve_expr st iter;
       push_scope st;

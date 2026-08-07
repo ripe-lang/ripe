@@ -40,6 +40,7 @@ type texpr_desc =
   | TContinue of Ast.loop_label option
   | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
+  | TLoop of Ast.loop_label option * tblock
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]

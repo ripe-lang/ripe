@@ -131,6 +131,7 @@ type expr_desc =
   | Break of loop_label option
   | Continue of loop_label option
   | PairAssign of expr * expr * expr * expr
+  | Loop of loop_label option * block
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }

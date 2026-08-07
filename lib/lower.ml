@@ -109,10 +109,11 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
         D.CIf
           ( List.map (fun (c, body) -> (lower_expr c, lower_block body)) branches,
             Option.map lower_block else_body )
-    (* While and for are void so they only reach here from an unused value slot *)
+    (* A loop is void so it only reaches here from an unused value slot *)
     | S.TWhile (label, cond, body) -> D.CBlock (lower_while label cond body)
     | S.TFor (label, sym, elem_ty, iter, body) ->
         D.CBlock (lower_for label sym elem_ty iter body)
+    | S.TLoop (label, body) -> D.CBlock (lower_loop label body)
     | S.TBinding (kind, sym, t, e) -> D.CBinding (kind, sym, t, lower_expr e)
     | S.TReturn e -> D.CReturn (Option.map lower_expr e)
     | S.TBreak label -> D.CBreak (target_loop ~span label)
@@ -132,6 +133,7 @@ and lower_elem (te : S.texpr) : D.cblock =
   | S.TWhile (label, cond, body) -> lower_while label cond body
   | S.TFor (label, sym, elem_ty, iter, body) ->
       lower_for label sym elem_ty iter body
+  | S.TLoop (label, body) -> lower_loop label body
   | S.TBinOp (op, l, r) when base_binop_of op <> None ->
       lower_compound_assign op l r
   | S.TPairAssign (ft, st, fv, sv) -> lower_pair_assign ft st fv sv
@@ -149,6 +151,12 @@ and lower_pair_assign (ft : S.texpr) (st : S.texpr) (fv : S.texpr)
     assign (lower_expr ft) (ident fv.D.ty first_sym);
     assign (lower_expr st) (ident sv.D.ty second_sym);
   ]
+
+and lower_loop label body : D.cblock =
+  let id = enter_loop label in
+  let body = lower_block body in
+  leave_loop ();
+  [ voidc (D.CLoop (id, body, [])) ]
 
 and lower_while label cond body : D.cblock =
   let id = enter_loop label in

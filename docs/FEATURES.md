@@ -423,19 +423,16 @@ func main() i32 {
 }
 ```
 
+### loop
+
 ```ripe
 func main() i32 {
-  var i: i32 = 0
-  outer: while i < 5 {
-    i += 1
-    var j: i32 = 0
-    while j < 5 {
-      j += 1
-      if j == 2 { continue :outer }
-      if i == 4 { break :outer }
-    }
+  var n: i32 = 0
+  loop {
+    n += 1
+    if n == 5 { break }
   }
-  return i
+  return n
 }
 ```
 
