@@ -154,12 +154,7 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
-and field = {
-  field_name : string;
-  field_typ : typ;
-  field_modifiers : modifier list;
-  field_span : span;
-}
+and field = { field_name : string; field_typ : typ; field_span : span }
 [@@deriving show { with_path = false }]
 
 and struct_def = {

@@ -373,13 +373,7 @@ and parse_fields st =
           parse_typ st)
     in
     fields :=
-      ({
-         field_name = name;
-         field_typ = t;
-         field_modifiers = [];
-         field_span = nspan;
-       }
-        : field)
+      ({ field_name = name; field_typ = t; field_span = nspan } : field)
       :: !fields;
     expect_field_sep st
   done;
