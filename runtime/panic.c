@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -5,43 +6,66 @@
 #define PANIC_RED "\033[1;31m"
 #define PANIC_RESET "\033[0m"
 
+struct ripe_site {
+    unsigned int file;
+    unsigned int line;
+    unsigned int col;
+    unsigned int func;
+};
+
+/* Clang lets these stay undefined so a program with no checks links without
+   emitting either table */
+extern const struct ripe_site ripe_panic_sites[] __attribute__((weak));
+extern const char ripe_panic_strtab[] __attribute__((weak));
+
 static const char *panic_prefix(void) {
     return isatty(fileno(stderr)) ? PANIC_RED "panic:" PANIC_RESET : "panic:";
 }
 
-void ripe_panic(const char *msg) {
-    fprintf(stderr, "%s %s\n", panic_prefix(), msg);
+static _Noreturn void report(unsigned int site, const char *fmt, ...) {
+    const struct ripe_site *s = &ripe_panic_sites[site];
+    va_list args;
+
+    fprintf(stderr, "%s ", panic_prefix());
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fputc('\n', stderr);
+
+    fprintf(stderr, "  at %s:%u:%u\n", &ripe_panic_strtab[s->file], s->line,
+            s->col);
+    fprintf(stderr, "  in %s\n", &ripe_panic_strtab[s->func]);
+
     abort();
 }
 
-void ripe_panic_bounds(unsigned long idx, unsigned long len) {
-    fprintf(stderr, "%s index %lu is out of range for length %lu\n",
-            panic_prefix(), idx, len);
-    abort();
+_Noreturn void ripe_panic(unsigned int site, const char *msg) {
+    report(site, "%s", msg);
 }
 
-void ripe_panic_slice_bounds(unsigned long lo, unsigned long hi, unsigned long len) {
-    fprintf(stderr, "%s slice bounds [%lu:%lu] out of range for length %lu\n",
-            panic_prefix(), lo, hi, len);
-    abort();
+_Noreturn void ripe_panic_bounds(unsigned int site, unsigned long idx,
+                                 unsigned long len) {
+    report(site, "index %lu is out of range for length %lu", idx, len);
 }
 
-void ripe_panic_divzero(void) {
-    fprintf(stderr, "%s integer divide by zero\n", panic_prefix());
-    abort();
+_Noreturn void ripe_panic_slice_bounds(unsigned int site, unsigned long lo,
+                                       unsigned long hi, unsigned long len) {
+    report(site, "slice bounds [%lu:%lu] out of range for length %lu", lo, hi,
+           len);
 }
 
-void ripe_panic_null(void) {
-    fprintf(stderr, "%s null pointer dereference\n", panic_prefix());
-    abort();
+_Noreturn void ripe_panic_divzero(unsigned int site) {
+    report(site, "integer divide by zero");
 }
 
-void ripe_panic_shift(void) {
-    fprintf(stderr, "%s negative shift amount\n", panic_prefix());
-    abort();
+_Noreturn void ripe_panic_null(unsigned int site) {
+    report(site, "null pointer dereference");
 }
 
-void ripe_panic_cast(void) {
-    fprintf(stderr, "%s value does not fit in the target type\n", panic_prefix());
-    abort();
+_Noreturn void ripe_panic_shift(unsigned int site) {
+    report(site, "negative shift amount");
+}
+
+_Noreturn void ripe_panic_cast(unsigned int site) {
+    report(site, "value does not fit in the target type");
 }

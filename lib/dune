@@ -27,6 +27,7 @@
   lower
   codegen_qbe
   ripe_sites
+  panic_table
   driver)
  (libraries unix dune-site)
  (preprocess
