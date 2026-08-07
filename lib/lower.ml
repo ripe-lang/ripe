@@ -124,8 +124,13 @@ let rec lower_expr (te : S.texpr) : D.cexpr =
   in
   { D.desc; ty; span }
 
-(* A block element in statement position may expand to several core statements *)
-and lower_block (body : S.tblock) : D.cblock = List.concat_map lower_elem body
+(* A desugar can turn one element into several core statements *)
+and lower_block (body : S.tblock) : D.cblock =
+  match body with
+  | [] -> []
+  | te :: rest ->
+      let head = lower_elem te in
+      if te.S.ty = Types.TNever then head else head @ lower_block rest
 
 and lower_elem (te : S.texpr) : D.cblock =
   match te.S.desc with
