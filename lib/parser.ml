@@ -1041,8 +1041,13 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
+(* Tokens run a bit over two bytes each so this lands close without a regrow *)
+let initial_token_capacity source_length = source_length / 2
+
 let tokenize_all read lexbuf diags =
-  let toks = ref [] in
+  let toks = Dynarray.create () in
+  Dynarray.ensure_capacity toks
+    (initial_token_capacity lexbuf.Lexing.lex_buffer_len);
   let rec scan stack depth =
     match read lexbuf with
     | ERROR msg, sp ->
@@ -1057,7 +1062,7 @@ let tokenize_all read lexbuf diags =
             depth;
           }
         in
-        toks := info :: !toks;
+        Dynarray.add_last toks info;
         match Bracket_check.step diags stack t sp with
         | Bracket_check.Done -> ()
         | Bracket_check.Stray | Bracket_check.Other -> scan stack depth
@@ -1066,7 +1071,7 @@ let tokenize_all read lexbuf diags =
             scan stack depth)
   in
   scan [] 0;
-  Array.of_list (List.rev !toks)
+  Dynarray.to_array toks
 
 let replay_of (tokens : token_info array) =
   let last = Array.length tokens - 1 in
