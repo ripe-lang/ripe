@@ -62,7 +62,7 @@ let format_const_num (ty : ty) (n : const_num) : string =
   | Ni64 n -> Int64.to_string n
   | Nf f -> float_lit ty f
 
-let alloc_instr (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : string =
+let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
   match ty_align structs t with
   | 1 | 2 | 4 -> "alloc4"
   | 8 -> "alloc8"
@@ -107,8 +107,8 @@ let qbe_store (t : ty) : string =
   | TError -> Diagnostic.ice "TError has no store instruction"
 
 type ctx = {
-  structs : (Symbol.key, ty list) Hashtbl.t;
-  struct_names : (Symbol.key, string) Hashtbl.t;
+  structs : ty list Symbol.Table.t;
+  struct_names : string Symbol.Table.t;
   locals : (Symbol.id, string) Hashtbl.t;
   used_slots : (string, unit) Hashtbl.t;
   buf : Buffer.t ref;
@@ -302,7 +302,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
                Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
              args)
       in
-      (* The ... marker between fixed and variadic args tells QBE to set the vararg register count on amd64 SysV *)
+      (* The ... marker is how QBE knows to set the vararg register count *)
       let arg_strs =
         match fixed_count with
         | Some n ->
@@ -627,7 +627,7 @@ and emit_negshift_check ctx ~span count count_qt =
   emit_guard ctx ~tag:"negshift" ~span ~cond:neg ~panic:(fun site ->
       emit ctx "    call $ripe_panic_shift(w %d)\n" site)
 
-(* Address of any lvalue, for &e: a name's own slot/global, or the same address computation assign already uses for index/field/deref *)
+(* &e on anything but a name reuses the address an assignment would compute *)
 and emit_lvalue_addr ctx (e : T.cexpr) =
   match e.T.desc with
   (* &funcname is already the function pointer. *)
@@ -651,7 +651,7 @@ and emit_field_addr ctx base field =
     | _ -> Diagnostic.ice ~span:base.T.span "field access on non-struct type"
   in
   let struct_name = peel base.T.ty in
-  let fields = Hashtbl.find ctx.structs (Qname.key struct_name) in
+  let fields = Symbol.Table.find ctx.structs (Qname.key struct_name) in
   let offset = field_offset ctx.structs fields field in
   offset_addr ctx addr offset
 
@@ -706,7 +706,7 @@ and emit_array_lit_into ctx base elems elem =
     elems
 
 and emit_struct_lit_into ctx base (sname : Qname.t) tfields =
-  let fields = Hashtbl.find ctx.structs (Qname.key sname) in
+  let fields = Symbol.Table.find ctx.structs (Qname.key sname) in
   List.iter
     (fun (field_id, (fe : T.cexpr)) ->
       let ft = fe.T.ty in
@@ -901,7 +901,7 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
   | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
   | _ -> tmp
 
-(* This rebuilds the go result where an oversized count clears every bit since qbe only masks the count like x86 *)
+(* An oversized count has to clear every bit and qbe only masks it like x86 *)
 and emit_shift ctx ~span op ?const_count ~ty ~count_ty ~unsigned lv rv =
   let qt = qbe_ty ty in
   let bits = match qbe_base ty with L -> 64 | _ -> 32 in
@@ -1200,7 +1200,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   emit ctx "}\n\n"
 
 let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
-  Hashtbl.find ctx.struct_names (Qname.key name)
+  Symbol.Table.find ctx.struct_names (Qname.key name)
 
 let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   match resolve_ty t with
@@ -1329,20 +1329,22 @@ let emit_panic_tables (ctx : ctx) =
       emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
         (String.concat ", " (List.map entry sites))
 
-let emit_qbe ~(source_of : Span.file_id -> string * Source_map.t)
-    (tdecls : T.cdecl list) : string =
+let emit_qbe ~(source_of : int -> string * Source_map.t) (tdecls : T.cdecl list)
+    : string =
   (* Collect struct layouts for offset comp *)
-  let structs = Hashtbl.create 8 in
-  let struct_names = Hashtbl.create 8 in
+  let structs = Symbol.Table.create 8 in
+  let struct_names = Symbol.Table.create 8 in
   List.iter
     (function
       | T.CStruct (name, fields, _) ->
-          Hashtbl.replace structs (Qname.key name) fields;
-          Hashtbl.replace struct_names (Qname.key name) (Qname.show name)
+          Symbol.Table.replace structs (Qname.key name) fields;
+          Symbol.Table.replace struct_names (Qname.key name) (Qname.show name)
       | T.CLocalStruct (name, fields) ->
-          let module_id, id = Qname.key name in
-          Hashtbl.replace structs (Qname.key name) fields;
-          Hashtbl.replace struct_names (Qname.key name)
+          let key = Qname.key name in
+          let module_id = Symbol.module_id_of_key key in
+          let id = Symbol.id_of_key key in
+          Symbol.Table.replace structs (Qname.key name) fields;
+          Symbol.Table.replace struct_names (Qname.key name)
             (Printf.sprintf "_Rlocal%d_%d" module_id id)
       | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
           ())

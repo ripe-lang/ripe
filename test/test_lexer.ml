@@ -217,12 +217,13 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    "let var return if else while for in true false break continue as sizeof \
-     null extern struct pub func type newtype undefined\n\
-     import\n";
+    "let comptime var return if else while for in true false break continue as \
+     sizeof null extern struct pub func type newtype undefined\n\
+     import module loop\n";
   [%expect
     {|
     KW let
+    KW comptime
     KW var
     KW return
     KW if
@@ -246,6 +247,8 @@ let%expect_test "lexer: all keywords" =
     KW undefined
     AUTOSEMI
     KW import
+    KW module
+    KW loop
     EOF
     |}]
 
@@ -534,6 +537,81 @@ let%expect_test "lexer: a leading separator is a name" =
   dump_tokens "_1000\n";
   [%expect {|
     IDENT _1000
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: every suffix in decimal form" =
+  dump_tokens "7i8 7i16 7i32 7i64 7isize 7u8 7u16 7u32 7u64 7usize\n";
+  [%expect
+    {|
+    INT 7i8
+    INT 7i16
+    INT 7i32
+    INT 7i64
+    INT 7isize
+    INT 7u8
+    INT 7u16
+    INT 7u32
+    INT 7u64
+    INT 7usize
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: every suffix in hex form" =
+  dump_tokens
+    "0x7i8 0x7i16 0x7i32 0x7i64 0x7isize 0x7u8 0x7u16 0x7u32 0x7u64 0x7usize\n";
+  [%expect
+    {|
+    INT 7i8
+    INT 7i16
+    INT 7i32
+    INT 7i64
+    INT 7isize
+    INT 7u8
+    INT 7u16
+    INT 7u32
+    INT 7u64
+    INT 7usize
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: every suffix in binary form" =
+  dump_tokens
+    "0b1i8 0b1i16 0b1i32 0b1i64 0b1isize 0b1u8 0b1u16 0b1u32 0b1u64 0b1usize\n";
+  [%expect
+    {|
+    INT 1i8
+    INT 1i16
+    INT 1i32
+    INT 1i64
+    INT 1isize
+    INT 1u8
+    INT 1u16
+    INT 1u32
+    INT 1u64
+    INT 1usize
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: every suffix in octal form" =
+  dump_tokens
+    "0o7i8 0o7i16 0o7i32 0o7i64 0o7isize 0o7u8 0o7u16 0o7u32 0o7u64 0o7usize\n";
+  [%expect
+    {|
+    INT 7i8
+    INT 7i16
+    INT 7i32
+    INT 7i64
+    INT 7isize
+    INT 7u8
+    INT 7u16
+    INT 7u32
+    INT 7u64
+    INT 7usize
     AUTOSEMI
     EOF
     |}]

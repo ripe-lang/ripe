@@ -2,8 +2,6 @@
 
 (* These diagnostics came from ceramic *)
 
-open Span
-
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
 
@@ -60,12 +58,10 @@ let has_errors (s : sink) : bool =
 
 (* Sorted into source order and ties keep emission order *)
 let drain (s : sink) : t list =
-  let pos d =
-    match d.primary with Some sp -> (sp.Ast.file, sp.lo) | None -> (-1, 0)
-  in
+  let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
 
-(* This clears the sink so the next stage doesn't report these again *)
+(* The next stage would report these all over again if the sink kept them *)
 let take (s : sink) : t list =
   let all = drain s in
   s := [];
@@ -106,7 +102,7 @@ let severity_label color sev =
 (* UTF8 continuation bytes don't advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
-(* This gets visual columns from line_start to pos with tabs expanded and cont bytes skipped *)
+(* A byte offset isn't a column once tabs and multibyte characters show up *)
 let visual_col src line_start pos =
   let col = ref 0 in
   for i = line_start to pos - 1 do
@@ -118,10 +114,11 @@ let visual_col src line_start pos =
   !col
 
 let render_location ctx buf (span : Ast.span) =
-  let line, _ = Source_map.lookup ctx.sm span.lo in
+  let line, _ = Source_map.lookup ctx.sm (Span.lo span) in
   let src = Source_map.src ctx.sm in
-  let line_start, _ = Source_map.line_bounds ctx.sm span.lo in
-  let col = visual_col src line_start span.lo + 1 in
+  let lo = Source_map.rel ctx.sm (Span.lo span) in
+  let line_start, _ = Source_map.line_bounds ctx.sm (Span.lo span) in
+  let col = visual_col src line_start lo + 1 in
   Buffer.add_string buf (Printf.sprintf "  at %s:%d:%d\n" ctx.filename line col)
 
 (* One entry per visual column so a window can be cut without splitting a character *)
@@ -147,7 +144,7 @@ let cells_of_line src line_start line_end : string Dynarray.t =
   done;
   out
 
-(* Slide the window so the caret stays inside and mark whichever side was cut *)
+(* A long line still has to show its caret so the window slides to it *)
 let window_of (cells : string Dynarray.t) caret_lo : string * int =
   let total = Dynarray.length cells in
   let budget = snippet_width - snippet_indent in
@@ -173,11 +170,13 @@ let window_of (cells : string Dynarray.t) caret_lo : string * int =
     (Buffer.contents buf, start)
   end
 
+(* Offsets here index into the raw source so they have to be file relative *)
 let render_snippet ctx buf (span : Ast.span) label severity =
   let src = Source_map.src ctx.sm in
-  let line_start, line_end = Source_map.line_bounds ctx.sm span.lo in
+  let lo = Source_map.rel ctx.sm (Span.lo span) in
+  let line_start, line_end = Source_map.line_bounds ctx.sm (Span.lo span) in
   let cells = cells_of_line src line_start line_end in
-  let caret_lo = visual_col src line_start span.lo in
+  let caret_lo = visual_col src line_start lo in
   let shown, offset = window_of cells caret_lo in
   Buffer.add_string buf (String.make snippet_indent ' ');
   Buffer.add_string buf shown;
@@ -185,9 +184,9 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   Buffer.add_string buf (String.make snippet_indent ' ');
   let pad = caret_lo - offset in
   Buffer.add_string buf (String.make pad ' ');
-  let hi = min span.hi line_end in
+  let hi = min (Source_map.rel ctx.sm (Span.hi span)) line_end in
   let markers =
-    if hi <= span.lo then "^"
+    if hi <= lo then "^"
     else
       let w = visual_col src line_start hi - caret_lo in
       let w = if w < 1 then 1 else w in
@@ -204,13 +203,12 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   | None -> ());
   Buffer.add_char buf '\n'
 
-let render_with (context_for_file : Span.file_id -> ctx) (default_ctx : ctx)
-    (d : t) : string =
+let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) : string =
   let buf = Buffer.create 256 in
   let render_one_with d =
     let ctx =
       match d.primary with
-      | Some span -> context_for_file span.Ast.file
+      | Some span -> context_at (Span.lo span)
       | None -> default_ctx
     in
     Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
@@ -224,7 +222,7 @@ let render_with (context_for_file : Span.file_id -> ctx) (default_ctx : ctx)
     | None -> ());
     List.iter
       (fun (label : span_label) ->
-        let label_ctx = context_for_file label.span.file in
+        let label_ctx = context_at (Span.lo label.span) in
         render_location label_ctx buf label.span;
         render_snippet label_ctx buf label.span (Some label.message) Note)
       d.labels

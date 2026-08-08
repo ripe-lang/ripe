@@ -3,6 +3,7 @@
  (modules
   config
   span
+  interner
   ast
   source_map
   diagnostic

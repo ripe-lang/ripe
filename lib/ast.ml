@@ -1,16 +1,21 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type span = Span.t = { file : Span.file_id; lo : int; hi : int }
+type span = Span.t
 
 let pp_span = Span.pp
 let dummy_span = Span.dummy
+
+(* A source identifier is an interned id so a syntax node carries no pointer *)
+type name = Interner.id
+
+let pp_name = Interner.pp
 
 type 'a spanned = { value : 'a; span : span }
 [@@deriving show { with_path = false }]
 
 let spanned value span = { value; span }
 
-type loop_label = string spanned [@@deriving show { with_path = false }]
+type loop_label = name spanned [@@deriving show { with_path = false }]
 
 type binop =
   | Add
@@ -109,24 +114,24 @@ type expr_desc =
   | Null
   | Char of int
   | String of string
-  | Ident of string
+  | Ident of name
   | Call of expr * expr list
   | BinOp of binop * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr
-  | FieldAccess of expr * string * span
+  | FieldAccess of expr * name * span
   | Cast of expr * typ * cast_kind
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of string list * string * span * (string * span * expr) list
+  | StructLit of name list * name * span * (name * span * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
-  | For of loop_label option * string * span * expr * block
-  | Binding of binding_kind * string * span * typ option * expr option
+  | For of loop_label option * name * span * expr * block
+  | Binding of binding_kind * name * span * typ option * expr option
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
@@ -144,7 +149,7 @@ and block_item = Expr of expr | Decl of local_decl
 
 and typ_desc =
   | ErrorType
-  | Named of string list * string
+  | Named of name list * name
   | Pointer of typ
   | FuncPtr of typ list * typ option
   | Array of expr * typ
@@ -154,11 +159,11 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
-and field = { field_name : string; field_typ : typ; field_span : span }
+and field = { field_name : name; field_typ : typ; field_span : span }
 [@@deriving show { with_path = false }]
 
 and struct_def = {
-  struct_name : string;
+  struct_name : name;
   struct_name_span : span;
   fields : field list;
   struct_modifiers : modifier list;
@@ -167,7 +172,7 @@ and struct_def = {
 [@@deriving show { with_path = false }]
 
 and type_alias_def = {
-  alias_name : string;
+  alias_name : name;
   alias_name_span : span;
   alias_typ : typ;
   alias_modifiers : modifier list;
@@ -175,11 +180,11 @@ and type_alias_def = {
 }
 [@@deriving show { with_path = false }]
 
-and param = { param_name : string; param_typ : typ; param_span : span }
+and param = { param_name : name; param_typ : typ; param_span : span }
 [@@deriving show { with_path = false }]
 
 and func_def = {
-  func_name : string;
+  func_name : name;
   func_name_span : span;
   params : param list;
   ret : typ option;
@@ -197,11 +202,11 @@ and local_decl =
   | LocalFunc of func_def
 [@@deriving show { with_path = false }]
 
-let show_named (path : string list) (name : string) : string =
-  String.concat "." (path @ [ name ])
+let show_named (path : name list) (name : name) : string =
+  String.concat "." (List.map Interner.text (path @ [ name ]))
 
 type global_def = {
-  name : string;
+  name : name;
   name_span : span;
   typ : typ;
   init : expr option;
@@ -227,10 +232,10 @@ let decl_of_local : local_decl -> decl = function
   | LocalNewtype td -> Newtype td
   | LocalFunc fd -> Func fd
 
-type import = { path : string list; span : span }
+type import = { path : name list; span : span }
 [@@deriving show { with_path = false }]
 
-type module_header = { name : string; span : span }
+type module_header = { name : name; span : span }
 [@@deriving show { with_path = false }]
 
 type module_ = {

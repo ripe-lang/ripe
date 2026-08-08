@@ -1328,7 +1328,8 @@ import math.vector
 |} in
   List.iter
     (fun import ->
-      Printf.printf "import %s\n" (String.concat "." import.Ripe.Ast.path))
+      Printf.printf "import %s\n"
+        (String.concat "." (List.map Ripe.Interner.text import.Ripe.Ast.path)))
     module_.imports;
   [%expect {|
     import io
@@ -1366,7 +1367,7 @@ let%expect_test "parse: regular assignment remains accepted" =
 let%expect_test "parse: a module header" =
   let module_ = parse_module "module math\nfunc f() {}" in
   (match module_.header with
-  | Some header -> print_endline header.Ripe.Ast.name
+  | Some header -> print_endline (Ripe.Interner.text header.Ripe.Ast.name)
   | None -> print_endline "<no header>");
   [%expect {| math |}]
 
