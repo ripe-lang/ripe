@@ -64,11 +64,12 @@ let show_module (module_ : Ast.module_) =
   let header =
     match module_.Ast.header with
     | None -> []
-    | Some header -> [ "module " ^ header.Ast.name ]
+    | Some header -> [ "module " ^ Interner.text header.Ast.name ]
   in
   let imports =
     List.map
-      (fun import -> "import " ^ String.concat "." import.Ast.path)
+      (fun import ->
+        "import " ^ String.concat "." (List.map Interner.text import.Ast.path))
       module_.Ast.imports
   in
   String.concat "\n"

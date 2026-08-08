@@ -30,7 +30,7 @@ let bind sym ty e = voidc (D.CBinding (Ast.Var, sym, ty, e))
 let assign (lhs : D.cexpr) rhs = binop lhs.D.ty Ast.Assign lhs rhs
 let if_then cond body = voidc (D.CIf ([ (cond, body) ], None))
 let loop_counter = ref 0
-let loop_stack : (string option * D.loop_id) list ref = ref []
+let loop_stack : (Ast.name option * D.loop_id) list ref = ref []
 
 let enter_loop (label : Ast.loop_label option) : D.loop_id =
   let id = !loop_counter in

@@ -6,7 +6,7 @@ open Ty_pred
 module T = Typed_ast
 
 type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
-type struct_info = { field_tys : (string * ty) list }
+type struct_info = { field_tys : (Ast.name * ty) list }
 
 (* Structs newtypes aliases and builtins share one namespace of type names *)
 type type_def =
@@ -16,7 +16,7 @@ type type_def =
   | DBuiltin of Types.builtin
 
 type result_use = Infer | Expect of ty | Discard
-type var_info = { name : string; ty : ty; used : bool ref; span : Ast.span }
+type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls back *)
 type gstate = {
@@ -28,7 +28,7 @@ type gstate = {
 }
 
 type loop_ctx = {
-  lbl : string option;
+  lbl : Ast.name option;
   valued : bool;
   mutable result : (ty * Ast.span) option;
   mutable bare_break : Ast.span option;
@@ -87,6 +87,9 @@ let decl_span : decl -> Ast.span = function
 let reading (env : env) (decl : decl) : env =
   { env with reader_path = Resolve.module_path_at env.uses (decl_span decl) }
 
+(* The two fields every slice and string answers to, interned once *)
+let len_name : Ast.name = Interner.intern "len"
+let ptr_name : Ast.name = Interner.intern "ptr"
 let dummy_const_num = Const_eval.Ni32 0l
 let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
 let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
@@ -102,19 +105,19 @@ let warn_unused_in_scope (env : env) : unit =
   match env.vars with
   | scope :: _ when not env.suppress_warnings ->
       List.iter
-        (fun (_, info) ->
+        (fun (_, (info : var_info)) ->
+          let shown = Interner.text info.name in
           (* Variables prefixed with '_' suppress unused warnings *)
-          if (not !(info.used)) && info.name.[0] <> '_' then
+          if (not !(info.used)) && shown.[0] <> '_' then
             emit env
-              (Diagnostic.warning
-                 (Printf.sprintf "unused variable: %s" info.name)
+              (Diagnostic.warning (Printf.sprintf "unused variable: %s" shown)
               |> Diagnostic.at info.span
               |> Diagnostic.help
-                   (Printf.sprintf "prefix with an underscore: _%s" info.name)))
+                   (Printf.sprintf "prefix with an underscore: _%s" shown)))
         scope
   | _ -> ()
 
-let extend_var ?(used = false) (env : env) (span : Ast.span) (name : string)
+let extend_var ?(used = false) (env : env) (span : Ast.span) (name : Ast.name)
     (t : ty) : env =
   let key = Symbol.key (sym env span) in
   let info = { name; ty = t; used = ref used; span } in
@@ -415,8 +418,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
                 | None -> (field_id, T.mk ft T.TZero))
               info.field_tys
           in
-          let shown = Ast.show_named path name in
-          let qname = qname_at env name_span shown in
+          let qname = qname_at env name_span (Ast.show_named path name) in
           T.mk (TStruct (qname, [])) (T.TStructLit (qname, tfields))
       | _ ->
           emit env (Diagnostic.undefined_name name_span "struct");
@@ -602,7 +604,7 @@ and check_scoped_block ?loop (env : env) (span : Ast.span) (body : block)
   warn_unused_in_scope final_inner;
   (tb, tblock_ty tb)
 
-and check_binding (env : env) (kind : Ast.binding_kind) (name : string)
+and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
     (nspan : Ast.span) (ann : typ option) (init : expr option) : env * T.texpr =
   let t, te =
     match (ann, init) with
@@ -732,7 +734,8 @@ and synth_break (env : env) (span : Ast.span) (label : Ast.loop_label option)
   T.mk TNever (T.TBreak (label, tv))
 
 and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
-    (name : string) (nspan : Ast.span) (iter : expr) (body : block) : T.texpr =
+    (name : Ast.name) (nspan : Ast.span) (iter : expr) (body : block) : T.texpr
+    =
   let titer, elem_ty =
     match iter.desc with
     | Range (lo, hi) | RangeInclusive (lo, hi) ->
@@ -1183,14 +1186,14 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
 (* This figures out the type of a field access *)
-and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string)
+and synth_field (env : env) (span : Ast.span) (e : expr) (fname : Ast.name)
     (fspan : Ast.span) : T.texpr =
   let te = synth env e in
   let ty = te.T.ty in
   match strip_alias ty with
   | TStr -> (
       match fname with
-      | "len" -> T.mk (TInt Usize) (T.TLen te)
+      | n when n = len_name -> T.mk (TInt Usize) (T.TLen te)
       | _ ->
           emit env
             (Diagnostic.error_at fspan "no field"
@@ -1198,8 +1201,8 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string)
           dummy_texpr)
   | TArray (elem, _) | TSlice elem -> (
       match fname with
-      | "len" -> T.mk (TInt Usize) (T.TLen te)
-      | "ptr" -> T.mk (TPointer elem) (T.TDataPtr te)
+      | n when n = len_name -> T.mk (TInt Usize) (T.TLen te)
+      | n when n = ptr_name -> T.mk (TPointer elem) (T.TDataPtr te)
       | _ ->
           emit env
             (Diagnostic.error_at fspan "no field"
@@ -1211,7 +1214,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : string)
   | _ -> synth_struct_field env span te ty fname fspan
 
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
-    (fname : string) (fspan : Ast.span) : T.texpr =
+    (fname : Ast.name) (fspan : Ast.span) : T.texpr =
   let rec peel depth = function
     | TStruct (sname, _) -> Some (sname, depth)
     | TAlias (_, base) -> peel depth base
@@ -1226,7 +1229,9 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
         |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ty)));
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
-      let hint = Printf.sprintf "dereference first: `(*p).%s`" fname in
+      let hint =
+        Printf.sprintf "dereference first: `(*p).%s`" (Interner.text fname)
+      in
       emit env
         (Diagnostic.error_at span "too many pointer levels"
         |> Diagnostic.help hint);
@@ -1696,9 +1701,10 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
 
   {
     T.key = key_at env fd.func_span;
-    name = link_name_at env fd.func_span fd.func_name;
+    name = link_name_at env fd.func_span (Interner.text fd.func_name);
     (* A bare name reads the same in two modules so a panic report qualifies it *)
-    source_name = String.concat "." (env.reader_path @ [ fd.func_name ]);
+    source_name =
+      String.concat "." (env.reader_path @ [ Interner.text fd.func_name ]);
     entry_point = is_entry env fd.func_span;
     params;
     ret_ty;
@@ -1769,7 +1775,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   in
   {
     T.key = key_at env gd.span;
-    name = link_name_at env gd.span gd.name;
+    name = link_name_at env gd.span (Interner.text gd.name);
     ty = t;
     init = tinit;
     kind = gd.kind;
@@ -1778,7 +1784,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
 
 let typed_struct_decl (env : env) (sd : struct_def) (fields : ty list) : T.tdecl
     =
-  let name = qname_at env sd.struct_span sd.struct_name in
+  let name = qname_at env sd.struct_span (Interner.text sd.struct_name) in
   let is_local =
     Option.fold ~none:false
       ~some:(fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
@@ -1815,14 +1821,14 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
         | Some (DAlias t) -> t
         | _ -> ty_of_ast env td.alias_typ
       in
-      T.TTypeAlias (qname_at env td.alias_span td.alias_name, t)
+      T.TTypeAlias (qname_at env td.alias_span (Interner.text td.alias_name), t)
   | Newtype td ->
       let t =
         match Hashtbl.find_opt env.types (key_at env td.alias_span) with
         | Some (DNewtype t) -> t
         | _ -> ty_of_ast env td.alias_typ
       in
-      T.TNewtype (qname_at env td.alias_span td.alias_name, t)
+      T.TNewtype (qname_at env td.alias_span (Interner.text td.alias_name), t)
 
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)

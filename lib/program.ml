@@ -142,7 +142,7 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
     (unit_ : unit_) : unit =
   let expected = module_name_of_path path in
   match unit_.ast.Ast.header with
-  | Some header when header.Ast.name <> expected ->
+  | Some header when Interner.text header.Ast.name <> expected ->
       let wrong =
         Diagnostic.error_at header.Ast.span "module name mismatch"
         |> Diagnostic.label ("expected " ^ expected)
@@ -150,7 +150,10 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
       (* A header naming its own directory means the import went too deep *)
       let parent = parent_path path in
       Diagnostic.emit diags
-        (if parent <> [] && header.Ast.name = module_name_of_path parent then
+        (if
+           parent <> []
+           && Interner.text header.Ast.name = module_name_of_path parent
+         then
            Diagnostic.help
              ("import `" ^ show_module_path parent ^ "` instead")
              wrong
@@ -246,7 +249,8 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           let follow (unit_ : unit_) (import : Ast.import) =
             let hop = { from_path = path; from_file = unit_.source.filename } in
             let target =
-              load_module (stack @ [ hop ]) (Some import) import.Ast.path
+              load_module (stack @ [ hop ]) (Some import)
+                (List.map Interner.text import.Ast.path)
             in
             { import; target }
           in

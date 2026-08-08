@@ -159,7 +159,7 @@ let expect_ident st =
   match st.tok with
   | IDENT s ->
       advance st;
-      s
+      Interner.intern s
   | _ -> fail_found st "expected identifier"
 
 let expect_ident_span st =
@@ -300,7 +300,7 @@ let binop_of = function
   | _ -> failwith "not a binary operator"
 
 (* math.Point, math.vector.Point *)
-let rec dotted_name (e : expr) : string list option =
+let rec dotted_name (e : expr) : Ast.name list option =
   match e.desc with
   | Ident name -> Some [ name ]
   | FieldAccess (inner, name, _) ->
@@ -321,13 +321,15 @@ let rec parse_typ st =
       mkt lo st (Pointer (parse_typ st))
   | IDENT name ->
       advance st;
-      let path = ref [ name ] in
+      let path = ref [ Interner.intern name ] in
       while st.tok = DOT do
         advance st;
         path := expect_ident st :: !path
       done;
       let modules, base =
-        match !path with base :: rest -> (List.rev rest, base) | [] -> ([], "")
+        match !path with
+        | base :: rest -> (List.rev rest, base)
+        | [] -> ([], Interner.intern "")
       in
       mkt lo st (Named (modules, base))
   (* [N]T fixed-size array, []T slice *)
@@ -656,8 +658,10 @@ and parse_primary ?(no_struct_lit = false) st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
-  | IDENT name when (peek st).token = COLON -> parse_labeled_loop st name
+  | IDENT name when (peek st).token = COLON ->
+      parse_labeled_loop st (Interner.intern name)
   | IDENT name ->
+      let name = Interner.intern name in
       let nspan = st.tok_span in
       advance st;
       if at st LBRACE && not no_struct_lit then begin
@@ -827,7 +831,8 @@ and parse_stmt st =
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
   | LOOP -> Expr (parse_loop st)
-  | IDENT name when (peek st).token = COLON -> Expr (parse_labeled_loop st name)
+  | IDENT name when (peek st).token = COLON ->
+      Expr (parse_labeled_loop st (Interner.intern name))
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))

@@ -27,7 +27,8 @@ let dump_decl_visibilities src =
     (fun decl ->
       let name, span = decl_name_span decl in
       let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n" name (Ripe.Symbol.show_visibility sym.visibility))
+      Printf.printf "%s %s\n" (Ripe.Interner.text name)
+        (Ripe.Symbol.show_visibility sym.visibility))
     decls
 
 let%expect_test "resolve: global and function collide" =

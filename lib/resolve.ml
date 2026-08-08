@@ -2,7 +2,15 @@
 
 open Ast
 
-type namespace = (string, Symbol.t) Hashtbl.t
+(* Names are interned so a scope lookup is an int compare *)
+module Names = Hashtbl.Make (struct
+  type t = Ast.name
+
+  let equal (a : t) (b : t) : bool = a = b
+  let hash (t : t) : int = t
+end)
+
+type namespace = Symbol.t Names.t
 
 type scope = {
   values : namespace;
@@ -15,8 +23,8 @@ type t = {
   syms : (Ast.span, Symbol.t) Hashtbl.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
-  imports : (Symbol.module_id * string list, scope) Hashtbl.t;
-  failed_imports : (Symbol.module_id * string list, unit) Hashtbl.t;
+  imports : (Symbol.module_id * Ast.name list, scope) Hashtbl.t;
+  failed_imports : (Symbol.module_id * Ast.name list, unit) Hashtbl.t;
   prelude : scope;
   mutable local_decls : Ast.decl list;
 }
@@ -35,7 +43,11 @@ type state = {
 }
 
 type resolved_program = { uses : t; decls : Ast.decl list }
-type qualified = Local | Found of Symbol.t | Missing of string list * string
+
+type qualified =
+  | Local
+  | Found of Symbol.t
+  | Missing of Ast.name list * Ast.name
 
 let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
   {
@@ -52,9 +64,9 @@ let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
 
 let new_scope (parent : scope option) : scope =
   {
-    values = Hashtbl.create 16;
-    items = Hashtbl.create 16;
-    types = Hashtbl.create 16;
+    values = Names.create 16;
+    items = Names.create 16;
+    types = Names.create 16;
     parent;
   }
 
@@ -62,7 +74,7 @@ let new_scope (parent : scope option) : scope =
 let make_output (modules : int) : t =
   let prelude = new_scope None in
   let seed id (name, _) =
-    Hashtbl.replace prelude.types name (prelude_symbol id name)
+    Names.replace prelude.types (Interner.intern name) (prelude_symbol id name)
   in
   List.iteri seed Types.builtins;
   let out =
@@ -108,7 +120,7 @@ let local_decls (r : t) : Ast.decl list = List.rev r.local_decls
 let builtins (r : t) : (Symbol.key * Types.builtin) list =
   let entry (name, builtin) =
     let keyed (sym : Symbol.t) = (Symbol.key sym, builtin) in
-    Option.map keyed (Hashtbl.find_opt r.prelude.types name)
+    Option.map keyed (Names.find_opt r.prelude.types (Interner.intern name))
   in
   List.filter_map entry Types.builtins
 
@@ -121,29 +133,32 @@ let module_path_at (r : t) (span : Ast.span) : string list =
       | Some path -> path
       | None -> [])
 
-let is_entry (st : state) (kind : Symbol.kind) (name : string) : bool =
-  kind = Symbol.Func && st.is_root && name = "main"
+let main_name : Ast.name = Interner.intern "main"
+
+let is_entry (st : state) (kind : Symbol.kind) (name : Ast.name) : bool =
+  kind = Symbol.Func && st.is_root && name = main_name
 
 (* An extern and the entry point are named by something outside the compiler *)
-let declaration_link_name (st : state) (kind : Symbol.kind) (name : string) :
+let declaration_link_name (st : state) (kind : Symbol.kind) (name : Ast.name) :
     string =
-  if not st.qualify then name
-  else if is_entry st kind name then name
+  let text = Interner.text name in
+  if not st.qualify then text
+  else if is_entry st kind name then text
   else
     match kind with
-    | Symbol.Extern -> name
-    | _ -> Mangle.declaration st.module_path name
+    | Symbol.Extern -> text
+    | _ -> Mangle.declaration st.module_path text
 
 let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
-    (kind : Symbol.kind) (name : string) (span : Ast.span) : Symbol.t =
+    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) : Symbol.t =
   let id = st.next_id in
   st.next_id <- id + 1;
-  let link_name = Option.value ~default:name link_name in
+  let link_name = Option.value ~default:(Interner.text name) link_name in
   let sym =
     {
       Symbol.id;
       module_id = st.module_id;
-      name;
+      name = Interner.text name;
       link_name;
       kind;
       visibility;
@@ -163,12 +178,12 @@ let pop_scope (st : state) =
 
 (* The innermost scope holds params and top level body binders *)
 let declare_local (st : state) kind name span : unit =
-  Hashtbl.replace st.scope.values name (mint st kind name span)
+  Names.replace st.scope.values name (mint st kind name span)
 
-let declare_in ?link_name ?name_span (table : (string, Symbol.t) Hashtbl.t)
-    (st : state) (kind : Symbol.kind) (visibility : Symbol.visibility)
-    (name : string) (span : Ast.span) : unit =
-  match Hashtbl.find_opt table name with
+let declare_in ?link_name ?name_span (table : namespace) (st : state)
+    (kind : Symbol.kind) (visibility : Symbol.visibility) (name : Ast.name)
+    (span : Ast.span) : unit =
+  match Names.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
         (Diagnostic.redefinition
@@ -178,7 +193,7 @@ let declare_in ?link_name ?name_span (table : (string, Symbol.t) Hashtbl.t)
       let link_name =
         Option.value ~default:(declaration_link_name st kind name) link_name
       in
-      Hashtbl.replace table name
+      Names.replace table name
         (mint ~visibility ~link_name ?name_span st kind name span)
 
 let declare_global ?name_span (st : state) kind visibility name span : unit =
@@ -190,25 +205,26 @@ let declare_type ?name_span (st : state) visibility name span : unit =
 let declare_local_type (st : state) name span : unit =
   declare_in st.scope.types st Symbol.LocalType Symbol.Private name span
 
-let declare_local_func (st : state) name span : unit =
+let declare_local_func (st : state) (name : Ast.name) span : unit =
   let link_name =
-    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id st.next_id name
+    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id st.next_id
+      (Interner.text name)
   in
   declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private name
     span
 
-let rec find_type_in_chain (scope : scope) (name : string) : Symbol.t option =
-  match Hashtbl.find_opt scope.types name with
+let rec find_type_in_chain (scope : scope) (name : Ast.name) : Symbol.t option =
+  match Names.find_opt scope.types name with
   | Some sym -> Some sym
   | None ->
       Option.bind scope.parent (fun parent -> find_type_in_chain parent name)
 
-let value_or_item (scope : scope) (name : string) : Symbol.t option =
-  match Hashtbl.find_opt scope.values name with
+let value_or_item (scope : scope) (name : Ast.name) : Symbol.t option =
+  match Names.find_opt scope.values name with
   | Some sym -> Some sym
-  | None -> Hashtbl.find_opt scope.items name
+  | None -> Names.find_opt scope.items name
 
-let rec find_value (scope : scope) (name : string) : Symbol.t option =
+let rec find_value (scope : scope) (name : Ast.name) : Symbol.t option =
   match value_or_item scope name with
   | Some sym -> Some sym
   | None -> Option.bind scope.parent (fun parent -> find_value parent name)
@@ -222,18 +238,18 @@ let is_item_value (sym : Symbol.t) : bool =
   | Symbol.Param | Symbol.ForVar ->
       false
 
-let rec find_item_value (scope : scope) (name : string) : Symbol.t option =
-  match Hashtbl.find_opt scope.items name with
+let rec find_item_value (scope : scope) (name : Ast.name) : Symbol.t option =
+  match Names.find_opt scope.items name with
   | Some sym -> Some sym
   | None -> (
-      match Hashtbl.find_opt scope.values name with
+      match Names.find_opt scope.values name with
       | Some sym when is_item_value sym -> Some sym
       | Some _ -> None
       | None ->
           Option.bind scope.parent (fun parent -> find_item_value parent name))
 
-let rec find_before_boundary (boundary : scope) (scope : scope) (name : string)
-    : Symbol.t option =
+let rec find_before_boundary (boundary : scope) (scope : scope)
+    (name : Ast.name) : Symbol.t option =
   if scope == boundary then find_item_value boundary name
   else
     match value_or_item scope name with
@@ -242,12 +258,12 @@ let rec find_before_boundary (boundary : scope) (scope : scope) (name : string)
         Option.bind scope.parent (fun parent ->
             find_before_boundary boundary parent name)
 
-let lookup (st : state) (name : string) : Symbol.t option =
+let lookup (st : state) (name : Ast.name) : Symbol.t option =
   match st.value_boundary with
   | Some boundary -> find_before_boundary boundary st.scope name
   | None -> find_value st.scope name
 
-let captured_value (st : state) (name : string) : Symbol.t option =
+let captured_value (st : state) (name : Ast.name) : Symbol.t option =
   Option.bind st.value_boundary (fun boundary ->
       match find_value boundary name with
       | Some sym when not (is_item_value sym) -> Some sym
@@ -272,13 +288,13 @@ let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
   check_visibility st span sym;
   Hashtbl.replace st.out.syms span sym
 
-let split_member (path : string list) : (string list * string) option =
+let split_member (path : Ast.name list) : (Ast.name list * Ast.name) option =
   match List.rev path with
   | member :: rest -> Some (List.rev rest, member)
   | [] -> None
 
 (* A nearer value binding wins so a local named math is not a module *)
-let find_module (st : state) (path : string list) : scope option =
+let find_module (st : state) (path : Ast.name list) : scope option =
   match path with
   | [] -> None
   | root :: _ -> (
@@ -287,29 +303,29 @@ let find_module (st : state) (path : string list) : scope option =
           Hashtbl.find_opt st.out.imports (st.module_id, path)
       | Some _ | None -> None)
 
-let failed_import (st : state) (path : string list) : bool =
+let failed_import (st : state) (path : Ast.name list) : bool =
   Hashtbl.mem st.out.failed_imports (st.module_id, path)
 
 (* math.Vec goes through the import and Vec walks out to the builtins *)
-let find_type (st : state) (path : string list) (name : string) :
+let find_type (st : state) (path : Ast.name list) (name : Ast.name) :
     Symbol.t option =
   if path = [] then find_type_in_chain st.scope name
   else
-    let member (scope : scope) = Hashtbl.find_opt scope.types name in
+    let member (scope : scope) = Names.find_opt scope.types name in
     Option.bind (find_module st path) member
 
-let use_type (st : state) (path : string list) (name : string) (span : Ast.span)
-    : unit =
+let use_type (st : state) (path : Ast.name list) (name : Ast.name)
+    (span : Ast.span) : unit =
   match find_type st path name with
   | Some sym -> use_symbol st span sym
   | None ->
       let shown = Ast.show_named path name in
       if not (failed_import st path) then
         Diagnostic.emit st.diags (Diagnostic.undefined_name span "type");
-      ignore (mint st Symbol.Error shown span)
+      ignore (mint st Symbol.Error (Interner.intern shown) span)
 
 (* The typechecker already reports an unknown struct literal *)
-let use_type_if_found (st : state) (name : string) (span : Ast.span) : unit =
+let use_type_if_found (st : state) (name : Ast.name) (span : Ast.span) : unit =
   match find_type st [] name with
   | Some sym -> use_symbol st span sym
   | None -> ()
@@ -323,14 +339,14 @@ let use (st : state) ~(what : string) name span : unit =
 
 (* Body binders can redeclare but params can't repeat *)
 let declare_param (st : state) (p : param) : unit =
-  match Hashtbl.find_opt st.scope.values p.param_name with
+  match Names.find_opt st.scope.values p.param_name with
   | Some prev ->
       Diagnostic.emit st.diags
         (Diagnostic.redefinition p.param_span ~prev:prev.Symbol.span);
       Hashtbl.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
-let rec access_path (e : expr) : string list option =
+let rec access_path (e : expr) : Ast.name list option =
   match e.desc with
   | Ident name -> Some [ name ]
   | FieldAccess (inner, name, _) ->
@@ -344,7 +360,7 @@ let qualified_use (st : state) (e : expr) : qualified =
       match find_module st module_path with
       | None -> Local
       | Some scope -> (
-          match Hashtbl.find_opt scope.values member with
+          match Names.find_opt scope.values member with
           | Some sym -> Found sym
           | None -> Missing (module_path, member)))
 
@@ -361,7 +377,7 @@ let use_qualified (st : state) ~(what : string) (e : expr) : bool =
       (* The stages after this read a symbol back off every span they walk *)
       ignore
         (mint st Symbol.Error
-           (String.concat "." (module_path @ [ member ]))
+           (Interner.intern (Ast.show_named module_path member))
            e.span);
       true
 
@@ -590,7 +606,7 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
       match List.rev import.Ast.path with
       | [] -> ()
       | name :: _ -> (
-          match Hashtbl.find_opt st.top.values name with
+          match Names.find_opt st.top.values name with
           | Some prev ->
               Diagnostic.emit st.diags
                 (Diagnostic.redefinition import.Ast.span ~prev:prev.Symbol.span)
@@ -602,7 +618,7 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
                 Hashtbl.replace out.failed_imports
                   (module_.Program.module_id, [ name ])
                   ();
-              Hashtbl.replace st.top.values name
+              Names.replace st.top.values name
                 (mint st Symbol.Module name import.Ast.span))
     in
     List.iter bind module_.Program.dependencies

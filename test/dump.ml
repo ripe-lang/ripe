@@ -40,7 +40,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Null -> "null"
   | Char c -> Printf.sprintf "'\\u{%X}'" c
   | String s -> "\"" ^ s ^ "\""
-  | Ident s -> s
+  | Ident s -> Ripe.Interner.text s
   | Call (callee, args) ->
       "(call " ^ dump_expr callee
       ^ String.concat "" (List.map (fun a -> " " ^ dump_expr a) args)
@@ -51,7 +51,8 @@ and dump_expr (e : Ripe.Ast.expr) =
   | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
-  | FieldAccess (e, f, _) -> "(. " ^ dump_expr e ^ " " ^ f ^ ")"
+  | FieldAccess (e, f, _) ->
+      "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
   | Cast (e, t, kind) ->
       "(" ^ Ripe.Ast.show_cast_op kind ^ " " ^ dump_expr e ^ " " ^ dump_typ t
       ^ ")"
@@ -67,7 +68,8 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ Ripe.Ast.show_named path name
       ^ String.concat ""
           (List.map
-             (fun (f, _, e) -> " (" ^ f ^ " " ^ dump_expr e ^ ")")
+             (fun (f, _, e) ->
+               " (" ^ Ripe.Interner.text f ^ " " ^ dump_expr e ^ ")")
              fields)
       ^ ")"
   | Block body -> dump_block body
@@ -84,9 +86,10 @@ and dump_expr (e : Ripe.Ast.expr) =
   | While (_, c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
   | Loop (_, body) -> "(loop " ^ dump_block body ^ ")"
   | For (_, name, _, iter, body) ->
-      "(for " ^ name ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
+      "(for " ^ Ripe.Interner.text name ^ " " ^ dump_expr iter ^ " "
+      ^ dump_block body ^ ")"
   | Binding (_, name, _, _, init) ->
-      "(let " ^ name
+      "(let " ^ Ripe.Interner.text name
       ^ (match init with Some e -> " " ^ dump_expr e | None -> "")
       ^ ")"
   | Return e ->
@@ -105,11 +108,16 @@ and dump_block (body : Ripe.Ast.block) : string =
   let dump_item (item : Ripe.Ast.block_item) =
     match item with
     | Expr e -> dump_expr e
-    | Decl (LocalStruct sd) -> "(local struct " ^ sd.struct_name ^ ")"
-    | Decl (LocalTypeAlias td) -> "(local type " ^ td.alias_name ^ ")"
-    | Decl (LocalNewtype td) -> "(local newtype " ^ td.alias_name ^ ")"
+    | Decl (LocalStruct sd) ->
+        "(local struct " ^ Ripe.Interner.text sd.struct_name ^ ")"
+    | Decl (LocalTypeAlias td) ->
+        "(local type " ^ Ripe.Interner.text td.alias_name ^ ")"
+    | Decl (LocalNewtype td) ->
+        "(local newtype " ^ Ripe.Interner.text td.alias_name ^ ")"
     | Decl (LocalFunc fd) ->
-        "(local func " ^ fd.func_name ^ " " ^ dump_block fd.body ^ ")"
+        "(local func "
+        ^ Ripe.Interner.text fd.func_name
+        ^ " " ^ dump_block fd.body ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 
