@@ -67,7 +67,7 @@ error: no field
 
 | type | desc |
 | ---- | ---- |
-| error | the program is rejected
+| error | the program is rejected |
 | warning | the program compiles and something is probably wrong |
 | note | context belongs to another diagnostic |
 | help | closing suggestion |
