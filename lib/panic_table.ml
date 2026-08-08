@@ -1,14 +1,12 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-(* A panic prints where it fired from a table the backend emits so the generated
-   call carries only a site index *)
+(* A panic looks up where it fired so the generated call carries only an index *)
 
 type site = { file : int; line : int; col : int; func : int }
 
 type t = {
-  (* A span carries a file id so a check inside an import points at that file
-     and not at whatever the root happened to be *)
-  source_of : Span.file_id -> string * Source_map.t;
+  (* Offsets are global so a check inside an import lands on that file *)
+  source_of : int -> string * Source_map.t;
   mutable cur_func : string;
   (* Both lists stay reversed until they're emitted *)
   mutable strings : string list;
@@ -20,7 +18,7 @@ type t = {
   ids : (site, int) Hashtbl.t;
 }
 
-let create ~(source_of : Span.file_id -> string * Source_map.t) : t =
+let create ~(source_of : int -> string * Source_map.t) : t =
   {
     source_of;
     cur_func = "";
@@ -47,11 +45,10 @@ let intern (t : t) (s : string) : int =
 let enter_func (t : t) (name : string) : unit = t.cur_func <- name
 
 let record (t : t) (span : Ast.span) : int =
-  if span.Span.file < 0 then
-    Diagnostic.ice "runtime check has no source location";
+  if Span.lo span < 0 then Diagnostic.ice "runtime check has no source location";
   if t.cur_func = "" then Diagnostic.ice "runtime check outside a function";
-  let filename, sm = t.source_of span.Span.file in
-  let line, col = Source_map.lookup sm span.Span.lo in
+  let filename, sm = t.source_of (Span.lo span) in
+  let line, col = Source_map.lookup sm (Span.lo span) in
   let site =
     { file = intern t filename; line; col; func = intern t t.cur_func }
   in

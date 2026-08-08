@@ -1,12 +1,28 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type file_id = int
-type t = { file : file_id; lo : int; hi : int }
+type t = int
 
-let make (file : file_id) (lo : int) (hi : int) : t = { file; lo; hi }
+let offset_bits = 31
+let offset_mask = (1 lsl offset_bits) - 1
 
-let pp (fmt : Format.formatter) ({ lo; hi; _ } : t) : unit =
-  Format.fprintf fmt "(%d,%d)" lo hi
+(* The dummy span starts at -1 so the stored offset is biased by one *)
+let max_offset = offset_mask - 1
 
-let show (s : t) : string = Format.asprintf "%a" pp s
-let dummy : t = make (-1) 0 0
+(* Packing the start above the length keeps a span out of the heap and makes
+   two of them compare on where they start *)
+let make (lo : int) (hi : int) : t = ((lo + 1) lsl offset_bits) lor (hi - lo)
+let lo (t : t) : int = (t lsr offset_bits) - 1
+let hi (t : t) : int = lo t + (t land offset_mask)
+let dummy : t = make (-1) (-1)
+
+let pp (fmt : Format.formatter) (t : t) : unit =
+  Format.fprintf fmt "(%d,%d)" (lo t) (hi t)
+
+let show (t : t) : string = Format.asprintf "%a" pp t
+
+module Table = Hashtbl.Make (struct
+  type nonrec t = t
+
+  let equal (a : t) (b : t) : bool = a = b
+  let hash (t : t) : int = t lsr offset_bits
+end)

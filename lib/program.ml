@@ -1,9 +1,10 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 exception Invalid_utf8 of string
+exception Source_too_large of string
 
 type source = {
-  file_id : Span.file_id;
+  base : int; (* Where this file starts in the global offset space *)
   filename : string;
   source_map : Source_map.t;
 }
@@ -32,12 +33,11 @@ type located = Single of string | Merged of string list | Clash | Not_found
 
 let empty_ast : Ast.module_ = { Ast.header = None; imports = []; decls = [] }
 
-let parse_source ~(diags : Diagnostic.sink) (file_id : Span.file_id)
-    (filename : string) (src : string) : source * Ast.module_ =
-  let source = { file_id; filename; source_map = Source_map.create src } in
-  let lexbuf = Lexing.from_string src in
-  Lexing.set_filename lexbuf filename;
-  let read = Lexer.read (Lexer.make_state file_id) in
+let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
+    (src : string) : source * Ast.module_ =
+  let source = { base; filename; source_map = Source_map.create ~base src } in
+  let lexbuf = Lexer.lexbuf_of_string src in
+  let read = Lexer.read (Lexer.make_state base) in
   (* The bracket error is already in the sink so the payload would double it *)
   let ast =
     try Parser.parse ~diags read lexbuf with Diagnostic.Errors _ -> empty_ast
@@ -96,16 +96,16 @@ let show_import_cycle (hops : hop list) (back : string list) : string =
 
 (* Only the first item matters so a full parse would double every error *)
 let probe_header (src : string) : string option =
-  let lexbuf = Lexing.from_string src in
+  let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
     match read lexbuf with
-    | (Tokens.AUTOSEMI | Tokens.SEMI), _ -> first_item ()
-    | tok, _ -> tok
+    | (Tokens.AUTOSEMI | Tokens.SEMI), _, _ -> first_item ()
+    | tok, _, _ -> tok
   in
   match first_item () with
   | Tokens.MODULE -> (
-      match read lexbuf with Tokens.IDENT name, _ -> Some name | _ -> None)
+      match read lexbuf with Tokens.IDENT name, _, _ -> Some name | _ -> None)
   | _ -> None
 
 let ripe_files (list_dir : string -> string list) (dir : string) : string list =
@@ -162,11 +162,33 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   | None when merged ->
       Diagnostic.emit diags
         (Diagnostic.error "missing module header"
-        |> Diagnostic.at (Span.make unit_.source.file_id 0 0)
+        |> Diagnostic.at (Span.make unit_.source.base unit_.source.base)
         |> Diagnostic.label ("expected `module " ^ expected ^ "`")
         |> Diagnostic.help
              "every file beside a module header needs the same header")
   | None -> ()
+
+(* Offsets run across every file so a position picks the source it landed in *)
+let source_at (t : t) : int -> source =
+  let sources =
+    t.modules |> Array.to_list
+    |> List.concat_map (fun (m : module_) -> m.units)
+    |> List.map (fun (u : unit_) -> u.source)
+    |> List.sort (fun (a : source) (b : source) -> compare a.base b.base)
+    |> Array.of_list
+  in
+  let rec search pos lo hi =
+    if lo > hi then t.root_source
+    else
+      let mid = (lo + hi) / 2 in
+      if sources.(mid).base > pos then search pos lo (mid - 1)
+      else if mid + 1 < Array.length sources && sources.(mid + 1).base <= pos
+      then search pos (mid + 1) hi
+      else sources.(mid)
+  in
+  fun pos ->
+    if Array.length sources = 0 || pos < 0 then t.root_source
+    else search pos 0 (Array.length sources - 1)
 
 let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
     ~(list_dir : string -> string list) ?(search_roots : string list = [])
@@ -187,15 +209,17 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         | Not_found -> locate_in path rest
         | found -> found)
   in
-  let next_file_id = ref 0 in
+  (* Files share one offset space so each one starts where the last ended *)
+  let next_base = ref 0 in
+  let fresh_base filename len =
+    let base = !next_base in
+    if base + len > Span.max_offset then raise (Source_too_large filename);
+    next_base := base + len;
+    base
+  in
   let next_module_id = ref 0 in
   let states = Hashtbl.create 16 in
   let modules = ref [] in
-  let fresh_file_id () =
-    let id = !next_file_id in
-    incr next_file_id;
-    id
-  in
   let fresh_module_id () =
     let id = !next_module_id in
     incr next_module_id;
@@ -225,12 +249,10 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
         (* A file that won't read becomes a module so lookups never fail *)
         let unreadable ?detail import headline =
           import_error ?detail ~diags import headline;
+          let filename = file_of_path source_root path in
+          let base = fresh_base filename 0 in
           let source =
-            {
-              file_id = fresh_file_id ();
-              filename = file_of_path source_root path;
-              source_map = Source_map.create "";
-            }
+            { base; filename; source_map = Source_map.create ~base "" }
           in
           record ~failed:true [ { source; ast = empty_ast } ] []
         in
@@ -239,7 +261,9 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           (* The lexer walks bytes so it would split a character in half *)
           if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
           let source, ast =
-            parse_source ~diags (fresh_file_id ()) filename src
+            parse_source ~diags
+              ~base:(fresh_base filename (String.length src))
+              filename src
           in
           { source; ast }
         in

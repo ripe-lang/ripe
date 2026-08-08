@@ -1,9 +1,10 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 exception Invalid_utf8 of string
+exception Source_too_large of string
 
 type source = {
-  file_id : Span.file_id;
+  base : int; (* Where this file starts in the global offset space *)
   filename : string;
   source_map : Source_map.t;
 }
@@ -22,6 +23,9 @@ type module_ = {
 type t = { root : module_; root_source : source; modules : module_ array }
 
 val module_decls : module_ -> Ast.decl list
+
+(* Picks the file a global offset landed in *)
+val source_at : t -> int -> source
 
 val load :
   diags:Diagnostic.sink ->

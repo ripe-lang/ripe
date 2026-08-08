@@ -3,35 +3,45 @@
 {
 open Tokens
 
-let next_line lexbuf =
-  Lexing.new_line lexbuf
-
 (* Per lex session state so multiple lexbufs can be live at once *)
 type state = {
-  file : Span.file_id;
+  base : int;
   buf : Buffer.t; (* auto buffer resize *)
-  token_queue : (Tokens.token * Span.t) Queue.t;
-  mutable last_token : Tokens.token option;
+  token_queue : (Tokens.token * Span.t * int) Queue.t;
+  mutable last_token : Tokens.token;
+  mutable line : int;
+  mutable token_line : int;
 }
 
-let make_state file = {
-  file;
+let make_state base = {
+  base;
   buf = Buffer.create 64;
   token_queue = Queue.create ();
-  last_token = None;
+  last_token = EOF;
+  line = 1;
+  token_line = 1;
 }
 
-let start_pos lexbuf = lexbuf.Lexing.lex_start_p.Lexing.pos_cnum
-let end_pos lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
+let next_line st = st.line <- st.line + 1
+
+(* Lines get tracked here so the lexbuf can skip its per token position record.
+   Setting a filename on the lexbuf puts that record back *)
+let lexbuf_of_string src =
+  let lexbuf = Lexing.from_string src in
+  lexbuf.Lexing.lex_curr_p <- Lexing.dummy_pos;
+  lexbuf
+
+let start_pos lexbuf = lexbuf.Lexing.lex_start_pos
+let end_pos lexbuf = lexbuf.Lexing.lex_curr_pos
 let lexbuf_span st lexbuf =
-  Span.make st.file (start_pos lexbuf) (end_pos lexbuf)
+  Span.make (st.base + start_pos lexbuf) (st.base + end_pos lexbuf)
 
 let int_token st lexbuf ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
   | None ->
       (* the zero keeps the parser from raising a second error *)
-      Queue.push (INT (0L, suf), lexbuf_span st lexbuf) st.token_queue;
+      Queue.push (INT (0L, suf), lexbuf_span st lexbuf, st.line) st.token_queue;
       ERROR "integer literal out of range"
 
 let longest_int_suffix = String.length "isize"
@@ -58,7 +68,7 @@ let decimal_int_token st lexbuf text =
 
 (* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
-  Queue.push (CHAR 0, lexbuf_span st lexbuf) st.token_queue;
+  Queue.push (CHAR 0, lexbuf_span st lexbuf, st.line) st.token_queue;
   ERROR msg
 
 let char_token st lexbuf inner =
@@ -100,10 +110,9 @@ rule read_main st = parse
   | white              { read_main st lexbuf }
   | "//" [^ '\n' '\r']* { read_main st lexbuf }
   | "/*"               { read_block_comment st 0 false lexbuf }
-  | newline            { next_line lexbuf;
-                         match st.last_token with
-                         | Some t when can_end_stmt t -> AUTOSEMI
-                         | _ -> read_main st lexbuf }
+  | newline            { next_line st;
+                         if can_end_stmt st.last_token then AUTOSEMI
+                         else read_main st lexbuf }
   | ('0' ['x' 'X'] hexdigs intsuf?) as n  { radix_int_token st lexbuf n }
   | ('0' ['b' 'B'] bindigs intsuf?) as n  { radix_int_token st lexbuf n }
   | ('0' ['o' 'O'] octdigs intsuf?) as n  { radix_int_token st lexbuf n }
@@ -167,27 +176,32 @@ rule read_main st = parse
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''"  { CHAR (Char.code '\'') }
   | '\'' '\\' newline '\''  {
-      next_line lexbuf;
+      next_line st;
       bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
     }
   | '\'' '\\' _ '\''  {
       bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
     }
-  | '\'' ([^ '\'' '\\' '\r' '\n']+ as inner) '\''  {
+  | '\'' [^ '\'' '\\' '\r' '\n']+ '\''  {
+      let inner =
+        Lexing.sub_lexeme lexbuf
+          (lexbuf.Lexing.lex_start_pos + 1)
+          (lexbuf.Lexing.lex_curr_pos - 1)
+      in
       char_token st lexbuf inner
     }
   | "''"  { bad_char st lexbuf "empty character literal" }
   | '\''  { bad_char st lexbuf "unterminated character literal" }
-  | '"'  { let str_start = lexbuf.Lexing.lex_start_p in
+  | '"'  { let str_start = lexbuf.Lexing.lex_start_pos in
+           let str_line = st.line in
            Buffer.clear st.buf;
            let tok = read_string st lexbuf in
            (* The string token spans the whole literal with quotes included *)
-           lexbuf.Lexing.lex_start_p <- str_start;
+           lexbuf.Lexing.lex_start_pos <- str_start;
+           st.token_line <- str_line;
            tok }
   | eof  {
-      match st.last_token with
-      | Some t when can_end_stmt t -> AUTOSEMI
-      | _ -> EOF
+      if can_end_stmt st.last_token then AUTOSEMI else EOF
     }
   | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
 
@@ -203,16 +217,16 @@ and read_string st = parse
   (* skip the bad escape and keep lexing so the string still closes *)
   | '\\' _        {
       let span =
-        Span.make st.file (start_pos lexbuf + 1) (end_pos lexbuf)
+        Span.make (st.base + start_pos lexbuf + 1) (st.base + end_pos lexbuf)
       in
       Queue.push
-        (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span)
+        (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span, st.line)
         st.token_queue;
       read_string st lexbuf
     }
   (* FIXME(2151): allow raw newlines for now, revisit them in the future *)
   | newline {
-      next_line lexbuf;
+      next_line st;
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
@@ -223,9 +237,9 @@ and read_string st = parse
   (* Recover so the parser sees a closed string plus an error *)
   | eof  { let s = Buffer.contents st.buf in
            Buffer.clear st.buf;
-           let here = end_pos lexbuf in
+           let here = st.base + end_pos lexbuf in
            Queue.push
-             (ERROR "unterminated string", Span.make st.file here here)
+             (ERROR "unterminated string", Span.make here here, st.line)
              st.token_queue;
            STRING s }
 
@@ -233,13 +247,12 @@ and read_block_comment st depth saw_newline = parse
   | "/*"    { read_block_comment st (depth + 1) saw_newline lexbuf }
   | "*/"    {
       if depth = 0 then
-        match st.last_token with
-        | Some t when saw_newline && can_end_stmt t -> AUTOSEMI
-        | _ -> read_main st lexbuf
+        if saw_newline && can_end_stmt st.last_token then AUTOSEMI
+        else read_main st lexbuf
       else read_block_comment st (depth - 1) saw_newline lexbuf
     }
   | newline {
-      next_line lexbuf;
+      next_line st;
       read_block_comment st depth true lexbuf
     }
   | eof     { ERROR "unterminated block comment" }
@@ -247,12 +260,16 @@ and read_block_comment st depth saw_newline = parse
 
 {
 let read st lexbuf =
-  let tok, span =
+  let tok, span, line =
     if not (Queue.is_empty st.token_queue) then Queue.pop st.token_queue
-    else
+    else begin
+      st.token_line <- 0;
       let t = read_main st lexbuf in
-      (t, lexbuf_span st lexbuf)
+      (* A rule only sets token_line when the token itself spans lines *)
+      let line = if st.token_line = 0 then st.line else st.token_line in
+      (t, lexbuf_span st lexbuf, line)
+    end
   in
-  st.last_token <- Some tok;
-  (tok, span)
+  st.last_token <- tok;
+  (tok, span, line)
 }

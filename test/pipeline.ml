@@ -4,7 +4,7 @@ module C = Ripe.Core
 
 let parse_module ?(file = 0) src =
   let st = Ripe.Lexer.make_state file in
-  let lexbuf = Lexing.from_string src in
+  let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   fst
     (Diag.run_stage (fun diags ->
          Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf))
@@ -13,7 +13,7 @@ let parse ?(file = 0) src = (parse_module ~file src).decls
 
 let front_src module_id src =
   let st = Ripe.Lexer.make_state 0 in
-  let lexbuf = Lexing.from_string src in
+  let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let diags = Ripe.Diagnostic.sink () in
   let module_ = Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf in
   let decls = module_.decls in
@@ -109,7 +109,7 @@ let run_src src =
 
 let run_codegen src =
   try
-    let sm = Ripe.Source_map.create src in
+    let sm = Ripe.Source_map.create ~base:0 src in
     let il =
       Ripe.Codegen_qbe.emit_qbe
         ~source_of:(fun _ -> ("test.rp", sm))

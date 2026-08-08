@@ -37,7 +37,7 @@ val has_errors : sink -> bool
 val drain : sink -> t list
 val take : sink -> t list
 val severity_label : bool -> severity -> string
-val render_with : (Span.file_id -> ctx) -> ctx -> t -> string
+val render_with : (int -> ctx) -> ctx -> t -> string
 val render : ctx -> t -> string
 val type_mismatch : Ast.span -> expected:string -> found:string -> t
 val undefined_name : Ast.span -> string -> t

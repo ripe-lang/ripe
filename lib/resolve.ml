@@ -20,9 +20,10 @@ type scope = {
 }
 
 type t = {
-  syms : (Ast.span, Symbol.t) Hashtbl.t;
+  syms : Symbol.t Span.Table.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
-  file_modules : (Span.file_id, Symbol.module_id) Hashtbl.t;
+  (* Sorted by base so a position finds its module by search *)
+  mutable file_modules : (int * Symbol.module_id) array;
   imports : (Symbol.module_id * Ast.name list, scope) Hashtbl.t;
   failed_imports : (Symbol.module_id * Ast.name list, unit) Hashtbl.t;
   prelude : scope;
@@ -70,8 +71,12 @@ let new_scope (parent : scope option) : scope =
     parent;
   }
 
+(* Real code averages one symbol per 7 to 11 bytes so sizing up front skips
+   about eight rehashes *)
+let bytes_per_symbol = 8
+
 (* A builtin sits in the outermost scope so a module can shadow it like any name *)
-let make_output (modules : int) : t =
+let make_output ~(source_bytes : int) (modules : int) : t =
   let prelude = new_scope None in
   let seed id (name, _) =
     Names.replace prelude.types (Interner.intern name) (prelude_symbol id name)
@@ -79,9 +84,9 @@ let make_output (modules : int) : t =
   List.iteri seed Types.builtins;
   let out =
     {
-      syms = Hashtbl.create 512;
+      syms = Span.Table.create (source_bytes / bytes_per_symbol);
       module_paths = Hashtbl.create modules;
-      file_modules = Hashtbl.create modules;
+      file_modules = [||];
       imports = Hashtbl.create modules;
       failed_imports = Hashtbl.create modules;
       prelude;
@@ -93,23 +98,22 @@ let make_output (modules : int) : t =
 
 (* This is the `--emit resolve` output *)
 let dump (r : t) : string =
-  Hashtbl.to_seq r.syms |> List.of_seq
-  |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) ->
-      compare (a.file, a.lo, a.hi) (b.file, b.lo, b.hi))
+  Span.Table.to_seq r.syms |> List.of_seq
+  |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) -> compare a b)
   |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
-      Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" sp.Ast.lo sp.Ast.hi
+      Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
         s.Symbol.module_id s.Symbol.id
         (Symbol.show_kind s.Symbol.kind)
         s.Symbol.name)
   |> String.concat ""
 
 let sym_at (r : t) (span : Ast.span) : Symbol.t =
-  match Hashtbl.find_opt r.syms span with
+  match Span.Table.find_opt r.syms span with
   | Some s -> s
   | None -> Diagnostic.ice ~span "no symbol resolved here"
 
 let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
-  Hashtbl.find_opt r.syms span
+  Span.Table.find_opt r.syms span
 
 let qname_of (r : t) (s : Symbol.t) : Qname.t =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
@@ -125,8 +129,23 @@ let builtins (r : t) : (Symbol.key * Types.builtin) list =
   List.filter_map entry Types.builtins
 
 (* A message inside math says add where one outside says math.add *)
+let module_at (r : t) (pos : int) : Symbol.module_id option =
+  let bases = r.file_modules in
+  let rec search lo hi =
+    if lo > hi then None
+    else
+      let mid = (lo + hi) / 2 in
+      let base, module_id = bases.(mid) in
+      if base > pos then search lo (mid - 1)
+      else if mid + 1 < Array.length bases && fst bases.(mid + 1) <= pos then
+        search (mid + 1) hi
+      else Some module_id
+  in
+  if Array.length bases = 0 || pos < 0 then None
+  else search 0 (Array.length bases - 1)
+
 let module_path_at (r : t) (span : Ast.span) : string list =
-  match Hashtbl.find_opt r.file_modules span.Ast.file with
+  match module_at r (Span.lo span) with
   | None -> []
   | Some module_id -> (
       match Hashtbl.find_opt r.module_paths module_id with
@@ -167,7 +186,7 @@ let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
       name_span = Option.value ~default:span name_span;
     }
   in
-  Hashtbl.replace st.out.syms span sym;
+  Span.Table.replace st.out.syms span sym;
   sym
 
 let push_scope (st : state) = st.scope <- new_scope (Some st.scope)
@@ -286,7 +305,7 @@ let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
 
 let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
   check_visibility st span sym;
-  Hashtbl.replace st.out.syms span sym
+  Span.Table.replace st.out.syms span sym
 
 let split_member (path : Ast.name list) : (Ast.name list * Ast.name) option =
   match List.rev path with
@@ -332,7 +351,7 @@ let use_type_if_found (st : state) (name : Ast.name) (span : Ast.span) : unit =
 
 let use (st : state) ~(what : string) name span : unit =
   match lookup st name with
-  | Some sym -> Hashtbl.replace st.out.syms span sym
+  | Some sym -> Span.Table.replace st.out.syms span sym
   | None ->
       Diagnostic.emit st.diags (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
@@ -343,7 +362,7 @@ let declare_param (st : state) (p : param) : unit =
   | Some prev ->
       Diagnostic.emit st.diags
         (Diagnostic.redefinition p.param_span ~prev:prev.Symbol.span);
-      Hashtbl.replace st.out.syms p.param_span prev
+      Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
 let rec access_path (e : expr) : Ast.name list option =
@@ -559,7 +578,7 @@ let declare_decls (st : state) (decls : decl list) : unit =
 
 let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
     (decls : decl list) : t =
-  let out = make_output 1 in
+  let out = make_output ~source_bytes:0 1 in
   Hashtbl.add out.module_paths module_id [];
   let st =
     make_state ~out ~diags ~module_id ~module_path:[] ~qualify:false
@@ -572,17 +591,29 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
 let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
     resolved_program =
   let count = Array.length program.Program.modules in
-  let out = make_output count in
+  let source_bytes =
+    Array.fold_left
+      (fun total (m : Program.module_) ->
+        List.fold_left
+          (fun total (u : Program.unit_) ->
+            total
+            + String.length (Source_map.src u.Program.source.Program.source_map))
+          total m.Program.units)
+      0 program.Program.modules
+  in
+  let out = make_output ~source_bytes count in
   let states = Hashtbl.create count in
   let state_of (module_ : Program.module_) =
     Hashtbl.find states module_.Program.module_id
   in
+  let bases = ref [] in
   let start (module_ : Program.module_) =
     Hashtbl.add out.module_paths module_.Program.module_id module_.Program.path;
     List.iter
       (fun (unit_ : Program.unit_) ->
-        Hashtbl.replace out.file_modules unit_.Program.source.Program.file_id
-          module_.Program.module_id)
+        bases :=
+          (unit_.Program.source.Program.base, module_.Program.module_id)
+          :: !bases)
       module_.Program.units;
     let is_root =
       module_.Program.module_id = program.Program.root.Program.module_id
@@ -631,6 +662,8 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
     List.iter (resolve_decl st) (Program.module_decls module_)
   in
   Array.iter start program.Program.modules;
+  out.file_modules <- Array.of_list !bases;
+  Array.sort (fun (a, _) (b, _) -> compare a b) out.file_modules;
   Array.iter link_imports program.Program.modules;
   (* Every module declares before any body resolves so imports go both ways *)
   Array.iter declare program.Program.modules;

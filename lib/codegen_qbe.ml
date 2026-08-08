@@ -1329,8 +1329,8 @@ let emit_panic_tables (ctx : ctx) =
       emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
         (String.concat ", " (List.map entry sites))
 
-let emit_qbe ~(source_of : Span.file_id -> string * Source_map.t)
-    (tdecls : T.cdecl list) : string =
+let emit_qbe ~(source_of : int -> string * Source_map.t) (tdecls : T.cdecl list)
+    : string =
   (* Collect struct layouts for offset comp *)
   let structs = Hashtbl.create 8 in
   let struct_names = Hashtbl.create 8 in

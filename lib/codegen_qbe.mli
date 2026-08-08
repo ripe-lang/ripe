@@ -7,4 +7,4 @@ val qbe_ext_ty : (Qname.t -> string) -> Types.ty -> string
 val alloc_instr : (Symbol.key, Types.ty list) Hashtbl.t -> Types.ty -> string
 
 val emit_qbe :
-  source_of:(Span.file_id -> string * Source_map.t) -> Core.cdecl list -> string
+  source_of:(int -> string * Source_map.t) -> Core.cdecl list -> string

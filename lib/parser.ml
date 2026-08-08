@@ -35,7 +35,7 @@ let peek st =
       info
 
 let advance st =
-  st.prev_end <- st.tok_span.hi;
+  st.prev_end <- Span.hi st.tok_span;
   let info =
     match st.ahead with
     | Some info ->
@@ -51,10 +51,12 @@ let advance st =
 let at st t = st.tok = t
 
 (* Start of the current lookahead token *)
-let cur_pos st = st.tok_span.lo
+let cur_pos st = Span.lo st.tok_span
 
 let loop_lo st (label : Ast.loop_label option) : int =
-  match label with Some (l : Ast.loop_label) -> l.span.lo | None -> cur_pos st
+  match label with
+  | Some (l : Ast.loop_label) -> Span.lo l.span
+  | None -> cur_pos st
 
 let fail st headline =
   raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
@@ -91,7 +93,7 @@ let parse_cast_kind st op_span =
   | BANG ->
       let bang_span = cur_span st in
       advance st;
-      (Checked, Span.make op_span.file op_span.lo bang_span.hi)
+      (Checked, Span.make (Span.lo op_span) (Span.hi bang_span))
   | _ -> (Normal, op_span)
 
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
@@ -185,7 +187,7 @@ let comma_sep st stop parse_one =
   end;
   List.rev !items
 
-let make_span st lo hi = Span.make st.tok_span.file lo hi
+let make_span _st lo hi = Span.make lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
 let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
@@ -584,7 +586,7 @@ and parse_prefix ?(no_struct_lit = false) st =
 
 (* x.field, arr[i], f(args) *)
 and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
-  let lo = lhs.span.lo in
+  let lo = Span.lo lhs.span in
   let continue_with = parse_postfix ~no_struct_lit st in
   match st.tok with
   | DOT -> (
@@ -1055,18 +1057,11 @@ let tokenize_all read lexbuf diags =
     (initial_token_capacity lexbuf.Lexing.lex_buffer_len);
   let rec scan stack depth =
     match read lexbuf with
-    | ERROR msg, sp ->
+    | ERROR msg, sp, _ ->
         Diagnostic.emit_error_at diags sp msg;
         scan stack depth
-    | t, sp -> (
-        let info =
-          {
-            token = t;
-            span = sp;
-            line = lexbuf.Lexing.lex_start_p.Lexing.pos_lnum;
-            depth;
-          }
-        in
+    | t, sp, line -> (
+        let info = { token = t; span = sp; line; depth } in
         Dynarray.add_last toks info;
         match Bracket_check.step diags stack t sp with
         | Bracket_check.Done -> ()
@@ -1087,8 +1082,8 @@ let replay_of (tokens : token_info array) =
     pair
 
 let parse ~(diags : Diagnostic.sink)
-    (read : Lexing.lexbuf -> Tokens.token * Ast.span) (lexbuf : Lexing.lexbuf) :
-    Ast.module_ =
+    (read : Lexing.lexbuf -> Tokens.token * Ast.span * int)
+    (lexbuf : Lexing.lexbuf) : Ast.module_ =
   let tokens = tokenize_all read lexbuf diags in
   let st =
     {

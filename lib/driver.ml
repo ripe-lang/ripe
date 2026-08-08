@@ -52,7 +52,7 @@ let emit_asm il =
 let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
   let rec loop () =
-    let t, _ = read lexbuf in
+    let t, _, _ = read lexbuf in
     Buffer.add_string buf (Tokens.show_token t);
     Buffer.add_char buf '\n';
     if t <> Tokens.EOF then loop ()
@@ -95,31 +95,17 @@ let source_ctx color (source : Program.source) : Diagnostic.ctx =
     color;
   }
 
-(* A span carries a file ID so every module renders against its own source *)
-let program_source (program : Program.t) : Span.file_id -> Program.source =
-  let sources = Hashtbl.create 16 in
-  let add (unit_ : Program.unit_) =
-    Hashtbl.replace sources unit_.Program.source.Program.file_id
-      unit_.Program.source
-  in
-  Array.iter
-    (fun (module_ : Program.module_) -> List.iter add module_.Program.units)
-    program.Program.modules;
-  let default = program.Program.root_source in
-  fun file -> Option.value (Hashtbl.find_opt sources file) ~default
-
 let program_context (program : Program.t) :
-    (Span.file_id -> Diagnostic.ctx) * Diagnostic.ctx =
+    (int -> Diagnostic.ctx) * Diagnostic.ctx =
   let color = use_color () in
-  let source_for_file = program_source program in
-  ( (fun file -> source_ctx color (source_for_file file)),
+  let source_at = Program.source_at program in
+  ( (fun pos -> source_ctx color (source_at pos)),
     source_ctx color program.Program.root_source )
 
 let render_program program diags =
-  let context_for_file, default = program_context program in
+  let context_at, default = program_context program in
   List.iter
-    (fun d ->
-      Printf.eprintf "%s" (Diagnostic.render_with context_for_file default d))
+    (fun d -> Printf.eprintf "%s" (Diagnostic.render_with context_at default d))
     diags
 
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
@@ -141,8 +127,7 @@ let root_tokens filename =
   let src = read_file filename in
   if not (String.is_valid_utf_8 src) then
     die (Printf.sprintf "not valid UTF-8: %s" filename);
-  let lexbuf = Lexing.from_string src in
-  Lexing.set_filename lexbuf filename;
+  let lexbuf = Lexer.lexbuf_of_string src in
   dump_tokens (Lexer.read (Lexer.make_state 0)) lexbuf
 
 let load ~diags ~search_roots ~filename =
@@ -152,6 +137,10 @@ let load ~diags ~search_roots ~filename =
   with
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
+  | Program.Source_too_large name ->
+      die
+        (Printf.sprintf "more than %d bytes of source in one program: %s"
+           Span.max_offset name)
 
 let compile ~stage ~backend ~out ~libraries ~search_roots ~filename =
   (* Write to -o if set or stdout *)
@@ -204,9 +193,9 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~filename =
     let il =
       match backend with
       | Backend.Qbe ->
-          let source_for_file = program_source program in
-          let source_of file =
-            let source = source_for_file file in
+          let source_at = Program.source_at program in
+          let source_of pos =
+            let source = source_at pos in
             (source.Program.filename, source.Program.source_map)
           in
           Codegen_qbe.emit_qbe ~source_of cdecls

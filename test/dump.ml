@@ -143,9 +143,9 @@ and dump_cstmts (stmts : C.cblock) : string =
 
 let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in
-  let lexbuf = Lexing.from_string src in
+  let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
-    let t, _ = Ripe.Lexer.read st lexbuf in
+    let t, _, _ = Ripe.Lexer.read st lexbuf in
     print_endline (tok_str t);
     if t <> Ripe.Tokens.EOF then go ()
   in

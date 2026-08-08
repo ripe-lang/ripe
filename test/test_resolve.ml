@@ -405,8 +405,7 @@ let resolve_program_src ?(search_roots = []) (files : (string * string) list) =
   let resolved = Ripe.Resolve.resolve_program ~diags program in
   match Diag.finish diags resolved with
   | _, _ -> print_endline "ok"
-  | exception Ripe.Diagnostic.Errors ds ->
-      List.iter (fun d -> Diag.render (List.assoc "main.rp" files) d) ds
+  | exception Ripe.Diagnostic.Errors ds -> List.iter (Diag.render_in program) ds
 
 let%expect_test "resolve: a call reaches into an imported module" =
   resolve_program_src
@@ -562,8 +561,8 @@ type meters = i32
         func main() { var d: math.meters = 0 }
                              ^~~~~~~~~~~
       at <test>:2:1
-        import math
-        ^~~~~~~~~~~ declared private here
+        type meters = i32
+        ^~~~~~~~~~~~~~~~~ declared private here
     |}]
 
 let%expect_test "resolve: main outside the root module is mangled" =
