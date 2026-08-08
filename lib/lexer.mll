@@ -34,6 +34,28 @@ let int_token st lexbuf ?suf text =
       Queue.push (INT (0L, suf), lexbuf_span st lexbuf) st.token_queue;
       ERROR "integer literal out of range"
 
+let longest_int_suffix = String.length "isize"
+
+(* Splitting here instead of in the rule keeps ocamllex off its slower engine *)
+let split_int_suffix text =
+  let len = String.length text in
+  let rec find i =
+    if i >= len then (text, None)
+    else
+      match text.[i] with
+      | 'i' | 'u' -> (String.sub text 0 i, Some (String.sub text i (len - i)))
+      | _ -> find (i + 1)
+  in
+  find (max 0 (len - longest_int_suffix))
+
+let radix_int_token st lexbuf text =
+  let body, suf = split_int_suffix text in
+  int_token st lexbuf ?suf body
+
+let decimal_int_token st lexbuf text =
+  let body, suf = split_int_suffix text in
+  int_token st lexbuf ?suf ("0u" ^ body)
+
 (* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
   Queue.push (CHAR 0, lexbuf_span st lexbuf) st.token_queue;
@@ -82,18 +104,14 @@ rule read_main st = parse
                          match st.last_token with
                          | Some t when can_end_stmt t -> AUTOSEMI
                          | _ -> read_main st lexbuf }
-  | ('0' ['x' 'X'] hexdigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | ('0' ['b' 'B'] bindigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | ('0' ['o' 'O'] octdigs as n) (intsuf as suf)  { int_token st lexbuf ~suf n }
-  | (decimals as n) (intsuf as suf)  { int_token st lexbuf ~suf ("0u" ^ n) }
-  | ('0' ['x' 'X'] hexdigs) as n  { int_token st lexbuf n }
-  | ('0' ['b' 'B'] bindigs) as n  { int_token st lexbuf n }
-  | ('0' ['o' 'O'] octdigs) as n  { int_token st lexbuf n }
+  | ('0' ['x' 'X'] hexdigs intsuf?) as n  { radix_int_token st lexbuf n }
+  | ('0' ['b' 'B'] bindigs intsuf?) as n  { radix_int_token st lexbuf n }
+  | ('0' ['o' 'O'] octdigs intsuf?) as n  { radix_int_token st lexbuf n }
   | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum* as n
       { ERROR ("invalid number literal: " ^ n) }
   | decimals '.' decimals exp? as f { FLOAT (float_of_string f) }
   | decimals exp as f  { FLOAT (float_of_string f) }
-  | decimals as n      { int_token st lexbuf ("0u" ^ n) }
+  | (decimals intsuf?) as n      { decimal_int_token st lexbuf n }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t
