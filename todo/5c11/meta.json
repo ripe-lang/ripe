@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-08 01:58:22.028314",
+  "depends": [],
+  "id": "5c11",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "Drop the filename from the source too large error",
+  "updated_at": "2026-08-08 02:14:00.000000"
+}

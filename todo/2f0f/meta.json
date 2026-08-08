@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-08 01:58:25.965580",
+  "depends": [],
+  "id": "2f0f",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [],
+  "title": "Check the source size before reading the file",
+  "updated_at": "2026-08-08 01:58:25.965588"
+}
