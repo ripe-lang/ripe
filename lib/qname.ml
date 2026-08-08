@@ -5,7 +5,7 @@ type t = { key : Symbol.key; path : string list; base : string }
 [@@deriving show { with_path = false }]
 
 (* Nothing got resolved here so this can be printed but never looked up *)
-let unresolved_key : Symbol.key = (-1, -1)
+let unresolved_key : Symbol.key = Symbol.make_key (-1) (-1)
 
 let make (key : Symbol.key) (path : string list) (base : string) : t =
   { key; path; base }

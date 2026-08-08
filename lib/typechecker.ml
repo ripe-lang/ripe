@@ -36,14 +36,14 @@ type loop_ctx = {
 
 type env = {
   vars : (Symbol.key * var_info) list list;
-  funcs : (Symbol.key, func_sig) Hashtbl.t;
-  types : (Symbol.key, type_def) Hashtbl.t;
+  funcs : func_sig Symbol.Table.t;
+  types : type_def Symbol.Table.t;
   (* Struct field layouts mirror the DStruct entries in types so ty_size need not rebuild them *)
-  struct_fields : (Symbol.key, ty list) Hashtbl.t;
-  globals : (Symbol.key, ty * Ast.binding_kind) Hashtbl.t;
+  struct_fields : ty list Symbol.Table.t;
+  globals : (ty * Ast.binding_kind) Symbol.Table.t;
   (* Constants evaluate on demand so an array size may name a later const *)
-  g_state : (Symbol.key, gstate) Hashtbl.t;
-  l_vals : (Symbol.key, Const_eval.const_num) Hashtbl.t;
+  g_state : gstate Symbol.Table.t;
+  l_vals : Const_eval.const_num Symbol.Table.t;
   ret_ty : ty;
   loops : loop_ctx list;
   in_main : bool;
@@ -55,17 +55,17 @@ type env = {
 }
 
 let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
-  let types = Hashtbl.create 16 in
-  let seed (key, builtin) = Hashtbl.replace types key (DBuiltin builtin) in
+  let types = Symbol.Table.create 16 in
+  let seed (key, builtin) = Symbol.Table.replace types key (DBuiltin builtin) in
   List.iter seed (Resolve.builtins uses);
   {
     vars = [];
-    funcs = Hashtbl.create 16;
+    funcs = Symbol.Table.create 16;
     types;
-    struct_fields = Hashtbl.create 16;
-    globals = Hashtbl.create 16;
-    g_state = Hashtbl.create 16;
-    l_vals = Hashtbl.create 16;
+    struct_fields = Symbol.Table.create 16;
+    globals = Symbol.Table.create 16;
+    g_state = Symbol.Table.create 16;
+    l_vals = Symbol.Table.create 16;
     ret_ty = TVoid;
     loops = [];
     in_main = false;
@@ -140,16 +140,16 @@ let lookup_var_opt (env : env) (span : Ast.span) : ty option =
   search env.vars
 
 (* Nothing got resolved here so this key never matches a real entry *)
-let unresolved_key : Symbol.key = (-1, -1)
+let unresolved_key : Symbol.key = Symbol.make_key (-1) (-1)
 
-(* Two declarations can go by the same name so the tables look things up by which one it is and not what it's called *)
+(* Two declarations can go by one name so lookups key on which one it is *)
 let key_at (env : env) (span : Ast.span) : Symbol.key =
   match Resolve.sym_at_opt env.uses span with
   | Some symbol -> Symbol.key symbol
   | None -> unresolved_key
 
 let builtin_at (env : env) (span : Ast.span) : Types.builtin option =
-  match Hashtbl.find_opt env.types (key_at env span) with
+  match Symbol.Table.find_opt env.types (key_at env span) with
   | Some (DBuiltin b) -> Some b
   | Some (DStruct _ | DNewtype _ | DAlias _) | None -> None
 
@@ -171,19 +171,19 @@ let is_entry (env : env) (span : Ast.span) : bool =
   | None -> false
 
 let lookup_func (env : env) (span : Ast.span) : func_sig =
-  match Hashtbl.find_opt env.funcs (key_at env span) with
+  match Symbol.Table.find_opt env.funcs (key_at env span) with
   | Some s -> s
   | None ->
       emit env (Diagnostic.undefined_name span "function");
       { param_tys = []; ret_ty = TVoid; variadic = false }
 
 let is_const_global (env : env) (key : Symbol.key) : bool =
-  match Hashtbl.find_opt env.globals key with
+  match Symbol.Table.find_opt env.globals key with
   | Some (_, (Let | Comptime)) -> true
   | _ -> false
 
 let is_comptime_global (env : env) (key : Symbol.key) : bool =
-  match Hashtbl.find_opt env.globals key with
+  match Symbol.Table.find_opt env.globals key with
   | Some (_, Comptime) -> true
   | _ -> false
 
@@ -194,7 +194,7 @@ let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
       |> Diagnostic.help "use let for values that need storage")
 
 let lookup_struct (env : env) (span : Ast.span) (name : Qname.t) : struct_info =
-  match Hashtbl.find_opt env.types (Qname.key name) with
+  match Symbol.Table.find_opt env.types (Qname.key name) with
   | Some (DStruct s) -> s
   | _ ->
       emit env (Diagnostic.undefined_name span "struct");
@@ -208,7 +208,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | ErrorType -> TError
   | Named (path, name) -> (
       let shown = Ast.show_named path name in
-      match Hashtbl.find_opt env.types (key_at env t.tspan) with
+      match Symbol.Table.find_opt env.types (key_at env t.tspan) with
       (* Never is the return type of a function that can't return so no value ever has it *)
       | Some (DBuiltin (BTy TNever)) ->
           emit env
@@ -259,11 +259,11 @@ and lookup_var (env : env) (span : Ast.span) : ty =
   | None -> (
       let key = key_at env span in
       (* Locals shadow globals shadow functions *)
-      match Hashtbl.find_opt env.globals key with
+      match Symbol.Table.find_opt env.globals key with
       | Some (t, _) -> t
       | None -> (
           (* An array size may name a global not collected yet so type it now *)
-          match Hashtbl.find_opt env.g_state key with
+          match Symbol.Table.find_opt env.g_state key with
           (* A global whose own size names it would loop forever *)
           | Some st when st.busy ->
               emit env (Diagnostic.error_at span "cyclic constant");
@@ -272,11 +272,11 @@ and lookup_var (env : env) (span : Ast.span) : ty =
               st.busy <- true;
               let t = ty_of_ast env st.def.typ in
               st.busy <- false;
-              Hashtbl.replace env.globals key (t, st.def.kind);
+              Symbol.Table.replace env.globals key (t, st.def.kind);
               t
           | None -> (
               (* Fall back to function table so function names can be used as values *)
-              match Hashtbl.find_opt env.funcs key with
+              match Symbol.Table.find_opt env.funcs key with
               | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
               | None ->
                   emit env (Diagnostic.undefined_name span "variable");
@@ -394,7 +394,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       add_error env e.span "cannot infer type of undefined";
       dummy_texpr
   | StructLit (path, name, name_span, inits) -> (
-      match Hashtbl.find_opt env.types (key_at env name_span) with
+      match Symbol.Table.find_opt env.types (key_at env name_span) with
       | Some (DStruct info) ->
           let seen = Hashtbl.create 4 in
           List.iter
@@ -628,7 +628,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
   in
   if kind = Comptime then (
     check_const_scalar env nspan t;
-    Hashtbl.replace env.l_vals
+    Symbol.Table.replace env.l_vals
       (Symbol.key (sym env nspan))
       (fold_num_or env dummy_const_num te));
   ( extend_var env nspan name t,
@@ -1298,7 +1298,8 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
   match strip_alias tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
       match idx.desc with
-      (* Arr[lo..hi] produces a slice that borrows into the same storage; arr[lo..=hi] desugars to arr[lo..hi+1] *)
+      (* A slice borrows into the same storage and an inclusive end just
+         desugars to one past *)
       | Range (lo, hi) | RangeInclusive (lo, hi) ->
           let inclusive =
             match idx.desc with RangeInclusive _ -> true | _ -> false
@@ -1323,7 +1324,8 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
       emit env (Diagnostic.with_type span "cannot index" (show_ty env t));
       dummy_texpr
 
-(* An array size can demand a const before its decl is checked so values resolve on demand from here and fold_consts below shares this resolver *)
+(* An array size can want a const before that decl is checked so values
+   resolve on demand *)
 and fold_num (env : env) (te : T.texpr) : Const_eval.const_num =
   Const_eval.fold_const_num
     ~sizeof:(ty_size env.struct_fields)
@@ -1333,17 +1335,17 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
     Const_eval.const_num =
   match s.Symbol.kind with
   | Symbol.Local Ast.Comptime -> (
-      match Hashtbl.find_opt env.l_vals (Symbol.key s) with
+      match Symbol.Table.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Hashtbl.mem env.g_state (Symbol.key s) ->
+  | Symbol.Global when Symbol.Table.mem env.g_state (Symbol.key s) ->
       global_const_num env span (Symbol.key s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
 and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
     Const_eval.const_num =
   let st =
-    match Hashtbl.find_opt env.g_state key with
+    match Symbol.Table.find_opt env.g_state key with
     | Some st -> st
     | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
   in
@@ -1380,7 +1382,7 @@ and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
 and global_typed_init (env : env) (span : Ast.span) (key : Symbol.key) : T.texpr
     =
   let st =
-    match Hashtbl.find_opt env.g_state key with
+    match Symbol.Table.find_opt env.g_state key with
     | Some st -> st
     | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
   in
@@ -1451,12 +1453,12 @@ let collect_func (env : env) (fd : func_def) : unit =
     List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
   let ret_ty = ret_ty_of env fd in
-  Hashtbl.replace env.funcs (key_at env fd.func_span)
+  Symbol.Table.replace env.funcs (key_at env fd.func_span)
     { param_tys; ret_ty; variadic = fd.variadic }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken (env : env) (span : Ast.span) : bool =
-  Hashtbl.mem env.types (key_at env span)
+  Symbol.Table.mem env.types (key_at env span)
 
 (* The name goes in first so a field can name this struct or one defined later *)
 let reserve_struct_name (env : env) (sd : struct_def) : unit =
@@ -1468,23 +1470,23 @@ let reserve_struct_name (env : env) (sd : struct_def) : unit =
           emit env (Diagnostic.error_at f.field_span "duplicate field")
         else Hashtbl.add seen f.field_name ())
       sd.fields;
-    Hashtbl.replace env.types
+    Symbol.Table.replace env.types
       (key_at env sd.struct_span)
       (DStruct { field_tys = [] });
-    Hashtbl.replace env.struct_fields (key_at env sd.struct_span) [])
+    Symbol.Table.replace env.struct_fields (key_at env sd.struct_span) [])
 
 let resolve_struct_fields (env : env) (sd : struct_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env sd.struct_span) with
+  match Symbol.Table.find_opt env.types (key_at env sd.struct_span) with
   | Some (DStruct _) ->
       let field_tys =
         List.map
           (fun (f : field) -> (f.field_name, ty_of_ast env f.field_typ))
           sd.fields
       in
-      Hashtbl.replace env.types
+      Symbol.Table.replace env.types
         (key_at env sd.struct_span)
         (DStruct { field_tys });
-      Hashtbl.replace env.struct_fields
+      Symbol.Table.replace env.struct_fields
         (key_at env sd.struct_span)
         (List.map snd field_tys)
   | _ -> ()
@@ -1492,7 +1494,7 @@ let resolve_struct_fields (env : env) (sd : struct_def) : unit =
 (* A pointer or slice field is just an address so it can't grow the struct *)
 let check_struct_cycle (env : env) (sd : struct_def) : unit =
   let fields_of name =
-    Option.value ~default:[] (Hashtbl.find_opt env.struct_fields name)
+    Option.value ~default:[] (Symbol.Table.find_opt env.struct_fields name)
   in
   let on_path = Hashtbl.create 8 in
   let rec reaches (target : Symbol.key) (t : ty) : bool =
@@ -1517,23 +1519,23 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
 (* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
   if not (type_name_taken env td.alias_span) then
-    Hashtbl.replace env.types (key_at env td.alias_span) (DAlias TError)
+    Symbol.Table.replace env.types (key_at env td.alias_span) (DAlias TError)
 
 let reserve_newtype_name (env : env) (td : type_alias_def) : unit =
   if not (type_name_taken env td.alias_span) then
-    Hashtbl.replace env.types (key_at env td.alias_span) (DNewtype TError)
+    Symbol.Table.replace env.types (key_at env td.alias_span) (DNewtype TError)
 
 let collect_alias (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env td.alias_span) with
+  match Symbol.Table.find_opt env.types (key_at env td.alias_span) with
   | Some (DAlias TError) ->
-      Hashtbl.replace env.types (key_at env td.alias_span)
+      Symbol.Table.replace env.types (key_at env td.alias_span)
         (DAlias (ty_of_ast env td.alias_typ))
   | _ -> ()
 
 let collect_newtype (env : env) (td : type_alias_def) : unit =
-  match Hashtbl.find_opt env.types (key_at env td.alias_span) with
+  match Symbol.Table.find_opt env.types (key_at env td.alias_span) with
   | Some (DNewtype TError) ->
-      Hashtbl.replace env.types (key_at env td.alias_span)
+      Symbol.Table.replace env.types (key_at env td.alias_span)
         (DNewtype (ty_of_ast env td.alias_typ))
   | _ -> ()
 
@@ -1546,7 +1548,8 @@ let rec named_type_spans (t : typ) : Ast.span list =
       List.concat_map named_type_spans params
       @ Option.value ~default:[] (Option.map named_type_spans ret)
 
-(* An alias is only a second name for whatever it points at. A pointer in the middle doesn't save it the way it saves a struct field *)
+(* An alias is only a second name for what it points at. A pointer in the
+   middle doesn't save it the way it saves a struct field *)
 let collect_type_bodies (env : env) (decls : decl list) : unit =
   let defs = Hashtbl.create 16 in
   let remember (decl : decl) : unit =
@@ -1562,10 +1565,10 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
   let unfilled (decl : decl) : bool =
     match decl with
     | TypeAlias td ->
-        Hashtbl.find_opt env.types (key_at env td.alias_span)
+        Symbol.Table.find_opt env.types (key_at env td.alias_span)
         = Some (DAlias TError)
     | Newtype td ->
-        Hashtbl.find_opt env.types (key_at env td.alias_span)
+        Symbol.Table.find_opt env.types (key_at env td.alias_span)
         = Some (DNewtype TError)
     | Func _ | Extern _ | Global _ | Struct _ -> false
   in
@@ -1609,7 +1612,7 @@ let collect_global (env : env) (gd : global_def) : unit =
          emit env
            (Diagnostic.error_at gd.name_span "comptime without initializer"));
   let t = ty_of_ast env gd.typ in
-  Hashtbl.replace env.globals (key_at env gd.span) (t, gd.kind)
+  Symbol.Table.replace env.globals (key_at env gd.span) (t, gd.kind)
 
 let fill_struct_fields_decl (env : env) (decl : decl) : unit =
   match decl with Struct sd -> resolve_struct_fields env sd | _ -> ()
@@ -1617,7 +1620,7 @@ let fill_struct_fields_decl (env : env) (decl : decl) : unit =
 let check_cycle_decl (env : env) (decl : decl) : unit =
   match decl with Struct sd -> check_struct_cycle env sd | _ -> ()
 
-(* Every type name lands before any signature is read so a declaration can name a type written further down the file *)
+(* Every type name lands first so a signature can name a type written later *)
 let reserve_type_name (env : env) (decl : decl) : unit =
   let env = reading env decl in
   match decl with
@@ -1635,7 +1638,7 @@ let collect_decl (env : env) (decl : decl) : unit =
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* The collected signature is reused so a bad array size errors once *)
-  let collected = Hashtbl.find_opt env.funcs (key_at env fd.func_span) in
+  let collected = Symbol.Table.find_opt env.funcs (key_at env fd.func_span) in
   let param_tys =
     match collected with
     | Some s when List.length s.param_tys = List.length fd.params -> s.param_tys
@@ -1671,8 +1674,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   in
 
   let is_entry_point = is_entry env fd.func_span in
-  (* An unwritten i32 on the main function comes from the C runtime
-     so its tail is not an exit code the user asked for *)
+  (* An unwritten i32 on main comes from the runtime and not from the user *)
   let implicit_return =
     (not is_extern) && ret_ty <> TVoid
     && ((not is_entry_point) || fd.ret <> None)
@@ -1746,7 +1748,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
   (* The collected type is reused so a bad array size errors once *)
   let t =
-    match Hashtbl.find_opt env.globals (key_at env gd.span) with
+    match Symbol.Table.find_opt env.globals (key_at env gd.span) with
     | Some (t, _) -> t
     | None -> ty_of_ast env gd.typ
   in
@@ -1764,7 +1766,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
     | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te =
-          if Hashtbl.mem env.g_state (key_at env gd.span) then
+          if Symbol.Table.mem env.g_state (key_at env gd.span) then
             global_typed_init env e.span (key_at env gd.span)
           else check env e t
         in
@@ -1805,7 +1807,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   | Struct sd ->
       (* A rejected duplicate never landed in the table and its fields are read directly *)
       let field_tys =
-        match Hashtbl.find_opt env.types (key_at env sd.struct_span) with
+        match Symbol.Table.find_opt env.types (key_at env sd.struct_span) with
         | Some (DStruct info) -> info.field_tys
         | _ ->
             List.map
@@ -1817,14 +1819,14 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
   (* A rejected duplicate never landed in the table and falls back to the written type *)
   | TypeAlias td ->
       let t =
-        match Hashtbl.find_opt env.types (key_at env td.alias_span) with
+        match Symbol.Table.find_opt env.types (key_at env td.alias_span) with
         | Some (DAlias t) -> t
         | _ -> ty_of_ast env td.alias_typ
       in
       T.TTypeAlias (qname_at env td.alias_span (Interner.text td.alias_name), t)
   | Newtype td ->
       let t =
-        match Hashtbl.find_opt env.types (key_at env td.alias_span) with
+        match Symbol.Table.find_opt env.types (key_at env td.alias_span) with
         | Some (DNewtype t) -> t
         | _ -> ty_of_ast env td.alias_typ
       in
@@ -1833,11 +1835,12 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
 let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
   Const_fold.run ~emit:(emit env)
     ~force_const:(fun span key -> ignore (global_const_num env span key))
-    ~local_value:(fun symbol -> Hashtbl.find_opt env.l_vals (Symbol.key symbol))
+    ~local_value:(fun symbol ->
+      Symbol.Table.find_opt env.l_vals (Symbol.key symbol))
     ~global_value:(fun symbol ->
       let key = Symbol.key symbol in
       if is_comptime_global env key then
-        match Hashtbl.find_opt env.g_state key with
+        match Symbol.Table.find_opt env.g_state key with
         | Some { value = Some v; _ } -> Some v
         | _ -> None
       else None)
@@ -1852,7 +1855,7 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
   List.iter
     (function
       | Global ({ kind = Let | Comptime; _ } as gd) ->
-          Hashtbl.replace env.g_state (key_at env gd.span)
+          Symbol.Table.replace env.g_state (key_at env gd.span)
             { def = gd; typed = None; value = None; busy = false }
       | _ -> ())
     decls;

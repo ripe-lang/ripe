@@ -155,7 +155,7 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
 
-let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
+let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -166,7 +166,7 @@ let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   | TNever -> Diagnostic.ice "TNever has no alignment"
   | TError -> Diagnostic.ice "TError has no alignment"
   | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs (Qname.key name) with
+      match Symbol.Table.find_opt structs (Qname.key name) with
       | Some fields ->
           List.fold_left (fun acc ft -> max acc (ty_align structs ft)) 1 fields
       | None ->
@@ -180,7 +180,7 @@ let rec ty_align (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
 (* `n` and `a` MUST be non-negative *)
 let align_to n a = (n + a - 1) / a * a
 
-let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
+let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -191,7 +191,7 @@ let rec ty_size (structs : (Symbol.key, ty list) Hashtbl.t) (t : ty) : int =
   | TNever -> Diagnostic.ice "TNever has no size"
   | TError -> Diagnostic.ice "TError has no size"
   | TStruct (name, _) -> (
-      match Hashtbl.find_opt structs (Qname.key name) with
+      match Symbol.Table.find_opt structs (Qname.key name) with
       | Some fields ->
           let struct_align = ty_align structs t in
           let offset =

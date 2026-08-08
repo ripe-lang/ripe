@@ -4050,10 +4050,11 @@ let N: i64 = S as i64 + 1
     help: constant initializers must fold to a compile-time value
     |}]
 
-(* internal invariants: the typechecker keeps these unreachable from source, so drive the codegen helpers directly *)
+(* The typechecker keeps these unreachable from source so the codegen helpers
+   get driven directly *)
 
-let empty_structs () : (Ripe.Symbol.key, Ripe.Types.ty list) Hashtbl.t =
-  Hashtbl.create 0
+let empty_structs () : Ripe.Types.ty list Ripe.Symbol.Table.t =
+  Ripe.Symbol.Table.create 0
 
 let%expect_test "codegen ICE: TVoid has no QBE base type" =
   expect_errors (fun () -> ignore (Ripe.Codegen_qbe.qbe_ty Ripe.Types.TVoid));
