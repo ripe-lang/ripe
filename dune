@@ -1,1 +1,42 @@
-(dirs :standard \ vendor)
+(dirs :standard)
+
+(install
+ (section bin)
+ (package ripe)
+ (files
+  (vendor/toolchain/linux-x86_64/bin/qbe as qbe)
+  (vendor/toolchain/linux-x86_64/bin/ld.lld as ld.lld)
+  (vendor/toolchain/linux-x86_64/bin/lld-linux as lld-linux)))
+
+(install
+ (section share)
+ (package ripe)
+ (files
+  (glob_files_rec std/*.rp)
+  (vendor/toolchain/linux-x86_64/lib/libLLVM.so.21.1
+   as
+   toolchain/linux-x86_64/lib/libLLVM.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldCOFF.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldCOFF.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldCommon.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldCommon.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldELF.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldELF.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldMachO.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldMachO.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldMinGW.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldMinGW.so.21.1)
+  (vendor/toolchain/linux-x86_64/lib/liblldWasm.so.21.1
+   as
+   toolchain/linux-x86_64/lib/liblldWasm.so.21.1)
+  (vendor/toolchain/linux-x86_64/licenses/lld.LICENSE.TXT
+   as
+   toolchain/linux-x86_64/licenses/lld.LICENSE.TXT)
+  (vendor/toolchain/linux-x86_64/licenses/lld-libs.LICENSE.TXT
+   as
+   toolchain/linux-x86_64/licenses/lld-libs.LICENSE.TXT)))
