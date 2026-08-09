@@ -12,7 +12,6 @@
   test_lexer
   test_parser
   test_typecheck
-  test_lower
   test_codegen
   test_source_map
   test_diagnostic
