@@ -2,4 +2,7 @@ _build
 _opam
 __pycache__
 docs/private
-/vendor/toolchain/linux-x86_64/
+/vendor/toolchain/linux-x86_64/*
+!/vendor/toolchain/linux-x86_64/licenses/
+/vendor/toolchain/linux-x86_64/licenses/*
+!/vendor/toolchain/linux-x86_64/licenses/lld.LICENSE.TXT
