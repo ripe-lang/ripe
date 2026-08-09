@@ -12,5 +12,6 @@ val compile :
   out:string ->
   libraries:string list ->
   search_roots:string list ->
+  stats:bool ->
   filename:string ->
   unit
