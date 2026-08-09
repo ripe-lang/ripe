@@ -15,3 +15,4 @@ Copyrights in the Ripe project are retained by their contributors. No copyright 
 Ripe vendors the following:
 
 * QBE (vendor/qbe/), Copyright (c) 2015-2019 Quentin Carbonneaux, MIT license <LICENSE-MIT>.
+* LLVM LLD (vendor/toolchain/linux-x86_64/), Copyright The LLVM Project, Apache License 2.0 with LLVM Exceptions <vendor/toolchain/linux-x86_64/licenses/lld.LICENSE.TXT>.
