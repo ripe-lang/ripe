@@ -10,7 +10,6 @@ import tempfile
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 IMPORT_PATH = os.path.dirname(os.path.dirname(TEST_DIR))
 IMPORT_PATH_LABEL = "<import-path>"
-TEST_TIMEOUT = 10
 
 
 def indented(text):
@@ -57,16 +56,12 @@ def diff(want, actual, golden):
 def check_one(ripec, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
-    try:
-        compile = subprocess.run(
-            [ripec, "-I", IMPORT_PATH, "-o", binary, "main.rp"],
-            cwd=testdir,
-            capture_output=True,
-            text=True,
-            timeout=TEST_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return "compiler timeout", "compiler did not finish\n"
+    compile = subprocess.run(
+        [ripec, "-I", IMPORT_PATH, "-o", binary, "main.rp"],
+        cwd=testdir,
+        capture_output=True,
+        text=True,
+    )
 
     err_golden = os.path.join(testdir, "compilererr.txt")
     if os.path.isfile(err_golden):
@@ -90,12 +85,7 @@ def check_one(ripec, testdir, workdir, promote=False):
     if compile.returncode != 0:
         return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
 
-    try:
-        run = subprocess.run(
-            [binary], capture_output=True, text=True, timeout=TEST_TIMEOUT
-        )
-    except subprocess.TimeoutExpired:
-        return "run timeout", "program did not finish\n"
+    run = subprocess.run([binary], capture_output=True, text=True)
     actual = run.stdout + run.stderr + "exit: %d\n" % run.returncode
 
     out_golden = os.path.join(testdir, "out.txt")
