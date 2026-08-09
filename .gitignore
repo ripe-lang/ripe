@@ -2,3 +2,4 @@ _build
 _opam
 __pycache__
 docs/private
+/vendor/toolchain/linux-x86_64/
