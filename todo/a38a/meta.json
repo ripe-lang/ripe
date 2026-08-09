@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-09 04:02:36.379159",
+  "depends": [],
+  "id": "a38a",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "toolchain"
+  ],
+  "title": "Bundle toolchains for macOS and Windows",
+  "updated_at": "2026-08-09 04:02:36.379166"
+}
