@@ -102,6 +102,7 @@ let runtime_near_exe () : string list =
   [
     Filename.concat bin_dir
       (Filename.concat Filename.parent_dir_name "runtime/panic.o");
+    Filename.concat bin_dir "../lib/ripe/runtime/panic.o";
   ]
 
 let runtime_object () : string =
