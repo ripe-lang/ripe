@@ -1,13 +1,1 @@
-(dirs :standard)
-
-(install
- (section bin)
- (package ripe)
- (files
-  (vendor/toolchain/linux-x86_64/bin/qbe as qbe)))
-
-(install
- (section share)
- (package ripe)
- (files
-  (glob_files_rec std/*.rp)
+(dirs :standard \ vendor)
