@@ -121,6 +121,7 @@ type ctx = {
   terminated : bool ref;
   entry : Buffer.t ref;
   in_main : bool ref;
+  result_addr : string option ref;
   panics : Panic_table.t;
 }
 
@@ -295,6 +296,13 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       ""
   | T.CCall (callee, args, fixed_count) ->
       let ret_ty = t in
+      let result_addr =
+        if is_aggregate ret_ty then begin
+          let slot = fresh ctx in
+          emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx ret_ty);
+          Some slot
+        end else None
+      in
       let arg_strs =
         List.rev
           (List.rev_map
@@ -304,11 +312,21 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       in
       (* The ... marker is how QBE knows to set the vararg register count *)
       let arg_strs =
+        let fixed_count =
+          match result_addr, fixed_count with
+          | Some _, Some count -> Some (count + 1)
+          | _, count -> count
+        in
         match fixed_count with
         | Some n ->
             let fixed = List.filteri (fun i _ -> i < n) arg_strs in
             let rest = List.filteri (fun i _ -> i >= n) arg_strs in
             fixed @ ("..." :: rest)
+        | None -> arg_strs
+      in
+      let arg_strs =
+        match result_addr with
+        | Some slot -> Printf.sprintf "l %s" slot :: arg_strs
         | None -> arg_strs
       in
       (* A plain function name calls direct otherwise the callee holds a fn ptr *)
@@ -320,6 +338,10 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       if ret_ty = TVoid || ret_ty = TNever then (
         emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
         "")
+      else if is_aggregate ret_ty then begin
+        emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
+        Option.get result_addr
+      end
       else
         let tmp = fresh ctx in
         emit ctx "    %s =%s call %s(%s)\n" tmp (qbe_ty ret_ty) callee
@@ -443,7 +465,13 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       ""
   | T.CReturn (Some e) ->
       let v = emit_expr ctx e in
-      if not !(ctx.terminated) then emit ctx "    ret %s\n" v;
+      if not !(ctx.terminated) then
+        (match !(ctx.result_addr) with
+        | Some destination ->
+            emit_aggregate_copy ctx destination v
+              (ty_size ctx.structs e.T.ty);
+            emit ctx "    ret\n"
+        | None -> emit ctx "    ret %s\n" v);
       ctx.terminated := true;
       ""
   | T.CBreak (id, value) -> (
@@ -1142,8 +1170,13 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
         (s, t, tmp))
       tfd.T.params
   in
+  let result_addr =
+    if is_aggregate tfd.T.ret_ty then Some (fresh ctx) else None
+  in
+  ctx.result_addr := result_addr;
   let params_strs =
-    List.map
+    (match result_addr with Some addr -> [ "l " ^ addr ] | None -> [])
+    @ List.map
       (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
       param_tmps
   in
@@ -1156,6 +1189,7 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   let ret_part =
     match tfd.T.ret_ty with
     | TVoid | TNever -> ""
+    | t when is_aggregate t -> ""
     | TInt _ | TFloat _ | TBool | TChar | TCStr | TStr | TNull | TPointer _
     | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
     | TAlias _ | TError ->
@@ -1365,6 +1399,7 @@ let emit_qbe ~(source_of : int -> string * Source_map.t) (tdecls : T.cdecl list)
       terminated = ref false;
       entry = ref (Buffer.create 64);
       in_main = ref false;
+      result_addr = ref None;
       panics = Panic_table.create ~source_of;
     }
   in
