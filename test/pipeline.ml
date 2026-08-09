@@ -60,6 +60,11 @@ let check_src src =
 
 let lower_src src = Ripe.Lower.lower (fst (check_src src))
 
+let mir_src src =
+  let program = Ripe.Mir_build.build (fst (check_src src)) in
+  Ripe.Mir_verify.verify program;
+  program
+
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
   let ssa = Filename.temp_file "ripe_test" ".ssa" in
@@ -126,3 +131,5 @@ let run_lower src =
           print_endline (fd.C.name ^ " " ^ Dump.dump_cstmts fd.C.body)
       | _ -> ())
     (lower_src src)
+
+let run_mir src = print_string (Ripe.Mir_dump.program (mir_src src))

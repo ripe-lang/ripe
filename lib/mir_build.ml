@@ -1,0 +1,969 @@
+module Mir_const = struct
+  open Types
+  open Mir
+  module S = Typed_ast
+
+  type global_state = {
+    init : S.texpr option;
+    mutable value : Const_eval.const_num option;
+    mutable busy : bool;
+  }
+
+  type context = {
+    structs : ty list Symbol.Table.t;
+    globals : global_state Symbol.Table.t;
+    comptime_globals : unit Symbol.Table.t;
+  }
+
+  let make_context declarations =
+    let structs = Symbol.Table.create 16 in
+    let globals = Symbol.Table.create 16 in
+    let comptime_globals = Symbol.Table.create 16 in
+    List.iter
+      (function
+        | S.TStruct (name, fields, _) ->
+            Symbol.Table.add structs (Qname.key name) fields
+        | S.TGlobal global ->
+            Symbol.Table.add globals global.S.key
+              { init = global.S.init; value = None; busy = false };
+            if global.S.kind = Ast.Comptime then
+              Symbol.Table.add comptime_globals global.S.key ()
+        | _ -> ())
+      declarations;
+    { structs; globals; comptime_globals }
+
+  let is_comptime_global context key =
+    Symbol.Table.mem context.comptime_globals key
+
+  (* Initializers may name each other so a value is forced on demand and cached *)
+  let rec global_num (context : context) span key =
+    let state : global_state =
+      match Symbol.Table.find_opt context.globals key with
+      | Some state -> state
+      | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+    in
+    match state.value with
+    | Some value -> value
+    | None ->
+        if state.busy then
+          raise
+            (Diagnostic.Errors [ Diagnostic.error_at span "cyclic constant" ]);
+        let init =
+          match state.init with
+          | Some init -> init
+          | None ->
+              raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
+        in
+        state.busy <- true;
+        let value =
+          match
+            Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
+              ~resolve:(fun symbol _ span ->
+                global_num context span (Symbol.key symbol))
+              init
+          with
+          | value ->
+              state.busy <- false;
+              value
+          | exception ex ->
+              state.busy <- false;
+              raise ex
+        in
+        state.value <- Some value;
+        value
+
+  let eval (context : context) expr =
+    Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
+      ~resolve:(fun symbol _ span ->
+        global_num context span (Symbol.key symbol))
+      expr
+
+  (* A comptime binding in scope shadows a global of the same name *)
+  let eval_in_scope (context : context) locals expr =
+    Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
+      ~resolve:(fun symbol _ span ->
+        let key = Symbol.key symbol in
+        match Hashtbl.find_opt locals key with
+        | Some value -> value
+        | None -> global_num context span key)
+      expr
+
+  let constant_of_num ty = function
+    | Const_eval.Nf value -> Float value
+    | Const_eval.Ni32 value when resolve_ty ty = TBool -> Bool (value <> 0l)
+    | Const_eval.Ni32 value when resolve_ty ty = TChar ->
+        Char (Int32.to_int value)
+    | Const_eval.Ni32 value -> Int (Int64.of_int32 value)
+    | Const_eval.Ni64 value -> Int value
+
+  let rec global_init context (expr : S.texpr) =
+    match expr.S.desc with
+    | S.TInt value -> GlobalConst (Int value, expr.S.ty)
+    | S.TFloat value -> GlobalConst (Float value, expr.S.ty)
+    | S.TBool value -> GlobalConst (Bool value, expr.S.ty)
+    | S.TNull -> GlobalConst (Null, expr.S.ty)
+    | S.TCStr value -> GlobalConst (CStr value, expr.S.ty)
+    | S.TStr value -> GlobalConst (CStr value, expr.S.ty)
+    | S.TChar value -> GlobalConst (Char value, expr.S.ty)
+    | S.TZero -> GlobalConst (Zero, expr.S.ty)
+    | S.TUndef -> GlobalConst (Undef, expr.S.ty)
+    | S.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+        GlobalConst (Function symbol.Symbol.link_name, expr.S.ty)
+    | S.TUnOp (Ast.AddressOf, { S.desc = S.TIdent symbol; _ }) ->
+        GlobalAddress symbol.Symbol.link_name
+    | S.TArrayLit values -> GlobalArray (List.map (global_init context) values)
+    | S.TStructLit (_, fields) ->
+        GlobalStruct
+          (List.map
+             (fun (field, value) -> (field, global_init context value))
+             fields)
+    | _ when Const_eval.foldable expr ->
+        GlobalConst (constant_of_num expr.S.ty (eval context expr), expr.S.ty)
+    | _ -> Diagnostic.ice ~span:expr.S.span "unsupported MIR global initializer"
+end
+
+module Mir_builder = struct
+  open Mir
+  module S = Typed_ast
+
+  type open_block = {
+    mutable statements : statement list;
+    mutable terminator : terminator option;
+  }
+
+  type state = {
+    locals_rev : local list ref;
+    next_local : int ref;
+    symbols : (Symbol.id, local_id) Hashtbl.t;
+    globals : (Symbol.key, string) Hashtbl.t;
+    blocks : (block_id, open_block) Hashtbl.t;
+    next_block : int ref;
+    current : block_id ref;
+    loops : (block_id * block_id) list ref;
+    consts : (Symbol.key, Const_eval.const_num) Hashtbl.t;
+    const_context : Mir_const.context;
+    bare_return_zero : bool;
+    recur : recur;
+  }
+
+  (* Everything layered on top of expression lowering reaches back into it through
+     here because OCaml keeps mutual recursion inside a single file *)
+  and recur = {
+    expr : state -> S.texpr -> operand;
+    statement : state -> S.texpr -> unit;
+  }
+
+  let make ~const_context ~globals ~recur ~bare_return_zero =
+    let blocks = Hashtbl.create 16 in
+    Hashtbl.add blocks 0 ({ statements = []; terminator = None } : open_block);
+    {
+      locals_rev = ref [];
+      next_local = ref 0;
+      symbols = Hashtbl.create 16;
+      globals;
+      blocks;
+      next_block = ref 1;
+      current = ref 0;
+      loops = ref [];
+      consts = Hashtbl.create 16;
+      const_context;
+      bare_return_zero;
+      recur;
+    }
+
+  let finish (state : state) =
+    Array.init !(state.next_block) (fun id ->
+        let b = Hashtbl.find state.blocks id in
+        ({ statements = List.rev b.statements; terminator = b.terminator }
+          : block))
+
+  let add_local (state : state) ?name storage ty span =
+    let id = !(state.next_local) in
+    incr state.next_local;
+    state.locals_rev := { name; ty; storage; span } :: !(state.locals_rev);
+    id
+
+  let finish_locals (state : state) =
+    Array.of_list (List.rev !(state.locals_rev))
+
+  let bind_symbol (state : state) (symbol : Symbol.t) id =
+    Hashtbl.add state.symbols symbol.Symbol.id id
+
+  let new_block (state : state) =
+    let id = !(state.next_block) in
+    incr state.next_block;
+    Hashtbl.add state.blocks id { statements = []; terminator = None };
+    id
+
+  let current_block (state : state) = Hashtbl.find state.blocks !(state.current)
+  let is_live (state : state) = Option.is_none (current_block state).terminator
+  let switch (state : state) block = state.current := block
+
+  let emit (state : state) desc span =
+    let block = current_block state in
+    if Option.is_none block.terminator then
+      block.statements <- { desc; span } :: block.statements
+
+  let terminate (state : state) desc span =
+    let block = current_block state in
+    if Option.is_none block.terminator then
+      block.terminator <- Some { desc; span }
+
+  (* Break and continue read the innermost entry so the body runs with this pair on
+     top and the stack unwinds after *)
+  let with_loop (state : state) ~continue ~break body =
+    state.loops := (continue, break) :: !(state.loops);
+    body ();
+    state.loops := List.tl !(state.loops)
+
+  let break_target (state : state) span =
+    match !(state.loops) with
+    | (_, break) :: _ -> break
+    | [] -> Diagnostic.ice ~span "break outside loop"
+
+  let continue_target (state : state) span =
+    match !(state.loops) with
+    | (continue, _) :: _ -> continue
+    | [] -> Diagnostic.ice ~span "continue outside loop"
+
+  let place place_span base = { base; projections = []; place_span }
+  let local_place span id = place span (Local id)
+  let copy span ty place : operand = { desc = Copy place; ty; span }
+
+  let constant (expr : S.texpr) desc : operand =
+    { desc = Const desc; ty = expr.S.ty; span = expr.S.span }
+
+  let const_operand span ty desc : operand = { desc = Const desc; ty; span }
+
+  let eval_const (state : state) expr =
+    Mir_const.eval_in_scope state.const_context state.consts expr
+
+  let evaluated_constant (state : state) (expr : S.texpr) =
+    constant expr (Mir_const.constant_of_num expr.S.ty (eval_const state expr))
+
+  let assign (state : state) destination (assigned : operand) =
+    if is_live state then
+      emit state
+        (Assign
+           ( destination,
+             { desc = Use assigned; ty = assigned.ty; span = assigned.span } ))
+        assigned.span
+
+  let temp_value (state : state) ty span desc =
+    let id = add_local state Temp ty span in
+    let destination = local_place span id in
+    emit state (Assign (destination, { desc; ty; span })) span;
+    copy span ty destination
+
+  let materialize (state : state) (operand : operand) =
+    match operand.desc with
+    | Copy place -> place
+    | Const _ ->
+        let id = add_local state Temp operand.ty operand.span in
+        let destination = local_place operand.span id in
+        assign state destination operand;
+        destination
+
+  let save_operand (state : state) (operand : operand) =
+    let id = add_local state Temp operand.ty operand.span in
+    let destination = local_place operand.span id in
+    assign state destination operand;
+    copy operand.span operand.ty destination
+
+  let symbol_place (state : state) span (symbol : Symbol.t) =
+    match Hashtbl.find_opt state.symbols symbol.Symbol.id with
+    | Some id -> local_place span id
+    | None -> (
+        match Hashtbl.find_opt state.globals (Symbol.key symbol) with
+        | Some name -> place span (Global name)
+        | None ->
+            Diagnostic.ice ~span
+              (Printf.sprintf "no MIR place for symbol %s" symbol.Symbol.name))
+end
+
+module Mir_check = struct
+  open Types
+  open Mir
+  module B = Mir_builder
+
+  let emit_check state check span = B.emit state (Check check) span
+
+  let bounds state index length span =
+    emit_check state (Bounds (index, length)) span
+
+  let slice_bounds state lo hi length span =
+    emit_check state (SliceBounds (lo, hi, length)) span
+
+  let null state pointer span = emit_check state (Null pointer) span
+  let div_zero state divisor span = emit_check state (DivZero divisor) span
+
+  let negative_shift state count span =
+    emit_check state (NegativeShift count) span
+
+  let cast_range state value ty span =
+    emit_check state (CastRange (value, ty)) span
+
+  (* Plain and compound arithmetic guard the same two operators the same way *)
+  let arith state op ~operand_ty (right : operand) span =
+    match op with
+    | (Ast.Div | Ast.Mod) when not (is_float operand_ty) ->
+        div_zero state right span
+    | (Ast.Lshift | Ast.Rshift) when not (is_unsigned right.ty) ->
+        negative_shift state right span
+    | _ -> ()
+end
+
+module Mir_control = struct
+  open Types
+  open Mir
+  module S = Typed_ast
+  module B = Mir_builder
+
+  let lower_expr state expr = state.B.recur.B.expr state expr
+  let lower_statement state expr = state.B.recur.B.statement state expr
+
+  let rec lower_short_circuit state (expr : S.texpr) left right short_value =
+    let right_block = B.new_block state in
+    let short_block = B.new_block state in
+    let join_block = B.new_block state in
+    let result = B.add_local state Temp TBool expr.S.span in
+    lower_branch state left
+      (if short_value then short_block else right_block)
+      (if short_value then right_block else short_block);
+    B.switch state short_block;
+    B.assign state
+      (B.local_place expr.S.span result)
+      (B.const_operand expr.S.span TBool (Bool short_value));
+    B.terminate state (Jump join_block) expr.S.span;
+    B.switch state right_block;
+    let right = lower_expr state right in
+    B.assign state (B.local_place expr.S.span result) right;
+    if B.is_live state then B.terminate state (Jump join_block) expr.S.span;
+    B.switch state join_block;
+    B.copy expr.S.span TBool (B.local_place expr.S.span result)
+
+  and lower_if state (expr : S.texpr) branches else_body =
+    let result =
+      if expr.S.ty = TVoid || expr.S.ty = TNever then None
+      else Some (B.add_local state Temp expr.S.ty expr.S.span)
+    in
+    let join = B.new_block state in
+    let rec lower_branches = function
+      | [] -> (
+          match else_body with
+          | Some body -> lower_arm state expr result join body
+          | None -> B.terminate state (Jump join) expr.S.span)
+      | (condition, body) :: rest ->
+          let yes = B.new_block state in
+          let no = B.new_block state in
+          lower_branch state condition yes no;
+          B.switch state yes;
+          lower_arm state expr result join body;
+          B.switch state no;
+          lower_branches rest
+    in
+    lower_branches branches;
+    B.switch state join;
+    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
+    match result with
+    | Some result ->
+        B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
+    | None -> B.constant expr Undef
+
+  and lower_arm state (expr : S.texpr) result join body =
+    match result with
+    | None ->
+        List.iter (lower_statement state) body;
+        if B.is_live state then B.terminate state (Jump join) expr.S.span
+    | Some result ->
+        let value =
+          match List.rev body with
+          | [] -> B.constant expr Undef
+          | last :: reversed ->
+              List.iter (lower_statement state) (List.rev reversed);
+              if B.is_live state then lower_expr state last
+              else B.constant expr Undef
+        in
+        if B.is_live state then begin
+          B.assign state (B.local_place expr.S.span result) value;
+          B.terminate state (Jump join) expr.S.span
+        end
+
+  and lower_branch state (expr : S.texpr) yes no =
+    match expr.S.desc with
+    | S.TBool value ->
+        B.terminate state (Jump (if value then yes else no)) expr.S.span
+    | S.TUnOp (Ast.Not, inner) -> lower_branch state inner no yes
+    | S.TBinOp (Ast.And, left, right) ->
+        let middle = B.new_block state in
+        lower_branch state left middle no;
+        B.switch state middle;
+        lower_branch state right yes no
+    | S.TBinOp (Ast.Or, left, right) ->
+        let middle = B.new_block state in
+        lower_branch state left yes middle;
+        B.switch state middle;
+        lower_branch state right yes no
+    | _ ->
+        let condition = lower_expr state expr in
+        if B.is_live state then
+          B.terminate state (Branch (condition, yes, no)) expr.S.span
+
+  and lower_while state span condition body =
+    let condition_block = B.new_block state in
+    let body_block = B.new_block state in
+    let exit_block = B.new_block state in
+    B.terminate state (Jump condition_block) span;
+    B.switch state condition_block;
+    lower_branch state condition body_block exit_block;
+    B.switch state body_block;
+    B.with_loop state ~continue:condition_block ~break:exit_block (fun () ->
+        List.iter (lower_statement state) body);
+    if B.is_live state then B.terminate state (Jump condition_block) span;
+    B.switch state exit_block
+
+  and lower_for state span symbol elem_ty (iter : S.texpr) body =
+    match iter.S.desc with
+    | S.TRange (lo, hi) ->
+        lower_range_for state span symbol elem_ty lo hi false body
+    | S.TRangeInclusive (lo, hi) ->
+        lower_range_for state span symbol elem_ty lo hi true body
+    | _ -> lower_each_for state span symbol elem_ty iter body
+
+  and lower_range_for state span (symbol : Symbol.t) elem_ty lo hi inclusive
+      body =
+    let loop_id =
+      B.add_local state ~name:symbol.Symbol.name User elem_ty symbol.Symbol.span
+    in
+    B.bind_symbol state symbol loop_id;
+    let lo = lower_expr state lo in
+    let hi = lower_expr state hi in
+    B.assign state (B.local_place span loop_id) lo;
+    let high_id = B.add_local state ~name:"for.hi" Temp elem_ty hi.span in
+    B.assign state (B.local_place span high_id) hi;
+    let condition_block = B.new_block state in
+    let body_block = B.new_block state in
+    let step_block = B.new_block state in
+    let exit_block = B.new_block state in
+    B.terminate state (Jump condition_block) span;
+    B.switch state condition_block;
+    let current = B.copy span elem_ty (B.local_place span loop_id) in
+    let high = B.copy span elem_ty (B.local_place span high_id) in
+    let op = if inclusive then Ast.Lte else Ast.Lt in
+    let condition =
+      B.temp_value state TBool span (Binary (op, current, high))
+    in
+    B.terminate state (Branch (condition, body_block, exit_block)) span;
+    B.switch state body_block;
+    B.with_loop state ~continue:step_block ~break:exit_block (fun () ->
+        List.iter (lower_statement state) body);
+    if B.is_live state then B.terminate state (Jump step_block) span;
+    B.switch state step_block;
+    let current = B.copy span elem_ty (B.local_place span loop_id) in
+    let high = B.copy span elem_ty (B.local_place span high_id) in
+    if inclusive then begin
+      let increment_block = B.new_block state in
+      let done_ =
+        B.temp_value state TBool span (Binary (Ast.Eq, current, high))
+      in
+      B.terminate state (Branch (done_, exit_block, increment_block)) span;
+      B.switch state increment_block
+    end;
+    let one = B.const_operand span elem_ty (Int 1L) in
+    let next =
+      B.temp_value state elem_ty span (Binary (Ast.Add, current, one))
+    in
+    B.assign state (B.local_place span loop_id) next;
+    B.terminate state (Jump condition_block) span;
+    B.switch state exit_block
+
+  and lower_each_for state span (symbol : Symbol.t) elem_ty (iter : S.texpr)
+      body =
+    let source = lower_expr state iter |> B.materialize state in
+    let source =
+      match resolve_ty iter.S.ty with
+      | TSlice _ ->
+          let id = B.add_local state Temp iter.S.ty iter.S.span in
+          let snapshot = B.local_place iter.S.span id in
+          B.assign state snapshot (B.copy iter.S.span iter.S.ty source);
+          snapshot
+      | _ -> source
+    in
+    let pointer_ty = TPointer elem_ty in
+    let pointer_id = B.add_local state Temp pointer_ty span in
+    let length_id = B.add_local state Temp (TInt Usize) span in
+    let index_id = B.add_local state Temp (TInt Usize) span in
+    let loop_id =
+      B.add_local state ~name:symbol.Symbol.name User elem_ty symbol.Symbol.span
+    in
+    B.bind_symbol state symbol loop_id;
+    let pointer = B.temp_value state pointer_ty span (DataPtr source) in
+    let length = B.temp_value state (TInt Usize) span (Len source) in
+    B.assign state (B.local_place span pointer_id) pointer;
+    B.assign state (B.local_place span length_id) length;
+    B.assign state
+      (B.local_place span index_id)
+      (B.const_operand span (TInt Usize) (Int 0L));
+    let condition_block = B.new_block state in
+    let body_block = B.new_block state in
+    let step_block = B.new_block state in
+    let exit_block = B.new_block state in
+    B.terminate state (Jump condition_block) span;
+    B.switch state condition_block;
+    let index = B.copy span (TInt Usize) (B.local_place span index_id) in
+    let length = B.copy span (TInt Usize) (B.local_place span length_id) in
+    let condition =
+      B.temp_value state TBool span (Binary (Ast.Lt, index, length))
+    in
+    B.terminate state (Branch (condition, body_block, exit_block)) span;
+    B.switch state body_block;
+    let element =
+      {
+        base = Local pointer_id;
+        projections = [ Index index ];
+        place_span = span;
+      }
+    in
+    B.assign state (B.local_place span loop_id) (B.copy span elem_ty element);
+    B.with_loop state ~continue:step_block ~break:exit_block (fun () ->
+        List.iter (lower_statement state) body);
+    if B.is_live state then B.terminate state (Jump step_block) span;
+    B.switch state step_block;
+    let current = B.copy span (TInt Usize) (B.local_place span index_id) in
+    let one = B.const_operand span (TInt Usize) (Int 1L) in
+    let next =
+      B.temp_value state (TInt Usize) span (Binary (Ast.Add, current, one))
+    in
+    B.assign state (B.local_place span index_id) next;
+    B.terminate state (Jump condition_block) span;
+    B.switch state exit_block
+end
+
+module Mir_expr = struct
+  open Types
+  open Mir
+  module S = Typed_ast
+  module B = Mir_builder
+
+  let rec map_operands state = function
+    | [] -> []
+    | expr :: rest ->
+        let value = lower_expr state expr in
+        value :: map_operands state rest
+
+  and lower_expr state (expr : S.texpr) =
+    match expr.S.desc with
+    | S.TErrorExpr ->
+        Diagnostic.ice ~span:expr.S.span "error expression reached MIR"
+    | S.TInt value -> B.constant expr (Int value)
+    | S.TFloat value -> B.constant expr (Float value)
+    | S.TBool value -> B.constant expr (Bool value)
+    | S.TNull -> B.constant expr Null
+    | S.TCStr value -> B.constant expr (CStr value)
+    | S.TStr value -> B.constant expr (CStr value)
+    | S.TChar value -> B.constant expr (Char value)
+    | S.TZero -> B.constant expr Zero
+    | S.TUndef -> B.constant expr Undef
+    | S.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+        B.constant expr (Function symbol.Symbol.link_name)
+    | S.TIdent symbol
+      when Symbol.is_comptime symbol.Symbol.kind
+           || Mir_const.is_comptime_global state.B.const_context
+                (Symbol.key symbol) ->
+        B.evaluated_constant state expr
+    | S.TIdent symbol ->
+        B.copy expr.S.span expr.S.ty (B.symbol_place state expr.S.span symbol)
+    | S.TCall (callee, args, variadic_start) ->
+        lower_call state expr callee args variadic_start
+    | S.TBinOp (Ast.And, left, right) ->
+        Mir_control.lower_short_circuit state expr left right false
+    | S.TBinOp (Ast.Or, left, right) ->
+        Mir_control.lower_short_circuit state expr left right true
+    | S.TBinOp (Ast.Assign, left, right) ->
+        let destination = lower_place state left in
+        let assigned = lower_expr state right in
+        B.assign state destination assigned;
+        assigned
+    | S.TBinOp (op, left, right) when base_binop op <> None ->
+        lower_compound_assign state expr op left right
+    | S.TBinOp (op, left, right) ->
+        let left = lower_expr state left in
+        let right = lower_expr state right in
+        Mir_check.arith state op ~operand_ty:left.ty right expr.S.span;
+        B.temp_value state expr.S.ty expr.S.span (Binary (op, left, right))
+    | S.TUnOp (Ast.Pos, inner) -> lower_expr state inner
+    | S.TUnOp (Ast.AddressOf, { S.desc = S.TUnOp (Ast.Deref, inner); _ }) ->
+        lower_expr state inner
+    | S.TUnOp (Ast.AddressOf, ({ S.desc = S.TIdent symbol; _ } as inner))
+      when Symbol.is_func symbol.Symbol.kind ->
+        let function_value = lower_expr state inner in
+        { function_value with ty = expr.S.ty; span = expr.S.span }
+    | S.TUnOp (Ast.AddressOf, inner) ->
+        let inner = lower_place state inner in
+        B.temp_value state expr.S.ty expr.S.span (AddressOf inner)
+    | S.TUnOp (Ast.Deref, _) ->
+        let source = lower_place state expr in
+        B.copy expr.S.span expr.S.ty source
+    | S.TUnOp (op, inner) ->
+        let inner = lower_expr state inner in
+        B.temp_value state expr.S.ty expr.S.span (Unary (op, inner))
+    | S.TFieldAccess _ | S.TIndex _ ->
+        let source = lower_place state expr in
+        B.copy expr.S.span expr.S.ty source
+    | S.TCast (inner, kind) ->
+        let inner = lower_expr state inner in
+        if kind = Ast.Checked then
+          Mir_check.cast_range state inner expr.S.ty expr.S.span;
+        B.temp_value state expr.S.ty expr.S.span (Cast (inner, kind))
+    | S.TSizeOf ty -> B.temp_value state expr.S.ty expr.S.span (SizeOf ty)
+    | S.TRange _ | S.TRangeInclusive _ ->
+        Diagnostic.ice ~span:expr.S.span "range outside a for loop"
+    | S.TArrayLit elements -> lower_array_literal state expr elements
+    | S.TLen inner ->
+        let inner = lower_expr state inner |> B.materialize state in
+        B.temp_value state expr.S.ty expr.S.span (Len inner)
+    | S.TToSlice inner ->
+        let inner = lower_expr state inner |> B.materialize state in
+        let id = B.add_local state Temp expr.S.ty expr.S.span in
+        let destination = B.local_place expr.S.span id in
+        B.emit state
+          (Assign
+             ( destination,
+               { desc = ToSlice inner; ty = expr.S.ty; span = expr.S.span } ))
+          expr.S.span;
+        B.copy expr.S.span expr.S.ty destination
+    | S.TSliceExpr (base, lo, hi) -> lower_slice state expr base lo hi
+    | S.TDataPtr inner ->
+        let inner = lower_expr state inner |> B.materialize state in
+        B.temp_value state expr.S.ty expr.S.span (DataPtr inner)
+    | S.TStructLit (_, fields) -> lower_struct_literal state expr fields
+    | S.TLocalDecl -> B.constant expr Undef
+    | S.TLoop (_, body) ->
+        let condition =
+          { S.desc = S.TBool true; ty = TBool; span = expr.S.span }
+        in
+        Mir_control.lower_while state expr.S.span condition body;
+        B.constant expr Undef
+    | S.TBlock body -> lower_block_value state expr body
+    | S.TIf (branches, else_body) ->
+        Mir_control.lower_if state expr branches else_body
+    | S.TWhile (_, condition, body) ->
+        Mir_control.lower_while state expr.S.span condition body;
+        B.constant expr Undef
+    | S.TFor (_, symbol, elem_ty, iter, body) ->
+        Mir_control.lower_for state expr.S.span symbol elem_ty iter body;
+        B.constant expr Undef
+    | S.TBinding _ | S.TReturn _ | S.TBreak _ | S.TContinue _ | S.TPairAssign _
+      ->
+        lower_statement state expr;
+        B.constant expr Undef
+
+  and lower_call state (expr : S.texpr) (callee : S.texpr) args variadic_start =
+    let args = map_operands state args in
+    let callee_value, kind =
+      match callee.S.desc with
+      | S.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+          let kind =
+            match symbol.Symbol.kind with
+            | Symbol.Extern -> External
+            | _ -> Internal
+          in
+          (Direct symbol.Symbol.link_name, kind)
+      | _ -> (Indirect (lower_expr state callee), Internal)
+    in
+    let destination =
+      if expr.S.ty = TVoid || expr.S.ty = TNever then None
+      else
+        let id = B.add_local state Temp expr.S.ty expr.S.span in
+        Some (B.local_place expr.S.span id)
+    in
+    B.emit state
+      (Call
+         {
+           destination;
+           callee = callee_value;
+           kind;
+           args;
+           return_ty = expr.S.ty;
+           variadic_start;
+         })
+      expr.S.span;
+    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
+    match destination with
+    | Some destination -> B.copy expr.S.span expr.S.ty destination
+    | None -> B.constant expr Undef
+
+  and lower_place state (expr : S.texpr) =
+    match expr.S.desc with
+    | S.TIdent symbol -> B.symbol_place state expr.S.span symbol
+    | S.TUnOp (Ast.Deref, inner) ->
+        let pointer = lower_expr state inner in
+        Mir_check.null state pointer expr.S.span;
+        let source = B.materialize state pointer in
+        { source with projections = source.projections @ [ Deref ] }
+    | S.TFieldAccess (base, field) ->
+        let source =
+          match resolve_ty base.S.ty with
+          | TPointer _ ->
+              let pointer = lower_expr state base in
+              Mir_check.null state pointer base.S.span;
+              let source = B.materialize state pointer in
+              { source with projections = source.projections @ [ Deref ] }
+          | _ -> lower_expr state base |> B.materialize state
+        in
+        { source with projections = source.projections @ [ Field field ] }
+    | S.TIndex (base, index) ->
+        let base_value = lower_expr state base in
+        let source = B.materialize state base_value in
+        let index = lower_expr state index in
+        (match resolve_ty base.S.ty with
+        | TArray _ | TSlice _ ->
+            let length =
+              B.temp_value state (TInt Usize) base.S.span (Len source)
+            in
+            Mir_check.bounds state index length expr.S.span
+        | TPointer _ -> ()
+        | _ -> Diagnostic.ice ~span:base.S.span "index on non indexed MIR place");
+        { source with projections = source.projections @ [ Index index ] }
+    | _ -> lower_expr state expr |> B.materialize state
+
+  and lower_array_literal state (expr : S.texpr) elements =
+    let element_ty =
+      match resolve_ty expr.S.ty with
+      | TArray (element, _) -> element
+      | _ -> Diagnostic.ice ~span:expr.S.span "array literal has non array type"
+    in
+    let id = B.add_local state Temp expr.S.ty expr.S.span in
+    let destination = B.local_place expr.S.span id in
+    B.emit state
+      (Assign
+         ( destination,
+           {
+             desc = Use (B.constant expr Undef);
+             ty = expr.S.ty;
+             span = expr.S.span;
+           } ))
+      expr.S.span;
+    List.iteri
+      (fun index (element : S.texpr) ->
+        let assigned = lower_expr state element in
+        let index_operand =
+          B.const_operand element.S.span (TInt Usize) (Int (Int64.of_int index))
+        in
+        let target =
+          { destination with projections = [ Index index_operand ] }
+        in
+        let assigned = { assigned with ty = element_ty } in
+        B.assign state target assigned)
+      elements;
+    B.copy expr.S.span expr.S.ty destination
+
+  and lower_struct_literal state (expr : S.texpr) fields =
+    let id = B.add_local state Temp expr.S.ty expr.S.span in
+    let destination = B.local_place expr.S.span id in
+    B.emit state
+      (Assign
+         ( destination,
+           {
+             desc = Use (B.constant expr Zero);
+             ty = expr.S.ty;
+             span = expr.S.span;
+           } ))
+      expr.S.span;
+    List.iter
+      (fun (field, value) ->
+        let assigned = lower_expr state value in
+        let target = { destination with projections = [ Field field ] } in
+        B.assign state target assigned)
+      fields;
+    B.copy expr.S.span expr.S.ty destination
+
+  and lower_slice state (expr : S.texpr) base lo hi =
+    let base = lower_expr state base |> B.materialize state in
+    let lo = lower_expr state lo in
+    let hi = lower_expr state hi in
+    let length = B.temp_value state (TInt Usize) expr.S.span (Len base) in
+    Mir_check.slice_bounds state lo hi length expr.S.span;
+    let id = B.add_local state Temp expr.S.ty expr.S.span in
+    let destination = B.local_place expr.S.span id in
+    B.emit state
+      (Assign
+         ( destination,
+           { desc = Slice (base, lo, hi); ty = expr.S.ty; span = expr.S.span }
+         ))
+      expr.S.span;
+    B.copy expr.S.span expr.S.ty destination
+
+  and lower_block_value state (expr : S.texpr) body =
+    match List.rev body with
+    | [] -> B.constant expr Undef
+    | last :: reversed ->
+        List.iter (lower_statement state) (List.rev reversed);
+        if B.is_live state then lower_expr state last else B.constant expr Undef
+
+  and base_binop = function
+    | Ast.AddAssign -> Some Ast.Add
+    | Ast.SubAssign -> Some Ast.Sub
+    | Ast.MulAssign -> Some Ast.Mul
+    | Ast.DivAssign -> Some Ast.Div
+    | Ast.ModAssign -> Some Ast.Mod
+    | Ast.BitAndAssign -> Some Ast.BitAnd
+    | Ast.BitOrAssign -> Some Ast.BitOr
+    | Ast.BitXorAssign -> Some Ast.BitXor
+    | Ast.LshiftAssign -> Some Ast.Lshift
+    | Ast.RshiftAssign -> Some Ast.Rshift
+    | _ -> None
+
+  and lower_compound_assign state (expr : S.texpr) op (left : S.texpr) right =
+    let target = lower_place state left in
+    let old = B.copy left.S.span left.S.ty target in
+    let right = lower_expr state right in
+    let op = Option.get (base_binop op) in
+    Mir_check.arith state op ~operand_ty:old.ty right expr.S.span;
+    let updated =
+      B.temp_value state left.S.ty expr.S.span (Binary (op, old, right))
+    in
+    B.assign state target updated;
+    updated
+
+  and lower_pair_assign state first_target second_target first_value
+      second_value =
+    let first_value = lower_expr state first_value |> B.save_operand state in
+    let second_value = lower_expr state second_value |> B.save_operand state in
+    let first_target = lower_place state first_target in
+    B.assign state first_target first_value;
+    let second_target = lower_place state second_target in
+    B.assign state second_target second_value
+
+  and lower_statement state (expr : S.texpr) =
+    if B.is_live state then
+      match expr.S.desc with
+      | S.TBinding (_, _, ty, init) when ty = TNever || init.S.ty = TNever ->
+          ignore (lower_expr state init)
+      | S.TBinding (Ast.Comptime, symbol, _, init) ->
+          Hashtbl.replace state.B.consts (Symbol.key symbol)
+            (B.eval_const state init)
+      | S.TBinding (_, symbol, ty, init) ->
+          let id =
+            B.add_local state ~name:symbol.Symbol.name User ty
+              symbol.Symbol.span
+          in
+          B.bind_symbol state symbol id;
+          let init = lower_expr state init in
+          if B.is_live state then
+            B.assign state (B.local_place expr.S.span id) init
+      | S.TReturn returned ->
+          let returned =
+            match returned with
+            | Some value -> Some (lower_expr state value)
+            | None when state.B.bare_return_zero ->
+                Some (B.const_operand expr.S.span (TInt I32) (Int 0L))
+            | None -> None
+          in
+          if B.is_live state then
+            B.terminate state (ReturnValue returned) expr.S.span
+      | S.TBreak _ ->
+          B.terminate state
+            (Jump (B.break_target state expr.S.span))
+            expr.S.span
+      | S.TContinue _ ->
+          B.terminate state
+            (Jump (B.continue_target state expr.S.span))
+            expr.S.span
+      | S.TWhile (_, condition, body) ->
+          Mir_control.lower_while state expr.S.span condition body
+      | S.TFor (_, symbol, elem_ty, iter, body) ->
+          Mir_control.lower_for state expr.S.span symbol elem_ty iter body
+      | S.TLoop (_, body) ->
+          let condition =
+            { S.desc = S.TBool true; ty = TBool; span = expr.S.span }
+          in
+          Mir_control.lower_while state expr.S.span condition body
+      | S.TPairAssign (first_target, second_target, first_value, second_value)
+        ->
+          lower_pair_assign state first_target second_target first_value
+            second_value
+      | S.TBlock body -> List.iter (lower_statement state) body
+      | _ ->
+          ignore (lower_expr state expr);
+          if expr.S.ty = TNever && B.is_live state then
+            B.terminate state Unreachable expr.S.span
+
+  let recur : B.recur = { B.expr = lower_expr; B.statement = lower_statement }
+end
+
+open Types
+open Mir
+module S = Typed_ast
+module B = Mir_builder
+
+let build_func const_context globals (func : S.tfunc_def) =
+  let state =
+    B.make ~const_context ~globals ~recur:Mir_expr.recur
+      ~bare_return_zero:(func.S.entry_point && func.S.ret_ty = TInt I32)
+  in
+  let params =
+    List.map
+      (fun ((symbol : Symbol.t), ty) ->
+        let id =
+          B.add_local state ~name:symbol.Symbol.name Param ty symbol.Symbol.span
+        in
+        B.bind_symbol state symbol id;
+        id)
+      func.S.params
+  in
+  List.iter (Mir_expr.lower_statement state) func.S.body;
+  let span =
+    match func.S.body with
+    | first :: _ -> first.S.span
+    | [] -> (
+        match func.S.params with
+        | (symbol, _) :: _ -> symbol.Symbol.span
+        | [] -> Ast.dummy_span)
+  in
+  if B.is_live state then
+    if func.S.entry_point && func.S.ret_ty = TInt I32 then
+      B.terminate state
+        (ReturnValue (Some (B.const_operand span (TInt I32) (Int 0L))))
+        span
+    else if func.S.ret_ty = TVoid then B.terminate state (ReturnValue None) span
+    else B.terminate state Unreachable span;
+  {
+    name = func.S.name;
+    params;
+    locals = B.finish_locals state;
+    blocks = B.finish state;
+    return_ty = func.S.ret_ty;
+    entry_point = func.S.entry_point;
+    span;
+  }
+
+let build declarations =
+  let const_context = Mir_const.make_context declarations in
+  let globals_by_id = Hashtbl.create 16 in
+  let structs_rev = ref [] in
+  let globals_rev = ref [] in
+  let functions_rev = ref [] in
+  List.iter
+    (function
+      | S.TStruct (name, fields, _) ->
+          structs_rev := { name; fields } :: !structs_rev
+      | S.TGlobal global when global.S.kind <> Ast.Comptime ->
+          Hashtbl.add globals_by_id global.S.key global.S.name;
+          globals_rev :=
+            {
+              name = global.S.name;
+              ty = global.S.ty;
+              init =
+                Option.map (Mir_const.global_init const_context) global.S.init;
+            }
+            :: !globals_rev
+      | S.TFunc func -> functions_rev := func :: !functions_rev
+      | _ -> ())
+    declarations;
+  let structs = List.rev !structs_rev in
+  let globals = List.rev !globals_rev in
+  let functions =
+    List.rev !functions_rev |> List.map (build_func const_context globals_by_id)
+  in
+  { structs; globals; functions }

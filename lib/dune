@@ -23,6 +23,10 @@
   typechecker
   typed_ast
   core
+  mir
+  mir_verify
+  mir_dump
+  mir_build
   const_eval
   const_fold
   lower
