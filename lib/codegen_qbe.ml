@@ -301,7 +301,8 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
           let slot = fresh ctx in
           emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx ret_ty);
           Some slot
-        end else None
+        end
+        else None
       in
       let arg_strs =
         List.rev
@@ -313,7 +314,7 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       (* The ... marker is how QBE knows to set the vararg register count *)
       let arg_strs =
         let fixed_count =
-          match result_addr, fixed_count with
+          match (result_addr, fixed_count) with
           | Some _, Some count -> Some (count + 1)
           | _, count -> count
         in
@@ -465,13 +466,12 @@ and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
       ""
   | T.CReturn (Some e) ->
       let v = emit_expr ctx e in
-      if not !(ctx.terminated) then
-        (match !(ctx.result_addr) with
-        | Some destination ->
-            emit_aggregate_copy ctx destination v
-              (ty_size ctx.structs e.T.ty);
-            emit ctx "    ret\n"
-        | None -> emit ctx "    ret %s\n" v);
+      (if not !(ctx.terminated) then
+         match !(ctx.result_addr) with
+         | Some destination ->
+             emit_aggregate_copy ctx destination v (ty_size ctx.structs e.T.ty);
+             emit ctx "    ret\n"
+         | None -> emit ctx "    ret %s\n" v);
       ctx.terminated := true;
       ""
   | T.CBreak (id, value) -> (
@@ -1177,8 +1177,8 @@ let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
   let params_strs =
     (match result_addr with Some addr -> [ "l " ^ addr ] | None -> [])
     @ List.map
-      (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
-      param_tmps
+        (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
+        param_tmps
   in
 
   let is_main = tfd.T.entry_point && tfd.T.ret_ty = TInt I32 in
