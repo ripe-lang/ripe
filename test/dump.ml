@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-module C = Ripe.Core
-
 let tok_str (t : Ripe.Tokens.token) =
   let open Ripe.Tokens in
   match t with
@@ -124,26 +122,6 @@ and dump_block (body : Ripe.Ast.block) : string =
         ^ " " ^ dump_block fd.body ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
-
-(* a compact core dump where the flat list is the whole point *)
-let rec dump_cstmt (e : C.cexpr) : string =
-  match e.C.desc with
-  | C.CBinding (_, s, _, _) -> "bind " ^ s.Ripe.Symbol.name
-  | C.CReturn _ -> "return"
-  | C.CBreak _ -> "break"
-  | C.CContinue _ -> "continue"
-  | C.CIf (branches, else_body) -> (
-      let arm (_, body) = "if " ^ dump_cstmts body in
-      String.concat " " (List.map arm branches)
-      ^ match else_body with Some b -> " else " ^ dump_cstmts b | None -> "")
-  | C.CLoop (_, body, []) -> "loop " ^ dump_cstmts body
-  | C.CLoop (_, body, step) ->
-      "loop " ^ dump_cstmts body ^ " step " ^ dump_cstmts step
-  | C.CBlock body -> "block " ^ dump_cstmts body
-  | _ -> "expr"
-
-and dump_cstmts (stmts : C.cblock) : string =
-  "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
 
 let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in
