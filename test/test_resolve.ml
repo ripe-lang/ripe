@@ -179,8 +179,7 @@ func main() i32 {
     export function w $main() {
     @start
         %_p =l alloc8 8
-        %t0 =l copy $g
-        storel %t0, %_p
+        storel $g, %_p
         ret 0
     }
     |}]
