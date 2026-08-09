@@ -1,0 +1,20 @@
+struct pair {
+  x: i32
+  y: i32
+}
+
+func make_pair(x: i32, y: i32) pair {
+  return pair { x: x, y: y }
+}
+
+func wrapper(x: i32, y: i32) pair {
+  return make_pair(x, y)
+}
+
+func sum_pair(left: pair, right: pair) i32 {
+  return left.x + left.y + right.x + right.y
+}
+
+func main() i32 {
+  return sum_pair(wrapper(1, 2), wrapper(3, 4))
+}
