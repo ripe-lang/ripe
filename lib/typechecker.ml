@@ -1199,7 +1199,6 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
             (Diagnostic.error_at e.span "cannot take address of a constant"
             |> Diagnostic.help "a const has no storage, use let")
       | _ ->
-          (* TODO(abe2): In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes *)
           if te.T.ty <> TError && not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
