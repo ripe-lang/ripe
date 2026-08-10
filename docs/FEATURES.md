@@ -244,18 +244,29 @@ func sum(xs: []i32) i32 {
 
 func main() i32 {
   var a: [3]i32 = [4, 5, 6]
-  return sum(a)
+  return sum(a[..])
 }
 ```
 
+An array won't turn into a slice on its own. You write the range so you can see
+what you're getting. `var b: [3]i32 = a` copies the whole thing while
+`var s: []i32 = a[..]` just points at it.
+
 ### Slicing
+
+Leave off the front and it starts at 0. Leave off the back and it runs to the
+end. The back is always exclusive unless you use `..=`.
 
 ```ripe
 func main() i32 {
-  var a: [4]i32 = [1, 2, 3, 4]
-  var s: []i32 = a[1..3]
-  var t: []i32 = a[1..=2]
-  return s[0] + t[1]
+  var a: [4]i32 = [10, 20, 30, 40]
+  var whole: []i32 = a[..]      // all 4
+  var to: []i32 = a[..2]        // 10 and 20
+  var upto: []i32 = a[..=2]     // 10, 20 and 30
+  var from: []i32 = a[2..]      // 30 and 40
+  var s: []i32 = a[1..3]        // 20 and 30
+  var t: []i32 = a[1..=2]       // 20 and 30, the 2 is included
+  return (whole.len + to.len + upto.len + from.len + s.len + t.len) as i32
 }
 ```
 
