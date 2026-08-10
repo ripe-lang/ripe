@@ -2,9 +2,6 @@
 
 (* Https://c9x.me/compile/doc/il.html *)
 open Types
-open Const_eval
-open Symbol
-module T = Core
 
 type qbe_base = W | L | S | D
 
@@ -31,15 +28,6 @@ let signedness (t : ty) : string =
   | TPointer _ | TOpaquePtr | TNull | TCStr | TChar -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
-let div_overflows_at_reg_width (t : ty) : bool =
-  match resolve_ty t with
-  | TInt (I32 | I64 | Isize) -> true
-  | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
-  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
-  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError ->
-      false
-
 (* This is the hard limit where libc call stops emitting one instruction per word *)
 let bulk_mem_threshold = 64
 
@@ -55,12 +43,6 @@ let float_lit (ty : ty) (f : float) : string =
         Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
-
-let format_const_num (ty : ty) (n : const_num) : string =
-  match n with
-  | Ni32 n -> Int32.to_string n
-  | Ni64 n -> Int64.to_string n
-  | Nf f -> float_lit ty f
 
 let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
   match ty_align structs t with
@@ -109,20 +91,14 @@ let qbe_store (t : ty) : string =
 type ctx = {
   structs : ty list Symbol.Table.t;
   struct_names : string Symbol.Table.t;
-  locals : (Symbol.id, string) Hashtbl.t;
+  panics : Panic_table.t;
   used_slots : (string, unit) Hashtbl.t;
   buf : Buffer.t ref;
   strings : (string * string) list ref;
-  str_headers : (string * string * int) list ref;
+  abi_types : (ty, string) Hashtbl.t;
+  next_abi_type : int ref;
   tmp : int ref;
   str_ctr : int ref;
-  (* A loop knows its continue and break labels and the temp a break fills *)
-  loops : (T.loop_id * (string * string * (string * string) option)) list ref;
-  terminated : bool ref;
-  entry : Buffer.t ref;
-  in_main : bool ref;
-  result_addr : string option ref;
-  panics : Panic_table.t;
 }
 
 (* Fresh temps use names like %t0 and %t1 *)
@@ -130,12 +106,6 @@ let fresh ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
   Printf.sprintf "%%t%d" n
-
-(* Labels get fresh ids but share the counter *)
-let fresh_id ctx =
-  let n = !(ctx.tmp) in
-  incr ctx.tmp;
-  n
 
 (* This is to handle collisions because t0 or t1 would collide with the temps *)
 let spelled_like_temp name =
@@ -145,35 +115,7 @@ let spelled_like_temp name =
        (function '0' .. '9' -> true | _ -> false)
        (String.sub name 1 (String.length name - 1))
 
-(* Keeps names readable in the generated IL and adds suffixes when needed *)
-let bind_local ctx (s : Symbol.t) : string =
-  let slot =
-    if Hashtbl.mem ctx.used_slots s.name || spelled_like_temp s.name then
-      Printf.sprintf "%s.%d" s.name s.id
-    else s.name
-  in
-  Hashtbl.replace ctx.used_slots slot ();
-  Hashtbl.replace ctx.locals s.id slot;
-  slot
-
-let local_slot ctx (id : Symbol.id) = Hashtbl.find_opt ctx.locals id
-
-let sym_addr ctx (s : Symbol.t) : string =
-  match s.kind with
-  | Symbol.Error ->
-      Diagnostic.ice ~span:s.span "error symbol reached code generation"
-  | Module -> Diagnostic.ice ~span:s.span "module reached code generation"
-  | Global -> "$" ^ s.link_name
-  | Func | LocalFunc | Extern | Type | LocalType | Local _ | Param | ForVar -> (
-      match local_slot ctx s.id with
-      | Some slot -> "%" ^ slot
-      | None -> "%" ^ s.name)
-
-let emit ctx fmt =
-  if !(ctx.terminated) then Printf.ifprintf !(ctx.buf) fmt
-  else Printf.bprintf !(ctx.buf) fmt
-
-let emit_entry ctx fmt = Printf.bprintf !(ctx.entry) fmt
+let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
 
 (* The data pointer sits at offset 0 in the fat pointer *)
 let load_slice_ptr ctx addr =
@@ -189,42 +131,17 @@ let load_slice_len ctx addr =
   emit ctx "    %s =l loadl %s\n" len lenp;
   len
 
-let load_slice_fields ctx addr =
-  let ptr = load_slice_ptr ctx addr in
-  let len = load_slice_len ctx addr in
-  (ptr, len)
-
 let intern_string ctx s =
   let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
   incr ctx.str_ctr;
   ctx.strings := (lbl, s) :: !(ctx.strings);
   lbl
 
-let panic_site (ctx : ctx) (span : Ast.span) : int =
-  Panic_table.record ctx.panics span
-
-(* An aggregate is its address here so the header's label is the whole value *)
-let intern_str ctx s =
-  let data = intern_string ctx s in
-  let lbl = Printf.sprintf "$strhdr.%d" !(ctx.str_ctr) in
-  incr ctx.str_ctr;
-  ctx.str_headers := (lbl, data, String.length s) :: !(ctx.str_headers);
-  lbl
-
-(* Start a new basic block and clear the terminated flag *)
-let emit_label ctx lbl =
-  ctx.terminated := false;
-  emit ctx "%s\n" lbl
-
-(* jmp/jnz end a block so anything emitted after until the next label is dropped *)
-let emit_jmp ctx lbl =
-  if not !(ctx.terminated) then emit ctx "    jmp %s\n" lbl;
-  ctx.terminated := true
+let emit_label ctx lbl = emit ctx "%s\n" lbl
+let emit_jmp ctx lbl = emit ctx "    jmp %s\n" lbl
 
 let emit_jnz ctx v then_lbl else_lbl =
-  if not !(ctx.terminated) then
-    emit ctx "    jnz %s, %s, %s\n" v then_lbl else_lbl;
-  ctx.terminated := true
+  emit ctx "    jnz %s, %s, %s\n" v then_lbl else_lbl
 
 let field_offset structs fields field_id =
   let rec go index off = function
@@ -251,280 +168,8 @@ let offset_addr ctx base off =
 let alloc_slot ctx t =
   Printf.sprintf "%s %d" (alloc_instr ctx.structs t) (ty_size ctx.structs t)
 
-let array_elem_ty ~span t =
-  match t with
-  | TArray (el, _) -> el
-  | _ -> Diagnostic.ice ~span "expected an array type"
-
-let rec emit_expr (ctx : ctx) (e : T.cexpr) : string =
-  let v = emit_expr_desc ctx e in
-  (* A `never` value ends the block and can't be used *)
-  if e.T.ty = TNever && not !(ctx.terminated) then (
-    emit ctx "    hlt\n";
-    ctx.terminated := true);
-  v
-
-and emit_expr_desc (ctx : ctx) (e : T.cexpr) : string =
-  let t = e.T.ty in
-  match e.T.desc with
-  | T.CInt n -> Int64.to_string n
-  | T.CFloat f -> float_lit t f
-  | T.CBool b -> if b then "1" else "0"
-  | T.CNull -> "0"
-  | T.CChar cp -> string_of_int cp
-  (* Aggregate: the slot itself is the value so yield its address *)
-  | T.CIdent s when is_aggregate t -> sym_addr ctx s
-  | T.CIdent s ->
-      if Symbol.is_func s.kind then "$" ^ s.link_name
-      else
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s %s %s\n" tmp (qbe_ty t) (qbe_load t)
-          (sym_addr ctx s);
-        tmp
-  | T.CCStr s -> intern_string ctx s
-  | T.CStr s -> intern_str ctx s
-  | T.CCall (_, args, _)
-    when List.exists (fun (a : T.cexpr) -> a.T.ty = TNever) args ->
-      (* The call is dead once a `never` argument diverges so only the args up to it get emitted *)
-      let rec emit_until = function
-        | [] -> ()
-        | (a : T.cexpr) :: rest ->
-            ignore (emit_expr ctx a);
-            if a.T.ty <> TNever then emit_until rest
-      in
-      emit_until args;
-      ""
-  | T.CCall (callee, args, fixed_count) ->
-      let ret_ty = t in
-      let result_addr =
-        if is_aggregate ret_ty then begin
-          let slot = fresh ctx in
-          emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx ret_ty);
-          Some slot
-        end
-        else None
-      in
-      let arg_strs =
-        List.rev
-          (List.rev_map
-             (fun (a : T.cexpr) ->
-               Printf.sprintf "%s %s" (qbe_ty a.T.ty) (emit_expr ctx a))
-             args)
-      in
-      (* The ... marker is how QBE knows to set the vararg register count *)
-      let arg_strs =
-        let fixed_count =
-          match (result_addr, fixed_count) with
-          | Some _, Some count -> Some (count + 1)
-          | _, count -> count
-        in
-        match fixed_count with
-        | Some n ->
-            let fixed = List.filteri (fun i _ -> i < n) arg_strs in
-            let rest = List.filteri (fun i _ -> i >= n) arg_strs in
-            fixed @ ("..." :: rest)
-        | None -> arg_strs
-      in
-      let arg_strs =
-        match result_addr with
-        | Some slot -> Printf.sprintf "l %s" slot :: arg_strs
-        | None -> arg_strs
-      in
-      (* A plain function name calls direct otherwise the callee holds a fn ptr *)
-      let callee =
-        match callee.T.desc with
-        | T.CIdent sym when Symbol.is_func sym.kind -> "$" ^ sym.link_name
-        | _ -> emit_expr ctx callee
-      in
-      if ret_ty = TVoid || ret_ty = TNever then (
-        emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
-        "")
-      else if is_aggregate ret_ty then begin
-        emit ctx "    call %s(%s)\n" callee (String.concat ", " arg_strs);
-        Option.get result_addr
-      end
-      else
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s call %s(%s)\n" tmp (qbe_ty ret_ty) callee
-          (String.concat ", " arg_strs);
-        tmp
-  | T.CBinOp (Ast.Assign, l, r) -> emit_assign ctx l r t
-  | T.CIf (branches, else_body) -> emit_if ctx branches else_body t
-  | T.CBinOp (op, l, r) -> emit_binop ctx op l r t
-  | T.CUnOp (op, operand) -> emit_unop ctx ~span:e.T.span op operand t
-  | T.CCast (e, kind) ->
-      let v = emit_expr ctx e in
-      emit_cast ctx ~span:e.T.span ~kind v e.T.ty t
-  | T.CSizeOf sz -> string_of_int (ty_size ctx.structs sz)
-  | T.CFieldAccess (e, field) ->
-      let ft = t in
-      let ptr = emit_field_addr ctx e field in
-      (* An aggregate field gives its address like TIndex below *)
-      if is_aggregate ft then ptr
-      else
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s %s %s\n" tmp (qbe_ty ft) (qbe_load ft) ptr;
-        tmp
-  | T.CIndex (base, idx) ->
-      let elem = t in
-      let addr = emit_index_addr ctx base idx elem in
-      (* The element is an aggregate so yield its address *)
-      if is_aggregate elem then addr
-      else
-        let tmp = fresh ctx in
-        emit ctx "    %s =%s %s %s\n" tmp (qbe_ty elem) (qbe_load elem) addr;
-        tmp
-  | T.CLen e -> (
-      match resolve_ty e.T.ty with
-      | TArray (_, n) -> string_of_int n
-      | TSlice _ | TStr ->
-          let addr = emit_expr ctx e in
-          load_slice_len ctx addr
-      | t ->
-          Diagnostic.ice ~span:e.T.span
-            (Printf.sprintf "TLen on non-array type: %s" (show_ty t)))
-  | T.CDataPtr e -> (
-      match resolve_ty e.T.ty with
-      | TSlice _ ->
-          let addr = emit_expr ctx e in
-          load_slice_ptr ctx addr
-      (* An array's base address is already the pointer to its first element *)
-      | TArray _ -> emit_expr ctx e
-      | t ->
-          Diagnostic.ice ~span:e.T.span
-            (Printf.sprintf "TDataPtr on non-array type: %s" (show_ty t)))
-  | T.CToSlice arr ->
-      let arr_addr = emit_expr ctx arr in
-      let n =
-        match resolve_ty arr.T.ty with
-        | TArray (_, n) -> n
-        | t ->
-            Diagnostic.ice ~span:arr.T.span
-              (Printf.sprintf "cannot coerce to slice: %s" (show_ty t))
-      in
-      (* Build a { ptr = &arr[0], len = n } fat pointer on the stack *)
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l alloc8 16\n" slot;
-      emit ctx "    storel %s, %s\n" arr_addr slot;
-      let lenp = fresh ctx in
-      emit ctx "    %s =l add %s, 8\n" lenp slot;
-      emit ctx "    storel %d, %s\n" n lenp;
-      slot
-  | T.CSliceExpr (base, lo, hi) -> emit_slice_expr ctx e.T.span base lo hi t
-  | T.CArrayLit elems ->
-      (* A fresh stack slot holds the materialized value so its address can be yielded *)
-      let elem = array_elem_ty ~span:e.T.span t in
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
-      emit_array_lit_into ctx slot elems elem;
-      slot
-  | T.CZero when is_aggregate t ->
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
-      emit_zero_into ctx slot t;
-      slot
-  | T.CZero -> "0"
-  | T.CUndef when is_aggregate t ->
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
-      slot
-  | T.CUndef -> "0"
-  | T.CStructLit (sname, tfields) ->
-      let slot = fresh ctx in
-      emit_entry ctx "    %s =l %s\n" slot (alloc_slot ctx t);
-      emit_struct_lit_into ctx slot sname tfields;
-      slot
-  | T.CBlock body -> emit_block_value ctx body
-  | T.CLoop (id, body, step) -> emit_loop ctx id body step t
-  | T.CBinding (_, _, t, e) when t = TNever || e.T.ty = TNever ->
-      ignore (emit_expr ctx e);
-      ""
-  | T.CBinding (_kind, s, t, e) ->
-      (* Stack slot sized by type (struct sizes resolved from context) *)
-      let slot = bind_local ctx s in
-      emit_entry ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
-      (match e.T.desc with
-      | T.CZero -> emit_zero_into ctx ("%" ^ slot) e.T.ty
-      | T.CUndef -> ()
-      | T.CArrayLit elems ->
-          let elem = array_elem_ty ~span:e.T.span e.T.ty in
-          emit_array_lit_into ctx ("%" ^ slot) elems elem
-      | T.CStructLit (sname, tfields) ->
-          emit_struct_lit_into ctx ("%" ^ slot) sname tfields
-      | _ when is_aggregate t ->
-          let src = emit_expr ctx e in
-          emit_aggregate_copy ctx ("%" ^ slot) src (ty_size ctx.structs t)
-      | _ ->
-          let v = emit_expr ctx e in
-          emit ctx "    %s %s, %%%s\n" (qbe_store t) v slot);
-      ""
-  | T.CReturn None ->
-      (* A bare return in main exits with 0 like falling off the end *)
-      if not !(ctx.terminated) then
-        if !(ctx.in_main) then emit ctx "    ret 0\n" else emit ctx "    ret\n";
-      ctx.terminated := true;
-      ""
-  | T.CReturn (Some e) ->
-      let v = emit_expr ctx e in
-      (if not !(ctx.terminated) then
-         match !(ctx.result_addr) with
-         | Some destination ->
-             emit_aggregate_copy ctx destination v (ty_size ctx.structs e.T.ty);
-             emit ctx "    ret\n"
-         | None -> emit ctx "    ret %s\n" v);
-      ctx.terminated := true;
-      ""
-  | T.CBreak (id, value) -> (
-      match List.assoc_opt id !(ctx.loops) with
-      | Some (_, brk, res) ->
-          emit_break_value ctx res value;
-          emit_jmp ctx brk;
-          ""
-      | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
-  | T.CContinue id -> (
-      match List.assoc_opt id !(ctx.loops) with
-      | Some (cont, _, _) ->
-          emit_jmp ctx cont;
-          ""
-      | None -> Diagnostic.ice ~span:e.T.span "loop target has no labels")
-
-and emit_unop ctx ~span op e t =
-  match op with
-  | Ast.Pos ->
-      Diagnostic.ice ~span:e.T.span "unary plus reached code generation"
-  (* Dereferencing a struct pointer just yields its address like any other aggregate lvalue *)
-  | Ast.Deref when is_aggregate t ->
-      let ptr = emit_expr ctx e in
-      emit_null_check ctx ~span ptr;
-      ptr
-  | Ast.Neg | Ast.Not | Ast.BitNot | Ast.Deref -> (
-      let ev = emit_expr ctx e in
-      let qt = qbe_ty t in
-      let tmp = fresh ctx in
-      (match op with
-      | Ast.Neg -> emit ctx "    %s =%s neg %s\n" tmp qt ev
-      | Ast.Not ->
-          (* Operand is always bool (w) after typechecking *)
-          emit ctx "    %s =w ceqw %s, 0\n" tmp ev
-      | Ast.BitNot -> emit ctx "    %s =%s xor %s, -1\n" tmp qt ev
-      | Ast.Deref ->
-          emit_null_check ctx ~span ev;
-          emit ctx "    %s =%s %s %s\n" tmp qt (qbe_load t) ev
-      | Ast.Pos | Ast.AddressOf ->
-          Diagnostic.ice ~span:e.T.span "unexpected unary operator");
-      match op with
-      | Ast.Neg | Ast.BitNot -> narrow_int_to ctx tmp t
-      | Ast.Not | Ast.Deref -> tmp
-      | Ast.Pos | Ast.AddressOf ->
-          Diagnostic.ice ~span:e.T.span "unexpected unary operator")
-  | Ast.AddressOf ->
-      let addr = emit_lvalue_addr ctx e in
-      let tmp = fresh ctx in
-      emit ctx "    %s =l copy %s\n" tmp addr;
-      tmp
-
 (* Pointer math is 64-bit so widen a word-sized value to a long *)
-and widen_to_l ctx v ty =
+let widen_to_l ctx v ty =
   if qbe_base ty = L then v
   else
     let t = fresh ctx in
@@ -532,166 +177,46 @@ and widen_to_l ctx v ty =
     emit ctx "    %s =l %s %s\n" t ins v;
     t
 
-(* Address of arr[idx]: storage + idx * stride(elem) *)
-and emit_slice_expr ctx (span : Ast.span) base lo hi t =
-  let elem =
-    match t with
-    | TSlice e -> e
-    | _ -> Diagnostic.ice ~span "slice expression on non-slice type"
-  in
-  let base_addr = emit_expr ctx base in
-  let storage, blen =
-    match resolve_ty base.T.ty with
-    | TArray (_, n) -> (base_addr, string_of_int n)
-    | TSlice _ -> load_slice_fields ctx base_addr
-    | t ->
-        Diagnostic.ice ~span:base.T.span
-          (Printf.sprintf "cannot slice: %s" (show_ty t))
-  in
-  let lo_l = widen_to_l ctx (emit_expr ctx lo) lo.T.ty in
-  let hi_l = widen_to_l ctx (emit_expr ctx hi) hi.T.ty in
-  emit_slice_bounds_check ctx ~span lo_l hi_l blen;
-  let off = fresh ctx in
-  emit ctx "    %s =l mul %s, %d\n" off lo_l (stride ctx.structs elem);
-  let ptr = fresh ctx in
-  emit ctx "    %s =l add %s, %s\n" ptr storage off;
-  let len = fresh ctx in
-  emit ctx "    %s =l sub %s, %s\n" len hi_l lo_l;
-  let slot = fresh ctx in
-  emit_entry ctx "    %s =l alloc8 16\n" slot;
-  emit ctx "    storel %s, %s\n" ptr slot;
-  let lenp = fresh ctx in
-  emit ctx "    %s =l add %s, 8\n" lenp slot;
-  emit ctx "    storel %s, %s\n" len lenp;
-  slot
-
-and emit_index_addr ctx base idx elem =
-  let base_addr = emit_expr ctx base in
-  let storage, len =
-    match resolve_ty base.T.ty with
-    | TArray (_, n) -> (base_addr, Some (string_of_int n))
-    | TSlice _ ->
-        let p, l = load_slice_fields ctx base_addr in
-        (p, Some l)
-    | _ -> (base_addr, None)
-  in
-  let iv = emit_expr ctx idx in
-  let iw = widen_to_l ctx iv idx.T.ty in
-  (match len with
-  | Some len -> emit_bounds_check ctx ~span:base.T.span iw len
-  | None -> ());
-  let off = fresh ctx in
-  emit ctx "    %s =l mul %s, %d\n" off iw (stride ctx.structs elem);
-  let addr = fresh ctx in
-  emit ctx "    %s =l add %s, %s\n" addr storage off;
-  addr
-
-(* Every runtime check jumps to a panic when cond is nonzero and otherwise falls into the ok block *)
-and emit_guard ctx ~tag ~span ~cond ~panic =
-  let id = fresh_id ctx in
-  let fail_lbl = Printf.sprintf "@%s.fail.%d" tag id in
-  let ok_lbl = Printf.sprintf "@%s.ok.%d" tag id in
-  emit_jnz ctx cond fail_lbl ok_lbl;
-  emit_label ctx fail_lbl;
-  panic (panic_site ctx span);
-  emit ctx "    hlt\n";
-  ctx.terminated := true;
-  emit_label ctx ok_lbl
-
-and emit_bounds_check ctx ~span idx len =
+let bounds_condition (ctx : ctx) (idx : string) (len : string) : string =
   let cond = fresh ctx in
   emit ctx "    %s =w cugel %s, %s\n" cond idx len;
-  emit_guard ctx ~tag:"bounds" ~span ~cond ~panic:(fun site ->
-      emit ctx "    call $ripe_panic_bounds(w %d, l %s, l %s)\n" site idx len)
+  cond
 
-and emit_slice_bounds_check ctx ~span lo hi len =
+let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
+    (len : string) : string =
   let hi_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
   emit ctx "    %s =w cugtl %s, %s\n" lo_bad lo hi;
   let bad = fresh ctx in
   emit ctx "    %s =w or %s, %s\n" bad hi_bad lo_bad;
-  emit_guard ctx ~tag:"slice" ~span ~cond:bad ~panic:(fun site ->
-      emit ctx "    call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n"
-        site lo hi len)
+  bad
 
-and emit_divzero_check ctx ~span divisor op_qt =
-  let zero = fresh ctx in
-  emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
-  emit_guard ctx ~tag:"divzero" ~span ~cond:zero ~panic:(fun site ->
-      emit ctx "    call $ripe_panic_divzero(w %d)\n" site)
-
-(* INT_MIN / -1 wraps to INT_MIN and INT_MIN % -1 is 0 so dodge the hardware divide when the divisor is -1 *)
-and emit_div_overflow_guard ctx ~instr ~qt ~op_qt ~dest lv rv =
-  let id = fresh_id ctx in
-  let neg1_lbl = Printf.sprintf "@div.neg1.%d" id in
-  let norm_lbl = Printf.sprintf "@div.norm.%d" id in
-  let join_lbl = Printf.sprintf "@div.join.%d" id in
-  let is_neg1 = fresh ctx in
-  emit ctx "    %s =w ceq%s %s, -1\n" is_neg1 op_qt rv;
-  emit_jnz ctx is_neg1 neg1_lbl norm_lbl;
-  emit_label ctx neg1_lbl;
-  let neg_res = fresh ctx in
-  if instr = "rem" then emit ctx "    %s =%s copy 0\n" neg_res qt
-  else emit ctx "    %s =%s sub 0, %s\n" neg_res qt lv;
-  emit_jmp ctx join_lbl;
-  emit_label ctx norm_lbl;
-  let norm_res = fresh ctx in
-  emit ctx "    %s =%s %s %s, %s\n" norm_res qt instr lv rv;
-  emit_jmp ctx join_lbl;
-  emit_label ctx join_lbl;
-  emit ctx "    %s =%s phi %s %s, %s %s\n" dest qt neg1_lbl neg_res norm_lbl
-    norm_res
-
-and emit_null_check ctx ~span ptr =
+let null_condition (ctx : ctx) (ptr : string) : string =
   let isnull = fresh ctx in
   emit ctx "    %s =w ceql %s, 0\n" isnull ptr;
-  emit_guard ctx ~tag:"null" ~span ~cond:isnull ~panic:(fun site ->
-      emit ctx "    call $ripe_panic_null(w %d)\n" site)
+  isnull
 
-and emit_negshift_check ctx ~span count count_qt =
+let div_zero_condition (ctx : ctx) (divisor : string) (op_qt : string) : string
+    =
+  let zero = fresh ctx in
+  emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
+  zero
+
+let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) :
+    string =
   let neg = fresh ctx in
   emit ctx "    %s =w cslt%s %s, 0\n" neg count_qt count;
-  emit_guard ctx ~tag:"negshift" ~span ~cond:neg ~panic:(fun site ->
-      emit ctx "    call $ripe_panic_shift(w %d)\n" site)
-
-(* &e on anything but a name reuses the address an assignment would compute *)
-and emit_lvalue_addr ctx (e : T.cexpr) =
-  match e.T.desc with
-  (* &funcname is already the function pointer. *)
-  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.link_name
-  | T.CIdent s -> sym_addr ctx s
-  | T.CIndex (base, idx) -> emit_index_addr ctx base idx e.T.ty
-  | T.CFieldAccess (base, field) -> emit_field_addr ctx base field
-  | T.CUnOp (Ast.Deref, inner) -> emit_expr ctx inner
-  | _ -> Diagnostic.ice ~span:e.T.span "expected an lvalue"
-
-(* Address of e.field: base address (or loaded pointer, if base is a pointer) + field offset *)
-and emit_field_addr ctx base field =
-  let addr = emit_expr ctx base in
-  (match resolve_ty base.T.ty with
-  | TPointer _ -> emit_null_check ctx ~span:base.T.span addr
-  | _ -> ());
-  let rec peel = function
-    | TStruct (n, _) -> n
-    | TAlias (_, inner) -> peel inner
-    | TPointer t -> peel t
-    | _ -> Diagnostic.ice ~span:base.T.span "field access on non-struct type"
-  in
-  let struct_name = peel base.T.ty in
-  let fields = Symbol.Table.find ctx.structs (Qname.key struct_name) in
-  let offset = field_offset ctx.structs fields field in
-  offset_addr ctx addr offset
+  neg
 
 (* Write a zero value of type t to dest *)
-and emit_zero_into ctx dest t =
+let emit_zero_into ctx dest t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ ->
       let size = ty_size ctx.structs t in
       if size > bulk_mem_threshold then
         emit ctx "    call $memset(l %s, w 0, l %d)\n" dest size
       else begin
-        (* Writing 8 bytes at a time only works if the address is a multiple of 8 *)
         let align = ty_align ctx.structs t in
         let off = ref 0 in
         let step w store =
@@ -708,178 +233,13 @@ and emit_zero_into ctx dest t =
   | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
 
 (* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
-and emit_aggregate_copy ctx dest src size =
+let emit_aggregate_copy ctx dest src size =
   if size > bulk_mem_threshold then
     emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
   else emit ctx "    blit %s, %s, %d\n" src dest size
 
-(* Each literal element is written to the allocated array at base *)
-and emit_array_lit_into ctx base elems elem =
-  let strd = stride ctx.structs elem in
-  List.iteri
-    (fun i el ->
-      let addr = offset_addr ctx base (i * strd) in
-      match el.T.desc with
-      (* Nested literal represent multidimensional arrays and are wrtiten recursively *)
-      | T.CArrayLit sub ->
-          let subelem = array_elem_ty ~span:el.T.span el.T.ty in
-          emit_array_lit_into ctx addr sub subelem
-      | _ when is_aggregate elem ->
-          (* Aggregate elements are copied in place *)
-          let src = emit_expr ctx el in
-          emit_aggregate_copy ctx addr src (ty_size ctx.structs elem)
-      | _ ->
-          let v = emit_expr ctx el in
-          emit ctx "    %s %s, %s\n" (qbe_store elem) v addr)
-    elems
-
-and emit_struct_lit_into ctx base (sname : Qname.t) tfields =
-  let fields = Symbol.Table.find ctx.structs (Qname.key sname) in
-  List.iter
-    (fun (field_id, (fe : T.cexpr)) ->
-      let ft = fe.T.ty in
-      let offset = field_offset ctx.structs fields field_id in
-      let addr = offset_addr ctx base offset in
-      match fe.T.desc with
-      | T.CStructLit (sub, subfields) ->
-          emit_struct_lit_into ctx addr sub subfields
-      | T.CArrayLit sub ->
-          let subelem = array_elem_ty ~span:fe.T.span ft in
-          emit_array_lit_into ctx addr sub subelem
-      | T.CZero -> emit_zero_into ctx addr ft
-      | T.CUndef -> ()
-      | _ when is_aggregate ft ->
-          let src = emit_expr ctx fe in
-          emit_aggregate_copy ctx addr src (ty_size ctx.structs ft)
-      | _ ->
-          let v = emit_expr ctx fe in
-          emit ctx "    %s %s, %s\n" (qbe_store ft) v addr)
-    tfields
-
-(* Split from emit_binop so the lhs is not re-evaluated into dead loads *)
-and emit_assign ctx l r _t =
-  match l.T.desc with
-  | T.CIndex (base, idx) ->
-      let elem = l.T.ty in
-      let addr = emit_index_addr ctx base idx elem in
-      emit_store_into ctx elem addr r
-  | T.CIdent s -> emit_store_into ctx l.T.ty (sym_addr ctx s) r
-  | T.CFieldAccess (base, field) ->
-      let addr = emit_field_addr ctx base field in
-      emit_store_into ctx l.T.ty addr r
-  | T.CUnOp (Ast.Deref, inner) ->
-      let addr = emit_expr ctx inner in
-      emit_null_check ctx ~span:l.T.span addr;
-      emit_store_into ctx l.T.ty addr r
-  | _ -> emit_expr ctx r
-
-(* The caller already worked out the address so every lvalue shape can share this store. *)
-and emit_store_into ctx ty addr r =
-  if is_aggregate ty then begin
-    (match (r.T.desc, ty) with
-    | T.CArrayLit elems, TArray (elem, _) ->
-        emit_array_lit_into ctx addr elems elem
-    | T.CStructLit (sname, tfields), _ ->
-        emit_struct_lit_into ctx addr sname tfields
-    | _ ->
-        let src = emit_expr ctx r in
-        emit_aggregate_copy ctx addr src (ty_size ctx.structs ty));
-    addr
-  end
-  else
-    let rv = emit_expr ctx r in
-    emit ctx "    %s %s, %s\n" (qbe_store ty) rv addr;
-    rv
-
-(* A condition that's itself a branch just jumps to its arms directly *)
-and emit_branch ctx e true_lbl false_lbl =
-  match e.T.desc with
-  | T.CBool b -> emit_jmp ctx (if b then true_lbl else false_lbl)
-  (* A short-circuit and/or lowers to a single-arm if so branch through it directly *)
-  | T.CIf ([ (c, then_body) ], Some else_body) ->
-      let id = fresh_id ctx in
-      let then_lbl = Printf.sprintf "@sel.then%d" id in
-      let else_lbl = Printf.sprintf "@sel.else%d" id in
-      emit_branch ctx c then_lbl else_lbl;
-      emit_label ctx then_lbl;
-      emit_branch_block ctx then_body true_lbl false_lbl;
-      emit_label ctx else_lbl;
-      emit_branch_block ctx else_body true_lbl false_lbl
-  | T.CUnOp (Ast.Not, inner) -> emit_branch ctx inner false_lbl true_lbl
-  | _ ->
-      let v = emit_expr ctx e in
-      emit_jnz ctx v true_lbl false_lbl
-
-and emit_branch_block ctx (body : T.cblock) true_lbl false_lbl =
-  match List.rev body with
-  | last :: rev_init ->
-      List.iter (fun e -> ignore (emit_expr ctx e)) (List.rev rev_init);
-      emit_branch ctx last true_lbl false_lbl
-  | [] -> emit_jmp ctx true_lbl
-
-(* Only the taken arm runs and a value comes back unless the if is void *)
-and emit_if ctx (branches : (T.cexpr * T.cblock) list)
-    (else_body : T.cblock option) ty =
-  let id = fresh_id ctx in
-  let n = List.length branches in
-  let cond_lbls = List.init n (fun i -> Printf.sprintf "@if.cond%d_%d" id i) in
-  let then_lbls = List.init n (fun i -> Printf.sprintf "@if.then%d_%d" id i) in
-  let else_lbl = Printf.sprintf "@if.else%d" id in
-  let end_lbl = Printf.sprintf "@if.end%d" id in
-  let never = ty = TNever in
-  let is_value = (not never) && ty <> TVoid in
-  let res = if is_value then fresh ctx else "" in
-  let qt = if is_value then qbe_ty ty else "" in
-  let emit_arm lbl body =
-    emit_label ctx lbl;
-    if is_value then (
-      let v = emit_block_value ctx body in
-      (* A never arm already terminated so only a live arm copies out and joins *)
-      if not !(ctx.terminated) then (
-        emit ctx "    %s =%s copy %s\n" res qt v;
-        emit_jmp ctx end_lbl))
-    else (
-      emit_block ctx body;
-      emit_jmp ctx end_lbl)
-  in
-  (match branches with
-  | [] -> ( match else_body with Some b -> emit_block ctx b | None -> ())
-  | _ -> (
-      List.iteri
-        (fun i (cond, body) ->
-          let next_lbl =
-            if i + 1 < n then List.nth cond_lbls (i + 1) else else_lbl
-          in
-          emit_label ctx (List.nth cond_lbls i);
-          emit_branch ctx cond (List.nth then_lbls i) next_lbl;
-          emit_arm (List.nth then_lbls i) body)
-        branches;
-      match else_body with
-      | Some b -> emit_arm else_lbl b
-      | None ->
-          emit_label ctx else_lbl;
-          emit_jmp ctx end_lbl));
-  emit_label ctx end_lbl;
-  (* Every arm diverged so the join is unreachable but still needs a terminator *)
-  if never then (
-    emit ctx "    hlt\n";
-    ctx.terminated := true);
-  res
-
-(* TODO(2cc1): the local arithmetic always emits instructions instead of folding through fold_const_num *)
-and emit_binop ctx op l r t =
-  let lv = emit_expr ctx l in
-  let rv = emit_expr ctx r in
-  let lty = l.T.ty in
-  match op with
-  | Ast.Lshift | Ast.Rshift ->
-      let const_count = match r.T.desc with T.CInt n -> Some n | _ -> None in
-      emit_shift ctx ~span:l.T.span op ?const_count ~ty:t ~count_ty:r.T.ty
-        ~unsigned:(is_unsigned lty) lv rv
-  | _ ->
-      emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span:l.T.span lv rv
-
-and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
+let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
+    ~count_ty lv rv =
   let qt = qbe_ty t in
   let op_qt = qbe_ty lty in
   let sign = signedness lty in
@@ -887,92 +247,46 @@ and emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~span lv rv =
 
   let tmp = fresh ctx in
   (match op with
-  | Ast.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
-  | Ast.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
-  | Ast.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
-  | Ast.Div ->
-      if is_float lty then emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
-      else begin
-        emit_divzero_check ctx ~span rv op_qt;
-        if unsigned then emit ctx "    %s =%s udiv %s, %s\n" tmp qt lv rv
-        else if div_overflows_at_reg_width lty then
-          emit_div_overflow_guard ctx ~instr:"div" ~qt ~op_qt ~dest:tmp lv rv
-        else emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
-      end
-  | Ast.Mod ->
-      emit_divzero_check ctx ~span rv op_qt;
+  | Mir.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
+  | Mir.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
+  | Mir.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
+  | Mir.Div ->
+      if unsigned then emit ctx "    %s =%s udiv %s, %s\n" tmp qt lv rv
+      else emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
+  | Mir.Mod ->
       if unsigned then emit ctx "    %s =%s urem %s, %s\n" tmp qt lv rv
-      else if div_overflows_at_reg_width lty then
-        emit_div_overflow_guard ctx ~instr:"rem" ~qt ~op_qt ~dest:tmp lv rv
       else emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
   (* Floats: ceqs, ceqd / ints: ceqw, ceql *)
-  | Ast.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
-  | Ast.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
+  | Mir.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
+  | Mir.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
   (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
-  | Ast.Lt ->
+  | Mir.Lt ->
       if is_float lty then emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Gt ->
+  | Mir.Gt ->
       if is_float lty then emit ctx "    %s =w cgt%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Lte ->
+  | Mir.Lte ->
       if is_float lty then emit ctx "    %s =w cle%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.Gte ->
+  | Mir.Gte ->
       if is_float lty then emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
       else emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
-  | Ast.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
-  | Ast.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
-  | Ast.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
-  | _ -> Diagnostic.ice ~span "unexpected binary operator");
-  match op with
-  | Ast.Add | Ast.Sub | Ast.Mul | Ast.Div -> narrow_int_to ctx tmp t
-  | _ -> tmp
-
-(* An oversized count has to clear every bit and qbe only masks it like x86 *)
-and emit_shift ctx ~span op ?const_count ~ty ~count_ty ~unsigned lv rv =
-  let qt = qbe_ty ty in
-  let bits = match qbe_base ty with L -> 64 | _ -> 32 in
-  match (op, const_count) with
-  | Ast.Rshift, Some n when (not unsigned) && Int64.compare n 0L >= 0 ->
-      let in_range = Int64.compare n (Int64.of_int bits) < 0 in
-      let count = if in_range then n else Int64.of_int (bits - 1) in
-      let res = fresh ctx in
-      emit ctx "    %s =%s sar %s, %Ld\n" res qt lv count;
-      res
-  | _ -> (
-      let known_nonneg =
-        match const_count with
-        | Some n -> Int64.compare n 0L >= 0
-        | None -> is_unsigned count_ty
+  | Mir.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
+  | Mir.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
+  | Mir.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
+  | Mir.Lshift | Mir.Rshift ->
+      let instr =
+        match op with
+        | Mir.Lshift -> "shl"
+        | _ -> if unsigned then "shr" else "sar"
       in
-      if not known_nonneg then
-        emit_negshift_check ctx ~span rv (qbe_ty count_ty);
-      (* The range check runs in the count width so a huge count is caught before the truncation *)
-      let in_range = fresh ctx in
-      emit ctx "    %s =w cult%s %s, %d\n" in_range (qbe_ty count_ty) rv bits;
-      let count = word_count ctx count_ty rv in
-      match op with
-      | Ast.Rshift when not unsigned ->
-          (* An out of range count is forced to all ones so sar keeps filling with the sign bit *)
-          let spill = fresh ctx in
-          emit ctx "    %s =w sub %s, 1\n" spill in_range;
-          let capped = fresh ctx in
-          emit ctx "    %s =w or %s, %s\n" capped count spill;
-          let res = fresh ctx in
-          emit ctx "    %s =%s sar %s, %s\n" res qt lv capped;
-          res
-      | Ast.Lshift | Ast.Rshift ->
-          let is_lshift = op = Ast.Lshift in
-          let instr = if is_lshift then "shl" else "shr" in
-          let raw = fresh ctx in
-          emit ctx "    %s =%s %s %s, %s\n" raw qt instr lv count;
-          (* An out of range count makes the mask all zeros so the result drops to 0 *)
-          let res = fresh ctx in
-          emit ctx "    %s =%s and %s, %s\n" res qt raw
-            (shift_mask ctx ty in_range);
-          if is_lshift then narrow_int_to ctx res ty else res
-      | _ -> Diagnostic.ice "emit_shift on non-shift op")
+      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv
+        (word_count ctx count_ty rv));
+  match op with
+  | Mir.Add | Mir.Sub | Mir.Mul | Mir.Div | Mir.Lshift ->
+      narrow_int_to ctx tmp t
+  | _ -> tmp
 
 (* The shift wants a word count so a long one drops to its low word *)
 and word_count ctx count_ty rv =
@@ -982,17 +296,6 @@ and word_count ctx count_ty rv =
       emit ctx "    %s =w copy %s\n" w rv;
       w
   | _ -> rv
-
-(* The in range flag spreads across the whole type so 1 becomes all ones and 0 becomes all zeros *)
-and shift_mask ctx ty flag =
-  let neg = fresh ctx in
-  emit ctx "    %s =w sub 0, %s\n" neg flag;
-  match qbe_base ty with
-  | L ->
-      let wide = fresh ctx in
-      emit ctx "    %s =l extsw %s\n" wide neg;
-      wide
-  | _ -> neg
 
 (* The extend that masks a narrow integer target back down to its width *)
 and narrow_int_instr t =
@@ -1012,61 +315,52 @@ and narrow_int_to ctx v target_ty =
       emit ctx "    %s =w %s %s\n" tmp instr v;
       tmp
 
-and emit_checked_cast_guard ctx ~span v src_ty target_ty =
-  let src_k = int_kind_of src_ty in
+and cast_range_condition ctx v src_ty target_ty =
   let tgt_k = int_kind_of target_ty in
-  if cast_int_needs_check src_k tgt_k then begin
-    (* The value moves up to 64 bits so both bounds fit and the compare sees its true value *)
-    let v64 =
-      if qbe_base src_ty = W then begin
-        let t = fresh ctx in
-        let ext = if is_unsigned src_ty then "extuw" else "extsw" in
-        emit ctx "    %s =l %s %s\n" t ext v;
-        t
-      end
-      else v
-    in
-    let target_is_u64 =
-      match tgt_k with
-      | U64 | Usize -> true
-      | I8 | I16 | I32 | I64 | Isize | U8 | U16 | U32 -> false
-    in
-    (* An unsigned source is never below zero so it can only overflow the top *)
-    let underflow =
-      if is_unsigned src_ty then None
-      else begin
-        let t = fresh ctx in
-        emit ctx "    %s =w csltl %s, %Ld\n" t v64
-          (Int64.neg (int_kind_neg_limit tgt_k));
-        Some t
-      end
-    in
-    (* Nothing at 64 bits overflows a u64 so that top bound never trips *)
-    let overflow =
-      if target_is_u64 then None
-      else begin
-        let cmp = if is_unsigned src_ty then "cugtl" else "csgtl" in
-        let t = fresh ctx in
-        emit ctx "    %s =w %s %s, %Ld\n" t cmp v64 (int_kind_pos_limit tgt_k);
-        Some t
-      end
-    in
-    let bad =
-      match (underflow, overflow) with
-      | Some a, Some b ->
-          let t = fresh ctx in
-          emit ctx "    %s =w or %s, %s\n" t a b;
-          t
-      | Some x, None | None, Some x -> x
-      | None, None -> Diagnostic.ice "checked cast with no possible loss"
-    in
-    emit_guard ctx ~tag:"cast" ~span ~cond:bad ~panic:(fun site ->
-        emit ctx "    call $ripe_panic_cast(w %d)\n" site)
-  end
+  (* The value moves up to 64 bits so both bounds fit and the compare sees its true value *)
+  let v64 =
+    if qbe_base src_ty = W then begin
+      let t = fresh ctx in
+      let ext = if is_unsigned src_ty then "extuw" else "extsw" in
+      emit ctx "    %s =l %s %s\n" t ext v;
+      t
+    end
+    else v
+  in
+  let target_is_u64 =
+    match tgt_k with
+    | U64 | Usize -> true
+    | I8 | I16 | I32 | I64 | Isize | U8 | U16 | U32 -> false
+  in
+  (* An unsigned source is never below zero so it can only overflow the top *)
+  let underflow =
+    if is_unsigned src_ty then None
+    else begin
+      let t = fresh ctx in
+      emit ctx "    %s =w csltl %s, %Ld\n" t v64
+        (Int64.neg (int_kind_neg_limit tgt_k));
+      Some t
+    end
+  in
+  (* Nothing at 64 bits overflows a u64 so that top bound never trips *)
+  let overflow =
+    if target_is_u64 then None
+    else begin
+      let cmp = if is_unsigned src_ty then "cugtl" else "csgtl" in
+      let t = fresh ctx in
+      emit ctx "    %s =w %s %s, %Ld\n" t cmp v64 (int_kind_pos_limit tgt_k);
+      Some t
+    end
+  in
+  match (underflow, overflow) with
+  | Some a, Some b ->
+      let t = fresh ctx in
+      emit ctx "    %s =w or %s, %s\n" t a b;
+      t
+  | Some x, None | None, Some x -> x
+  | None, None -> Diagnostic.ice "checked cast with no possible loss"
 
-and emit_cast ctx ~span ~(kind : Ast.cast_kind) v src_ty target_ty =
-  if kind = Ast.Checked then
-    emit_checked_cast_guard ctx ~span v src_ty target_ty;
+and emit_cast ctx v src_ty target_ty =
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
   (* The extend already truncates so the copy would be redundant *)
@@ -1112,127 +406,6 @@ and emit_cast ctx ~span ~(kind : Ast.cast_kind) v src_ty target_ty =
           emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-and emit_loop ctx loop_id body step ty =
-  let id = fresh_id ctx in
-  let body_lbl = Printf.sprintf "@loop.body%d" id in
-  let step_lbl = Printf.sprintf "@loop.step%d" id in
-  let end_lbl = Printf.sprintf "@loop.end%d" id in
-  (* Only a break reaches the end so the temp is always written before it's read *)
-  let res =
-    if ty = TNever || ty = TVoid then None else Some (fresh ctx, qbe_ty ty)
-  in
-  emit_label ctx body_lbl;
-  ctx.loops := (loop_id, (step_lbl, end_lbl, res)) :: !(ctx.loops);
-  emit_block ctx body;
-  emit_label ctx step_lbl;
-  emit_block ctx step;
-  (ctx.loops :=
-     match !(ctx.loops) with _ :: loops -> loops | [] -> assert false);
-  emit_jmp ctx body_lbl;
-  emit_label ctx end_lbl;
-  match res with Some (slot, _) -> slot | None -> ""
-
-and emit_break_value ctx res value =
-  match (value, res) with
-  | None, _ -> ()
-  | Some ve, None -> ignore (emit_expr ctx ve)
-  | Some ve, Some (slot, qt) ->
-      let v = emit_expr ctx ve in
-      emit ctx "    %s =%s copy %s\n" slot qt v
-
-(* A block in statement position runs each element only for its effect *)
-and emit_block ctx (body : T.cblock) : unit =
-  List.iter (fun e -> ignore (emit_expr ctx e)) body
-
-(* A block in value position yields its last element and is void when empty *)
-and emit_block_value ctx (body : T.cblock) : string =
-  let rec go = function
-    | [] -> ""
-    | [ last ] -> emit_expr ctx last
-    | e :: rest ->
-        ignore (emit_expr ctx e);
-        go rest
-  in
-  go body
-
-let emit_func (ctx : ctx) (tfd : T.cfunc_def) =
-  (* Temporaries and locals are function scoped *)
-  Panic_table.enter_func ctx.panics tfd.T.source_name;
-  ctx.tmp := 0;
-  Hashtbl.clear ctx.locals;
-  Hashtbl.clear ctx.used_slots;
-
-  (* Params use temp names first so they can spill to stack slots *)
-  let param_tmps =
-    List.map
-      (fun (s, t) ->
-        let tmp = fresh ctx in
-        (s, t, tmp))
-      tfd.T.params
-  in
-  let result_addr =
-    if is_aggregate tfd.T.ret_ty then Some (fresh ctx) else None
-  in
-  ctx.result_addr := result_addr;
-  let params_strs =
-    (match result_addr with Some addr -> [ "l " ^ addr ] | None -> [])
-    @ List.map
-        (fun (_, t, tmp) -> Printf.sprintf "%s %s" (qbe_ty t) tmp)
-        param_tmps
-  in
-
-  let is_main = tfd.T.entry_point && tfd.T.ret_ty = TInt I32 in
-  ctx.in_main := is_main;
-  let export_part =
-    if is_main || List.mem Ast.Pub tfd.T.modifiers then "export " else ""
-  in
-  let ret_part =
-    match tfd.T.ret_ty with
-    | TVoid | TNever -> ""
-    | t when is_aggregate t -> ""
-    | TInt _ | TFloat _ | TBool | TChar | TCStr | TStr | TNull | TPointer _
-    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-    | TAlias _ | TError ->
-        qbe_ty tfd.T.ret_ty ^ " "
-  in
-  (* The previous function ended terminated so clear it before this header *)
-  ctx.terminated := false;
-  emit ctx "%sfunction %s$%s(%s) {\n" export_part ret_part tfd.T.name
-    (String.concat ", " params_strs);
-  emit_label ctx "@start";
-
-  (* Divert the body so hoisted @start allocs land ahead of it *)
-  let out = !(ctx.buf) in
-  let body = Buffer.create 256 in
-  ctx.buf := body;
-  ctx.entry := Buffer.create 64;
-
-  (* Params go in stack slots so they can be reassigned *)
-  List.iter
-    (fun (s, t, tmp) ->
-      let slot = bind_local ctx s in
-      emit ctx "    %%%s =l %s\n" slot (alloc_slot ctx t);
-      (* Aggregates arrive as a pointer so copy the value into the local slot *)
-      if is_aggregate t then
-        emit_aggregate_copy ctx ("%" ^ slot) tmp (ty_size ctx.structs t)
-      else emit ctx "    %s %s, %%%s\n" (qbe_store t) tmp slot)
-    param_tmps;
-
-  emit_block ctx tfd.T.body;
-
-  ctx.buf := out;
-  Buffer.add_buffer out !(ctx.entry);
-  Buffer.add_buffer out body;
-
-  (* Close the final block if control can still fall off the end *)
-  if not !(ctx.terminated) then
-    if is_main then emit ctx "    ret 0\n"
-    else if tfd.T.ret_ty = TVoid then emit ctx "    ret\n"
-      (* Unreachable but QBE needs every block terminated *)
-    else emit ctx "    hlt\n";
-  ctx.terminated := false;
-  emit ctx "}\n\n"
-
 let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
   Symbol.Table.find ctx.struct_names (Qname.key name)
 
@@ -1254,7 +427,7 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
       let rec flatten t reps =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)
-        | TSlice _ | TStr -> ("l", reps * 2)
+        | TSlice _ -> ("l", reps * 2)
         | base -> (qbe_ext_ty struct_name base, reps)
       in
       let unit_ty, reps = flatten e n in
@@ -1271,68 +444,7 @@ let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
   emit ctx "type :%s = { %s }\n" (qbe_struct_name ctx name)
     (String.concat ", " field_strs)
 
-(* The typechecker already folded everything so this only formats values *)
-let fold_const_value (ctx : ctx) (te : T.cexpr) : string =
-  match te.T.desc with
-  | T.CInt n -> Int64.to_string n
-  | T.CBool b -> if b then "1" else "0"
-  | T.CNull -> "0"
-  | T.CFloat f -> format_const_num te.T.ty (Nf f)
-  | T.CIdent s when Symbol.is_func s.kind -> "$" ^ s.link_name
-  | T.CCStr s -> intern_string ctx s
-  | T.CUnOp (Ast.AddressOf, { T.desc = T.CIdent s; _ })
-    when Symbol.is_global s.kind ->
-      "$" ^ s.link_name
-  | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ])
-
-(* QBE data for a constant array looks like "w 1, w 2, w 3" *)
-let rec const_array_fields (ctx : ctx) (te : T.cexpr) : string =
-  match te.T.desc with
-  | T.CArrayLit elems ->
-      String.concat ", " (List.map (const_array_fields ctx) elems)
-  | T.CStructLit (_, tfields) ->
-      let off = ref 0 in
-      let parts = ref [] in
-      List.iter
-        (fun (_, (fe : T.cexpr)) ->
-          let ft = fe.T.ty in
-          let aligned = align_to !off (ty_align ctx.structs ft) in
-          if aligned > !off then
-            parts := Printf.sprintf "z %d" (aligned - !off) :: !parts;
-          (match fe.T.desc with
-          | T.CZero ->
-              parts := Printf.sprintf "z %d" (ty_size ctx.structs ft) :: !parts
-          | _ -> parts := const_array_fields ctx fe :: !parts);
-          off := aligned + ty_size ctx.structs ft)
-        tfields;
-      let total = ty_size ctx.structs te.T.ty in
-      if total > !off then
-        parts := Printf.sprintf "z %d" (total - !off) :: !parts;
-      String.concat ", " (List.rev !parts)
-  | _ ->
-      Printf.sprintf "%s %s"
-        (qbe_ext_ty (qbe_struct_name ctx) te.T.ty)
-        (fold_const_value ctx te)
-
-let emit_global_data (ctx : ctx) (gd : T.cglobal_def) =
-  let align = ty_align ctx.structs gd.T.ty in
-  let ex = if List.mem Ast.Pub gd.T.modifiers then "export " else "" in
-  match gd.T.init with
-  | None ->
-      let size = ty_size ctx.structs gd.T.ty in
-      emit ctx "%sdata $%s = align %d { z %d }\n" ex gd.T.name align size
-  | Some te -> (
-      match resolve_ty gd.T.ty with
-      | TArray _ | TStruct _ ->
-          emit ctx "%sdata $%s = align %d { %s }\n" ex gd.T.name align
-            (const_array_fields ctx te)
-      | _ ->
-          let letter = qbe_ext_ty (qbe_struct_name ctx) gd.T.ty in
-          let value = fold_const_value ctx te in
-          emit ctx "%sdata $%s = align %d { %s %s }\n" ex gd.T.name align letter
-            value)
-
-let escape_data_string (content : string) : string =
+let escape_data_string content =
   let buf = Buffer.create (String.length content) in
   String.iter
     (fun c ->
@@ -1348,114 +460,536 @@ let escape_data_string (content : string) : string =
 let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
   emit ctx "data %s = { b \"%s\", b 0 }\n" lbl (escape_data_string content)
 
-(* A program with no checks emits neither table and the runtime declares both weak so it still links *)
-let emit_panic_tables (ctx : ctx) =
-  match Panic_table.sites ctx.panics with
-  | [] -> ()
-  | sites ->
-      let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
-      let entry (s : Panic_table.site) =
-        Printf.sprintf "w %d, w %d, w %d, w %d" s.Panic_table.file
-          s.Panic_table.line s.Panic_table.col s.Panic_table.func
-      in
-      emit ctx "export data $ripe_panic_strtab = { %s }\n"
-        (String.concat ", " (List.map chunk (Panic_table.strings ctx.panics)));
-      emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
-        (String.concat ", " (List.map entry sites))
+let emit_string_into ctx destination content =
+  let label = intern_string ctx content in
+  emit ctx "    storel %s, %s\n" label destination;
+  emit ctx "    storel %d, %s\n" (String.length content)
+    (offset_addr ctx destination 8)
 
-let emit_qbe ~(source_of : int -> string * Source_map.t) (tdecls : T.cdecl list)
-    : string =
-  (* Collect struct layouts for offset comp *)
+type mir_ctx = {
+  qbe : ctx;
+  func : Mir.func;
+  slots : string array;
+  global_types : (string, ty) Hashtbl.t;
+}
+
+let mir_base_ty mctx (base : Mir.place_base) =
+  match base with
+  | Mir.Local id -> mctx.func.Mir.locals.(id).Mir.ty
+  | Mir.Global name -> Hashtbl.find mctx.global_types name
+
+let rec emit_mir_operand mctx (operand : Mir.operand) =
+  match operand.Mir.desc with
+  | Mir.Const constant -> emit_mir_constant mctx.qbe operand.Mir.ty constant
+  | Mir.Copy place ->
+      let addr, ty = emit_mir_place mctx place in
+      if is_aggregate ty then addr
+      else
+        let value = fresh mctx.qbe in
+        emit mctx.qbe "    %s =%s %s %s\n" value (qbe_ty ty) (qbe_load ty) addr;
+        value
+
+and emit_mir_constant ctx ty = function
+  | Mir.Int value -> Int64.to_string value
+  | Mir.Float value -> float_lit ty value
+  | Mir.Bool value -> if value then "1" else "0"
+  | Mir.Null | Mir.Zero | Mir.Undef -> "0"
+  | Mir.CStr value -> intern_string ctx value
+  | Mir.Char value -> string_of_int value
+  | Mir.Function name -> "$" ^ name
+  | Mir.Str _ -> Diagnostic.ice "str constant requires a destination"
+
+and emit_mir_place mctx (place : Mir.place) =
+  let ctx = mctx.qbe in
+  let addr =
+    match place.Mir.base with
+    | Mir.Local id -> mctx.slots.(id)
+    | Mir.Global name -> "$" ^ name
+  in
+  let rec project addr ty = function
+    | [] -> (addr, ty)
+    | Mir.Deref :: rest ->
+        let pointer = fresh ctx in
+        emit ctx "    %s =l loadl %s\n" pointer addr;
+        let inner =
+          match resolve_ty ty with
+          | TPointer inner -> inner
+          | _ -> Diagnostic.ice "MIR deref on non pointer"
+        in
+        project pointer inner rest
+    | Mir.Field field :: rest ->
+        let struct_name =
+          match resolve_ty ty with
+          | TStruct (name, _) -> name
+          | _ -> Diagnostic.ice "MIR field on non struct"
+        in
+        let fields = Symbol.Table.find ctx.structs (Qname.key struct_name) in
+        let field_ty = List.nth fields field in
+        let addr =
+          offset_addr ctx addr (field_offset ctx.structs fields field)
+        in
+        project addr field_ty rest
+    | Mir.Index index_operand :: rest ->
+        let element =
+          match resolve_ty ty with
+          | TArray (element, _) | TSlice element | TPointer element -> element
+          | _ -> Diagnostic.ice "MIR index on non indexed place"
+        in
+        let storage =
+          match resolve_ty ty with
+          | TArray _ -> addr
+          | TSlice _ -> load_slice_ptr ctx addr
+          | TPointer _ ->
+              let pointer = fresh ctx in
+              emit ctx "    %s =l loadl %s\n" pointer addr;
+              pointer
+          | _ -> assert false
+        in
+        let index = emit_mir_operand mctx index_operand in
+        let index = widen_to_l ctx index index_operand.Mir.ty in
+        let offset = fresh ctx in
+        emit ctx "    %s =l mul %s, %d\n" offset index
+          (stride ctx.structs element);
+        let addr = fresh ctx in
+        emit ctx "    %s =l add %s, %s\n" addr storage offset;
+        project addr element rest
+  in
+  project addr (mir_base_ty mctx place.Mir.base) place.Mir.projections
+
+let emit_mir_unary ctx (op : Mir.unop) operand ty =
+  let qt = qbe_ty ty in
+  let result = fresh ctx in
+  match op with
+  | Mir.Neg ->
+      emit ctx "    %s =%s neg %s\n" result qt operand;
+      narrow_int_to ctx result ty
+  | Mir.BitNot ->
+      emit ctx "    %s =%s xor %s, -1\n" result qt operand;
+      narrow_int_to ctx result ty
+  | Mir.Not ->
+      emit ctx "    %s =w ceqw %s, 0\n" result operand;
+      result
+
+let emit_mir_value mctx (value : Mir.value) =
+  let ctx = mctx.qbe in
+  match value.Mir.desc with
+  | Mir.Use operand -> emit_mir_operand mctx operand
+  | Mir.Unary (op, operand) ->
+      emit_mir_unary ctx op (emit_mir_operand mctx operand) value.Mir.ty
+  | Mir.Binary (op, left, right) ->
+      let left_value = emit_mir_operand mctx left in
+      let right_value = emit_mir_operand mctx right in
+      emit_arith_binop ctx op ~result_ty:value.Mir.ty ~operand_ty:left.Mir.ty
+        ~count_ty:right.Mir.ty left_value right_value
+  | Mir.Cast (operand, _) ->
+      emit_cast ctx (emit_mir_operand mctx operand) operand.Mir.ty value.Mir.ty
+  | Mir.AddressOf place -> fst (emit_mir_place mctx place)
+  | Mir.Len place -> (
+      let addr, ty = emit_mir_place mctx place in
+      match resolve_ty ty with
+      | TArray (_, count) -> string_of_int count
+      | TSlice _ | TStr -> load_slice_len ctx addr
+      | _ -> Diagnostic.ice "MIR len on invalid place")
+  | Mir.DataPtr place -> (
+      let addr, ty = emit_mir_place mctx place in
+      match resolve_ty ty with
+      | TArray _ -> addr
+      | TSlice _ | TStr -> load_slice_ptr ctx addr
+      | _ -> Diagnostic.ice "MIR data pointer on invalid place")
+  | Mir.SizeOf ty -> string_of_int (ty_size ctx.structs ty)
+
+let emit_mir_assign mctx destination (value : Mir.value) =
+  let ctx = mctx.qbe in
+  let destination_addr, destination_ty = emit_mir_place mctx destination in
+  match value.Mir.desc with
+  | Mir.Use { Mir.desc = Mir.Const (Mir.Str content); _ } ->
+      emit_string_into ctx destination_addr content
+  | Mir.Use { Mir.desc = Mir.Const Mir.Undef; _ } -> ()
+  | Mir.Use { Mir.desc = Mir.Const Mir.Zero; _ } ->
+      emit_zero_into ctx destination_addr destination_ty
+  | _ when is_aggregate destination_ty ->
+      let source = emit_mir_value mctx value in
+      emit_aggregate_copy ctx destination_addr source
+        (ty_size ctx.structs destination_ty)
+  | _ ->
+      let result = emit_mir_value mctx value in
+      emit ctx "    %s %s, %s\n" (qbe_store destination_ty) result
+        destination_addr
+
+let emit_mir_to_slice mctx destination source =
+  let ctx = mctx.qbe in
+  let destination_addr, _ = emit_mir_place mctx destination in
+  let source_addr, source_ty = emit_mir_place mctx source in
+  let count =
+    match resolve_ty source_ty with
+    | TArray (_, count) -> count
+    | _ -> Diagnostic.ice "MIR slice conversion requires an array"
+  in
+  emit ctx "    storel %s, %s\n" source_addr destination_addr;
+  emit ctx "    storel %d, %s\n" count (offset_addr ctx destination_addr 8)
+
+let emit_mir_slice mctx destination source lo hi =
+  let ctx = mctx.qbe in
+  let destination_addr, destination_ty = emit_mir_place mctx destination in
+  let source_addr, source_ty = emit_mir_place mctx source in
+  let storage =
+    match resolve_ty source_ty with
+    | TArray _ -> source_addr
+    | TSlice _ -> load_slice_ptr ctx source_addr
+    | _ -> Diagnostic.ice "MIR slice requires array or slice"
+  in
+  let element =
+    match resolve_ty destination_ty with
+    | TSlice element -> element
+    | _ -> Diagnostic.ice "MIR slice result has invalid type"
+  in
+  let lo_value = widen_to_l ctx (emit_mir_operand mctx lo) lo.Mir.ty in
+  let hi_value = widen_to_l ctx (emit_mir_operand mctx hi) hi.Mir.ty in
+  let offset = fresh ctx in
+  emit ctx "    %s =l mul %s, %d\n" offset lo_value (stride ctx.structs element);
+  let pointer = fresh ctx in
+  emit ctx "    %s =l add %s, %s\n" pointer storage offset;
+  let length = fresh ctx in
+  emit ctx "    %s =l sub %s, %s\n" length hi_value lo_value;
+  emit ctx "    storel %s, %s\n" pointer destination_addr;
+  emit ctx "    storel %s, %s\n" length (offset_addr ctx destination_addr 8)
+
+let widened_operand mctx (operand : Mir.operand) =
+  widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.ty
+
+(* The condition is true when the check fails so it feeds the branch to the panic block *)
+let emit_mir_check_condition mctx = function
+  | Mir.Bounds (index, length) ->
+      bounds_condition mctx.qbe
+        (widened_operand mctx index)
+        (widened_operand mctx length)
+  | Mir.SliceBounds (lo, hi, length) ->
+      slice_bounds_condition mctx.qbe (widened_operand mctx lo)
+        (widened_operand mctx hi)
+        (widened_operand mctx length)
+  | Mir.Null pointer -> null_condition mctx.qbe (emit_mir_operand mctx pointer)
+  | Mir.DivZero divisor ->
+      div_zero_condition mctx.qbe
+        (emit_mir_operand mctx divisor)
+        (qbe_ty divisor.Mir.ty)
+  | Mir.NegativeShift count ->
+      negative_shift_condition mctx.qbe
+        (emit_mir_operand mctx count)
+        (qbe_ty count.Mir.ty)
+  | Mir.CastRange (source, target) ->
+      cast_range_condition mctx.qbe
+        (emit_mir_operand mctx source)
+        source.Mir.ty target
+
+let emit_mir_panic mctx span check =
+  let ctx = mctx.qbe in
+  let site = Panic_table.record ctx.panics span in
+  (match check with
+  | Mir.Bounds (index, length) ->
+      emit ctx "    call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
+        (widened_operand mctx index)
+        (widened_operand mctx length)
+  | Mir.SliceBounds (lo, hi, length) ->
+      emit ctx "    call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n"
+        site (widened_operand mctx lo) (widened_operand mctx hi)
+        (widened_operand mctx length)
+  | Mir.Null _ -> emit ctx "    call $ripe_panic_null(w %d)\n" site
+  | Mir.DivZero _ -> emit ctx "    call $ripe_panic_divzero(w %d)\n" site
+  | Mir.NegativeShift _ -> emit ctx "    call $ripe_panic_shift(w %d)\n" site
+  | Mir.CastRange _ -> emit ctx "    call $ripe_panic_cast(w %d)\n" site);
+  emit ctx "    hlt\n"
+
+let mir_callee mctx = function
+  | Mir.Direct name -> "$" ^ name
+  | Mir.Indirect operand -> emit_mir_operand mctx operand
+
+let qbe_abi_ty ctx ty =
+  match resolve_ty ty with
+  | TStruct (name, _) -> ":" ^ qbe_struct_name ctx name
+  | (TArray _ | TSlice _ | TStr) as aggregate -> (
+      match Hashtbl.find_opt ctx.abi_types aggregate with
+      | Some name -> ":" ^ name
+      | None ->
+          let id = !(ctx.next_abi_type) in
+          incr ctx.next_abi_type;
+          let name = Printf.sprintf "RipeAbi%d" id in
+          Hashtbl.add ctx.abi_types aggregate name;
+          emit ctx "type :%s = { %s }\n" name
+            (qbe_ext_ty (qbe_struct_name ctx) aggregate);
+          ":" ^ name)
+  | _ -> qbe_ty ty
+
+let qbe_call_ty ctx kind ty =
+  match kind with
+  | Mir.External when is_aggregate ty -> qbe_abi_ty ctx ty
+  | _ -> qbe_ty ty
+
+let emit_mir_call mctx (call : Mir.call) =
+  let ctx = mctx.qbe in
+  let hidden_result =
+    match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
+    | Some destination, return_ty, Mir.Internal when is_aggregate return_ty ->
+        Some (emit_mir_place mctx destination |> fst)
+    | _ -> None
+  in
+  let args =
+    List.map
+      (fun (operand : Mir.operand) ->
+        Printf.sprintf "%s %s"
+          (qbe_call_ty ctx call.Mir.kind operand.Mir.ty)
+          (emit_mir_operand mctx operand))
+      call.Mir.args
+  in
+  let args =
+    match hidden_result with
+    | Some destination -> Printf.sprintf "l %s" destination :: args
+    | None -> args
+  in
+  let args =
+    match call.Mir.variadic_start with
+    | None -> args
+    | Some count ->
+        List.filteri (fun index _ -> index < count) args
+        @ ("..." :: List.filteri (fun index _ -> index >= count) args)
+  in
+  let callee = mir_callee mctx call.Mir.callee in
+  match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
+  | None, _, _ -> emit ctx "    call %s(%s)\n" callee (String.concat ", " args)
+  | Some _, return_ty, Mir.Internal when is_aggregate return_ty ->
+      emit ctx "    call %s(%s)\n" callee (String.concat ", " args)
+  | Some destination, return_ty, _ ->
+      let result = fresh ctx in
+      emit ctx "    %s =%s call %s(%s)\n" result
+        (qbe_call_ty ctx call.Mir.kind return_ty)
+        callee (String.concat ", " args);
+      let destination_addr, destination_ty = emit_mir_place mctx destination in
+      if is_aggregate destination_ty then
+        emit_aggregate_copy ctx destination_addr result
+          (ty_size ctx.structs destination_ty)
+      else
+        emit ctx "    %s %s, %s\n" (qbe_store destination_ty) result
+          destination_addr
+
+let emit_mir_statement mctx (statement : Mir.statement) =
+  match statement.Mir.desc with
+  | Mir.Assign (destination, value) -> emit_mir_assign mctx destination value
+  | Mir.Call call -> emit_mir_call mctx call
+  | Mir.ToSlice (destination, source) ->
+      emit_mir_to_slice mctx destination source
+  | Mir.Slice (destination, source, lo, hi) ->
+      emit_mir_slice mctx destination source lo hi
+
+let mir_block_label id =
+  if id = 0 then "@start" else Printf.sprintf "@block%d" id
+
+let emit_mir_terminator mctx (terminator : Mir.terminator) =
+  let ctx = mctx.qbe in
+  match terminator.Mir.desc with
+  | Mir.Jump target -> emit_jmp ctx (mir_block_label target)
+  | Mir.Branch (condition, yes, no) ->
+      emit_jnz ctx
+        (emit_mir_operand mctx condition)
+        (mir_block_label yes) (mir_block_label no)
+  | Mir.Assert (check, ok, fail) ->
+      emit_jnz ctx
+        (emit_mir_check_condition mctx check)
+        (mir_block_label fail) (mir_block_label ok)
+  | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
+  | Mir.ReturnValue None -> emit ctx "    ret\n"
+  | Mir.ReturnValue (Some returned) ->
+      emit ctx "    ret %s\n" (emit_mir_operand mctx returned)
+  | Mir.Unreachable -> emit ctx "    hlt\n"
+
+(* Keeps names readable in the generated IL and adds suffixes when needed *)
+let bind_mir_slots ctx (func : Mir.func) =
+  Array.mapi
+    (fun id (local : Mir.local) ->
+      let base =
+        Option.value local.Mir.name ~default:(Printf.sprintf "m%d" id)
+      in
+      let slot =
+        if Hashtbl.mem ctx.used_slots base || spelled_like_temp base then
+          Printf.sprintf "%s.%d" base id
+        else base
+      in
+      Hashtbl.add ctx.used_slots slot ();
+      "%" ^ slot)
+    func.Mir.locals
+
+let emit_mir_func ctx global_types (func : Mir.func) =
+  Panic_table.enter_func ctx.panics func.Mir.source_name;
+  ctx.tmp := 0;
+  Hashtbl.clear ctx.used_slots;
+  let slots = bind_mir_slots ctx func in
+  (* The result local lives in the caller's storage so it borrows the hidden pointer *)
+  let result_tmp =
+    match func.Mir.result with
+    | None -> None
+    | Some id ->
+        let tmp = fresh ctx in
+        slots.(id) <- tmp;
+        Some tmp
+  in
+  let params =
+    List.map
+      (fun id ->
+        let local = func.Mir.locals.(id) in
+        let tmp = fresh ctx in
+        (id, local.Mir.ty, tmp))
+      func.Mir.params
+  in
+  let params_text =
+    (match result_tmp with None -> [] | Some tmp -> [ "l " ^ tmp ])
+    @ List.map
+        (fun (_, ty, tmp) -> Printf.sprintf "%s %s" (qbe_ty ty) tmp)
+        params
+  in
+  let is_main = func.Mir.entry_point && func.Mir.return_ty = TInt I32 in
+  let return_text =
+    if
+      func.Mir.return_ty = TVoid
+      || func.Mir.return_ty = TNever
+      || func.Mir.result <> None
+    then ""
+    else qbe_abi_ty ctx func.Mir.return_ty ^ " "
+  in
+  emit ctx "%sfunction %s$%s(%s) {\n"
+    (if is_main || func.Mir.public then "export " else "")
+    return_text func.Mir.name
+    (String.concat ", " params_text);
+  emit_label ctx "@start";
+  Array.iteri
+    (fun id (local : Mir.local) ->
+      if Some id <> func.Mir.result then
+        emit ctx "    %s =l %s\n" slots.(id) (alloc_slot ctx local.Mir.ty))
+    func.Mir.locals;
+  List.iter
+    (fun (id, ty, tmp) ->
+      if is_aggregate ty then
+        emit_aggregate_copy ctx slots.(id) tmp (ty_size ctx.structs ty)
+      else emit ctx "    %s %s, %s\n" (qbe_store ty) tmp slots.(id))
+    params;
+  let mctx = { qbe = ctx; func; slots; global_types } in
+  Array.iteri
+    (fun id (block : Mir.block) ->
+      if id > 0 then emit_label ctx (mir_block_label id);
+      List.iter (emit_mir_statement mctx) block.Mir.statements;
+      match block.Mir.terminator with
+      | Some terminator -> emit_mir_terminator mctx terminator
+      | None -> Diagnostic.ice "unterminated verified MIR block")
+    func.Mir.blocks;
+  emit ctx "}\n\n"
+
+let rec emit_mir_global_fields ctx expected = function
+  | Mir.GlobalConst (Mir.Zero, ty) ->
+      Printf.sprintf "z %d" (ty_size ctx.structs ty)
+  | Mir.GlobalConst (Mir.Undef, ty) ->
+      Printf.sprintf "z %d" (ty_size ctx.structs ty)
+  | Mir.GlobalConst (Mir.Str content, _) ->
+      let label = intern_string ctx content in
+      Printf.sprintf "l %s, l %d" label (String.length content)
+  | Mir.GlobalConst (constant, ty) ->
+      Printf.sprintf "%s %s"
+        (qbe_ext_ty (qbe_struct_name ctx) ty)
+        (emit_mir_constant ctx ty constant)
+  | Mir.GlobalAddress name -> "l $" ^ name
+  | Mir.GlobalArray values ->
+      let element =
+        match resolve_ty expected with
+        | TArray (element, _) -> element
+        | _ -> Diagnostic.ice "MIR global array has invalid type"
+      in
+      String.concat ", " (List.map (emit_mir_global_fields ctx element) values)
+  | Mir.GlobalStruct values ->
+      let fields =
+        match resolve_ty expected with
+        | TStruct (name, _) -> Symbol.Table.find ctx.structs (Qname.key name)
+        | _ -> Diagnostic.ice "MIR global struct has invalid type"
+      in
+      let offset = ref 0 in
+      let parts = ref [] in
+      List.iter
+        (fun (field, value) ->
+          let field_ty = List.nth fields field in
+          let aligned = align_to !offset (ty_align ctx.structs field_ty) in
+          if aligned > !offset then
+            parts := Printf.sprintf "z %d" (aligned - !offset) :: !parts;
+          parts := emit_mir_global_fields ctx field_ty value :: !parts;
+          offset := aligned + ty_size ctx.structs field_ty)
+        values;
+      let total = ty_size ctx.structs expected in
+      if total > !offset then
+        parts := Printf.sprintf "z %d" (total - !offset) :: !parts;
+      String.concat ", " (List.rev !parts)
+
+let emit_mir_global ctx (global : Mir.global) =
+  let align = ty_align ctx.structs global.Mir.ty in
+  let export = if global.Mir.public then "export " else "" in
+  match global.Mir.init with
+  | None ->
+      emit ctx "%sdata $%s = align %d { z %d }\n" export global.Mir.name align
+        (ty_size ctx.structs global.Mir.ty)
+  | Some value ->
+      emit ctx "%sdata $%s = align %d { %s }\n" export global.Mir.name align
+        (emit_mir_global_fields ctx global.Mir.ty value)
+
+let emit_mir ~source_of (program : Mir.program) =
   let structs = Symbol.Table.create 8 in
   let struct_names = Symbol.Table.create 8 in
   List.iter
-    (function
-      | T.CStruct (name, fields, _) ->
-          Symbol.Table.replace structs (Qname.key name) fields;
-          Symbol.Table.replace struct_names (Qname.key name) (Qname.show name)
-      | T.CLocalStruct (name, fields) ->
-          let key = Qname.key name in
-          let module_id = Symbol.module_id_of_key key in
-          let id = Symbol.id_of_key key in
-          Symbol.Table.replace structs (Qname.key name) fields;
-          Symbol.Table.replace struct_names (Qname.key name)
-            (Printf.sprintf "_Rlocal%d_%d" module_id id)
-      | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
-          ())
-    tdecls;
-
+    (fun (decl : Mir.struct_decl) ->
+      let key = Qname.key decl.Mir.name in
+      Symbol.Table.add structs key decl.Mir.fields;
+      let name =
+        if decl.Mir.local then
+          Printf.sprintf "_Rlocal%d_%d"
+            (Symbol.module_id_of_key key)
+            (Symbol.id_of_key key)
+        else Qname.show decl.Mir.name
+      in
+      Symbol.Table.add struct_names key name)
+    program.Mir.structs;
+  let global_types = Hashtbl.create 16 in
+  List.iter
+    (fun (global : Mir.global) ->
+      Hashtbl.add global_types global.Mir.name global.Mir.ty)
+    program.Mir.globals;
   let ctx =
     {
       structs;
       struct_names;
-      locals = Hashtbl.create 16;
+      panics = Panic_table.create ~source_of;
       used_slots = Hashtbl.create 16;
       buf = ref (Buffer.create 1024);
       strings = ref [];
-      str_headers = ref [];
+      abi_types = Hashtbl.create 8;
+      next_abi_type = ref 0;
       tmp = ref 0;
       str_ctr = ref 0;
-      loops = ref [];
-      terminated = ref false;
-      entry = ref (Buffer.create 64);
-      in_main = ref false;
-      result_addr = ref None;
-      panics = Panic_table.create ~source_of;
     }
   in
-
   List.iter
-    (function
-      | T.CStruct (name, fields, _) -> emit_struct_type ctx name fields
-      | T.CLocalStruct (name, fields) -> emit_struct_type ctx name fields
-      | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _ ->
-          ())
-    tdecls;
-  let has_structs =
-    List.exists
-      (function
-        | T.CStruct _ | T.CLocalStruct _ -> true
-        | T.CFunc _ | T.CExtern _ | T.CGlobal _ | T.CTypeAlias _ | T.CNewtype _
-          ->
-            false)
-      tdecls
-  in
-  if has_structs then emit ctx "\n";
-
+    (fun (decl : Mir.struct_decl) ->
+      emit_struct_type ctx decl.Mir.name decl.Mir.fields)
+    program.Mir.structs;
+  if program.Mir.structs <> [] then emit ctx "\n";
+  List.iter (emit_mir_global ctx) program.Mir.globals;
+  if program.Mir.globals <> [] then emit ctx "\n";
+  List.iter (emit_mir_func ctx global_types) program.Mir.functions;
+  (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
+  (match Panic_table.sites ctx.panics with
+  | [] -> ()
+  | sites ->
+      let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
+      let entry (site : Panic_table.site) =
+        Printf.sprintf "w %d, w %d, w %d, w %d" site.Panic_table.file
+          site.Panic_table.line site.Panic_table.col site.Panic_table.func
+      in
+      emit ctx "export data $ripe_panic_strtab = { %s }\n"
+        (String.concat ", " (List.map chunk (Panic_table.strings ctx.panics)));
+      emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
+        (String.concat ", " (List.map entry sites)));
   List.iter
-    (function
-      | T.CGlobal gd -> emit_global_data ctx gd
-      | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
-      | T.CTypeAlias _ | T.CNewtype _ ->
-          ())
-    tdecls;
-  let has_globals =
-    List.exists
-      (function
-        | T.CGlobal _ -> true
-        | T.CFunc _ | T.CExtern _ | T.CStruct _ | T.CLocalStruct _
-        | T.CTypeAlias _ | T.CNewtype _ ->
-            false)
-      tdecls
-  in
-  if has_globals then emit ctx "\n";
-
-  List.iter
-    (function
-      | T.CFunc tfd -> emit_func ctx tfd
-      | T.CExtern _ | T.CStruct _ | T.CLocalStruct _ | T.CGlobal _
-      | T.CTypeAlias _ | T.CNewtype _ ->
-          ())
-    tdecls;
-
-  List.iter
-    (fun (lbl, content) -> emit_string_data ctx lbl content)
+    (fun (label, content) -> emit_string_data ctx label content)
     (List.rev !(ctx.strings));
-
-  List.iter
-    (fun (lbl, data, len) ->
-      emit ctx "data %s = align 8 { l %s, l %d }\n" lbl data len)
-    (List.rev !(ctx.str_headers));
-
-  emit_panic_tables ctx;
   Buffer.contents !(ctx.buf)

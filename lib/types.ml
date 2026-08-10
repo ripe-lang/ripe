@@ -161,6 +161,16 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
 
+(* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
+let div_int_needs_check (t : ty) : bool =
+  match resolve_ty t with
+  | TInt (I32 | I64 | Isize) -> true
+  | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
+  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
+      false
+
 let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
   | TInt k -> int_kind_size k

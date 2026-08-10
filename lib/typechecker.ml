@@ -1870,19 +1870,14 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       in
       T.TNewtype (qname_at env td.alias_span (Interner.text td.alias_name), t)
 
-let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
-  Const_fold.run ~emit:(emit env)
-    ~force_const:(fun span key -> ignore (global_const_num env span key))
-    ~local_value:(fun symbol ->
-      Symbol.Table.find_opt env.l_vals (Symbol.key symbol))
-    ~global_value:(fun symbol ->
-      let key = Symbol.key symbol in
-      if is_comptime_global env key then
-        match Symbol.Table.find_opt env.g_state key with
-        | Some { value = Some v; _ } -> Some v
-        | _ -> None
-      else None)
-    ~fold_num:(fold_num env) tdecls
+let force_global_consts (env : env) (tdecls : T.tdecl list) : unit =
+  List.iter
+    (function
+      | T.TGlobal { T.key; init = Some init; kind = Ast.Comptime; _ } -> (
+          try ignore (global_const_num env init.T.span key)
+          with Diagnostic.Errors ds -> List.iter (emit env) ds)
+      | _ -> ())
+    tdecls
 
 (* The partial tree stays available so later checks can still run *)
 let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
@@ -1903,4 +1898,5 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
   List.iter (fill_struct_fields_decl env) decls;
   List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
-  fold_consts env tdecls
+  force_global_consts env tdecls;
+  tdecls
