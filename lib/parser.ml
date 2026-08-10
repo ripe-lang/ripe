@@ -318,6 +318,9 @@ let rec dotted_name (e : expr) : Ast.name list option =
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
+  | EXTERN ->
+      advance st;
+      parse_func_ptr st lo (parse_abi st)
   | STAR ->
       advance st;
       mkt lo st (Pointer (parse_typ st))
@@ -344,17 +347,29 @@ let rec parse_typ st =
         let n = parse_expr st 1 in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
-  | LPAREN ->
-      advance st;
-      let params = comma_sep st RPAREN (fun () -> parse_typ st) in
-      expect st RPAREN;
-      let ret =
-        match st.tok with
-        | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
-        | _ -> None
-      in
-      mkt lo st (FuncPtr (params, ret))
+  | LPAREN -> parse_func_ptr st lo Ast.RipeAbi
   | _ -> fail_found st "expected type"
+
+and parse_func_ptr st lo abi =
+  expect st LPAREN;
+  let params = comma_sep st RPAREN (fun () -> parse_typ st) in
+  expect st RPAREN;
+  let ret =
+    match st.tok with
+    | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
+    | _ -> None
+  in
+  mkt lo st (FuncPtr (abi, params, ret))
+
+and parse_abi st =
+  match st.tok with
+  | STRING "C" ->
+      advance st;
+      Ast.CAbi
+  | STRING name ->
+      advance st;
+      Ast.UnknownAbi name
+  | _ -> fail_found st "expected ABI name"
 
 and parse_modifiers st =
   let rec go acc =
@@ -495,6 +510,7 @@ and parse_func_def st mods =
     body;
     func_modifiers = mods;
     variadic;
+    extern_abi = None;
     func_span = make_span st lo hi;
   }
 
@@ -959,11 +975,19 @@ let parse_global st mods =
       span = make_span st lo hi;
     }
 
-(* extern func add(a: i32, b: i32) i32 *)
+(* extern "C" func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
+  let extern_abi =
+    match st.tok with
+    | STRING name ->
+        let span = cur_span st in
+        advance st;
+        Some (name, span)
+    | _ -> fail_found st "expected ABI name"
+  in
   let name, name_span, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
   Extern
@@ -975,6 +999,7 @@ let parse_extern st =
       body = [];
       func_modifiers = [];
       variadic;
+      extern_abi;
       func_span = make_span st lo hi;
     }
 

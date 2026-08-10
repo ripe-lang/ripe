@@ -5,7 +5,13 @@ open Types
 open Ty_pred
 module T = Typed_ast
 
-type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
+type func_sig = {
+  param_tys : ty list;
+  ret_ty : ty;
+  variadic : bool;
+  abi : Types.func_abi;
+}
+
 type struct_info = { field_tys : (Ast.name * ty) list }
 
 (* Structs newtypes aliases and builtins share one namespace of type names *)
@@ -175,7 +181,7 @@ let lookup_func (env : env) (span : Ast.span) : func_sig =
   | Some s -> s
   | None ->
       emit env (Diagnostic.undefined_name span "function");
-      { param_tys = []; ret_ty = TVoid; variadic = false }
+      { param_tys = []; ret_ty = TVoid; variadic = false; abi = Types.Ripe }
 
 let is_const_global (env : env) (key : Symbol.key) : bool =
   match Symbol.Table.find_opt env.globals key with
@@ -241,12 +247,21 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           if e.desc = ErrorExpr then TError
           else TArray (ty, eval_array_size env e))
   | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
-  | FuncPtr (ps, ret) ->
+  | FuncPtr (abi, ps, ret) -> (
       let pts = List.map (ty_of_ast env) ps in
       let rt =
         match ret with Some t -> return_ty_of_ast env t | None -> TVoid
       in
-      if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
+      let abi =
+        match abi with
+        | Ast.RipeAbi -> Some Types.Ripe
+        | Ast.CAbi -> Some Types.C
+        | Ast.UnknownAbi name -> Types.func_abi_of_name name
+      in
+      if abi = None then emit env (Diagnostic.unsupported_abi t.tspan);
+      match (abi, rt, List.mem TError pts) with
+      | Some abi, rt, false when rt <> TError -> TFunc (pts, rt, abi)
+      | _ -> TError)
 
 and return_ty_of_ast (env : env) (t : typ) : ty =
   match builtin_at env t.tspan with
@@ -277,7 +292,7 @@ and lookup_var (env : env) (span : Ast.span) : ty =
           | None -> (
               (* Fall back to function table so function names can be used as values *)
               match Symbol.Table.find_opt env.funcs key with
-              | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+              | Some sg -> TFunc (sg.param_tys, sg.ret_ty, sg.abi)
               | None ->
                   emit env (Diagnostic.undefined_name span "variable");
                   TInt I32)))
@@ -1271,7 +1286,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
         if sig_.variadic then Some (List.length sig_.param_tys) else None
       in
       let callee_texpr =
-        T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
+        T.mk (TFunc (sig_.param_tys, sig_.ret_ty, sig_.abi)) (T.TIdent fn_sym)
       in
       T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
   | _ -> (
@@ -1279,8 +1294,8 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
       let callee_texpr = synth env callee in
       match resolve_ty callee_texpr.T.ty with
       | TError -> dummy_texpr
-      | TFunc (param_tys, ret_ty) ->
-          let sig_ = { param_tys; ret_ty; variadic = false } in
+      | TFunc (param_tys, ret_ty, abi) ->
+          let sig_ = { param_tys; ret_ty; variadic = false; abi } in
           let targs = check_args env span sig_ args in
           T.mk ret_ty (T.TCall (callee_texpr, targs, None))
       | _ ->
@@ -1448,13 +1463,25 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
   | None -> if is_entry env fd.func_span then TInt I32 else TVoid
 
 (* First pass collecting signatures so that the compiler can handle forward references *)
-let collect_func (env : env) (fd : func_def) : unit =
+let collect_func ?(is_extern = false) (env : env) (fd : func_def) : unit =
+  let abi =
+    if not is_extern then Types.Ripe
+    else
+      match fd.extern_abi with
+      | None -> Types.C
+      | Some (name, span) -> (
+          match Types.func_abi_of_name name with
+          | Some abi -> abi
+          | None ->
+              emit env (Diagnostic.unsupported_abi span);
+              Types.C)
+  in
   let param_tys =
     List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
   let ret_ty = ret_ty_of env fd in
   Symbol.Table.replace env.funcs (key_at env fd.func_span)
-    { param_tys; ret_ty; variadic = fd.variadic }
+    { param_tys; ret_ty; variadic = fd.variadic; abi }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken (env : env) (span : Ast.span) : bool =
@@ -1544,7 +1571,7 @@ let rec named_type_spans (t : typ) : Ast.span list =
   | Named _ -> [ t.tspan ]
   | ErrorType -> []
   | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
-  | FuncPtr (params, ret) ->
+  | FuncPtr (_, params, ret) ->
       List.concat_map named_type_spans params
       @ Option.value ~default:[] (Option.map named_type_spans ret)
 
@@ -1632,7 +1659,8 @@ let reserve_type_name (env : env) (decl : decl) : unit =
 let collect_decl (env : env) (decl : decl) : unit =
   let env = reading env decl in
   match decl with
-  | Func fd | Extern fd -> collect_func env fd
+  | Func fd -> collect_func env fd
+  | Extern fd -> collect_func ~is_extern:true env fd
   | Global gd -> collect_global env gd
   | Struct _ | TypeAlias _ | Newtype _ -> ()
 

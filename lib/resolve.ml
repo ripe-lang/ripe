@@ -474,7 +474,7 @@ and resolve_typ (st : state) (t : typ) : unit =
   | Array (e, t) ->
       resolve_expr st e;
       resolve_typ st t
-  | FuncPtr (ps, ret) ->
+  | FuncPtr (_, ps, ret) ->
       List.iter (resolve_typ st) ps;
       Option.iter (resolve_typ st) ret
 

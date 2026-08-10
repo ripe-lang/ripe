@@ -17,8 +17,9 @@ let rec compatible (want : ty) (got : ty) : bool =
   (* A fixed array coerces to a slice of the same element type *)
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
-  | TFunc (p1, r1), TFunc (p2, r2) ->
-      List.length p1 = List.length p2
+  | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
+      abi1 = abi2
+      && List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
   (* A struct matches nominally by name and its type arguments must match exactly *)
