@@ -1082,10 +1082,6 @@ func main() i32 { return 0 }
       at <test>:1:8
         extern func exit(code: i32) never
                ^~~~ found `func`
-    error: expected {
-      at <test>:1:34
-        extern func exit(code: i32) never
-                                         ^ found ;
     |}]
 
 let%expect_test "parse: unsupported extern ABI" =

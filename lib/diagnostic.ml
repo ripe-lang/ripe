@@ -283,6 +283,9 @@ let expected_expression (span : Ast.span) : t =
 
 let expected_type (span : Ast.span) : t = error "expected type" |> at span
 
+let with_found (span : Ast.span) (msg : string) (found : string) : t =
+  error msg |> at span |> label ("found " ^ found)
+
 let internal ?(span : Ast.span option) (msg : string) : t =
   let d =
     error "internal compiler error"

@@ -4,7 +4,7 @@ type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 [@@deriving show { with_path = false }]
 
 type float_kind = F32 | F64 [@@deriving show { with_path = false }]
-type func_abi = Ripe | C [@@deriving show { with_path = false }]
+type func_abi = Ripe | C | AbiError [@@deriving show { with_path = false }]
 
 let func_abi_of_name = function
   | "Ripe" -> Some Ripe

@@ -151,7 +151,7 @@ and typ_desc =
   | ErrorType
   | Named of name list * name
   | Pointer of typ
-  | FuncPtr of func_abi * typ list * typ option
+  | FuncPtr of abi * typ list * typ option
   | Array of expr * typ
   | Slice of typ
 [@@deriving show { with_path = false }]
@@ -159,7 +159,8 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
-and func_abi = RipeAbi | CAbi | UnknownAbi of string
+and abi = NoAbi | NamedAbi of string * span | AbiError
+[@@deriving show { with_path = false }]
 
 and field = { field_name : name; field_typ : typ; field_span : span }
 [@@deriving show { with_path = false }]
@@ -193,7 +194,7 @@ and func_def = {
   body : block;
   func_modifiers : modifier list;
   variadic : bool;
-  extern_abi : (string * span) option;
+  extern_abi : abi;
   func_span : span;
 }
 [@@deriving show { with_path = false }]

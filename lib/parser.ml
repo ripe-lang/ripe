@@ -62,12 +62,9 @@ let fail st headline =
   raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
 
 let fail_found st headline =
-  let found = Printf.sprintf "found %s" (show_found_token st.tok) in
   raise
     (ParseError
-       (Diagnostic.error headline
-       |> Diagnostic.at (cur_span st)
-       |> Diagnostic.label found))
+       (Diagnostic.with_found (cur_span st) headline (show_found_token st.tok)))
 
 let is_expr_start (tok : token) : bool =
   match tok with
@@ -347,7 +344,7 @@ let rec parse_typ st =
         let n = parse_expr st 1 in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
-  | LPAREN -> parse_func_ptr st lo Ast.RipeAbi
+  | LPAREN -> parse_func_ptr st lo Ast.NoAbi
   | _ -> fail_found st "expected type"
 
 and parse_func_ptr st lo abi =
@@ -363,13 +360,17 @@ and parse_func_ptr st lo abi =
 
 and parse_abi st =
   match st.tok with
-  | STRING "C" ->
-      advance st;
-      Ast.CAbi
   | STRING name ->
+      let span = cur_span st in
       advance st;
-      Ast.UnknownAbi name
-  | _ -> fail_found st "expected ABI name"
+      Ast.NamedAbi (name, span)
+  | _ ->
+      Diagnostic.emit st.diags
+        (Diagnostic.with_found (cur_span st) "expected ABI name"
+           (show_found_token st.tok));
+      (* The junk standing in for the ABI would derail what follows it *)
+      sync_to_depth_token st st.tok_depth st.tok_line [ FUNC ];
+      Ast.AbiError
 
 and parse_modifiers st =
   let rec go acc =
@@ -510,7 +511,7 @@ and parse_func_def st mods =
     body;
     func_modifiers = mods;
     variadic;
-    extern_abi = None;
+    extern_abi = NoAbi;
     func_span = make_span st lo hi;
   }
 
@@ -980,14 +981,7 @@ let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
-  let extern_abi =
-    match st.tok with
-    | STRING name ->
-        let span = cur_span st in
-        advance st;
-        Some (name, span)
-    | _ -> fail_found st "expected ABI name"
-  in
+  let extern_abi = parse_abi st in
   let name, name_span, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
   Extern

@@ -209,6 +209,18 @@ let lookup_struct (env : env) (span : Ast.span) (name : Qname.t) : struct_info =
 let lift_ty (f : ty -> ty) (ty : ty) : ty =
   match ty with TError -> TError | ty -> f ty
 
+(* A signature without an ABI written on it is a plain Ripe function *)
+let resolve_abi (env : env) (a : Ast.abi) : Types.func_abi =
+  match a with
+  | NoAbi -> Types.Ripe
+  | AbiError -> Types.AbiError
+  | NamedAbi (name, span) -> (
+      match Types.func_abi_of_name name with
+      | Some abi -> abi
+      | None ->
+          emit env (Diagnostic.unsupported_abi span);
+          Types.AbiError)
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   | ErrorType -> TError
@@ -252,15 +264,9 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       let rt =
         match ret with Some t -> return_ty_of_ast env t | None -> TVoid
       in
-      let abi =
-        match abi with
-        | Ast.RipeAbi -> Some Types.Ripe
-        | Ast.CAbi -> Some Types.C
-        | Ast.UnknownAbi name -> Types.func_abi_of_name name
-      in
-      if abi = None then emit env (Diagnostic.unsupported_abi t.tspan);
-      match (abi, rt, List.mem TError pts) with
-      | Some abi, rt, false when rt <> TError -> TFunc (pts, rt, abi)
+      match (resolve_abi env abi, rt, List.mem TError pts) with
+      | Types.AbiError, _, _ -> TError
+      | abi, rt, false when rt <> TError -> TFunc (pts, rt, abi)
       | _ -> TError)
 
 and return_ty_of_ast (env : env) (t : typ) : ty =
@@ -1463,19 +1469,8 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
   | None -> if is_entry env fd.func_span then TInt I32 else TVoid
 
 (* First pass collecting signatures so that the compiler can handle forward references *)
-let collect_func ?(is_extern = false) (env : env) (fd : func_def) : unit =
-  let abi =
-    if not is_extern then Types.Ripe
-    else
-      match fd.extern_abi with
-      | None -> Types.C
-      | Some (name, span) -> (
-          match Types.func_abi_of_name name with
-          | Some abi -> abi
-          | None ->
-              emit env (Diagnostic.unsupported_abi span);
-              Types.C)
-  in
+let collect_func (env : env) (fd : func_def) : unit =
+  let abi = resolve_abi env fd.extern_abi in
   let param_tys =
     List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
@@ -1659,8 +1654,7 @@ let reserve_type_name (env : env) (decl : decl) : unit =
 let collect_decl (env : env) (decl : decl) : unit =
   let env = reading env decl in
   match decl with
-  | Func fd -> collect_func env fd
-  | Extern fd -> collect_func ~is_extern:true env fd
+  | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
   | Struct _ | TypeAlias _ | Newtype _ -> ()
 
