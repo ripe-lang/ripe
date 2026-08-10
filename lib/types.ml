@@ -103,7 +103,7 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TFunc (ps, r, _) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
-      Printf.sprintf "(%s)%s" p_str r_str
+      Printf.sprintf "func (%s)%s" p_str r_str
   | TError -> "<error>"
 
 let show_ty (t : ty) : string = show_ty_with Qname.show t

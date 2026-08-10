@@ -275,9 +275,9 @@ func main() i32 {
 ```ripe
 func f(x: i32) i32 { return x + 1 }
 
-func apply(fn: (i32) i32, v: i32) i32 { return fn(v) }
+func apply(fn: func (i32) i32, v: i32) i32 { return fn(v) }
 
-func apply_c(fn: extern "C" (i32) i32, v: i32) i32 { return fn(v) }
+func apply_c(fn: extern "C" func (i32) i32, v: i32) i32 { return fn(v) }
 
 func main() i32 { return apply(f, 4) }
 ```

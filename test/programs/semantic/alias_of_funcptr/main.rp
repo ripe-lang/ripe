@@ -1,4 +1,4 @@
-type BinOp = (i32, i32) i32
+type BinOp = func (i32, i32) i32
 
 func add(a: i32, b: i32) i32 { return a + b }
 

@@ -1,5 +1,5 @@
 func main() i32 {
-  let handler: (i32) i32 = {
+  let handler: func (i32) i32 = {
     func increment(value: i32) i32 { value + 1 }
     increment
   }

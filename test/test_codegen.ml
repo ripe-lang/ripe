@@ -310,7 +310,7 @@ let%expect_test "codegen: call through global fn ptr" =
   run_codegen
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-var op: (i32, i32) i32 = add
+var op: func (i32, i32) i32 = add
 func f() { op(1, 2) }
 |};
   [%expect
@@ -4334,7 +4334,7 @@ let%expect_test "codegen: call through a struct field fn ptr" =
   run_codegen
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-struct Ops { combine: (i32, i32) i32 }
+struct Ops { combine: func (i32, i32) i32 }
 func main() i32 {
   var c = Ops { combine: add }
   return c.combine(6, 7)
@@ -4371,7 +4371,7 @@ let%expect_test "codegen: call through a fn ptr array element" =
     {|
 func mul(a: i32, b: i32) i32 { return a * b }
 func main() i32 {
-  var h: [1](i32, i32) i32 = undefined
+  var h: [1]func (i32, i32) i32 = undefined
   h[0] = mul
   return h[0](4, 5)
 }
@@ -4425,7 +4425,7 @@ let%expect_test "codegen: call the result of a call returning a fn ptr" =
   run_codegen
     {|
 func mul(a: i32, b: i32) i32 { return a * b }
-func pick() (i32, i32) i32 { return mul }
+func pick() func (i32, i32) i32 { return mul }
 func main() i32 { return pick()(5, 6) }
 |};
   [%expect

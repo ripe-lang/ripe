@@ -814,7 +814,7 @@ let%expect_test "parse: modifiers on a global" =
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a type alias" =
-  run_src "pub type binop = (i32, i32) i32";
+  run_src "pub type binop = func (i32, i32) i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a newtype" =
@@ -1054,13 +1054,14 @@ func f() {
 
 let%expect_test "parse: function pointer parameter type" =
   run_src {|
-func apply(g: (i32) i32, v: i32) i32 { return g(v) }
+func apply(g: func (i32) i32, v: i32) i32 { return g(v) }
 |};
   [%expect {| ok |}]
 
 let%expect_test "parse: C function pointer parameter type" =
-  run_src {|
-func apply(g: extern "C" (i32) i32, v: i32) i32 { return g(v) }
+  run_src
+    {|
+func apply(g: extern "C" func (i32) i32, v: i32) i32 { return g(v) }
 |};
   [%expect {| ok |}]
 
@@ -1181,11 +1182,11 @@ let%expect_test "parse: slice bounds are expressions" =
   [%expect {| (index a (.. (+ i 1) n)) |}]
 
 let%expect_test "parse: function pointer returning array" =
-  run_src "type t = (i32) [3]i32";
+  run_src "type t = func (i32) [3]i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: function pointer returning slice" =
-  run_src "type t = (i32) []i32";
+  run_src "type t = func (i32) []i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: struct fields need a separator" =

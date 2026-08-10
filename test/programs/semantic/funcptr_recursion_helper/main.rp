@@ -3,6 +3,6 @@ func fib(n: i32) i32 {
   return fib(n - 1) + fib(n - 2)
 }
 
-func apply(fn: (i32) i32, v: i32) i32 { return fn(v) }
+func apply(fn: func (i32) i32, v: i32) i32 { return fn(v) }
 
 func main() i32 { return apply(fib, 9) }

@@ -198,7 +198,7 @@ let%expect_test "typecheck: fn ptr assign and call" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1, 2)
 }
 |};
@@ -220,20 +220,20 @@ let%expect_test "typecheck: fn ptr signature mismatch" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32) i32 = add
+  var op: func (i32) i32 = add
 }
 |};
   [%expect
     {|
     warning: unused variable: op
       at <test>:4:7
-          var op: (i32) i32 = add
+          var op: func (i32) i32 = add
               ^~
     help: prefix with an underscore: _op
     error: type mismatch
-      at <test>:4:23
-          var op: (i32) i32 = add
-                              ^~~ expected (i32) i32, found (i32, i32) i32
+      at <test>:4:28
+          var op: func (i32) i32 = add
+                                   ^~~ expected func (i32) i32, found func (i32, i32) i32
     |}]
 
 let%expect_test "typecheck: non-callable variable" =
@@ -255,7 +255,7 @@ let%expect_test "typecheck: fn ptr as parameter" =
   run_src
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-func apply(f: (i32, i32) i32, a: i32, b: i32) i32 { return f(a, b) }
+func apply(f: func (i32, i32) i32, a: i32, b: i32) i32 { return f(a, b) }
 func g() { apply(add, 1, 2) }
 |};
   [%expect {| ok |}]
@@ -265,7 +265,7 @@ let%expect_test "typecheck: fn ptr wrong arity at call" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1)
 }
 |};
@@ -281,7 +281,7 @@ let%expect_test "typecheck: fn ptr forward reference" =
   run_src
     {|
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1, 2)
 }
 func add(a: i32, b: i32) i32 { return a + b }
@@ -292,7 +292,7 @@ let%expect_test "typecheck: fn ptr returning fn ptr" =
   run_src
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-func get_op() (i32, i32) i32 { return add }
+func get_op() func (i32, i32) i32 { return add }
 func f() {
   var op = get_op()
   op(1, 2)
@@ -304,7 +304,7 @@ let%expect_test "typecheck: void fn ptr zero args" =
   run_src {|
 func noop() {}
 func f() {
-  var p: () = noop
+  var p: func () = noop
   p()
 }
 |};
@@ -2698,7 +2698,7 @@ func f() i32 { var p: Pt = Point { x: 1, y: 2 }; return p.x }
 let%expect_test "typecheck: type alias of a function pointer is callable" =
   run_src
     {|
-type BinOp = (i32, i32) i32
+type BinOp = func (i32, i32) i32
 func add(a: i32, b: i32) i32 { return a + b }
 func f() i32 { var op: BinOp = add; return op(2, 3) }
 |};
@@ -3437,7 +3437,7 @@ let%expect_test "typecheck: function pointer may return never" =
   run_src
     {|
 extern "C" func exit(code: i32) never
-func f() { let stop: extern "C" (i32) never = exit
+func f() { let stop: extern "C" func (i32) never = exit
  stop(1) }
 |};
   [%expect {| ok |}]

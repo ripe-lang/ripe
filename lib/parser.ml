@@ -79,7 +79,9 @@ let require_expr_start st span =
     raise (ParseError (Diagnostic.expected_expression span))
 
 let is_type_start (tok : token) : bool =
-  match tok with IDENT _ | STAR | LPAREN | LBRACKET -> true | _ -> false
+  match tok with
+  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN -> true
+  | _ -> false
 
 let expect_type_after st span =
   if not (is_type_start st.tok) then
@@ -311,7 +313,7 @@ let rec dotted_name (e : expr) : Ast.name list option =
     ->
       None
 
-(* i32, *i32, (i32, i32) i32 *)
+(* i32, *i32, func (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
@@ -344,18 +346,15 @@ let rec parse_typ st =
         let n = parse_expr st 1 in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
-  | LPAREN -> parse_func_ptr st lo Ast.NoAbi
+  | FUNC -> parse_func_ptr st lo Ast.NoAbi
   | _ -> fail_found st "expected type"
 
 and parse_func_ptr st lo abi =
+  expect st FUNC;
   expect st LPAREN;
   let params = comma_sep st RPAREN (fun () -> parse_typ st) in
   expect st RPAREN;
-  let ret =
-    match st.tok with
-    | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
-    | _ -> None
-  in
+  let ret = if is_type_start st.tok then Some (parse_typ st) else None in
   mkt lo st (FuncPtr (abi, params, ret))
 
 and parse_abi st =
