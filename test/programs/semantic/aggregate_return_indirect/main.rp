@@ -1,0 +1,17 @@
+struct pair {
+  x: i32
+  y: i32
+}
+
+func make_pair(x: i32, y: i32) pair {
+  return pair { x: x, y: y }
+}
+
+func sum_pair(value: pair) i32 {
+  return value.x + value.y
+}
+
+func main() i32 {
+  var make: (i32, i32) pair = make_pair
+  return sum_pair(make(8, 13))
+}

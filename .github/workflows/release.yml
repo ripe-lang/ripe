@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/ci:latest
+      options: --user root
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        OPAMROOT: /home/opam/.opam
+        OPAMROOTISOK: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: apt-get update && apt-get install --yes gh
+      - run: opam install . --deps-only --locked --yes
+      - run: make -C vendor/qbe
+      - run: opam exec -- dune build @install
+      - run: opam exec -- dune runtest
+        env:
+          QBE: ${{ github.workspace }}/vendor/qbe/qbe
+      - run: python3 scripts/package-linux-release.py "$GITHUB_REF_NAME"
+      - run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/ripe-${GITHUB_REF_NAME}-x86_64-linux.tar.gz
+          dist/ripe-${GITHUB_REF_NAME}-x86_64-linux.tar.gz.sha256
+          --title "Ripe $GITHUB_REF_NAME"
+          --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

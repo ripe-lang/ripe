@@ -3,3 +3,5 @@ _opam
 __pycache__
 docs/private
 main*
+/dist/
+/vendor/toolchain/linux-x86_64/*
