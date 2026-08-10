@@ -4,6 +4,12 @@ type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 [@@deriving show { with_path = false }]
 
 type float_kind = F32 | F64 [@@deriving show { with_path = false }]
+type func_abi = Ripe | C [@@deriving show { with_path = false }]
+
+let func_abi_of_name = function
+  | "Ripe" -> Some Ripe
+  | "C" -> Some C
+  | _ -> None
 
 type ty =
   | TInt of int_kind
@@ -19,7 +25,7 @@ type ty =
   | TOpaquePtr
   (* TODO(39ca): the ty list stays empty until generics land *)
   | TStruct of Qname.t * ty list
-  | TFunc of ty list * ty
+  | TFunc of ty list * ty * func_abi
   | TArray of ty * int
   | TSlice of ty
   | TNewtype of Qname.t * ty
@@ -94,7 +100,7 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TSlice t -> "[]" ^ show_ty t
   | TNewtype (name, _) -> show_name name
   | TAlias (name, _) -> show_name name
-  | TFunc (ps, r) ->
+  | TFunc (ps, r, _) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
       Printf.sprintf "(%s)%s" p_str r_str
@@ -246,7 +252,7 @@ let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
   | TPointer t -> TPointer (erase_aliases t)
   | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
-  | TFunc (ps, r) -> TFunc (List.map erase_aliases ps, erase_aliases r)
+  | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
   | TArray (t, n) -> TArray (erase_aliases t, n)
   | TSlice t -> TSlice (erase_aliases t)
   | TNewtype (name, base) -> TNewtype (name, erase_aliases base)

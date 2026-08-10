@@ -1246,7 +1246,7 @@ func f() { g(true) }
 let%expect_test "typecheck: extern decl callable" =
   run_src
     {|
-extern func puts(s: *i8) i32
+extern "C" func puts(s: *i8) i32
 func f() {
   var p: *i8 = null
   puts(p)
@@ -2270,7 +2270,7 @@ func to_celsius(x: f32) Celsius { return x as Celsius }
 let%expect_test "typecheck: cstr parameter accepts string literal" =
   run_src
     {|
-extern func strlen(s: cstr) i64
+extern "C" func strlen(s: cstr) i64
 func f() i64 { return strlen("hi") }
 |};
   [%expect {| ok |}]
@@ -2278,7 +2278,7 @@ func f() i64 { return strlen("hi") }
 let%expect_test "typecheck: extern variadic accepts extra args" =
   run_src
     {|
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 func f() { printf("%d %d", 1, 2) }
 |};
   [%expect {| ok |}]
@@ -2421,7 +2421,7 @@ func f() i32 { return counter }
 
 let%expect_test "typecheck: extern variadic requires the fixed args" =
   run_src {|
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 func f() { printf() }
 |};
   [%expect
@@ -3419,18 +3419,27 @@ let%expect_test "typecheck: return value in a never function is rejected" =
     |}]
 
 let%expect_test "typecheck: a never call satisfies the missing return check" =
-  run_src "extern func exit(code: i32) never\nfunc f() i32 { exit(1) }";
+  run_src {|
+extern "C" func exit(code: i32) never
+func f() i32 { exit(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a never call coerces to the return type" =
-  run_src "extern func exit(code: i32) never\nfunc f() i32 { return exit(1) }";
+  run_src
+    {|
+extern "C" func exit(code: i32) never
+func f() i32 { return exit(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: function pointer may return never" =
   run_src
-    "extern func exit(code: i32) never\n\
-     func f() { let stop: (i32) never = exit\n\
-    \ stop(1) }";
+    {|
+extern "C" func exit(code: i32) never
+func f() { let stop: extern "C" (i32) never = exit
+ stop(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a typed pointer flows into *opaque" =
@@ -3548,8 +3557,10 @@ let%expect_test "typecheck: bare opaque as a var is rejected" =
 
 let%expect_test "typecheck: if-expr never arm bends to the other arm" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let y = if true { 10 } else { exit(1) }; return y }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let y = if true { 10 } else { exit(1) }; return y }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: if-expr arm type is order independent" =
@@ -3560,15 +3571,19 @@ let%expect_test "typecheck: if-expr arm type is order independent" =
 
 let%expect_test "typecheck: all-never if-expr binds as never" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let _y = if true { exit(3) } else { exit(4) }; return 0 }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let _y = if true { exit(3) } else { exit(4) }; return 0 }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else \
-     { 20 }; return y }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else
+ { 20 }; return y }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
@@ -3684,7 +3699,10 @@ let%expect_test "collapse: discarded arithmetic warns" =
     ok |}]
 
 let%expect_test "collapse: discarded call stays quiet" =
-  run_src "extern func run() i32\nfunc f() { run() }";
+  run_src {|
+extern "C" func run() i32
+func f() { run() }
+|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: discarded tail arithmetic warns" =
@@ -3929,7 +3947,7 @@ func take(value: Feet) i32 { return value }
 let%expect_test "typecheck: inferred storage rejects never and void" =
   run_src
     {|
-extern func stop() never
+extern "C" func stop() never
 func noop() {}
 func f() {
   var never_array = [stop(), stop()]
@@ -4117,18 +4135,22 @@ let%expect_test "typecheck: write to a copy of an array parameter" =
 
 let%expect_test "typecheck: discarded if arms need not agree" =
   run_src
-    "extern func printf(fmt: *i8, ...) i32\n\
-     func f() { if true { printf(\"x\") } else {} }";
+    {|
+extern "C" func printf(fmt: *i8, ...) i32
+func f() { if true { printf("x") } else {} }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: if arms still agree where the value is used" =
   run_src
-    "extern func printf(fmt: *i8, ...) i32\n\
-     func f() i32 { let x = if true { printf(\"x\") } else {}; return x }";
+    {|
+extern "C" func printf(fmt: *i8, ...) i32
+func f() i32 { let x = if true { printf("x") } else {}; return x }
+|};
   [%expect
     {|
     error: type mismatch
-      at <test>:2:53
+      at <test>:3:53
         func f() i32 { let x = if true { printf("x") } else {}; return x }
                                                             ^~ expected i32, found void
     |}]

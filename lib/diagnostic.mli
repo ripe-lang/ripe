@@ -44,6 +44,7 @@ val undefined_name : Ast.span -> string -> t
 val with_type : Ast.span -> string -> string -> t
 val redefinition : Ast.span -> prev:Ast.span -> t
 val arity : Ast.span -> expected:string -> found:int -> t
+val unsupported_abi : Ast.span -> t
 val int_out_of_range : Ast.span -> ty:string -> t
 val bad_operand : Ast.span -> op:string -> ty:string -> t
 val opaque_operation : Ast.span -> string -> t
