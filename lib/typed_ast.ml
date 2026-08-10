@@ -24,7 +24,6 @@ type texpr_desc =
   | TArrayLit of texpr list
   | TIndex of texpr * texpr
   | TLen of texpr
-  | TToSlice of texpr
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero

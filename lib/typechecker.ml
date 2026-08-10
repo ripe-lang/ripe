@@ -1776,9 +1776,9 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* Never compile-time by design *)
   | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
-  | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
-  | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
-  | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
+  | T.TLen _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _ | T.TIf _ | T.TWhile _
+  | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _ | T.TContinue _
+  | T.TLocalDecl | T.TLoop _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

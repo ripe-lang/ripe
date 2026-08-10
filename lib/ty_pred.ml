@@ -45,10 +45,10 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TUnOp _ -> false
   | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
   | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _
-  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TToSlice _
-  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
-  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ ->
+  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TSliceExpr _
+  | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _ | T.TBlock _ | T.TIf _
+  | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
+  | T.TContinue _ ->
       false
   | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ -> false
 
@@ -61,9 +61,9 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
   | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _
   | T.TSizeOf _ | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _
-  | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef
-  | T.TStructLit _ | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _
-  | T.TReturn _ | T.TBreak _ | T.TContinue _ ->
+  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
+  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
+  | T.TBreak _ | T.TContinue _ ->
       None
   | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ -> None
 

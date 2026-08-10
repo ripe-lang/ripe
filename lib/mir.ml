@@ -86,7 +86,6 @@ type statement = { desc : statement_desc; span : Ast.span }
 and statement_desc =
   | Assign of place * value
   | Call of call
-  | ToSlice of place * place
   | Slice of place * place * operand * operand
 
 type terminator = { desc : terminator_desc; span : Ast.span }

@@ -162,9 +162,6 @@ let verify (program : Mir.program) : unit =
                 (Printf.sprintf "assignment stores %s in %s"
                    (show_ty assigned_ty) (show_ty ty))
           | Some _ | None -> ())
-      | ToSlice (destination, source) ->
-          ignore (place destination);
-          ignore (place source)
       | Slice (destination, source, lo, hi) ->
           ignore (place destination);
           ignore (place source);

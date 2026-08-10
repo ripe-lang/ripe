@@ -785,12 +785,6 @@ module Mir_expr = struct
     | S.TLen inner ->
         let inner = lower_expr state inner |> B.materialize state in
         B.temp_value state expr.S.ty expr.S.span (Len inner)
-    | S.TToSlice inner ->
-        let inner = lower_expr state inner |> B.materialize state in
-        let id = B.add_local state Temp expr.S.ty expr.S.span in
-        let destination = B.local_place expr.S.span id in
-        B.emit state (ToSlice (destination, inner)) expr.S.span;
-        B.copy expr.S.span expr.S.ty destination
     | S.TSliceExpr (base, lo, hi) -> lower_slice state expr base lo hi
     | S.TDataPtr inner ->
         let inner = lower_expr state inner |> B.materialize state in
