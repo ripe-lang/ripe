@@ -1,4 +1,4 @@
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 
 let TABLE: [N]i32 = [10, 20, 30]
 comptime N: i32 = 3

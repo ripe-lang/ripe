@@ -4183,7 +4183,7 @@ let%expect_test
     "codegen: variadic call emits ... marker between fixed and variadic args" =
   run_codegen
     {|
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 func main() {
   printf("pi = %f\n", 3.14)
 }
@@ -4579,7 +4579,7 @@ func f() u8 {
 let%expect_test "codegen: never function lowers to hlt" =
   run_codegen
     {|
-extern func exit(code: i32) never
+extern "C" func exit(code: i32) never
 func spin() never { exit(3) }
 |};
   [%expect

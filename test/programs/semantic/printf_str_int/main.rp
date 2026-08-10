@@ -1,4 +1,4 @@
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 
 func main() {
   printf("hello %s, you are %d years old\n", "ramon", 22)

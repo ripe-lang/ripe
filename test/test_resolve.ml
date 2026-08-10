@@ -310,7 +310,7 @@ func main() i32 {
 
 let%expect_test "resolve: extern and function names coexist" =
   run_src {|
-extern func puts(s: cstr) i32
+extern "C" func puts(s: cstr) i32
 func main() i32 { return 0 }
 |};
   [%expect {| ok |}]
