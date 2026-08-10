@@ -349,6 +349,7 @@ let rec parse_typ st =
   | FUNC -> parse_func_ptr st lo Ast.NoAbi
   | _ -> fail_found st "expected type"
 
+(* func (i32, i32) i32, extern "C" func (i32) i32 *)
 and parse_func_ptr st lo abi =
   expect st FUNC;
   expect st LPAREN;
@@ -357,6 +358,7 @@ and parse_func_ptr st lo abi =
   let ret = if is_type_start st.tok then Some (parse_typ st) else None in
   mkt lo st (FuncPtr (abi, params, ret))
 
+(* The "C" in extern "C" func exit(code: i32) never *)
 and parse_abi st =
   match st.tok with
   | STRING name ->
