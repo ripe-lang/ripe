@@ -2,6 +2,8 @@
 
 type t = int
 
+(* An OCaml int is 63 bits so the start and the length get 31 each and the sign
+   bit stays clear which caps a program at two gigabytes of source *)
 let offset_bits = 31
 let offset_mask = (1 lsl offset_bits) - 1
 

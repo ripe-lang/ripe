@@ -28,7 +28,6 @@
   mir_dump
   mir_build
   const_eval
-  const_fold
   codegen_qbe
   ripe_sites
   panic_table

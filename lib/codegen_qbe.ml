@@ -616,18 +616,6 @@ let emit_mir_assign mctx destination (value : Mir.value) =
       emit ctx "    %s %s, %s\n" (qbe_store destination_ty) result
         destination_addr
 
-let emit_mir_to_slice mctx destination source =
-  let ctx = mctx.qbe in
-  let destination_addr, _ = emit_mir_place mctx destination in
-  let source_addr, source_ty = emit_mir_place mctx source in
-  let count =
-    match resolve_ty source_ty with
-    | TArray (_, count) -> count
-    | _ -> Diagnostic.ice "MIR slice conversion requires an array"
-  in
-  emit ctx "    storel %s, %s\n" source_addr destination_addr;
-  emit ctx "    storel %d, %s\n" count (offset_addr ctx destination_addr 8)
-
 let emit_mir_slice mctx destination source lo hi =
   let ctx = mctx.qbe in
   let destination_addr, destination_ty = emit_mir_place mctx destination in
@@ -774,8 +762,6 @@ let emit_mir_statement mctx (statement : Mir.statement) =
   match statement.Mir.desc with
   | Mir.Assign (destination, value) -> emit_mir_assign mctx destination value
   | Mir.Call call -> emit_mir_call mctx call
-  | Mir.ToSlice (destination, source) ->
-      emit_mir_to_slice mctx destination source
   | Mir.Slice (destination, source, lo, hi) ->
       emit_mir_slice mctx destination source lo hi
 

@@ -84,7 +84,6 @@ let%expect_test "mir verifier: every place projection is valid" =
     {
       M.desc = M.Use (copy (Ripe.Types.TInt Ripe.Types.I32) 0);
       ty = Ripe.Types.TInt Ripe.Types.I32;
-      span;
     }
   in
   let statement : M.statement =

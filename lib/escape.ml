@@ -25,7 +25,6 @@ let rec storage_is_local (te : T.texpr) : bool =
 (* Only these two forms make a slice from storage that might be local *)
 let rec slice_escapes (te : T.texpr) : bool =
   match te.T.desc with
-  | T.TToSlice arr -> storage_is_local arr
   | T.TSliceExpr (base, _, _) -> (
       match strip_alias base.T.ty with
       | TSlice _ -> slice_escapes base

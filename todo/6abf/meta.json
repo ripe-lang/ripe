@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-10 12:09:06.603786",
+  "depends": [],
+  "id": "6abf",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "language"
+  ],
+  "title": "Settle array to slice coercion under generic inference",
+  "updated_at": "2026-08-10 12:09:06.603797"
+}

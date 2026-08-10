@@ -7,6 +7,7 @@ exception Invalid of error list
 let show_error (error : error) : string =
   Printf.sprintf "%s: %s" error.function_name error.message
 
+(* TODO: Add a ctx record go group structs, globals, errors, and func *)
 let verify (program : Mir.program) : unit =
   let open Types in
   let open Mir in
@@ -22,100 +23,101 @@ let verify (program : Mir.program) : unit =
     program.globals;
 
   let errors = ref [] in
-  let add (func : func) span message =
-    errors :=
-      { function_name = func.name; error_span = span; message } :: !errors
-  in
 
   (* func add(%0: i32, %1: i32) i32 { ... } *)
   let verify_func (func : func) =
+    let add span message =
+      errors :=
+        { function_name = func.name; error_span = span; message } :: !errors
+    in
+
     Array.iter
       (fun (local : local) ->
-        if local.ty = TError then add func local.span "local has no type")
+        if local.ty = TError then add local.span "local has no type")
       func.locals;
 
     (* local %0 value: i32 user *)
-    let local (func : func) span id =
+    let local span id =
       if id < 0 || id >= Array.length func.locals then begin
-        add func span (Printf.sprintf "local %d does not exist" id);
+        add span (Printf.sprintf "local %d does not exist" id);
         None
       end
       else Some func.locals.(id).ty
     in
 
     (* copy %0 / 42 *)
-    let rec operand (func : func) (operand : operand) =
+    let rec operand (operand : operand) =
       match operand.desc with
       | Const _ -> Some operand.ty
       | Copy place_value ->
-          let place_ty = place func place_value in
+          let place_ty = place place_value in
           (match place_ty with
           | Some ty when not (ty_equal ty operand.ty) ->
-              add func operand.span
+              add operand.span
                 (Printf.sprintf "operand has type %s but place has type %s"
                    (show_ty operand.ty) (show_ty ty))
           | Some _ | None -> ());
           place_ty
     (* %0 / @global / %0.deref.field0[copy %1] *)
-    and place (func : func) (place : place) =
-      let rec project span ty = function
+    and place (place : place) =
+      let span = place.place_span in
+      let rec project ty = function
         | [] -> Some ty
         | Deref :: rest -> (
             match resolve_ty ty with
-            | TPointer inner -> project span inner rest
+            | TPointer inner -> project inner rest
             | _ ->
-                add func span "deref projection requires a pointer";
+                add span "deref projection requires a pointer";
                 None)
         | Field field :: rest -> (
             match resolve_ty ty with
             | TStruct (name, _) -> (
                 match Hashtbl.find_opt structs (Qname.key name) with
                 | Some fields when field >= 0 && field < Array.length fields ->
-                    project span fields.(field) rest
+                    project fields.(field) rest
                 | Some _ ->
                     let message =
                       Printf.sprintf "field projection %d does not exist" field
                     in
-                    add func span message;
+                    add span message;
                     None
                 | None ->
-                    add func span
+                    add span
                       (Printf.sprintf "struct %s has no layout"
                          (Qname.show name));
                     None)
             | _ ->
-                add func span "field projection requires a struct";
+                add span "field projection requires a struct";
                 None)
         | Index index :: rest -> (
-            ignore (operand func index);
+            ignore (operand index);
             if match resolve_ty index.ty with TInt _ -> false | _ -> true then
-              add func index.span "index projection requires an integer";
+              add index.span "index projection requires an integer";
             match resolve_ty ty with
             | TArray (inner, _) | TSlice inner | TPointer inner ->
-                project span inner rest
+                project inner rest
             | _ ->
-                add func span "index projection requires indexed storage";
+                add span "index projection requires indexed storage";
                 None)
       in
       let base_ty =
         match place.base with
-        | Local id -> local func place.place_span id
+        | Local id -> local span id
         | Global name -> (
             match Hashtbl.find_opt globals name with
             | Some ty -> Some ty
             | None ->
-                add func place.place_span
-                  (Printf.sprintf "global %s does not exist" name);
+                add span (Printf.sprintf "global %s does not exist" name);
                 None)
       in
       match base_ty with
-      | Some ty -> project place.place_span ty place.projections
+      | Some ty -> project ty place.projections
       | None -> None
     in
 
     (* copy %0 / copy %0 + 1 / address_of %0 / len %0 *)
-    let value (func : func) (value : value) =
-      let check_operand operand_value = ignore (operand func operand_value) in
+    let value (value : value) =
+      let check_operand operand_value = ignore (operand operand_value) in
 
       (match value.desc with
       | Use operand_value -> check_operand operand_value
@@ -125,14 +127,14 @@ let verify (program : Mir.program) : unit =
           check_operand right
       | Cast (operand_value, _) -> check_operand operand_value
       | AddressOf place_value | Len place_value | DataPtr place_value ->
-          ignore (place func place_value)
+          ignore (place place_value)
       | SizeOf _ -> ());
       value.ty
     in
 
     (* bounds copy %0 copy %1 / null copy %0 *)
-    let check (func : func) (check : check) =
-      let check_operand operand_value = ignore (operand func operand_value) in
+    let check (check : check) =
+      let check_operand operand_value = ignore (operand operand_value) in
       match check with
       | Bounds (index, length) ->
           check_operand index;
@@ -148,109 +150,105 @@ let verify (program : Mir.program) : unit =
     in
 
     (* %0 = copy %1 / %0 = call @add(copy %1) *)
-    let statement (func : func) (statement : statement) =
+    let statement (statement : statement) =
+      let span = statement.span in
       match statement.desc with
       | Assign (destination, assigned) -> (
-          let destination_ty = place func destination in
-          let assigned_ty = value func assigned in
+          let destination_ty = place destination in
+          let assigned_ty = value assigned in
           match destination_ty with
           | Some ty when not (Ty_pred.compatible ty assigned_ty) ->
-              add func statement.span
+              add span
                 (Printf.sprintf "assignment stores %s in %s"
                    (show_ty assigned_ty) (show_ty ty))
           | Some _ | None -> ())
-      | ToSlice (destination, source) ->
-          ignore (place func destination);
-          ignore (place func source)
       | Slice (destination, source, lo, hi) ->
-          ignore (place func destination);
-          ignore (place func source);
-          ignore (operand func lo);
-          ignore (operand func hi)
+          ignore (place destination);
+          ignore (place source);
+          ignore (operand lo);
+          ignore (operand hi)
       | Call call -> (
           (match call.callee with
           | Direct _ -> ()
-          | Indirect callee -> ignore (operand func callee));
-          List.iter (fun arg -> ignore (operand func arg)) call.args;
-          let destination_ty = Option.bind call.destination (place func) in
+          | Indirect callee -> ignore (operand callee));
+          List.iter (fun arg -> ignore (operand arg)) call.args;
+          let destination_ty = Option.bind call.destination place in
           if is_aggregate call.return_ty then
             match destination_ty with
             | Some ty when ty_equal ty call.return_ty -> ()
             | Some ty ->
-                add func statement.span
+                add span
                   (Printf.sprintf
                      "aggregate result storage has type %s but call returns %s"
                      (show_ty ty) (show_ty call.return_ty))
-            | None ->
-                add func statement.span "aggregate call has no result storage"
+            | None -> add span "aggregate call has no result storage"
           else
             match (call.return_ty, destination_ty) with
             | (TVoid | TNever), None -> ()
             | (TVoid | TNever), Some _ ->
-                add func statement.span "void call has result storage"
+                add span "void call has result storage"
             | return_ty, Some ty when ty_equal ty return_ty -> ()
             | return_ty, Some ty ->
-                add func statement.span
+                add span
                   (Printf.sprintf "call result has type %s but call returns %s"
                      (show_ty ty) (show_ty return_ty))
-            | _, None -> add func statement.span "call has no result storage")
+            | _, None -> add span "call has no result storage")
     in
 
     (* block0 *)
     let block_exists span id =
       if id < 0 || id >= Array.length func.blocks then
-        add func span (Printf.sprintf "block %d does not exist" id)
+        add span (Printf.sprintf "block %d does not exist" id)
     in
 
     (* jump block1 / branch %0 block1 block2 / return %0 / unreachable *)
     let terminator (terminator : terminator) =
+      let span = terminator.span in
       match terminator.desc with
-      | Jump target -> block_exists terminator.span target
+      | Jump target -> block_exists span target
       | Branch (condition, yes, no) ->
-          ignore (operand func condition);
-          block_exists terminator.span yes;
-          block_exists terminator.span no
+          ignore (operand condition);
+          block_exists span yes;
+          block_exists span no
       | Assert (assertion, ok, fail) ->
-          check func assertion;
-          block_exists terminator.span ok;
-          block_exists terminator.span fail
-      | Panic failed -> check func failed
+          check assertion;
+          block_exists span ok;
+          block_exists span fail
+      | Panic failed -> check failed
       | ReturnValue (Some value) when func.result <> None ->
-          ignore (operand func value);
-          add func terminator.span
-            "return has a value but the result is storage"
+          ignore (operand value);
+          add span "return has a value but the result is storage"
       | ReturnValue None when func.result <> None -> ()
       | ReturnValue returned -> (
           match (func.return_ty, returned) with
           | TVoid, None | TNever, None -> ()
           | TVoid, Some value ->
-              ignore (operand func value);
-              add func terminator.span "void function returns a value"
+              ignore (operand value);
+              add span "void function returns a value"
           | return_ty, Some value ->
-              ignore (operand func value);
+              ignore (operand value);
               if not (Ty_pred.compatible return_ty value.ty) then
-                add func terminator.span
+                add span
                   (Printf.sprintf "return has type %s but function returns %s"
                      (show_ty value.ty) (show_ty return_ty))
           | return_ty, None ->
               let message =
                 Printf.sprintf "return has no value for %s" (show_ty return_ty)
               in
-              add func terminator.span message)
+              add span message)
       | Unreachable -> ()
     in
 
     List.iter
-      (fun id -> match local func func.span id with Some _ -> () | None -> ())
+      (fun id -> match local func.span id with Some _ -> () | None -> ())
       func.params;
 
     Array.iteri
       (fun id block ->
-        List.iter (statement func) block.statements;
+        List.iter statement block.statements;
         match block.terminator with
         | Some term -> terminator term
-        | None ->
-            add func func.span (Printf.sprintf "block %d has no terminator" id))
+        | None -> add func.span (Printf.sprintf "block %d has no terminator" id))
       func.blocks
   in
 

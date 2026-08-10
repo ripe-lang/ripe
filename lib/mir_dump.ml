@@ -105,8 +105,6 @@ let statement (statement : Mir.statement) : string =
       in
       Printf.sprintf "%scall %s(%s)" destination (callee call.callee)
         (String.concat ", " (List.map operand call.args))
-  | ToSlice (destination, source) ->
-      Printf.sprintf "%s = to_slice %s" (place destination) (place source)
   | Slice (destination, source, lo, hi) ->
       Printf.sprintf "%s = slice %s %s %s" (place destination) (place source)
         (operand lo) (operand hi)
