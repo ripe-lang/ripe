@@ -193,8 +193,8 @@ func main() i32 {
 ### Opaque pointers
 
 ```ripe
-extern func malloc(size: usize) *opaque
-extern func free(ptr: *opaque)
+extern "C" func malloc(size: usize) *opaque
+extern "C" func free(ptr: *opaque)
 
 func main() i32 {
   var p: *opaque = malloc(64)
@@ -277,6 +277,8 @@ func f(x: i32) i32 { return x + 1 }
 
 func apply(fn: (i32) i32, v: i32) i32 { return fn(v) }
 
+func apply_c(fn: extern "C" (i32) i32, v: i32) i32 { return fn(v) }
+
 func main() i32 { return apply(f, 4) }
 ```
 
@@ -310,7 +312,7 @@ func main() i32 {
 ### Never return type
 
 ```ripe
-extern func exit(code: i32) never
+extern "C" func exit(code: i32) never
 
 func main() i32 {
   exit(0)
@@ -596,8 +598,8 @@ files carry no clause stays a plain namespace step.
 ### Foreign functions
 
 ```ripe
-extern func printf(fmt: cstr, ...) i32
-extern func strlen(s: cstr) i64
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func strlen(s: cstr) i64
 ```
 
 ### Integer literal suffixes
