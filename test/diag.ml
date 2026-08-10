@@ -32,10 +32,3 @@ let finish (diags : Ripe.Diagnostic.sink) (value : 'a) :
 let run_stage (f : Ripe.Diagnostic.sink -> 'a) : 'a * Ripe.Diagnostic.t list =
   let diags = Ripe.Diagnostic.sink () in
   finish diags (f diags)
-
-let expect_errors f =
-  try
-    f ();
-    print_endline "<no error>"
-  with Ripe.Diagnostic.Errors diags ->
-    List.iter (fun d -> print_string (Ripe.Diagnostic.render (ctx "") d)) diags
