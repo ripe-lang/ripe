@@ -1,0 +1,9 @@
+struct Pair { quot: i32, rem: i32 }
+
+extern "C" func div(numer: i32, denom: i32) Pair
+
+func main() i32 {
+  let operation: extern "C" func (i32, i32) Pair = div
+  let result = operation(10, 3)
+  return result.quot * 10 + result.rem
+}
