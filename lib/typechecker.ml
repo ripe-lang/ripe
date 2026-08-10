@@ -1086,7 +1086,8 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
 and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     T.texpr * T.texpr =
   let tl = synth env l in
-  if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
+  if tl.T.ty <> TError && not (is_lvalue tl) then
+    add_error env l.span "cannot assign to expression";
   check_param_copy_write env l.span tl;
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
@@ -1199,7 +1200,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
             |> Diagnostic.help "a const has no storage, use let")
       | _ ->
           (* TODO(abe2): In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes *)
-          if not (is_lvalue te) then
+          if te.T.ty <> TError && not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
