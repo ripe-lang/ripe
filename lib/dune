@@ -2,6 +2,7 @@
  (name ripe)
  (modules
   config
+  target
   span
   interner
   ast

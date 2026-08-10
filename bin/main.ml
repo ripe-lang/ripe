@@ -38,6 +38,7 @@ let usage_msg =
     \  -l, --library <NAME>  Link with the named library\n\
     \  -I, --import-path <DIR>\n\
     \                        Add a directory to the import search path\n\
+    \  --stats               Print compiler timing and tool commands\n\
     \  -h, --help            Display this list of options\n\n\
      Examples:\n\
     \  ripec source.rp\n\
@@ -62,10 +63,13 @@ let command =
   and+ libraries = named_multi [ "l"; "library" ] string ~value_name:"NAME"
   and+ import_paths =
     named_multi [ "I"; "import-path" ] string ~value_name:"DIR"
+  and+ stats = flag [ "stats" ]
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
-  let search_roots = import_paths @ Config.search_roots () in
-  Driver.compile ~stage ~backend ~out ~libraries ~search_roots ~filename
+  let search_roots =
+    import_paths @ Config.search_roots ~root_filename:filename ()
+  in
+  Driver.compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename
 
 let is_help arg = arg = "-h" || arg = "--help"
 

@@ -1,0 +1,20 @@
+struct pair {
+  x: i32
+  y: i32
+}
+
+func make_pair(x: i32, y: i32) pair {
+  return pair { x: x, y: y }
+}
+
+func merge_pair(left: pair, right: pair) pair {
+  return pair { x: left.x + right.x, y: left.y + right.y }
+}
+
+func sum_pair(left: pair, right: pair) i32 {
+  return left.x + left.y + right.x + right.y
+}
+
+func main() i32 {
+  return sum_pair(make_pair(1, 2), merge_pair(make_pair(3, 4), make_pair(5, 6)))
+}

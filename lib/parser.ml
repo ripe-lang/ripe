@@ -1048,55 +1048,49 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
-(* Tokens run a bit over two bytes each so this lands close without a regrow *)
-let initial_token_capacity source_length = source_length / 2
-
-let tokenize_all read lexbuf diags =
-  let toks = Dynarray.create () in
-  Dynarray.ensure_capacity toks
-    (initial_token_capacity lexbuf.Lexing.lex_buffer_len);
-  let rec scan stack depth =
+let stream read lexbuf diags =
+  let stack = ref [] in
+  let depth = ref 0 in
+  let rec next () =
     match read lexbuf with
     | ERROR msg, sp, _ ->
         Diagnostic.emit_error_at diags sp msg;
-        scan stack depth
+        next ()
     | t, sp, line -> (
-        let info = { token = t; span = sp; line; depth } in
-        Dynarray.add_last toks info;
-        match Bracket_check.step diags stack t sp with
-        | Bracket_check.Done -> ()
-        | Bracket_check.Stray | Bracket_check.Other -> scan stack depth
+        let info = { token = t; span = sp; line; depth = !depth } in
+        match Bracket_check.step diags !stack t sp with
+        | Bracket_check.Done ->
+            if t <> EOF then begin
+              stack := List.tl !stack;
+              decr depth
+            end;
+            info
+        | Bracket_check.Stray | Bracket_check.Other -> info
         | Bracket_check.Open ->
-            scan ((t, sp) :: stack) (depth + 1);
-            scan stack depth)
+            stack := (t, sp) :: !stack;
+            incr depth;
+            info)
   in
-  scan [] 0;
-  Dynarray.to_array toks
-
-let replay_of (tokens : token_info array) =
-  let last = Array.length tokens - 1 in
-  let idx = ref 0 in
-  fun () ->
-    let pair = tokens.(!idx) in
-    if !idx < last then incr idx;
-    pair
+  next
 
 let parse ~(diags : Diagnostic.sink)
     (read : Lexing.lexbuf -> Tokens.token * Ast.span * int)
     (lexbuf : Lexing.lexbuf) : Ast.module_ =
-  let tokens = tokenize_all read lexbuf diags in
+  let parse_diags = Diagnostic.sink () in
   let st =
     {
       tok = EOF;
       tok_span = dummy_span;
       tok_line = 1;
       tok_depth = 0;
-      read = replay_of tokens;
-      diags;
+      read = stream read lexbuf diags;
+      diags = parse_diags;
       prev_end = 0;
       recovered = false;
       ahead = None;
     }
   in
   advance st;
-  parse_module st
+  let module_ = parse_module st in
+  diags := !parse_diags @ !diags;
+  module_

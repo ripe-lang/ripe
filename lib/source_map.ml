@@ -27,6 +27,11 @@ let rec search (starts : int array) (pos : int) (lo : int) (hi : int) : int =
 
 let src (t : t) : string = t.src
 
+let line_count (t : t) : int =
+  let length = String.length t.src in
+  Array.length t.line_starts
+  + if length > 0 && t.src.[length - 1] = '\n' then 1 else 0
+
 (* Offsets are global so anything indexing into `src` has to come through here *)
 let rel (t : t) (pos : int) : int = pos - t.base
 

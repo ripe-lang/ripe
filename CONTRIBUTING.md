@@ -60,3 +60,5 @@ test/programs/run.py --promote
 ```sh
 dune fmt
 ```
+
+See `docs/` for contributor guidelines and other project documentation.

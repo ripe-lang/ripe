@@ -117,13 +117,13 @@ let warn_unused_in_scope (env : env) : unit =
         scope
   | _ -> ()
 
-let extend_var ?(used = false) (env : env) (span : Ast.span) (name : Ast.name)
-    (t : ty) : env =
+let extend_var ?(used = false) ?(deduplicate = false) (env : env)
+    (span : Ast.span) (name : Ast.name) (t : ty) : env =
   let key = Symbol.key (sym env span) in
   let info = { name; ty = t; used = ref used; span } in
   match env.vars with
   | [] -> assert false (* No active scope *)
-  | scope :: _ when List.mem_assoc key scope -> env
+  | scope :: _ when deduplicate && List.mem_assoc key scope -> env
   | scope :: rest -> { env with vars = ((key, info) :: scope) :: rest }
 
 let lookup_var_opt (env : env) (span : Ast.span) : ty option =
@@ -1669,7 +1669,8 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* An extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
-      (fun e (name, t, span) -> extend_var ~used:is_extern e span name t)
+      (fun e (name, t, span) ->
+        extend_var ~used:is_extern ~deduplicate:true e span name t)
       func_env params_typed
   in
 

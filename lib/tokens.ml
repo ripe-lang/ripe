@@ -110,14 +110,16 @@ let keywords =
     ("loop", LOOP);
   ]
 
-let keyword_table : (string, token) Hashtbl.t =
-  let table = Hashtbl.create (List.length keywords) in
-  let add (name, token) = Hashtbl.replace table name token in
+module Keyword_table = Hashtbl.Make (String)
+
+let keyword_table : token Keyword_table.t =
+  let table = Keyword_table.create (List.length keywords) in
+  let add (name, token) = Keyword_table.replace table name token in
   List.iter add keywords;
   table
 
 let lookup_keyword (name : string) : token option =
-  Hashtbl.find_opt keyword_table name
+  Keyword_table.find_opt keyword_table name
 
 let show_token = function
   | INT (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf

@@ -44,6 +44,8 @@ jobs:
       - if: steps.filter.outputs.code == 'true'
         run: make -C vendor/qbe
       - if: steps.filter.outputs.code == 'true'
+        run: apt-get update && apt-get install --yes lld
+      - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune runtest
         env:
           QBE: ${{ github.workspace }}/vendor/qbe/qbe
