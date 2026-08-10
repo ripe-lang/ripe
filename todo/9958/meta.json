@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-09 19:24:06.241205",
+  "depends": [],
+  "id": "9958",
+  "priority": "high",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "codegen"
+  ],
+  "title": "Test linked Ripe aggregate ABI",
+  "updated_at": "2026-08-09 19:24:06.241217"
+}
