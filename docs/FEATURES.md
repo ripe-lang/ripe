@@ -29,15 +29,12 @@ func main() i32 {
 
 ### let and var
 
+A binding without an annotation takes its type from the value.
+
 ```ripe
 let name: cstr = "ramon"     // immutable
 var count: i32 = 0           // mutable
-```
-
-### Inferred bindings
-
-```ripe
-let x = 5        // type inferred from the value
+let x = 5                    // inferred
 var total = 0
 ```
 
@@ -90,6 +87,41 @@ var o: char
 ```ripe
 var a: int = 5
 var b: float = 1.5
+```
+
+### Integer literal suffixes
+
+```ripe
+func main() i32 {
+  var a: u8 = 255u8
+  var b: i64 = 9000000000i64
+  return (a as i32) + (b as i32)
+}
+```
+
+### Hex, binary, and octal literals
+
+```ripe
+func main() i32 {
+  var a: i32 = 0xff
+  var b: i32 = 0b1010
+  var c: i32 = 0o17i32
+  return a + b + c
+}
+```
+
+### Digit separators
+
+An underscore after the first digit is ignored. One right after a base prefix is rejected.
+
+```ripe
+func main() i32 {
+  var a: int = 1_000_000
+  var b: i32 = 0xff_ff
+  var c: f64 = 1_000.000_1
+  // var d: i32 = 0x_ff        // rejected
+  return (a as i32) + b + (c as i32)
+}
 ```
 
 ### Float literals
@@ -359,27 +391,6 @@ func classify(x: i32) i32 {
 }
 ```
 
-### if as a value
-
-```ripe
-func main() i32 {
-  let big: i32 = if 3 > 2 { 10 } else { 20 }
-  return big
-}
-```
-
-### Block as a value
-
-```ripe
-func main() i32 {
-  let x: i32 = {
-    let a: i32 = 2
-    a * 3
-  }
-  return x
-}
-```
-
 ### while
 
 ```ripe
@@ -392,19 +403,12 @@ func main() i32 {
 
 ### for over a range
 
+The end is exclusive unless you write `..=`.
+
 ```ripe
 func main() i32 {
   var s: i32 = 0
   for i in 0..10 { s += i }
-  return s
-}
-```
-
-### Inclusive range
-
-```ripe
-func main() i32 {
-  var s: i32 = 0
   for x in 0..=4 { s += x }
   return s
 }
@@ -611,40 +615,4 @@ files carry no clause stays a plain namespace step.
 ```ripe
 extern "C" func printf(fmt: cstr, ...) i32
 extern "C" func strlen(s: cstr) i64
-```
-
-### Integer literal suffixes
-
-```ripe
-func main() i32 {
-  var a: u8 = 255u8
-  var b: i64 = 9000000000i64
-  return (a as i32) + (b as i32)
-}
-```
-
-### Hex, binary, and octal literals
-
-```ripe
-func main() i32 {
-  var a: i32 = 0xff
-  var b: i32 = 0b1010
-  var c: i32 = 0o17i32
-  return a + b + c
-}
-```
-
-### Digit separators
-
-An underscore anywhere after the first digit is ignored, so group them however
-you like. The only case that won't work is one right after a base prefix.
-
-```ripe
-func main() i32 {
-  var a: int = 1_000_000
-  var b: i32 = 0xff_ff
-  var c: f64 = 1_000.000_1
-  // var d: i32 = 0x_ff        // rejected
-  return (a as i32) + b + (c as i32)
-}
 ```
