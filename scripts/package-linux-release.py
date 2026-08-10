@@ -21,7 +21,7 @@ VERSION = sys.argv[1]
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = Path(sys.argv[2]).resolve() if len(sys.argv) == 3 else ROOT / "dist"
 
-if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", VERSION) is None:
+if re.fullmatch(r"\d+\.\d+\.\d+", VERSION) is None:
     sys.exit("expected version 0.0.0")
 
 RELEASE_NAME = f"ripe-{VERSION}-x86_64-linux"
