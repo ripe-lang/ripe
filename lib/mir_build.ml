@@ -268,15 +268,13 @@ module Mir_builder = struct
   let assign (state : state) destination (assigned : operand) =
     if is_live state then
       emit state
-        (Assign
-           ( destination,
-             { desc = Use assigned; ty = assigned.ty; span = assigned.span } ))
+        (Assign (destination, { desc = Use assigned; ty = assigned.ty }))
         assigned.span
 
   let temp_value (state : state) ty span desc =
     let id = add_local state Temp ty span in
     let destination = local_place span id in
-    emit state (Assign (destination, { desc; ty; span })) span;
+    emit state (Assign (destination, { desc; ty })) span;
     copy span ty destination
 
   let materialize (state : state) (operand : operand) =
@@ -902,12 +900,7 @@ module Mir_expr = struct
     let destination = B.local_place expr.S.span id in
     B.emit state
       (Assign
-         ( destination,
-           {
-             desc = Use (B.constant expr Undef);
-             ty = expr.S.ty;
-             span = expr.S.span;
-           } ))
+         (destination, { desc = Use (B.constant expr Undef); ty = expr.S.ty }))
       expr.S.span;
     List.iteri
       (fun index (element : S.texpr) ->
@@ -928,12 +921,7 @@ module Mir_expr = struct
     let destination = B.local_place expr.S.span id in
     B.emit state
       (Assign
-         ( destination,
-           {
-             desc = Use (B.constant expr Zero);
-             ty = expr.S.ty;
-             span = expr.S.span;
-           } ))
+         (destination, { desc = Use (B.constant expr Zero); ty = expr.S.ty }))
       expr.S.span;
     List.iter
       (fun (field, value) ->

@@ -47,7 +47,7 @@ type binop =
   | Lshift
   | Rshift
 
-type value = { desc : value_desc; ty : Types.ty; span : Ast.span }
+type value = { desc : value_desc; ty : Types.ty }
 
 and value_desc =
   | Use of operand
