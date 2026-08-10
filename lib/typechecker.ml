@@ -879,11 +879,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       in
       emit env mismatch;
       te)
-    else
-      match (strip_alias want, strip_alias got) with
-      (* Materialize the fat pointer when a fixed array coerces to a slice *)
-      | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
-      | _ -> te
+    else te
   in
   match e.desc with
   | ErrorExpr -> dummy_texpr

@@ -1597,7 +1597,7 @@ let%expect_test "typecheck: unused loop variable warns" =
     ok
     |}]
 
-let%expect_test "typecheck: array coerces to slice param" =
+let%expect_test "typecheck: a bare array is not a slice param" =
   run_src
     {|
 func sum(xs: []i32) i32 { return 0 }
@@ -1613,7 +1613,10 @@ func f() i32 {
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    ok
+    error: type mismatch
+      at <test>:5:14
+          return sum(a)
+                     ^ expected []i32, found [3]i32
     |}]
 
 let%expect_test "typecheck: slice element wrong type rejected" =
@@ -1677,13 +1680,13 @@ let%expect_test "typecheck: returning a slice of a local let rejected" =
     |}]
 
 let%expect_test "typecheck: returning a local array as a slice rejected" =
-  run_src "func f() []i32 { var a: [3]i32 = [1,2,3]; return a }";
+  run_src "func f() []i32 { var a: [3]i32 = [1,2,3]; return a[..] }";
   [%expect
     {|
     error: slice of a local escapes
       at <test>:1:50
-        func f() []i32 { var a: [3]i32 = [1,2,3]; return a }
-                                                         ^ points into freed stack memory
+        func f() []i32 { var a: [3]i32 = [1,2,3]; return a[..] }
+                                                         ^~~~~ points into freed stack memory
     |}]
 
 let%expect_test "typecheck: returning a slice of an array param rejected" =
@@ -1966,7 +1969,10 @@ func f() i32 { return sum([1, 2, 3]) }
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    ok
+    error: type mismatch
+      at <test>:3:27
+        func f() i32 { return sum([1, 2, 3]) }
+                                  ^~~~~~~~~ expected []i32, found [3]i32
     |}]
 
 let%expect_test "typecheck: scalar zero init" =
@@ -2754,7 +2760,13 @@ type Row = [3]i32
 func take(s: []i32) i32 { return s[0] }
 func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:52
+        func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
+                                                           ^ expected []i32, found Row
+    |}]
 
 let%expect_test "typecheck: aggregate cast sees through an alias element" =
   run_src
@@ -2777,7 +2789,13 @@ func f() i32 {
   return take_slice(s) + take_ptr(&m)
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:7:21
+          var s: []Meters = a
+                            ^ expected []Meters, found [3]Meters
+    |}]
 
 let%expect_test "typecheck: alias and base compare with each other" =
   run_src

@@ -1304,13 +1304,13 @@ func f() i32 {
     export data $ripe_panic_sites = align 4 { w 2, w 6, w 5, w 0 }
     |}]
 
-let%expect_test "codegen: array coerces to slice at call" =
+let%expect_test "codegen: array slices explicitly at call" =
   run_codegen
     {|
 func sum(xs: []i32) i32 { return 0 }
 func f() i32 {
   var a: [3]i32 = [1, 2, 3]
-  return sum(a)
+  return sum(a[..])
 }
 |};
   [%expect
@@ -1325,18 +1325,32 @@ func f() i32 {
     function w $f() {
     @start
         %a =l alloc4 12
-        %t2 =l alloc8 16
+        %t9 =l alloc8 16
         storew 1, %a
         %t0 =l add %a, 4
         storew 2, %t0
         %t1 =l add %a, 8
         storew 3, %t1
-        storel %a, %t2
-        %t3 =l add %t2, 8
-        storel 3, %t3
-        %t4 =w call $sum(l %t2)
-        ret %t4
+        %t2 =w cugtl 3, 3
+        %t3 =w cugtl 0, 3
+        %t4 =w or %t2, %t3
+        jnz %t4, @slice.fail.5, @slice.ok.5
+    @slice.fail.5
+        call $ripe_panic_slice_bounds(w 0, l 0, l 3, l 3)
+        hlt
+    @slice.ok.5
+        %t6 =l mul 0, 4
+        %t7 =l add %a, %t6
+        %t8 =l sub 3, 0
+        storel %t7, %t9
+        %t10 =l add %t9, 8
+        storel %t8, %t10
+        %t11 =w call $sum(l %t9)
+        ret %t11
     }
+
+    export data $ripe_panic_strtab = { b "f", b 0, b "test.rp", b 0 }
+    export data $ripe_panic_sites = align 4 { w 2, w 5, w 14, w 0 }
     |}]
 
 let%expect_test "codegen: sub-slice construction" =
