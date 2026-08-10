@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-module C = Ripe.Core
-
 let tok_str (t : Ripe.Tokens.token) =
   let open Ripe.Tokens in
   match t with
@@ -26,7 +24,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
   | Slice t -> "[]" ^ dump_typ t
-  | FuncPtr (params, ret) ->
+  | FuncPtr (_, params, ret) ->
       let ps = String.concat ", " (List.map dump_typ params) in
       let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
       "(" ^ ps ^ ")" ^ r
@@ -51,6 +49,10 @@ and dump_expr (e : Ripe.Ast.expr) =
   | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
+  | RangeFrom l -> "(.. " ^ dump_expr l ^ ")"
+  | RangeTo r -> "(.. " ^ dump_expr r ^ ")"
+  | RangeToInclusive r -> "(..= " ^ dump_expr r ^ ")"
+  | RangeFull -> "(..)"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
   | Cast (e, t, kind) ->
@@ -120,26 +122,6 @@ and dump_block (body : Ripe.Ast.block) : string =
         ^ " " ^ dump_block fd.body ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
-
-(* a compact core dump where the flat list is the whole point *)
-let rec dump_cstmt (e : C.cexpr) : string =
-  match e.C.desc with
-  | C.CBinding (_, s, _, _) -> "bind " ^ s.Ripe.Symbol.name
-  | C.CReturn _ -> "return"
-  | C.CBreak _ -> "break"
-  | C.CContinue _ -> "continue"
-  | C.CIf (branches, else_body) -> (
-      let arm (_, body) = "if " ^ dump_cstmts body in
-      String.concat " " (List.map arm branches)
-      ^ match else_body with Some b -> " else " ^ dump_cstmts b | None -> "")
-  | C.CLoop (_, body, []) -> "loop " ^ dump_cstmts body
-  | C.CLoop (_, body, step) ->
-      "loop " ^ dump_cstmts body ^ " step " ^ dump_cstmts step
-  | C.CBlock body -> "block " ^ dump_cstmts body
-  | _ -> "expr"
-
-and dump_cstmts (stmts : C.cblock) : string =
-  "{ " ^ String.concat " " (List.map dump_cstmt stmts) ^ " }"
 
 let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in

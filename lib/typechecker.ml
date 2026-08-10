@@ -5,7 +5,13 @@ open Types
 open Ty_pred
 module T = Typed_ast
 
-type func_sig = { param_tys : ty list; ret_ty : ty; variadic : bool }
+type func_sig = {
+  param_tys : ty list;
+  ret_ty : ty;
+  variadic : bool;
+  abi : Types.func_abi;
+}
+
 type struct_info = { field_tys : (Ast.name * ty) list }
 
 (* Structs newtypes aliases and builtins share one namespace of type names *)
@@ -175,7 +181,7 @@ let lookup_func (env : env) (span : Ast.span) : func_sig =
   | Some s -> s
   | None ->
       emit env (Diagnostic.undefined_name span "function");
-      { param_tys = []; ret_ty = TVoid; variadic = false }
+      { param_tys = []; ret_ty = TVoid; variadic = false; abi = Types.Ripe }
 
 let is_const_global (env : env) (key : Symbol.key) : bool =
   match Symbol.Table.find_opt env.globals key with
@@ -202,6 +208,18 @@ let lookup_struct (env : env) (span : Ast.span) (name : Qname.t) : struct_info =
 
 let lift_ty (f : ty -> ty) (ty : ty) : ty =
   match ty with TError -> TError | ty -> f ty
+
+(* A signature without an ABI written on it is a plain Ripe function *)
+let resolve_abi (env : env) (a : Ast.abi) : Types.func_abi =
+  match a with
+  | NoAbi -> Types.Ripe
+  | AbiError -> Types.AbiError
+  | NamedAbi (name, span) -> (
+      match Types.func_abi_of_name name with
+      | Some abi -> abi
+      | None ->
+          emit env (Diagnostic.unsupported_abi span);
+          Types.AbiError)
 
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
@@ -241,12 +259,15 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
           if e.desc = ErrorExpr then TError
           else TArray (ty, eval_array_size env e))
   | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
-  | FuncPtr (ps, ret) ->
+  | FuncPtr (abi, ps, ret) -> (
       let pts = List.map (ty_of_ast env) ps in
       let rt =
         match ret with Some t -> return_ty_of_ast env t | None -> TVoid
       in
-      if rt = TError || List.mem TError pts then TError else TFunc (pts, rt)
+      match (resolve_abi env abi, rt, List.mem TError pts) with
+      | Types.AbiError, _, _ -> TError
+      | abi, rt, false when rt <> TError -> TFunc (pts, rt, abi)
+      | _ -> TError)
 
 and return_ty_of_ast (env : env) (t : typ) : ty =
   match builtin_at env t.tspan with
@@ -277,7 +298,7 @@ and lookup_var (env : env) (span : Ast.span) : ty =
           | None -> (
               (* Fall back to function table so function names can be used as values *)
               match Symbol.Table.find_opt env.funcs key with
-              | Some sg -> TFunc (sg.param_tys, sg.ret_ty)
+              | Some sg -> TFunc (sg.param_tys, sg.ret_ty, sg.abi)
               | None ->
                   emit env (Diagnostic.undefined_name span "variable");
                   TInt I32)))
@@ -370,7 +391,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | TError -> dummy_texpr
       | ty -> T.mk (TInt Usize) (T.TSizeOf ty))
   (* Ranges are not first-class values and only work as for-loop iterators or slice bounds *)
-  | Range _ | RangeInclusive _ ->
+  | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
+  | RangeFull ->
       add_error env e.span "range is only valid in a for loop or slice";
       dummy_texpr
   | ArrayLit [] ->
@@ -857,11 +879,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       in
       emit env mismatch;
       te)
-    else
-      match (strip_alias want, strip_alias got) with
-      (* Materialize the fat pointer when a fixed array coerces to a slice *)
-      | TSlice _, TArray _ -> T.mk want (T.TToSlice te)
-      | _ -> te
+    else te
   in
   match e.desc with
   | ErrorExpr -> dummy_texpr
@@ -1068,7 +1086,8 @@ and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
 and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     T.texpr * T.texpr =
   let tl = synth env l in
-  if not (is_lvalue tl) then add_error env l.span "cannot assign to expression";
+  if tl.T.ty <> TError && not (is_lvalue tl) then
+    add_error env l.span "cannot assign to expression";
   check_param_copy_write env l.span tl;
   (match tl.T.desc with
   | T.TIdent s when Symbol.is_func s.Symbol.kind ->
@@ -1181,7 +1200,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
             |> Diagnostic.help "a const has no storage, use let")
       | _ ->
           (* TODO(abe2): In the future allow &(a + b) once I figure out the memory and what to do about temporary lifetimes *)
-          if not (is_lvalue te) then
+          if te.T.ty <> TError && not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
       T.mk (TPointer te.T.ty) (T.TUnOp (op, te))
 
@@ -1271,7 +1290,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
         if sig_.variadic then Some (List.length sig_.param_tys) else None
       in
       let callee_texpr =
-        T.mk (TFunc (sig_.param_tys, sig_.ret_ty)) (T.TIdent fn_sym)
+        T.mk (TFunc (sig_.param_tys, sig_.ret_ty, sig_.abi)) (T.TIdent fn_sym)
       in
       T.mk sig_.ret_ty (T.TCall (callee_texpr, targs, fixed_count))
   | _ -> (
@@ -1279,8 +1298,8 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
       let callee_texpr = synth env callee in
       match resolve_ty callee_texpr.T.ty with
       | TError -> dummy_texpr
-      | TFunc (param_tys, ret_ty) ->
-          let sig_ = { param_tys; ret_ty; variadic = false } in
+      | TFunc (param_tys, ret_ty, abi) ->
+          let sig_ = { param_tys; ret_ty; variadic = false; abi } in
           let targs = check_args env span sig_ args in
           T.mk ret_ty (T.TCall (callee_texpr, targs, None))
       | _ ->
@@ -1297,6 +1316,9 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
   let tbase = synth env base in
   match strip_alias tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
+      (* A missing low end reads as zero and a missing high end reads as the length *)
+      let zero = T.mk (TInt Usize) (T.TInt 0L) in
+      let whole_length = T.mk (TInt Usize) (T.TLen tbase) in
       match idx.desc with
       (* A slice borrows into the same storage and an inclusive end just
          desugars to one past *)
@@ -1311,6 +1333,21 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
             else thi
           in
           T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
+      | RangeFrom lo ->
+          let tlo = check env lo (TInt Usize) in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, whole_length))
+      | RangeTo hi ->
+          let thi = check env hi (TInt Usize) in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, thi))
+      | RangeToInclusive hi ->
+          let thi = check env hi (TInt Usize) in
+          let one_past =
+            T.mk (TInt Usize)
+              (T.TBinOp (Ast.Add, thi, T.mk (TInt Usize) (T.TInt 1L)))
+          in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, one_past))
+      | RangeFull ->
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, whole_length))
       | _ ->
           let tidx = synth env idx in
           if not (is_integer tidx.T.ty) then
@@ -1449,12 +1486,13 @@ let ret_ty_of (env : env) (fd : func_def) : ty =
 
 (* First pass collecting signatures so that the compiler can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
+  let abi = resolve_abi env fd.extern_abi in
   let param_tys =
     List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
   let ret_ty = ret_ty_of env fd in
   Symbol.Table.replace env.funcs (key_at env fd.func_span)
-    { param_tys; ret_ty; variadic = fd.variadic }
+    { param_tys; ret_ty; variadic = fd.variadic; abi }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken (env : env) (span : Ast.span) : bool =
@@ -1544,7 +1582,7 @@ let rec named_type_spans (t : typ) : Ast.span list =
   | Named _ -> [ t.tspan ]
   | ErrorType -> []
   | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
-  | FuncPtr (params, ret) ->
+  | FuncPtr (_, params, ret) ->
       List.concat_map named_type_spans params
       @ Option.value ~default:[] (Option.map named_type_spans ret)
 
@@ -1721,7 +1759,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   (* Already reported once so there's nothing more to say here *)
   | T.TErrorExpr -> true
   | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
-  | T.TSizeOf _ ->
+  | T.TStr _ | T.TSizeOf _ ->
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
@@ -1738,10 +1776,10 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* Never compile-time by design *)
-  | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
-  | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
-  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
+  | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
+  | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
+  | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
+  | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false
@@ -1833,19 +1871,14 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
       in
       T.TNewtype (qname_at env td.alias_span (Interner.text td.alias_name), t)
 
-let fold_consts (env : env) (tdecls : T.tdecl list) : T.tdecl list =
-  Const_fold.run ~emit:(emit env)
-    ~force_const:(fun span key -> ignore (global_const_num env span key))
-    ~local_value:(fun symbol ->
-      Symbol.Table.find_opt env.l_vals (Symbol.key symbol))
-    ~global_value:(fun symbol ->
-      let key = Symbol.key symbol in
-      if is_comptime_global env key then
-        match Symbol.Table.find_opt env.g_state key with
-        | Some { value = Some v; _ } -> Some v
-        | _ -> None
-      else None)
-    ~fold_num:(fold_num env) tdecls
+let force_global_consts (env : env) (tdecls : T.tdecl list) : unit =
+  List.iter
+    (function
+      | T.TGlobal { T.key; init = Some init; kind = Ast.Comptime; _ } -> (
+          try ignore (global_const_num env init.T.span key)
+          with Diagnostic.Errors ds -> List.iter (emit env) ds)
+      | _ -> ())
+    tdecls
 
 (* The partial tree stays available so later checks can still run *)
 let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
@@ -1866,4 +1899,5 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
   List.iter (fill_struct_fields_decl env) decls;
   List.iter (check_cycle_decl env) decls;
   let tdecls = List.map (check_decl env) decls in
-  fold_consts env tdecls
+  force_global_consts env tdecls;
+  tdecls

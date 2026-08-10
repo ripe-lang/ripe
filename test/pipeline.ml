@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-module C = Ripe.Core
-
 let parse_module ?(file = 0) src =
   let st = Ripe.Lexer.make_state file in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
@@ -58,7 +56,12 @@ let check_src src =
   let decls, uses, diags = front_src 0 src in
   Diag.finish diags (Ripe.Typechecker.typecheck ~diags uses decls)
 
-let lower_src src = Ripe.Lower.lower (fst (check_src src))
+let mir_src src =
+  let program = Ripe.Mir_build.build (fst (check_src src)) in
+  Ripe.Mir_verify.verify program;
+  program
+
+let source_of_src src _ = ("<test>", Ripe.Source_map.create ~base:0 src)
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
@@ -72,14 +75,18 @@ let check_qbe il =
       (Filename.quote Ripe.Config.qbe)
       (Filename.quote ssa) (Filename.quote err)
   in
-  if Sys.command cmd <> 0 then begin
+  let status = Sys.command cmd in
+  if status <> 0 then begin
     let ic = open_in err in
     (try
        while true do
          print_endline (Span_utils.replace (input_line ic) ssa "<il>")
        done
      with End_of_file -> ());
-    close_in ic
+    close_in ic;
+    Sys.remove ssa;
+    Sys.remove err;
+    failwith "qbe rejected generated MIR"
   end;
   Sys.remove ssa;
   Sys.remove err
@@ -109,20 +116,38 @@ let run_src src =
 
 let run_codegen src =
   try
-    let sm = Ripe.Source_map.create ~base:0 src in
     let il =
-      Ripe.Codegen_qbe.emit_qbe
-        ~source_of:(fun _ -> ("test.rp", sm))
-        (lower_src src)
+      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
     in
     print_string il;
     check_qbe il
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
-let run_lower src =
-  List.iter
-    (function
-      | C.CFunc fd ->
-          print_endline (fd.C.name ^ " " ^ Dump.dump_cstmts fd.C.body)
-      | _ -> ())
-    (lower_src src)
+let run_codegen_ok src =
+  try
+    let il =
+      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+    in
+    check_qbe il;
+    print_endline "ok"
+  with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
+
+let run_codegen_contains src fragments =
+  try
+    let il =
+      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+    in
+    List.iter
+      (fun fragment ->
+        let present =
+          try
+            ignore (Str.search_forward (Str.regexp_string fragment) il 0);
+            true
+          with Not_found -> false
+        in
+        Printf.printf "%s: %b\n" fragment present)
+      fragments;
+    check_qbe il
+  with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
+
+let run_mir src = print_string (Ripe.Mir_dump.program (mir_src src))

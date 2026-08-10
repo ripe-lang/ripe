@@ -1,7 +1,7 @@
 module io
 
-extern func printf(fmt: cstr, ...) i32
-extern func putchar(c: i32) i32
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func putchar(c: i32) i32
 
 pub func print(s: cstr) {
   printf("%s", s)

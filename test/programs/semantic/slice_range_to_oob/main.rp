@@ -1,0 +1,5 @@
+func main() i32 {
+  var a: [3]i32 = [1, 2, 3]
+  var s: []i32 = a[..=3]
+  return s[0]
+}

@@ -193,8 +193,8 @@ func main() i32 {
 ### Opaque pointers
 
 ```ripe
-extern func malloc(size: usize) *opaque
-extern func free(ptr: *opaque)
+extern "C" func malloc(size: usize) *opaque
+extern "C" func free(ptr: *opaque)
 
 func main() i32 {
   var p: *opaque = malloc(64)
@@ -244,18 +244,29 @@ func sum(xs: []i32) i32 {
 
 func main() i32 {
   var a: [3]i32 = [4, 5, 6]
-  return sum(a)
+  return sum(a[..])
 }
 ```
 
+An array won't turn into a slice on its own. You write the range so you can see
+what you're getting. `var b: [3]i32 = a` copies the whole thing while
+`var s: []i32 = a[..]` just points at it.
+
 ### Slicing
+
+Leave off the front and it starts at 0. Leave off the back and it runs to the
+end. The back is always exclusive unless you use `..=`.
 
 ```ripe
 func main() i32 {
-  var a: [4]i32 = [1, 2, 3, 4]
-  var s: []i32 = a[1..3]
-  var t: []i32 = a[1..=2]
-  return s[0] + t[1]
+  var a: [4]i32 = [10, 20, 30, 40]
+  var whole: []i32 = a[..]      // all 4
+  var to: []i32 = a[..2]        // 10 and 20
+  var upto: []i32 = a[..=2]     // 10, 20 and 30
+  var from: []i32 = a[2..]      // 30 and 40
+  var s: []i32 = a[1..3]        // 20 and 30
+  var t: []i32 = a[1..=2]       // 20 and 30, the 2 is included
+  return (whole.len + to.len + upto.len + from.len + s.len + t.len) as i32
 }
 ```
 
@@ -275,7 +286,9 @@ func main() i32 {
 ```ripe
 func f(x: i32) i32 { return x + 1 }
 
-func apply(fn: (i32) i32, v: i32) i32 { return fn(v) }
+func apply(fn: func (i32) i32, v: i32) i32 { return fn(v) }
+
+func apply_c(fn: extern "C" func (i32) i32, v: i32) i32 { return fn(v) }
 
 func main() i32 { return apply(f, 4) }
 ```
@@ -310,7 +323,7 @@ func main() i32 {
 ### Never return type
 
 ```ripe
-extern func exit(code: i32) never
+extern "C" func exit(code: i32) never
 
 func main() i32 {
   exit(0)
@@ -596,8 +609,8 @@ files carry no clause stays a plain namespace step.
 ### Foreign functions
 
 ```ripe
-extern func printf(fmt: cstr, ...) i32
-extern func strlen(s: cstr) i64
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func strlen(s: cstr) i64
 ```
 
 ### Integer literal suffixes

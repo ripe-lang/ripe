@@ -62,12 +62,9 @@ let fail st headline =
   raise (ParseError (Diagnostic.error headline |> Diagnostic.at (cur_span st)))
 
 let fail_found st headline =
-  let found = Printf.sprintf "found %s" (show_found_token st.tok) in
   raise
     (ParseError
-       (Diagnostic.error headline
-       |> Diagnostic.at (cur_span st)
-       |> Diagnostic.label found))
+       (Diagnostic.with_found (cur_span st) headline (show_found_token st.tok)))
 
 let is_expr_start (tok : token) : bool =
   match tok with
@@ -82,7 +79,9 @@ let require_expr_start st span =
     raise (ParseError (Diagnostic.expected_expression span))
 
 let is_type_start (tok : token) : bool =
-  match tok with IDENT _ | STAR | LPAREN | LBRACKET -> true | _ -> false
+  match tok with
+  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN -> true
+  | _ -> false
 
 let expect_type_after st span =
   if not (is_type_start st.tok) then
@@ -310,14 +309,17 @@ let rec dotted_name (e : expr) : Ast.name list option =
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
-  | Continue _ | Undefined | Range _ | RangeInclusive _ | PairAssign _ | Loop _
-    ->
+  | Continue _ | Undefined | Range _ | RangeInclusive _ | RangeFrom _
+  | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ ->
       None
 
-(* i32, *i32, (i32, i32) i32 *)
+(* i32, *i32, func (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
+  | EXTERN ->
+      advance st;
+      parse_func_ptr st lo (parse_abi st)
   | STAR ->
       advance st;
       mkt lo st (Pointer (parse_typ st))
@@ -344,17 +346,32 @@ let rec parse_typ st =
         let n = parse_expr st 1 in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
-  | LPAREN ->
-      advance st;
-      let params = comma_sep st RPAREN (fun () -> parse_typ st) in
-      expect st RPAREN;
-      let ret =
-        match st.tok with
-        | IDENT _ | STAR | LPAREN | LBRACKET -> Some (parse_typ st)
-        | _ -> None
-      in
-      mkt lo st (FuncPtr (params, ret))
+  | FUNC -> parse_func_ptr st lo Ast.NoAbi
   | _ -> fail_found st "expected type"
+
+(* func (i32, i32) i32, extern "C" func (i32) i32 *)
+and parse_func_ptr st lo abi =
+  expect st FUNC;
+  expect st LPAREN;
+  let params = comma_sep st RPAREN (fun () -> parse_typ st) in
+  expect st RPAREN;
+  let ret = if is_type_start st.tok then Some (parse_typ st) else None in
+  mkt lo st (FuncPtr (abi, params, ret))
+
+(* The "C" in extern "C" func exit(code: i32) never *)
+and parse_abi st =
+  match st.tok with
+  | STRING name ->
+      let span = cur_span st in
+      advance st;
+      Ast.NamedAbi (name, span)
+  | _ ->
+      Diagnostic.emit st.diags
+        (Diagnostic.with_found (cur_span st) "expected ABI name"
+           (show_found_token st.tok));
+      (* The junk standing in for the ABI would derail what follows it *)
+      sync_to_depth_token st st.tok_depth st.tok_line [ FUNC ];
+      Ast.AbiError
 
 and parse_modifiers st =
   let rec go acc =
@@ -495,6 +512,7 @@ and parse_func_def st mods =
     body;
     func_modifiers = mods;
     variadic;
+    extern_abi = NoAbi;
     func_span = make_span st lo hi;
   }
 
@@ -610,7 +628,7 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
       | Some _ | None -> continue_with access)
   | LBRACKET ->
       advance st;
-      let idx = parse_expr st 1 in
+      let idx = parse_index_arg st in
       expect st RBRACKET;
       continue_with (mk lo st (Index (lhs, idx)))
   | LPAREN ->
@@ -619,6 +637,33 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
       expect st RPAREN;
       continue_with (mk lo st (Call (lhs, args)))
   | _ -> lhs
+
+(* i, 1..3, 1.., ..3, .. *)
+and parse_index_arg st =
+  let lo = cur_pos st in
+  (* Range endpoints parse one level above `..` so a missing one leaves the operator loop alone *)
+  let endpoint () = parse_expr st 3 in
+  if at st DOTDOT then begin
+    advance st;
+    if at st RBRACKET then mk lo st RangeFull
+    else mk lo st (RangeTo (endpoint ()))
+  end
+  else if at st DOTDOTEQ then begin
+    advance st;
+    mk lo st (RangeToInclusive (endpoint ()))
+  end
+  else
+    let first = endpoint () in
+    if at st DOTDOT then begin
+      advance st;
+      if at st RBRACKET then mk lo st (RangeFrom first)
+      else mk lo st (Range (first, endpoint ()))
+    end
+    else if at st DOTDOTEQ then begin
+      advance st;
+      mk lo st (RangeInclusive (first, endpoint ()))
+    end
+    else first
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary ?(no_struct_lit = false) st =
@@ -959,11 +1004,12 @@ let parse_global st mods =
       span = make_span st lo hi;
     }
 
-(* extern func add(a: i32, b: i32) i32 *)
+(* extern "C" func add(a: i32, b: i32) i32 *)
 let parse_extern st =
   let lo = cur_pos st in
   advance st;
   (* EXTERN *)
+  let extern_abi = parse_abi st in
   let name, name_span, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
   Extern
@@ -975,6 +1021,7 @@ let parse_extern st =
       body = [];
       func_modifiers = [];
       variadic;
+      extern_abi;
       func_span = make_span st lo hi;
     }
 

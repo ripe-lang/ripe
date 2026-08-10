@@ -120,6 +120,10 @@ type expr_desc =
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr
+  | RangeFrom of expr
+  | RangeTo of expr
+  | RangeToInclusive of expr
+  | RangeFull
   | FieldAccess of expr * name * span
   | Cast of expr * typ * cast_kind
   | SizeOf of typ
@@ -151,12 +155,15 @@ and typ_desc =
   | ErrorType
   | Named of name list * name
   | Pointer of typ
-  | FuncPtr of typ list * typ option
+  | FuncPtr of abi * typ list * typ option
   | Array of expr * typ
   | Slice of typ
 [@@deriving show { with_path = false }]
 
 and typ = { tdesc : typ_desc; tspan : span }
+[@@deriving show { with_path = false }]
+
+and abi = NoAbi | NamedAbi of string * span | AbiError
 [@@deriving show { with_path = false }]
 
 and field = { field_name : name; field_typ : typ; field_span : span }
@@ -191,6 +198,7 @@ and func_def = {
   body : block;
   func_modifiers : modifier list;
   variadic : bool;
+  extern_abi : abi;
   func_span : span;
 }
 [@@deriving show { with_path = false }]

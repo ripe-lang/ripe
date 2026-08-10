@@ -198,7 +198,7 @@ let%expect_test "typecheck: fn ptr assign and call" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1, 2)
 }
 |};
@@ -220,20 +220,20 @@ let%expect_test "typecheck: fn ptr signature mismatch" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32) i32 = add
+  var op: func (i32) i32 = add
 }
 |};
   [%expect
     {|
     warning: unused variable: op
       at <test>:4:7
-          var op: (i32) i32 = add
+          var op: func (i32) i32 = add
               ^~
     help: prefix with an underscore: _op
     error: type mismatch
-      at <test>:4:23
-          var op: (i32) i32 = add
-                              ^~~ expected (i32) i32, found (i32, i32) i32
+      at <test>:4:28
+          var op: func (i32) i32 = add
+                                   ^~~ expected func (i32) i32, found func (i32, i32) i32
     |}]
 
 let%expect_test "typecheck: non-callable variable" =
@@ -255,7 +255,7 @@ let%expect_test "typecheck: fn ptr as parameter" =
   run_src
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-func apply(f: (i32, i32) i32, a: i32, b: i32) i32 { return f(a, b) }
+func apply(f: func (i32, i32) i32, a: i32, b: i32) i32 { return f(a, b) }
 func g() { apply(add, 1, 2) }
 |};
   [%expect {| ok |}]
@@ -265,7 +265,7 @@ let%expect_test "typecheck: fn ptr wrong arity at call" =
     {|
 func add(a: i32, b: i32) i32 { return a + b }
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1)
 }
 |};
@@ -281,7 +281,7 @@ let%expect_test "typecheck: fn ptr forward reference" =
   run_src
     {|
 func f() {
-  var op: (i32, i32) i32 = add
+  var op: func (i32, i32) i32 = add
   op(1, 2)
 }
 func add(a: i32, b: i32) i32 { return a + b }
@@ -292,7 +292,7 @@ let%expect_test "typecheck: fn ptr returning fn ptr" =
   run_src
     {|
 func add(a: i32, b: i32) i32 { return a + b }
-func get_op() (i32, i32) i32 { return add }
+func get_op() func (i32, i32) i32 { return add }
 func f() {
   var op = get_op()
   op(1, 2)
@@ -304,7 +304,7 @@ let%expect_test "typecheck: void fn ptr zero args" =
   run_src {|
 func noop() {}
 func f() {
-  var p: () = noop
+  var p: func () = noop
   p()
 }
 |};
@@ -1246,7 +1246,7 @@ func f() { g(true) }
 let%expect_test "typecheck: extern decl callable" =
   run_src
     {|
-extern func puts(s: *i8) i32
+extern "C" func puts(s: *i8) i32
 func f() {
   var p: *i8 = null
   puts(p)
@@ -1597,7 +1597,7 @@ let%expect_test "typecheck: unused loop variable warns" =
     ok
     |}]
 
-let%expect_test "typecheck: array coerces to slice param" =
+let%expect_test "typecheck: a bare array is not a slice param" =
   run_src
     {|
 func sum(xs: []i32) i32 { return 0 }
@@ -1613,7 +1613,10 @@ func f() i32 {
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    ok
+    error: type mismatch
+      at <test>:5:14
+          return sum(a)
+                     ^ expected []i32, found [3]i32
     |}]
 
 let%expect_test "typecheck: slice element wrong type rejected" =
@@ -1677,13 +1680,13 @@ let%expect_test "typecheck: returning a slice of a local let rejected" =
     |}]
 
 let%expect_test "typecheck: returning a local array as a slice rejected" =
-  run_src "func f() []i32 { var a: [3]i32 = [1,2,3]; return a }";
+  run_src "func f() []i32 { var a: [3]i32 = [1,2,3]; return a[..] }";
   [%expect
     {|
     error: slice of a local escapes
       at <test>:1:50
-        func f() []i32 { var a: [3]i32 = [1,2,3]; return a }
-                                                         ^ points into freed stack memory
+        func f() []i32 { var a: [3]i32 = [1,2,3]; return a[..] }
+                                                         ^~~~~ points into freed stack memory
     |}]
 
 let%expect_test "typecheck: returning a slice of an array param rejected" =
@@ -1966,7 +1969,10 @@ func f() i32 { return sum([1, 2, 3]) }
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    ok
+    error: type mismatch
+      at <test>:3:27
+        func f() i32 { return sum([1, 2, 3]) }
+                                  ^~~~~~~~~ expected []i32, found [3]i32
     |}]
 
 let%expect_test "typecheck: scalar zero init" =
@@ -2270,7 +2276,7 @@ func to_celsius(x: f32) Celsius { return x as Celsius }
 let%expect_test "typecheck: cstr parameter accepts string literal" =
   run_src
     {|
-extern func strlen(s: cstr) i64
+extern "C" func strlen(s: cstr) i64
 func f() i64 { return strlen("hi") }
 |};
   [%expect {| ok |}]
@@ -2278,7 +2284,7 @@ func f() i64 { return strlen("hi") }
 let%expect_test "typecheck: extern variadic accepts extra args" =
   run_src
     {|
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 func f() { printf("%d %d", 1, 2) }
 |};
   [%expect {| ok |}]
@@ -2421,7 +2427,7 @@ func f() i32 { return counter }
 
 let%expect_test "typecheck: extern variadic requires the fixed args" =
   run_src {|
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 func f() { printf() }
 |};
   [%expect
@@ -2698,7 +2704,7 @@ func f() i32 { var p: Pt = Point { x: 1, y: 2 }; return p.x }
 let%expect_test "typecheck: type alias of a function pointer is callable" =
   run_src
     {|
-type BinOp = (i32, i32) i32
+type BinOp = func (i32, i32) i32
 func add(a: i32, b: i32) i32 { return a + b }
 func f() i32 { var op: BinOp = add; return op(2, 3) }
 |};
@@ -2754,7 +2760,13 @@ type Row = [3]i32
 func take(s: []i32) i32 { return s[0] }
 func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:52
+        func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
+                                                           ^ expected []i32, found Row
+    |}]
 
 let%expect_test "typecheck: aggregate cast sees through an alias element" =
   run_src
@@ -2777,7 +2789,13 @@ func f() i32 {
   return take_slice(s) + take_ptr(&m)
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:7:21
+          var s: []Meters = a
+                            ^ expected []Meters, found [3]Meters
+    |}]
 
 let%expect_test "typecheck: alias and base compare with each other" =
   run_src
@@ -3419,18 +3437,27 @@ let%expect_test "typecheck: return value in a never function is rejected" =
     |}]
 
 let%expect_test "typecheck: a never call satisfies the missing return check" =
-  run_src "extern func exit(code: i32) never\nfunc f() i32 { exit(1) }";
+  run_src {|
+extern "C" func exit(code: i32) never
+func f() i32 { exit(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a never call coerces to the return type" =
-  run_src "extern func exit(code: i32) never\nfunc f() i32 { return exit(1) }";
+  run_src
+    {|
+extern "C" func exit(code: i32) never
+func f() i32 { return exit(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: function pointer may return never" =
   run_src
-    "extern func exit(code: i32) never\n\
-     func f() { let stop: (i32) never = exit\n\
-    \ stop(1) }";
+    {|
+extern "C" func exit(code: i32) never
+func f() { let stop: extern "C" func (i32) never = exit
+ stop(1) }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a typed pointer flows into *opaque" =
@@ -3548,8 +3575,10 @@ let%expect_test "typecheck: bare opaque as a var is rejected" =
 
 let%expect_test "typecheck: if-expr never arm bends to the other arm" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let y = if true { 10 } else { exit(1) }; return y }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let y = if true { 10 } else { exit(1) }; return y }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: if-expr arm type is order independent" =
@@ -3560,15 +3589,19 @@ let%expect_test "typecheck: if-expr arm type is order independent" =
 
 let%expect_test "typecheck: all-never if-expr binds as never" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let _y = if true { exit(3) } else { exit(4) }; return 0 }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let _y = if true { exit(3) } else { exit(4) }; return 0 }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
-    "extern func exit(c: i32) never\n\
-     func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else \
-     { 20 }; return y }";
+    {|
+extern "C" func exit(c: i32) never
+func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else
+ { 20 }; return y }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
@@ -3684,7 +3717,10 @@ let%expect_test "collapse: discarded arithmetic warns" =
     ok |}]
 
 let%expect_test "collapse: discarded call stays quiet" =
-  run_src "extern func run() i32\nfunc f() { run() }";
+  run_src {|
+extern "C" func run() i32
+func f() { run() }
+|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: discarded tail arithmetic warns" =
@@ -3929,7 +3965,7 @@ func take(value: Feet) i32 { return value }
 let%expect_test "typecheck: inferred storage rejects never and void" =
   run_src
     {|
-extern func stop() never
+extern "C" func stop() never
 func noop() {}
 func f() {
   var never_array = [stop(), stop()]
@@ -4117,18 +4153,22 @@ let%expect_test "typecheck: write to a copy of an array parameter" =
 
 let%expect_test "typecheck: discarded if arms need not agree" =
   run_src
-    "extern func printf(fmt: *i8, ...) i32\n\
-     func f() { if true { printf(\"x\") } else {} }";
+    {|
+extern "C" func printf(fmt: *i8, ...) i32
+func f() { if true { printf("x") } else {} }
+|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: if arms still agree where the value is used" =
   run_src
-    "extern func printf(fmt: *i8, ...) i32\n\
-     func f() i32 { let x = if true { printf(\"x\") } else {}; return x }";
+    {|
+extern "C" func printf(fmt: *i8, ...) i32
+func f() i32 { let x = if true { printf("x") } else {}; return x }
+|};
   [%expect
     {|
     error: type mismatch
-      at <test>:2:53
+      at <test>:3:53
         func f() i32 { let x = if true { printf("x") } else {}; return x }
                                                             ^~ expected i32, found void
     |}]
@@ -4233,15 +4273,9 @@ let%expect_test "typecheck: str cannot be compared" =
                  ^ cannot apply `==` to str
     |}]
 
-let%expect_test "typecheck: a str global is not constant" =
+let%expect_test "typecheck: a str global is constant" =
   run_src "var g: str = \"a\"";
-  [%expect
-    {|
-    error: initializer must be constant
-      at <test>:1:14
-        var g: str = "a"
-                     ^~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: a str comptime is rejected" =
   run_src "comptime C: str = \"a\"";
@@ -4252,10 +4286,6 @@ let%expect_test "typecheck: a str comptime is rejected" =
         comptime C: str = "a"
         ^~~~~~~~~~~~~~~~~~~~~ on str
     help: use let for values that need storage
-    error: initializer must be constant
-      at <test>:1:19
-        comptime C: str = "a"
-                          ^~~
     |}]
 
 let%expect_test "typecheck: a labeled break exits an outer loop" =

@@ -12,6 +12,6 @@ func sum_pair(value: pair) i32 {
 }
 
 func main() i32 {
-  var make: (i32, i32) pair = make_pair
+  var make: func (i32, i32) pair = make_pair
   return sum_pair(make(8, 13))
 }

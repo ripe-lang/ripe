@@ -4,6 +4,12 @@ type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 [@@deriving show { with_path = false }]
 
 type float_kind = F32 | F64 [@@deriving show { with_path = false }]
+type func_abi = Ripe | C | AbiError [@@deriving show { with_path = false }]
+
+let func_abi_of_name = function
+  | "Ripe" -> Some Ripe
+  | "C" -> Some C
+  | _ -> None
 
 type ty =
   | TInt of int_kind
@@ -19,7 +25,7 @@ type ty =
   | TOpaquePtr
   (* TODO(39ca): the ty list stays empty until generics land *)
   | TStruct of Qname.t * ty list
-  | TFunc of ty list * ty
+  | TFunc of ty list * ty * func_abi
   | TArray of ty * int
   | TSlice of ty
   | TNewtype of Qname.t * ty
@@ -94,10 +100,10 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TSlice t -> "[]" ^ show_ty t
   | TNewtype (name, _) -> show_name name
   | TAlias (name, _) -> show_name name
-  | TFunc (ps, r) ->
+  | TFunc (ps, r, _) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
-      Printf.sprintf "(%s)%s" p_str r_str
+      Printf.sprintf "func (%s)%s" p_str r_str
   | TError -> "<error>"
 
 let show_ty (t : ty) : string = show_ty_with Qname.show t
@@ -154,6 +160,16 @@ let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
   | false, true -> true
   | true, false -> bits tgt <= bits src
   | _ -> bits tgt < bits src
+
+(* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
+let div_int_needs_check (t : ty) : bool =
+  match resolve_ty t with
+  | TInt (I32 | I64 | Isize) -> true
+  | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
+  | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
+  | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
+  | TNewtype _ | TAlias _ | TError ->
+      false
 
 let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
@@ -246,7 +262,7 @@ let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base
   | TPointer t -> TPointer (erase_aliases t)
   | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
-  | TFunc (ps, r) -> TFunc (List.map erase_aliases ps, erase_aliases r)
+  | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
   | TArray (t, n) -> TArray (erase_aliases t, n)
   | TSlice t -> TSlice (erase_aliases t)
   | TNewtype (name, base) -> TNewtype (name, erase_aliases base)

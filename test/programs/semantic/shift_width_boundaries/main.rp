@@ -1,0 +1,41 @@
+func main() i32 {
+  var seven: u64 = 7
+  var eight: u64 = 8
+  var thirtyone: u64 = 31
+  var thirtytwo: u64 = 32
+  var sixtythree: u64 = 63
+  var sixtyfour: u64 = 64
+
+  var a: i8 = -128
+  if a >> seven != -1 { return 10 }
+  if a >> eight != -1 { return 11 }
+  var b: i8 = 64
+  if b >> seven != 0 { return 12 }
+  var c: i8 = 1
+  if c << seven != -128 { return 13 }
+  if c << eight != 0 { return 14 }
+
+  var d: u8 = 255
+  if d >> seven != 1 { return 20 }
+  if d >> eight != 0 { return 21 }
+
+  var e: i32 = -1
+  if e >> thirtyone != -1 { return 30 }
+  if e >> thirtytwo != -1 { return 31 }
+  var f: i32 = 1
+  if f << thirtyone != -2147483648 { return 32 }
+  if f << thirtytwo != 0 { return 33 }
+
+  var g: i64 = -1
+  if g >> sixtythree != -1 { return 40 }
+  if g >> sixtyfour != -1 { return 41 }
+  var h: i64 = 1
+  if h << sixtythree != -9223372036854775808 { return 42 }
+  if h << sixtyfour != 0 { return 43 }
+
+  var i: u64 = 18446744073709551615
+  if i >> sixtythree != 1 { return 50 }
+  if i >> sixtyfour != 0 { return 51 }
+
+  return 1
+}

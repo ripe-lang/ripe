@@ -342,7 +342,7 @@ var c: = 3
 type A = +
 newtype B = +
 struct S { x: }
-extern func e(x:)
+extern "C" func e(x:)
 func f(x:) {}|};
   [%expect
     {|
@@ -371,9 +371,9 @@ func f(x:) {}|};
         struct S { x: }
                       ^ found }
     error: expected type
-      at <test>:7:17
-        extern func e(x:)
-                        ^ found )
+      at <test>:7:21
+        extern "C" func e(x:)
+                            ^ found )
     error: expected type
       at <test>:8:10
         func f(x:) {}
@@ -814,7 +814,7 @@ let%expect_test "parse: modifiers on a global" =
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a type alias" =
-  run_src "pub type binop = (i32, i32) i32";
+  run_src "pub type binop = func (i32, i32) i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a newtype" =
@@ -822,12 +822,12 @@ let%expect_test "parse: modifiers on a newtype" =
   [%expect {| ok |}]
 
 let%expect_test "parse: modifier before extern" =
-  run_src "pub extern func puts(s: cstr) i32";
+  run_src {|pub extern "C" func puts(s: cstr) i32|};
   [%expect
     {|
     error: expected declaration
       at <test>:1:5
-        pub extern func puts(s: cstr) i32
+        pub extern "C" func puts(s: cstr) i32
             ^~~~~~ found `extern`
     |}]
 
@@ -1054,9 +1054,49 @@ func f() {
 
 let%expect_test "parse: function pointer parameter type" =
   run_src {|
-func apply(g: (i32) i32, v: i32) i32 { return g(v) }
+func apply(g: func (i32) i32, v: i32) i32 { return g(v) }
 |};
   [%expect {| ok |}]
+
+let%expect_test "parse: C function pointer parameter type" =
+  run_src
+    {|
+func apply(g: extern "C" func (i32) i32, v: i32) i32 { return g(v) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: C extern function" =
+  run_src {|extern "C" func exit(code: i32) never|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: Ripe extern function" =
+  run_src {|extern "Ripe" func exit(code: i32) never|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: extern requires ABI" =
+  run_src {|extern func exit(code: i32) never
+func main() i32 { return 0 }
+|};
+  [%expect
+    {|
+    error: expected ABI name
+      at <test>:1:8
+        extern func exit(code: i32) never
+               ^~~~ found `func`
+    |}]
+
+let%expect_test "parse: unsupported extern ABI" =
+  run_src
+    {|extern "Rust" func exit(code: i32) never
+func main() i32 { return 0 }
+|};
+  [%expect
+    {|
+    error: unsupported ABI
+      at <test>:1:8
+        extern "Rust" func exit(code: i32) never
+               ^~~~~~ this ABI is not supported here
+    |}]
 
 let%expect_test "parse: multiple parameters" =
   run_src "func f(a: i32, b: i32, c: i32) i32 { return a + b + c }";
@@ -1142,11 +1182,11 @@ let%expect_test "parse: slice bounds are expressions" =
   [%expect {| (index a (.. (+ i 1) n)) |}]
 
 let%expect_test "parse: function pointer returning array" =
-  run_src "type t = (i32) [3]i32";
+  run_src "type t = func (i32) [3]i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: function pointer returning slice" =
-  run_src "type t = (i32) []i32";
+  run_src "type t = func (i32) []i32";
   [%expect {| ok |}]
 
 let%expect_test "parse: struct fields need a separator" =
@@ -1180,7 +1220,7 @@ let%expect_test "parse: multiline struct literal requires a trailing comma" =
     |}]
 
 let%expect_test "parse: never as a return type" =
-  run_src "extern func exit(code: i32) never";
+  run_src {|extern "C" func exit(code: i32) never|};
   [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =

@@ -13,7 +13,7 @@ func main() i32 {
   for i in 0..a.len {
     doubled += a[i] * 2
   }
-  let whole: i32 = sum(a)
+  let whole: i32 = sum(a[..])
   let middle: i32 = sum(a[1..4])
   return doubled + whole + middle - 47
 }

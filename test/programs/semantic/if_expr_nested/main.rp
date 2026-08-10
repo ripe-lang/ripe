@@ -1,4 +1,4 @@
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 
 func tier(n: i32) i32 {
   let t = if n >= 100 {

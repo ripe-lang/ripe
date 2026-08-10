@@ -179,8 +179,7 @@ func main() i32 {
     export function w $main() {
     @start
         %_p =l alloc8 8
-        %t0 =l copy $g
-        storel %t0, %_p
+        storel $g, %_p
         ret 0
     }
     |}]
@@ -310,7 +309,7 @@ func main() i32 {
 
 let%expect_test "resolve: extern and function names coexist" =
   run_src {|
-extern func puts(s: cstr) i32
+extern "C" func puts(s: cstr) i32
 func main() i32 { return 0 }
 |};
   [%expect {| ok |}]

@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type stage = Tokens | Ast | Resolve | Tast | Check | Core | Qbe | Asm | Bin
+type stage = Tokens | Ast | Resolve | Tast | Check | Mir | Qbe | Asm | Bin
 
 module Backend : sig
   type t = Qbe

@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type stage = Tokens | Ast | Resolve | Tast | Check | Core | Qbe | Asm | Bin
+type stage = Tokens | Ast | Resolve | Tast | Check | Mir | Qbe | Asm | Bin
 
 module Backend = struct
   type t = Qbe
@@ -109,9 +109,6 @@ let show_program (program : Program.t) =
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"
-
-let show_cdecls cdecls =
-  String.concat "\n" (List.map Core.show_cdecl cdecls) ^ "\n"
 
 let line_counts program =
   let count_processed_lines text =
@@ -266,19 +263,17 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     stop_at Tast (fun () -> output_text (show_tdecls tdecls));
     if stage = Bin && not load_had_errors then check_has_main diags tdecls;
     render_and_exit_if_failed ();
-    let cdecls = Lower.lower tdecls in
-    stop_at Core (fun () -> output_text (show_cdecls cdecls));
     let frontend_time = Unix.gettimeofday () -. total_start in
     let codegen_start = Unix.gettimeofday () in
+    let mir = Mir_build.build tdecls in
+    Mir_verify.verify mir;
+    stop_at Mir (fun () -> output_text (Mir_dump.program mir));
+    let source_of pos =
+      let source = Program.source_at program pos in
+      (source.Program.filename, source.Program.source_map)
+    in
     let il =
-      match backend with
-      | Backend.Qbe ->
-          let source_at = Program.source_at program in
-          let source_of pos =
-            let source = source_at pos in
-            (source.Program.filename, source.Program.source_map)
-          in
-          Codegen_qbe.emit_qbe ~source_of cdecls
+      match backend with Backend.Qbe -> Codegen_qbe.emit_mir ~source_of mir
     in
     let codegen_time = Unix.gettimeofday () -. codegen_start in
     stop_at Qbe (fun () -> output_text il);

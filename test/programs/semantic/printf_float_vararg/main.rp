@@ -1,4 +1,4 @@
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 
 func main() i32 {
   printf("%.2f\n", 3.14)

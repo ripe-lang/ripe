@@ -1,4 +1,4 @@
-extern func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32
 
 func classify(n: i32) i32 {
   let c = if n < 0 { 0 - 1 } else if n > 0 { 1 } else { 0 }

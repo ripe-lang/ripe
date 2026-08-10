@@ -1,0 +1,10 @@
+struct P { a: i32, b: i32 }
+
+func f() P { return undefined }
+
+func main() i32 {
+  var p: P = f()
+  p.a = 3
+  p.b = 4
+  return p.a + p.b
+}

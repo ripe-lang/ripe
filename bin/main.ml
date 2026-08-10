@@ -10,7 +10,7 @@ let emit_stages =
     ("resolve", Driver.Resolve, "the resolved symbol table");
     ("tast", Driver.Tast, "the typed syntax tree");
     ("check", Driver.Check, "the typecheck result");
-    ("core", Driver.Core, "the lowered core IR");
+    ("mir", Driver.Mir, "the middle intermediate representation");
     ("qbe", Driver.Qbe, "the QBE intermediate representation");
     ("asm", Driver.Asm, "the target assembly");
   ]

@@ -3,7 +3,7 @@ func f() i32 { return 3 }
 func g() i32 { return 4 }
 
 func main() i32 {
-  var h: () i32 = f
+  var h: func () i32 = f
   var r1: i32 = h()
   h = g
   return r1 + h()

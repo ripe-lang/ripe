@@ -261,6 +261,9 @@ let arity (span : Ast.span) ~(expected : string) ~(found : int) : t =
   |> at span
   |> label (Printf.sprintf "%s, found %d" expected found)
 
+let unsupported_abi (span : Ast.span) : t =
+  error "unsupported ABI" |> at span |> label "this ABI is not supported here"
+
 let int_out_of_range (span : Ast.span) ~(ty : string) : t =
   error "integer literal out of range"
   |> at span
@@ -279,6 +282,9 @@ let expected_expression (span : Ast.span) : t =
   error "expected expression" |> at span
 
 let expected_type (span : Ast.span) : t = error "expected type" |> at span
+
+let with_found (span : Ast.span) (msg : string) (found : string) : t =
+  error msg |> at span |> label ("found " ^ found)
 
 let internal ?(span : Ast.span option) (msg : string) : t =
   let d =
