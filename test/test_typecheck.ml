@@ -4273,15 +4273,9 @@ let%expect_test "typecheck: str cannot be compared" =
                  ^ cannot apply `==` to str
     |}]
 
-let%expect_test "typecheck: a str global is not constant" =
+let%expect_test "typecheck: a str global is constant" =
   run_src "var g: str = \"a\"";
-  [%expect
-    {|
-    error: initializer must be constant
-      at <test>:1:14
-        var g: str = "a"
-                     ^~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: a str comptime is rejected" =
   run_src "comptime C: str = \"a\"";
@@ -4292,10 +4286,6 @@ let%expect_test "typecheck: a str comptime is rejected" =
         comptime C: str = "a"
         ^~~~~~~~~~~~~~~~~~~~~ on str
     help: use let for values that need storage
-    error: initializer must be constant
-      at <test>:1:19
-        comptime C: str = "a"
-                          ^~~
     |}]
 
 let%expect_test "typecheck: a labeled break exits an outer loop" =

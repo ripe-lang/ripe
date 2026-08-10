@@ -1758,7 +1758,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   (* Already reported once so there's nothing more to say here *)
   | T.TErrorExpr -> true
   | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
-  | T.TSizeOf _ ->
+  | T.TStr _ | T.TSizeOf _ ->
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
@@ -1775,10 +1775,10 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TStructLit (_, fields) ->
       List.for_all (fun (_, fe) -> is_const_texpr env fe) fields
   (* Never compile-time by design *)
-  | T.TStr _ | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _
-  | T.TIndex _ | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _
-  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
+  | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
+  | T.TLen _ | T.TToSlice _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _
+  | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
+  | T.TContinue _ | T.TLocalDecl | T.TLoop _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

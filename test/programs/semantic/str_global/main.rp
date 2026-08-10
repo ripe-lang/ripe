@@ -1,0 +1,13 @@
+struct Box { text: str, value: i32 }
+
+let G: str = "global"
+var M: str = "mutable"
+let B: Box = Box { text: "boxed", value: 7 }
+let E: str = ""
+
+func main() i32 {
+  var total: usize = G.len + M.len + B.text.len + E.len
+  M = "changed"
+  total = total + M.len
+  return (total + B.value as usize) as i32
+}
