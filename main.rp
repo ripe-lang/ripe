@@ -1,0 +1,3 @@
+func main() {
+  return if true { 45 } else {}
+}
