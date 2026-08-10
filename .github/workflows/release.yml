@@ -32,7 +32,7 @@ jobs:
       - run: opam exec -- dune runtest
         env:
           QBE: ${{ github.workspace }}/vendor/qbe/qbe
-      - run: python3 scripts/package-linux-release.py "$GITHUB_REF_NAME"
+      - run: python3 ci/package-linux-release.py "$GITHUB_REF_NAME"
       - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz* --title "Ripe $GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
