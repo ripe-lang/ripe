@@ -309,8 +309,8 @@ let rec dotted_name (e : expr) : Ast.name list option =
   | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
-  | Continue _ | Undefined | Range _ | RangeInclusive _ | PairAssign _ | Loop _
-    ->
+  | Continue _ | Undefined | Range _ | RangeInclusive _ | RangeFrom _
+  | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ ->
       None
 
 (* i32, *i32, func (i32, i32) i32 *)
@@ -628,7 +628,7 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
       | Some _ | None -> continue_with access)
   | LBRACKET ->
       advance st;
-      let idx = parse_expr st 1 in
+      let idx = parse_index_arg st in
       expect st RBRACKET;
       continue_with (mk lo st (Index (lhs, idx)))
   | LPAREN ->
@@ -637,6 +637,33 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
       expect st RPAREN;
       continue_with (mk lo st (Call (lhs, args)))
   | _ -> lhs
+
+(* i, 1..3, 1.., ..3, .. *)
+and parse_index_arg st =
+  let lo = cur_pos st in
+  (* Range endpoints parse one level above `..` so a missing one leaves the operator loop alone *)
+  let endpoint () = parse_expr st 3 in
+  if at st DOTDOT then begin
+    advance st;
+    if at st RBRACKET then mk lo st RangeFull
+    else mk lo st (RangeTo (endpoint ()))
+  end
+  else if at st DOTDOTEQ then begin
+    advance st;
+    mk lo st (RangeToInclusive (endpoint ()))
+  end
+  else
+    let first = endpoint () in
+    if at st DOTDOT then begin
+      advance st;
+      if at st RBRACKET then mk lo st (RangeFrom first)
+      else mk lo st (Range (first, endpoint ()))
+    end
+    else if at st DOTDOTEQ then begin
+      advance st;
+      mk lo st (RangeInclusive (first, endpoint ()))
+    end
+    else first
 
 (* 1, x, "str", foo(a, b) *)
 and parse_primary ?(no_struct_lit = false) st =

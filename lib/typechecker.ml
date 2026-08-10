@@ -391,7 +391,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | TError -> dummy_texpr
       | ty -> T.mk (TInt Usize) (T.TSizeOf ty))
   (* Ranges are not first-class values and only work as for-loop iterators or slice bounds *)
-  | Range _ | RangeInclusive _ ->
+  | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
+  | RangeFull ->
       add_error env e.span "range is only valid in a for loop or slice";
       dummy_texpr
   | ArrayLit [] ->
@@ -1318,6 +1319,9 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
   let tbase = synth env base in
   match strip_alias tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
+      (* A missing low end reads as zero and a missing high end reads as the length *)
+      let zero = T.mk (TInt Usize) (T.TInt 0L) in
+      let whole_length = T.mk (TInt Usize) (T.TLen tbase) in
       match idx.desc with
       (* A slice borrows into the same storage and an inclusive end just
          desugars to one past *)
@@ -1332,6 +1336,21 @@ and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
             else thi
           in
           T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, thi))
+      | RangeFrom lo ->
+          let tlo = check env lo (TInt Usize) in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, tlo, whole_length))
+      | RangeTo hi ->
+          let thi = check env hi (TInt Usize) in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, thi))
+      | RangeToInclusive hi ->
+          let thi = check env hi (TInt Usize) in
+          let one_past =
+            T.mk (TInt Usize)
+              (T.TBinOp (Ast.Add, thi, T.mk (TInt Usize) (T.TInt 1L)))
+          in
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, one_past))
+      | RangeFull ->
+          T.mk (TSlice elem) (T.TSliceExpr (tbase, zero, whole_length))
       | _ ->
           let tidx = synth env idx in
           if not (is_integer tidx.T.ty) then

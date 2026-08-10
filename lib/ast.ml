@@ -120,6 +120,10 @@ type expr_desc =
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr
+  | RangeFrom of expr
+  | RangeTo of expr
+  | RangeToInclusive of expr
+  | RangeFull
   | FieldAccess of expr * name * span
   | Cast of expr * typ * cast_kind
   | SizeOf of typ

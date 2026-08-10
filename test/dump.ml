@@ -51,6 +51,10 @@ and dump_expr (e : Ripe.Ast.expr) =
   | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
+  | RangeFrom l -> "(.. " ^ dump_expr l ^ ")"
+  | RangeTo r -> "(.. " ^ dump_expr r ^ ")"
+  | RangeToInclusive r -> "(..= " ^ dump_expr r ^ ")"
+  | RangeFull -> "(..)"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
   | Cast (e, t, kind) ->

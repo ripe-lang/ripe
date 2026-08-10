@@ -419,6 +419,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Range (l, r) | RangeInclusive (l, r) ->
       resolve_expr st l;
       resolve_expr st r
+  | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
+  | RangeFull -> ()
   | FieldAccess (inner, _, _) ->
       if not (use_qualified st ~what:"variable" e) then resolve_expr st inner
   | Cast (inner, ty, _) ->
