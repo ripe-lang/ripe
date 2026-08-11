@@ -60,7 +60,8 @@ let%expect_test "typecheck: int literal a float can't hold exactly" =
     error: integer literal loses precision
       at <test>:1:25
         func f() { var x: f32 = 16777217 }
-                                ^~~~~~~~ f32 can't represent this exactly
+                                ^~~~~~~~ becomes 16777216
+    help: write 16777217.0 to accept the rounding
     |}]
 
 let%expect_test "typecheck: float suffix disagrees with the annotation" =
