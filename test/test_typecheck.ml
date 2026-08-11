@@ -48,6 +48,21 @@ let%expect_test "typecheck: type mismatch in let" =
                                  ^~ expected bool, found i32
     |}]
 
+let%expect_test "typecheck: int literal a float can't hold exactly" =
+  run_src "func f() { var x: f32 = 16777217 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: f32 = 16777217 }
+                       ^
+    help: prefix with an underscore: _x
+    error: integer literal loses precision
+      at <test>:1:25
+        func f() { var x: f32 = 16777217 }
+                                ^~~~~~~~ f32 can't represent this exactly
+    |}]
+
 let%expect_test "typecheck: unused parameter warns" =
   run_src "func g(used: i32, _skip: i32, dead: i32) i32 { return used }";
   [%expect

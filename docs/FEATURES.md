@@ -89,6 +89,27 @@ var a: int = 5
 var b: float = 1.5
 ```
 
+### Untyped number literals
+
+A literal takes its type from where it lands. When there's no context an integer is `i32` and a float is `f64`.
+
+```ripe
+func take(x: u8) i32 { return x as i32 }
+
+func main() i32 {
+  var a: u8 = 255
+  var b: f32 = 1
+  var c: u8 = 200
+  var d = c + 1
+  return take(1) + (d as i32) + (b as i32)
+}
+```
+
+```ripe
+var a: f32 = 16777217   // error: f32 can't represent this exactly
+var b: u8 = 300         // error: does not fit in u8
+```
+
 ### Integer literal suffixes
 
 ```ripe

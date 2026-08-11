@@ -46,6 +46,10 @@ let int_kind_pos_limit = function
   | U32 -> 4294967295L
   | U64 | Usize -> -1L
 
+let float_kind_exact_limit = function
+  | F32 -> 16777216L
+  | F64 -> 9007199254740992L
+
 let int_kind_neg_limit = function
   | I8 -> 128L
   | I16 -> 32768L

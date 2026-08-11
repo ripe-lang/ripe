@@ -856,6 +856,30 @@ and check_if (env : env) (span : Ast.span)
       in
       T.mk ty (T.TIf (tbranches, telse))
 
+(* The signed ranges are lopsided so each direction needs its own limit *)
+and adopt_int_literal (env : env) (span : Ast.span) (want : ty) (target : ty)
+    ~(neg : bool) (n : int64) : T.texpr option =
+  let signed = if neg then Int64.neg n else n in
+  let too_big limit = Int64.unsigned_compare n limit > 0 in
+  let ty_name () = show_ty env (resolve_ty want) in
+  match target with
+  | TInt kind ->
+      let limit =
+        if neg then int_kind_neg_limit kind else int_kind_pos_limit kind
+      in
+      if too_big limit then
+        emit env (Diagnostic.int_out_of_range span ~ty:(ty_name ()));
+      Some (T.mk want (T.TInt signed))
+  | TFloat kind ->
+      if too_big (float_kind_exact_limit kind) then
+        emit env
+          (Diagnostic.error "integer literal loses precision"
+          |> Diagnostic.at span
+          |> Diagnostic.label (ty_name () ^ " can't represent this exactly"));
+      Some (T.mk want (T.TFloat (Int64.to_float signed)))
+  | TError -> Some (T.mk want (T.TInt signed))
+  | _ -> None
+
 (* This has to be this type *)
 and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   { (check_desc ~adopt env e want) with T.span = e.span }
@@ -893,16 +917,10 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       te
   | Int (n, None) -> (
       (* An untyped literal adopts a newtype over an int and checks its base *)
-      match target with
-      | TInt kind ->
-          if Int64.unsigned_compare n (int_kind_pos_limit kind) > 0 then
-            emit env
-              (Diagnostic.int_out_of_range e.span
-                 ~ty:(show_ty env (resolve_ty want)));
-          T.mk want (T.TInt n)
-      | TError -> T.mk want (T.TInt n)
-      (* Want is not an integer type at all e.g. let y: bool = 20 *)
-      | _ ->
+      match adopt_int_literal env e.span want target ~neg:false n with
+      | Some te -> te
+      (* The wanted type isn't a number at all e.g. let y: bool = 20 *)
+      | None ->
           emit env
             (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
                ~found:"i32");
@@ -922,14 +940,9 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       | TStr -> T.mk want (T.TStr str)
       | _ -> check_by_synth ())
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
-      match target with
-      | TInt kind ->
-          if Int64.unsigned_compare n (int_kind_neg_limit kind) > 0 then
-            emit env
-              (Diagnostic.int_out_of_range e.span
-                 ~ty:(show_ty env (resolve_ty want)));
-          T.mk want (T.TInt (Int64.neg n))
-      | _ -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
+      match adopt_int_literal env e.span want target ~neg:true n with
+      | Some te -> te
+      | None -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float f; _ }) ->
       check env { e with desc = Float (-.f) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
