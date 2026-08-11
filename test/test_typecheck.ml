@@ -907,6 +907,26 @@ let%expect_test "typecheck: checked cast on a float rejected" =
     help: use a plain `as` cast here
     |}]
 
+let%expect_test "typecheck: checked cast on a float literal rejected" =
+  run_src "func f() { var x: f64 = 58685.0 as! u32 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: f64 = 58685.0 as! u32 }
+                       ^
+    help: prefix with an underscore: _x
+    error: checked cast only supports integers
+      at <test>:1:25
+        func f() { var x: f64 = 58685.0 as! u32 }
+                                ^~~~~~~~~~~~~~~ `as!` traps on integer overflow only
+    help: use a plain `as` cast here
+    error: type mismatch
+      at <test>:1:25
+        func f() { var x: f64 = 58685.0 as! u32 }
+                                ^~~~~~~~~~~~~~~ expected f64, found u32
+    |}]
+
 let%expect_test "typecheck: sizeof has usize type" =
   run_src "func f() usize { return sizeof(i32) }";
   [%expect {| ok |}]
