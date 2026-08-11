@@ -766,14 +766,6 @@ comptime M: i32 = sizeof([N]i32)
 |};
   [%expect
     {|
-    error: type mismatch
-      at <test>:2:19
-        comptime N: i32 = sizeof([M]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found usize
-    error: type mismatch
-      at <test>:3:19
-        comptime M: i32 = sizeof([N]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found usize
     error: cyclic constant
       at <test>:3:27
         comptime M: i32 = sizeof([N]i32)

@@ -967,6 +967,21 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       match target with
       | TStr -> T.mk want (T.TStr str)
       | _ -> check_by_synth ())
+  (* A size is a compile time constant so it lands like an integer literal *)
+  | SizeOf t when is_integer target -> (
+      match ty_of_ast env t with
+      | TError -> dummy_texpr
+      | ty ->
+          let size = Int64.of_int (ty_size env.struct_fields ty) in
+          let kind = int_kind_of target in
+          if Int64.unsigned_compare size (int_kind_pos_limit kind) > 0 then
+            emit env
+              (Diagnostic.error "size does not fit"
+              |> Diagnostic.at e.span
+              |> Diagnostic.label
+                   (Printf.sprintf "%Ld does not fit in %s" size
+                      (show_ty env (resolve_ty want))));
+          T.mk want (T.TSizeOf ty))
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match adopt_int_literal env e.span want target ~neg:true n with
       | Some te -> te
