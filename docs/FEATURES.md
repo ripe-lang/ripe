@@ -107,9 +107,13 @@ func main() i32 {
 }
 ```
 
+An integer literal is exact so a type that can't hold it errors. A float literal rounds.
+
 ```ripe
-var a: f32 = 16777217   // error: f32 can't represent this exactly
-var b: u8 = 300         // error: does not fit in u8
+var a: u8 = 300           // error: does not fit in u8
+var b: f32 = 16777217     // error: becomes 16777216
+var c: f32 = 16777217.0   // fine: a float literal rounds
+var d: f32 = 0.1          // fine: no binary float holds this exactly
 ```
 
 ### Integer literal suffixes

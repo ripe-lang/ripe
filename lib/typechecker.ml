@@ -105,6 +105,17 @@ let dummy_texpr = T.mk TError T.TErrorExpr
 let add_warning (env : env) (span : Ast.span) (msg : string) : unit =
   if not env.suppress_warnings then Diagnostic.emit_warn_at env.diags span msg
 
+(* An unsigned literal past i64 max is stored as a negative bit pattern *)
+let unsigned_to_float (n : int64) : float =
+  let two_pow_64 = 18446744073709551616.0 in
+  if Int64.compare n 0L >= 0 then Int64.to_float n
+  else Int64.to_float n +. two_pow_64
+
+let round_to_float_kind (kind : float_kind) (f : float) : float =
+  match kind with
+  | F32 -> Int32.float_of_bits (Int32.bits_of_float f)
+  | F64 -> f
+
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
 let warn_unused_in_scope (env : env) : unit =
@@ -873,12 +884,19 @@ and adopt_int_literal (env : env) (span : Ast.span) (want : ty) (target : ty)
         emit env (Diagnostic.int_out_of_range span ~ty:(ty_name ()));
       Some (T.mk want (T.TInt signed))
   | TFloat kind ->
+      let magnitude = unsigned_to_float n in
+      let exact = if neg then -.magnitude else magnitude in
       if too_big (float_kind_exact_limit kind) then
         emit env
           (Diagnostic.error "integer literal loses precision"
           |> Diagnostic.at span
-          |> Diagnostic.label (ty_name () ^ " can't represent this exactly"));
-      Some (T.mk want (T.TFloat (Int64.to_float signed)))
+          |> Diagnostic.label
+               (Printf.sprintf "becomes %.0f" (round_to_float_kind kind exact))
+          |> Diagnostic.help
+               (Printf.sprintf "write %s%Lu.0 to accept the rounding"
+                  (if neg then "-" else "")
+                  n));
+      Some (T.mk want (T.TFloat exact))
   | TError -> Some (T.mk want (T.TInt signed))
   | _ -> None
 
