@@ -66,6 +66,16 @@ let decimal_int_token st lexbuf text =
   let body, suf = split_int_suffix text in
   int_token st lexbuf ?suf ("0u" ^ body)
 
+let float_suffix_len = String.length "f32"
+
+let float_token text =
+  let len = String.length text in
+  let start = len - float_suffix_len in
+  if start > 0 && text.[start] = 'f' then
+    let body = String.sub text 0 start in
+    FLOAT (float_of_string body, Some (String.sub text start float_suffix_len))
+  else FLOAT (float_of_string text, None)
+
 (* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
   Queue.push (CHAR 0, lexbuf_span st lexbuf, st.line) st.token_queue;
@@ -99,6 +109,7 @@ let exp     = ['e' 'E'] ['+' '-']? decimals
 let alpha   = ['a'-'z' 'A'-'Z' '_']
 let alnum   = alpha | digit
 let intsuf  = ('i' | 'u') ("8" | "16" | "32" | "64" | "size")
+let floatsuf = 'f' ("32" | "64")
 let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
@@ -118,8 +129,9 @@ rule read_main st = parse
   | ('0' ['o' 'O'] octdigs intsuf?) as n  { radix_int_token st lexbuf n }
   | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum* as n
       { ERROR ("invalid number literal: " ^ n) }
-  | decimals '.' decimals exp? as f { FLOAT (float_of_string f) }
-  | decimals exp as f  { FLOAT (float_of_string f) }
+  | decimals '.' decimals exp? floatsuf? as f { float_token f }
+  | decimals exp floatsuf? as f  { float_token f }
+  | decimals floatsuf as f       { float_token f }
   | (decimals intsuf?) as n      { decimal_int_token st lexbuf n }
   | alpha alnum* as s  {
       match lookup_keyword s with

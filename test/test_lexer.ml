@@ -559,6 +559,21 @@ let%expect_test "lexer: every suffix in decimal form" =
     EOF
     |}]
 
+let%expect_test "lexer: every float suffix" =
+  dump_tokens "1.5f32 1.5f64 1f32 1f64 1e3f32 1.5 1_0.5f64\n";
+  [%expect
+    {|
+    FLOAT 1.5f32
+    FLOAT 1.5f64
+    FLOAT 1.f32
+    FLOAT 1.f64
+    FLOAT 1000.f32
+    FLOAT 1.5
+    FLOAT 10.5f64
+    AUTOSEMI
+    EOF
+    |}]
+
 let%expect_test "lexer: every suffix in hex form" =
   dump_tokens
     "0x7i8 0x7i16 0x7i32 0x7i64 0x7isize 0x7u8 0x7u16 0x7u32 0x7u64 0x7usize\n";

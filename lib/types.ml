@@ -46,6 +46,10 @@ let int_kind_pos_limit = function
   | U32 -> 4294967295L
   | U64 | Usize -> -1L
 
+let float_kind_exact_limit = function
+  | F32 -> 16777216L
+  | F64 -> 9007199254740992L
+
 let int_kind_neg_limit = function
   | I8 -> 128L
   | I16 -> 32768L
@@ -77,6 +81,11 @@ let int_kind_of_string s =
   List.find_opt
     (fun k -> String.lowercase_ascii (show_int_kind k) = s)
     int_kinds
+
+let float_kind_of_string s =
+  List.find_opt
+    (fun k -> String.lowercase_ascii (show_float_kind k) = s)
+    float_kinds
 
 let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   let show_ty = show_ty_with show_name in

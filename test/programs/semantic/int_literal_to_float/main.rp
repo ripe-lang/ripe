@@ -1,0 +1,18 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func takef(x: f32) f32 { return x }
+
+func main() i32 {
+  var a: f32 = 1
+  var b: f64 = 2
+  var c: f32 = 1.5
+  var d = c + 1
+  var e = 1 + c
+  var f: f64 = -3
+  var g: f32 = 16777216
+  var h: f64 = 9007199254740992
+  printf("%f %f %f %f %f %f %f\n", a as f64, b, takef(7) as f64, d as f64,
+    e as f64, f, g as f64)
+  printf("%f\n", h)
+  return 0
+}

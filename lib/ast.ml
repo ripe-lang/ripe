@@ -109,7 +109,7 @@ let show_cast_op = function Normal -> "as" | Checked -> "as!"
 type expr_desc =
   | ErrorExpr
   | Int of int64 * string option
-  | Float of float
+  | Float of float * string option
   | Bool of bool
   | Null
   | Char of int

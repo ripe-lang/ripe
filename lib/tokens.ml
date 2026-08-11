@@ -2,7 +2,7 @@
 
 type token =
   | INT of int64 * string option
-  | FLOAT of float
+  | FLOAT of float * string option
   | IDENT of string
   | STRING of string
   | CHAR of int
@@ -123,7 +123,7 @@ let lookup_keyword (name : string) : token option =
 
 let show_token = function
   | INT (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
-  | FLOAT f -> string_of_float f
+  | FLOAT (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | IDENT s -> s
   | STRING s -> "\"" ^ s ^ "\""
   | CHAR c -> Printf.sprintf "'\\u{%X}'" c
