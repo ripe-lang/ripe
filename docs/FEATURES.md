@@ -557,10 +557,28 @@ func main() i32 {
 
 ### Cast
 
+`as` wraps on overflow. A float truncates toward zero.
+
 ```ripe
 func main() i32 {
-  var f: f64 = 2.5
-  return f as i32
+  var f: f64 = 2.9
+  var a: i32 = f as i32    // truncates to 2
+  var b: i64 = 300
+  var c: u8 = b as u8      // 44 with the high bits dropped
+  var d: char = 'x'
+  return a + (c as i32) + (d as i32)
+}
+```
+
+### Checked cast
+
+`as!` panics instead of wrapping. It only works between integers.
+
+```ripe
+func main() i32 {
+  var big: i32 = 300
+  var small: u8 = big as! u8   // panic: value does not fit in the target type
+  return small as i32
 }
 ```
 
