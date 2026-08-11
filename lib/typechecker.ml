@@ -326,7 +326,9 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         emit env
           (Diagnostic.int_out_of_range e.span ~ty:(show_ty env (TInt kind)));
       T.mk (TInt kind) (T.TInt (Int64.neg n))
-  | Float f -> T.mk (TFloat F64) (T.TFloat f)
+  | Float (f, suf) ->
+      let kind = match suf with Some s -> float_suffix_kind s | None -> F64 in
+      T.mk (TFloat kind) (T.TFloat f)
   | Bool b -> T.mk TBool (T.TBool b)
   | Null -> T.mk TNull T.TNull
   | String s -> T.mk (TPointer (TInt I8)) (T.TCStr s)
@@ -488,7 +490,7 @@ and tblock_ty (tb : T.tblock) : ty =
 (* A literal or diverging tail bends to a sibling so it can't anchor the type *)
 and arm_is_flexible (e : expr) : bool =
   match e.desc with
-  | Int (_, None) | Float _ -> true
+  | Int (_, None) | Float (_, None) -> true
   | UnOp ((Pos | Neg), inner) -> arm_is_flexible inner
   | Block body -> block_is_flexible body
   | If (branches, else_body) ->
@@ -925,7 +927,15 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
             (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
                ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
-  | Float f -> (
+  | Float (_, Some _) ->
+      (* The suffix already picked the type so a wrong target is an error not a quiet coercion *)
+      let te = synth_desc env e in
+      if not (strict_eq (strip_alias want) te.T.ty) then
+        emit env
+          (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
+             ~found:(show_ty env te.T.ty));
+      te
+  | Float (f, None) -> (
       match target with
       | TFloat _ -> T.mk want (T.TFloat f)
       | TError -> T.mk want (T.TFloat f)
@@ -943,8 +953,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       match adopt_int_literal env e.span want target ~neg:true n with
       | Some te -> te
       | None -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
-  | UnOp (Neg, { desc = Float f; _ }) ->
-      check env { e with desc = Float (-.f) } want
+  | UnOp (Neg, { desc = Float (f, suf); _ }) ->
+      check env { e with desc = Float (-.f, suf) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
   | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
       check ~adopt env { operand with span = e.span } want

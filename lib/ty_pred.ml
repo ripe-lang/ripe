@@ -103,6 +103,9 @@ let is_num_literal (e : expr) =
 
 let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
 
+let float_suffix_kind s =
+  match float_kind_of_string s with Some k -> k | None -> F64
+
 type cast_class = Numeric | Ptr | Aggregate
 
 let cast_class t =

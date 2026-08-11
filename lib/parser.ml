@@ -675,9 +675,9 @@ and parse_primary ?(no_struct_lit = false) st =
   | CHAR c ->
       advance st;
       mk lo st (Char c)
-  | FLOAT f ->
+  | FLOAT (f, suf) ->
       advance st;
-      mk lo st (Float f)
+      mk lo st (Float (f, suf))
   | TRUE ->
       advance st;
       mk lo st (Bool true)

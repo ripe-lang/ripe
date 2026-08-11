@@ -1,0 +1,12 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  var a: f32 = 1.5f32
+  var b: f64 = 2.5f64
+  var c = 1f32
+  var d = 1e3f64
+  var e: f32 = -4.5f32
+  var f: f64 = 1_000.5f64
+  printf("%f %f %f %f %f %f\n", a as f64, b, c as f64, d, e as f64, f)
+  return 0
+}

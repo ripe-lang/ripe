@@ -63,6 +63,21 @@ let%expect_test "typecheck: int literal a float can't hold exactly" =
                                 ^~~~~~~~ f32 can't represent this exactly
     |}]
 
+let%expect_test "typecheck: float suffix disagrees with the annotation" =
+  run_src "func f() { var x: f64 = 1.5f32 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: f64 = 1.5f32 }
+                       ^
+    help: prefix with an underscore: _x
+    error: type mismatch
+      at <test>:1:25
+        func f() { var x: f64 = 1.5f32 }
+                                ^~~~~~ expected f64, found f32
+    |}]
+
 let%expect_test "typecheck: unused parameter warns" =
   run_src "func g(used: i32, _skip: i32, dead: i32) i32 { return used }";
   [%expect

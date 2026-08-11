@@ -82,6 +82,11 @@ let int_kind_of_string s =
     (fun k -> String.lowercase_ascii (show_int_kind k) = s)
     int_kinds
 
+let float_kind_of_string s =
+  List.find_opt
+    (fun k -> String.lowercase_ascii (show_float_kind k) = s)
+    float_kinds
+
 let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   let show_ty = show_ty_with show_name in
   match t with

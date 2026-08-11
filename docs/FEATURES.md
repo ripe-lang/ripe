@@ -101,7 +101,9 @@ func main() i32 {
   var b: f32 = 1
   var c: u8 = 200
   var d = c + 1
-  return take(1) + (d as i32) + (b as i32)
+  var e: f32 = 1.5
+  var f = e + 1
+  return take(1) + (d as i32) + (f as i32)
 }
 ```
 
@@ -117,6 +119,18 @@ func main() i32 {
   var a: u8 = 255u8
   var b: i64 = 9000000000i64
   return (a as i32) + (b as i32)
+}
+```
+
+### Float literal suffixes
+
+```ripe
+func main() i32 {
+  var a: f32 = 1.5f32
+  var b: f64 = 2.5f64
+  var c = 1f32
+  var d = 1e3f64
+  return (a as i32) + (b as i32) + (c as i32) + (d as i32)
 }
 ```
 
