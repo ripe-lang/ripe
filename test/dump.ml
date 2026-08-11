@@ -56,9 +56,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | RangeFull -> "(..)"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
-  | Cast (e, t, kind) ->
-      "(" ^ Ripe.Ast.show_cast_op kind ^ " " ^ dump_expr e ^ " " ^ dump_typ t
-      ^ ")"
+  | Cast (e, t) -> "(as " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
       "(array"

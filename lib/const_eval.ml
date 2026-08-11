@@ -60,7 +60,7 @@ let rec fold_const_num ~sizeof
       match resolve_ty te.T.ty with
       | TInt _ | TFloat _ | TBool -> resolve s te.T.ty te.T.span
       | _ -> raise (Diagnostic.Errors [ unsupported_const te.T.span ]))
-  | T.TCast (e, _) -> (
+  | T.TCast e -> (
       let v = recur e in
       match (resolve_ty te.T.ty, v) with
       | TFloat _, Nf f -> Nf f

@@ -17,7 +17,7 @@ type texpr_desc =
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * int
   (* Target type is the node type *)
-  | TCast of texpr * Ast.cast_kind
+  | TCast of texpr
   | TSizeOf of Types.ty
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr

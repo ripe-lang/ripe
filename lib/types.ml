@@ -160,16 +160,6 @@ let int_kind_of (t : ty) : int_kind =
   | TNewtype _ | TAlias _ | TError ->
       Diagnostic.ice "expected an integer type"
 
-(* The value fits UNLESS the target range can't hold every source value *)
-let cast_int_needs_check (src : int_kind) (tgt : int_kind) : bool =
-  let bits k = 8 * int_kind_size k in
-  let src_unsigned = is_unsigned (TInt src) in
-  let tgt_unsigned = is_unsigned (TInt tgt) in
-  match (src_unsigned, tgt_unsigned) with
-  | false, true -> true
-  | true, false -> bits tgt <= bits src
-  | _ -> bits tgt < bits src
-
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
 let div_int_needs_check (t : ty) : bool =
   match resolve_ty t with

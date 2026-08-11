@@ -87,14 +87,6 @@ let expect_type_after st span =
   if not (is_type_start st.tok) then
     raise (ParseError (Diagnostic.expected_type span))
 
-let parse_cast_kind st op_span =
-  match st.tok with
-  | BANG ->
-      let bang_span = cur_span st in
-      advance st;
-      (Checked, Span.make (Span.lo op_span) (Span.hi bang_span))
-  | _ -> (Normal, op_span)
-
 let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
 let is_semi (token : token) : bool =
@@ -537,10 +529,9 @@ and parse_expr ?(no_struct_lit = false) st min_prec =
           match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
         if op_tok = AS then begin
-          let kind, cast_op_span = parse_cast_kind st op_span in
-          expect_type_after st cast_op_span;
+          expect_type_after st op_span;
           let ty = parse_typ st in
-          lhs := mk lo st (Cast (!lhs, ty, kind));
+          lhs := mk lo st (Cast (!lhs, ty));
           if is_postfix_tok st.tok then
             raise
               (ParseError

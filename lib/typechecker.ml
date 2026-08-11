@@ -364,7 +364,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         when Symbol.is_func s.Symbol.kind || Symbol.is_global s.Symbol.kind ->
           T.mk (lookup_var env e.span) (T.TIdent s)
       | _ -> synth_field env e.span inner_e fname fspan)
-  | Cast (operand, t, kind) ->
+  | Cast (operand, t) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
       if not (cast_ok te.T.ty ty) then begin
@@ -381,24 +381,9 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           else d
         in
         emit env d
-      end
-      else if kind = Checked then
-        begin match (resolve_ty te.T.ty, resolve_ty ty) with
-        | TError, _ | _, TError -> ()
-        | TInt _, TInt _ -> ()
-        | _ ->
-            emit env
-              (Diagnostic.error "checked cast only supports integers"
-              |> Diagnostic.at e.span
-              |> Diagnostic.label
-                   (Printf.sprintf "`%s` traps on integer overflow only"
-                      (show_cast_op Checked))
-              |> Diagnostic.help
-                   (Printf.sprintf "use a plain `%s` cast here"
-                      (show_cast_op Normal)))
-        end;
+      end;
       if te.T.ty = TError || ty = TError then dummy_texpr
-      else T.mk ty (T.TCast (te, kind))
+      else T.mk ty (T.TCast te)
   | SizeOf t -> (
       match ty_of_ast env t with
       | TError -> dummy_texpr
@@ -1063,7 +1048,7 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
       let promote_vararg e =
         let te = synth env e in
         match resolve_ty te.T.ty with
-        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast (te, Normal))
+        | TFloat F32 -> T.mk ~span:e.span (TFloat F64) (T.TCast te)
         | _ -> te
       in
       List.map2 (check env) fixed sig_.param_tys @ List.map promote_vararg rest
@@ -1824,7 +1809,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       Symbol.is_global s.Symbol.kind
   | T.TUnOp (_, e) -> is_const_texpr env e
   | T.TBinOp (_, l, r) -> is_const_texpr env l && is_const_texpr env r
-  | T.TCast (e, _) -> is_const_texpr env e
+  | T.TCast e -> is_const_texpr env e
   | T.TZero -> true
   (* An array literal is constant when all its elements are *)
   | T.TArrayLit elems -> List.for_all (is_const_texpr env) elems

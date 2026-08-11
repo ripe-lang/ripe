@@ -366,10 +366,6 @@ module Mir_check = struct
   let negative_shift state count span =
     emit_check state (NegativeShift count) span
 
-  let cast_range state (value : operand) ty span =
-    if cast_int_needs_check (int_kind_of value.ty) (int_kind_of ty) then
-      emit_check state (CastRange (value, ty)) span
-
   (* Plain and compound arithmetic guard the same two operators the same way *)
   let arith state op ~operand_ty (right : operand) span =
     match op with
@@ -773,11 +769,9 @@ module Mir_expr = struct
     | S.TFieldAccess _ | S.TIndex _ ->
         let source = lower_place state expr in
         B.copy expr.S.span expr.S.ty source
-    | S.TCast (inner, kind) ->
+    | S.TCast inner ->
         let inner = lower_expr state inner in
-        if kind = Ast.Checked then
-          Mir_check.cast_range state inner expr.S.ty expr.S.span;
-        B.temp_value state expr.S.ty expr.S.span (Cast (inner, kind))
+        B.temp_value state expr.S.ty expr.S.span (Cast inner)
     | S.TSizeOf ty -> B.temp_value state expr.S.ty expr.S.span (SizeOf ty)
     | S.TRange _ | S.TRangeInclusive _ ->
         Diagnostic.ice ~span:expr.S.span "range outside a for loop"

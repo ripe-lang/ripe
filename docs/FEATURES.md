@@ -570,18 +570,6 @@ func main() i32 {
 }
 ```
 
-### Checked cast
-
-`as!` panics instead of wrapping. It only works between integers.
-
-```ripe
-func main() i32 {
-  var big: i32 = 300
-  var small: u8 = big as! u8   // panic: value does not fit in the target type
-  return small as i32
-}
-```
-
 ### sizeof
 
 A size takes its type from where it lands. With no context it's a `usize`.

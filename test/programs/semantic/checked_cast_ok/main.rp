@@ -1,5 +1,0 @@
-func main() i32 {
-  var big: i32 = 200
-  var small: u8 = big as! u8
-  return small as i32
-}

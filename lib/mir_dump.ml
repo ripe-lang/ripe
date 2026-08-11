@@ -75,11 +75,8 @@ let value (value : Mir.value) : string =
       Printf.sprintf "%s%s" (unop_sym op) (operand operand_value)
   | Binary (op, left, right) ->
       Printf.sprintf "%s %s %s" (operand left) (binop_sym op) (operand right)
-  | Cast (operand_value, kind) ->
-      let checked =
-        match kind with Ast.Checked -> "checked " | Ast.Normal -> ""
-      in
-      Printf.sprintf "%scast %s to %s" checked (operand operand_value)
+  | Cast operand_value ->
+      Printf.sprintf "cast %s to %s" (operand operand_value)
         (Types.show_ty value.ty)
   | AddressOf source -> "address_of " ^ place source
   | Len source -> "len " ^ place source
@@ -120,8 +117,6 @@ let check (check : Mir.check) : string =
   | Null pointer -> Printf.sprintf "null %s" (operand pointer)
   | DivZero divisor -> Printf.sprintf "div_zero %s" (operand divisor)
   | NegativeShift count -> Printf.sprintf "negative_shift %s" (operand count)
-  | CastRange (source, target) ->
-      Printf.sprintf "cast %s %s" (operand source) (Types.show_ty target)
 
 let terminator (value : Mir.terminator option) : string =
   let open Mir in

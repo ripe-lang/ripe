@@ -495,7 +495,6 @@ func f() {
 let%expect_test "parse: recover incomplete cast operators" =
   let src = {|func f() {
   return 1 as
-  return 2 as!
 }|} in
   run_parse src;
   [%expect
@@ -504,10 +503,6 @@ let%expect_test "parse: recover incomplete cast operators" =
       at <test>:2:12
           return 1 as
                    ^~
-    error: expected type
-      at <test>:3:12
-          return 2 as!
-                   ^~~
     |}]
 
 let%expect_test "parse: recover operators across statement forms" =
@@ -974,10 +969,6 @@ let%expect_test "parse: comparison binds tighter than logical and" =
 let%expect_test "parse: cast chain" =
   parse_expr "x as i32 as f64";
   [%expect {| (as (as x i32) f64) |}]
-
-let%expect_test "parse: checked cast" =
-  parse_expr "x as! u8";
-  [%expect {| (as! x u8) |}]
 
 let%expect_test "parse: negation binds tighter than multiply" =
   parse_expr "-2 * 3";
