@@ -139,6 +139,7 @@ rule read_main st = parse
       | None -> IDENT s
     }
   | "==" { EQ }
+  | "=>" { FATARROW }
   | "!=" { NEQ }
   | "<=" { LTE }
   | ">=" { GTE }

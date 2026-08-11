@@ -79,6 +79,9 @@ type token =
   | IMPORT
   | MODULE
   | LOOP
+  | ENUM
+  | MATCH
+  | FATARROW
 
 let keywords =
   [
@@ -108,6 +111,8 @@ let keywords =
     ("import", IMPORT);
     ("module", MODULE);
     ("loop", LOOP);
+    ("enum", ENUM);
+    ("match", MATCH);
   ]
 
 module Keyword_table = Hashtbl.Make (String)
@@ -170,12 +175,14 @@ let show_token = function
   | DOTDOTEQ -> "..="
   | ELLIPSIS -> "..."
   | DOT -> "."
+  | FATARROW -> "=>"
   | AUTOSEMI | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE
     | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC
-    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE | LOOP ) as t ->
+    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH
+      ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token (token : token) : string =

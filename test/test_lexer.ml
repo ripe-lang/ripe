@@ -630,3 +630,12 @@ let%expect_test "lexer: every suffix in octal form" =
     AUTOSEMI
     EOF
     |}]
+
+let%expect_test "lexer: enum and match keywords and the arrow" =
+  dump_tokens "enum match =>\n";
+  [%expect {|
+    KW enum
+    KW match
+    =>
+    EOF
+    |}]
