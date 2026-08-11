@@ -102,9 +102,6 @@ type binding_kind = Var | Let | Comptime
 [@@deriving show { with_path = false }]
 
 type modifier = Pub [@@deriving show { with_path = false }]
-type cast_kind = Normal | Checked [@@deriving show { with_path = false }]
-
-let show_cast_op = function Normal -> "as" | Checked -> "as!"
 
 type expr_desc =
   | ErrorExpr
@@ -125,7 +122,7 @@ type expr_desc =
   | RangeToInclusive of expr
   | RangeFull
   | FieldAccess of expr * name * span
-  | Cast of expr * typ * cast_kind
+  | Cast of expr * typ
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr

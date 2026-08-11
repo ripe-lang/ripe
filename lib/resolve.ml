@@ -423,7 +423,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | RangeFull -> ()
   | FieldAccess (inner, _, _) ->
       if not (use_qualified st ~what:"variable" e) then resolve_expr st inner
-  | Cast (inner, ty, _) ->
+  | Cast (inner, ty) ->
       resolve_expr st inner;
       resolve_typ st ty
   | SizeOf ty -> resolve_typ st ty

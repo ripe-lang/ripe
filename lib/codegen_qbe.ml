@@ -315,51 +315,6 @@ and narrow_int_to ctx v target_ty =
       emit ctx "    %s =w %s %s\n" tmp instr v;
       tmp
 
-and cast_range_condition ctx v src_ty target_ty =
-  let tgt_k = int_kind_of target_ty in
-  (* The value moves up to 64 bits so both bounds fit and the compare sees its true value *)
-  let v64 =
-    if qbe_base src_ty = W then begin
-      let t = fresh ctx in
-      let ext = if is_unsigned src_ty then "extuw" else "extsw" in
-      emit ctx "    %s =l %s %s\n" t ext v;
-      t
-    end
-    else v
-  in
-  let target_is_u64 =
-    match tgt_k with
-    | U64 | Usize -> true
-    | I8 | I16 | I32 | I64 | Isize | U8 | U16 | U32 -> false
-  in
-  (* An unsigned source is never below zero so it can only overflow the top *)
-  let underflow =
-    if is_unsigned src_ty then None
-    else begin
-      let t = fresh ctx in
-      emit ctx "    %s =w csltl %s, %Ld\n" t v64
-        (Int64.neg (int_kind_neg_limit tgt_k));
-      Some t
-    end
-  in
-  (* Nothing at 64 bits overflows a u64 so that top bound never trips *)
-  let overflow =
-    if target_is_u64 then None
-    else begin
-      let cmp = if is_unsigned src_ty then "cugtl" else "csgtl" in
-      let t = fresh ctx in
-      emit ctx "    %s =w %s %s, %Ld\n" t cmp v64 (int_kind_pos_limit tgt_k);
-      Some t
-    end
-  in
-  match (underflow, overflow) with
-  | Some a, Some b ->
-      let t = fresh ctx in
-      emit ctx "    %s =w or %s, %s\n" t a b;
-      t
-  | Some x, None | None, Some x -> x
-  | None, None -> Diagnostic.ice "checked cast with no possible loss"
-
 and emit_cast ctx v src_ty target_ty =
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
@@ -581,7 +536,7 @@ let emit_mir_value mctx (value : Mir.value) =
       let right_value = emit_mir_operand mctx right in
       emit_arith_binop ctx op ~result_ty:value.Mir.ty ~operand_ty:left.Mir.ty
         ~count_ty:right.Mir.ty left_value right_value
-  | Mir.Cast (operand, _) ->
+  | Mir.Cast operand ->
       emit_cast ctx (emit_mir_operand mctx operand) operand.Mir.ty value.Mir.ty
   | Mir.AddressOf place -> fst (emit_mir_place mctx place)
   | Mir.Len place -> (
@@ -664,10 +619,6 @@ let emit_mir_check_condition mctx = function
       negative_shift_condition mctx.qbe
         (emit_mir_operand mctx count)
         (qbe_ty count.Mir.ty)
-  | Mir.CastRange (source, target) ->
-      cast_range_condition mctx.qbe
-        (emit_mir_operand mctx source)
-        source.Mir.ty target
 
 let emit_mir_panic mctx span check =
   let ctx = mctx.qbe in
@@ -683,8 +634,7 @@ let emit_mir_panic mctx span check =
         (widened_operand mctx length)
   | Mir.Null _ -> emit ctx "    call $ripe_panic_null(w %d)\n" site
   | Mir.DivZero _ -> emit ctx "    call $ripe_panic_divzero(w %d)\n" site
-  | Mir.NegativeShift _ -> emit ctx "    call $ripe_panic_shift(w %d)\n" site
-  | Mir.CastRange _ -> emit ctx "    call $ripe_panic_cast(w %d)\n" site);
+  | Mir.NegativeShift _ -> emit ctx "    call $ripe_panic_shift(w %d)\n" site);
   emit ctx "    hlt\n"
 
 let mir_callee mctx = function

@@ -53,7 +53,7 @@ and value_desc =
   | Use of operand
   | Unary of unop * operand
   | Binary of binop * operand * operand
-  | Cast of operand * Ast.cast_kind
+  | Cast of operand
   | AddressOf of place
   | Len of place
   | DataPtr of place
@@ -79,7 +79,6 @@ type check =
   | Null of operand
   | DivZero of operand
   | NegativeShift of operand
-  | CastRange of operand * Types.ty
 
 type statement = { desc : statement_desc; span : Ast.span }
 

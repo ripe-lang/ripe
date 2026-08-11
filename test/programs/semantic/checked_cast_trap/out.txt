@@ -1,4 +1,0 @@
-panic: value does not fit in the target type
-  at main.rp:3:19
-  in main.main
-exit: 79

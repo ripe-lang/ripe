@@ -93,14 +93,14 @@ let%expect_test "error: expected expression after operator" =
     |}]
 
 let%expect_test "error: expected type after operator" =
-  let src = "return x as!\n" in
-  render src (Diagnostic.expected_type (span src "as!"));
+  let src = "return x as\n" in
+  render src (Diagnostic.expected_type (span src "as"));
   [%expect
     {|
     error: expected type
       at <test>:1:10
-        return x as!
-                 ^~~
+        return x as
+                 ^~
     |}]
 
 let%expect_test "error: message with type" =

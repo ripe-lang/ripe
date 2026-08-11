@@ -125,7 +125,7 @@ let verify (program : Mir.program) : unit =
       | Binary (_, left, right) ->
           check_operand left;
           check_operand right
-      | Cast (operand_value, _) -> check_operand operand_value
+      | Cast operand_value -> check_operand operand_value
       | AddressOf place_value | Len place_value | DataPtr place_value ->
           ignore (place place_value)
       | SizeOf _ -> ());
@@ -146,7 +146,6 @@ let verify (program : Mir.program) : unit =
       | Null pointer -> check_operand pointer
       | DivZero divisor -> check_operand divisor
       | NegativeShift count -> check_operand count
-      | CastRange (source, _) -> check_operand source
     in
 
     (* %0 = copy %1 / %0 = call @add(copy %1) *)

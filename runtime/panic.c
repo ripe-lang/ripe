@@ -77,7 +77,3 @@ _Noreturn void ripe_panic_null(unsigned int site) {
 _Noreturn void ripe_panic_shift(unsigned int site) {
     report(site, "negative shift amount");
 }
-
-_Noreturn void ripe_panic_cast(unsigned int site) {
-    report(site, "value does not fit in the target type");
-}
