@@ -98,7 +98,9 @@ let rec is_comparable = function
   | TNewtype _ ->
       false
 
-let is_int_literal (e : expr) = match e.desc with Int _ -> true | _ -> false
+let is_num_literal (e : expr) =
+  match e.desc with Int _ | Float _ -> true | _ -> false
+
 let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
 
 type cast_class = Numeric | Ptr | Aggregate

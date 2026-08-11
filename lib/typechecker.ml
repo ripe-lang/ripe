@@ -984,7 +984,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
 
 and check_matching_operands (env : env) (l : expr) (r : expr) :
     T.texpr * T.texpr * ty =
-  if is_int_literal l && not (is_int_literal r) then
+  if is_num_literal l && not (is_num_literal r) then
     let tr = synth env r in
     let t = tr.T.ty in
     (check env l t, tr, t)
