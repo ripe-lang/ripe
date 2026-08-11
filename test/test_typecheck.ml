@@ -766,14 +766,6 @@ comptime M: i32 = sizeof([N]i32)
 |};
   [%expect
     {|
-    error: type mismatch
-      at <test>:2:19
-        comptime N: i32 = sizeof([M]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found usize
-    error: type mismatch
-      at <test>:3:19
-        comptime M: i32 = sizeof([N]i32)
-                          ^~~~~~~~~~~~~~ expected i32, found usize
     error: cyclic constant
       at <test>:3:27
         comptime M: i32 = sizeof([N]i32)
@@ -913,6 +905,26 @@ let%expect_test "typecheck: checked cast on a float rejected" =
         func f() i32 { var x: f64 = 2.5; return x as! i32 }
                                                 ^~~~~~~~~ `as!` traps on integer overflow only
     help: use a plain `as` cast here
+    |}]
+
+let%expect_test "typecheck: checked cast on a float literal rejected" =
+  run_src "func f() { var x: f64 = 58685.0 as! u32 }";
+  [%expect
+    {|
+    warning: unused variable: x
+      at <test>:1:16
+        func f() { var x: f64 = 58685.0 as! u32 }
+                       ^
+    help: prefix with an underscore: _x
+    error: checked cast only supports integers
+      at <test>:1:25
+        func f() { var x: f64 = 58685.0 as! u32 }
+                                ^~~~~~~~~~~~~~~ `as!` traps on integer overflow only
+    help: use a plain `as` cast here
+    error: type mismatch
+      at <test>:1:25
+        func f() { var x: f64 = 58685.0 as! u32 }
+                                ^~~~~~~~~~~~~~~ expected f64, found u32
     |}]
 
 let%expect_test "typecheck: sizeof has usize type" =

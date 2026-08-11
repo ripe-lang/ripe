@@ -584,8 +584,19 @@ func main() i32 {
 
 ### sizeof
 
+A size takes its type from where it lands. With no context it's a `usize`.
+
 ```ripe
-func main() i32 { return sizeof(i32) as i32 }
+extern "C" func malloc(n: u64) *opaque
+
+struct pt { x: i32, y: i32 }
+
+func main() i32 {
+  let a: u64 = sizeof(pt)
+  let b = sizeof(pt)          // usize
+  let p = malloc(sizeof(pt))  // no cast needed
+  return sizeof(i32)
+}
 ```
 
 ## Modules

@@ -6,7 +6,7 @@ func take(a: int, b: float) int {
 
 func main() i32 {
   var p: pair = pair { n: 4, f: 2.5 }
-  var sizes = (sizeof(int) + sizeof(float)) as i32
+  var sizes: i32 = sizeof(int) + sizeof(float)
   var same = (sizeof(int) == sizeof(i64) && sizeof(float) == sizeof(f64)) as i32
   return sizes + same + (take(p.n, p.f) as i32)
 }

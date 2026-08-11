@@ -1,0 +1,20 @@
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func malloc(n: u64) *opaque
+extern "C" func free(p: *opaque)
+
+struct pt { x: i32, y: i32 }
+
+func take(n: u8) i32 { return n as i32 }
+
+func main() i32 {
+  let a: u64 = sizeof(pt)
+  let b: i32 = sizeof(i32)
+  let c: u8 = sizeof(pt)
+  let d = sizeof(pt)
+  var buf: [sizeof(pt)]u8 = undefined
+  let p = malloc(sizeof(pt))
+  free(p)
+  printf("%llu %d %d %llu %d %d\n", a, b, c as i32, d, buf.len as i32,
+    take(sizeof(i32)))
+  return 0
+}

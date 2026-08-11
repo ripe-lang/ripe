@@ -1,1 +1,1 @@
-func main() i32 { return sizeof([5]i16) as i32 }
+func main() i32 { return sizeof([5]i16) }
