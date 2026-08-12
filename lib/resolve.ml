@@ -453,6 +453,9 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       else use_type st path name name_span;
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
+  | Match (scrutinee, arms) ->
+      resolve_expr st scrutinee;
+      List.iter (resolve_arm st) arms
   | If (branches, else_body) ->
       List.iter
         (fun (cond, { Ast.value = body; _ }) ->
@@ -483,6 +486,24 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st st';
       resolve_expr st fv;
       resolve_expr st sv
+
+(* A binding belongs to the arm it was written in so the scope opens first *)
+and resolve_arm (st : state) (a : arm) : unit =
+  push_scope st;
+  resolve_pattern st a.pat;
+  resolve_block_contents st a.arm_body.value;
+  pop_scope st
+
+and resolve_pattern (st : state) (p : pattern) : unit =
+  match p.pdesc with
+  | PatWild -> ()
+  | PatValue e -> resolve_expr st e
+  (* A name already standing for a constant compares against it so only a name that means nothing yet becomes a binding *)
+  | PatBind name -> (
+      match lookup st name with
+      | Some sym when Symbol.is_comptime sym.Symbol.kind ->
+          use_symbol st p.pspan sym
+      | Some _ | None -> declare_local st (Symbol.Local Ast.Let) name p.pspan)
 
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =

@@ -1,0 +1,26 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func main() {
+  var total = 0
+  var i = 0
+  while i < 8 {
+    i += 1
+    match i % 3 {
+      0 => continue,
+      1 => { total += 10 }
+      _ => { total += 1 }
+    }
+    total += 100
+  }
+  var last = 0
+  var j = 0
+  loop {
+    j += 1
+    match j % 4 {
+      0 => break,
+      _ => { last = j }
+    }
+  }
+  printf("%d %d\n", total, last)
+  return
+}

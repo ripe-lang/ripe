@@ -435,6 +435,73 @@ module Mir_control = struct
         B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
     | None -> B.constant expr Undef
 
+  (* A pattern walks the scrutinee and gathers what to compare and what to name *)
+  and pattern_plan (place : place) (ty : ty) (pat : S.tpattern) =
+    match pat with
+    | S.TPatWild -> ([], [])
+    | S.TPatBind (symbol, bound_ty) -> ([], [ (symbol, bound_ty, place) ])
+    | S.TPatConst value -> ([ (place, ty, value) ], [])
+
+  (* One test per arm because a jump table only pays off on a dense range *)
+  and lower_match state (expr : S.texpr) (scrutinee : S.texpr) arms =
+    let result =
+      if expr.S.ty = TVoid || expr.S.ty = TNever then None
+      else Some (B.add_local state Temp expr.S.ty expr.S.span)
+    in
+    (* The scrutinee is a place so a field pattern can project into it *)
+    let subject = B.materialize state (lower_expr state scrutinee) in
+    let join = B.new_block state in
+    let wanted ty value =
+      match resolve_ty ty with
+      | TBool -> Bool (value <> 0L)
+      | TChar -> Char (Int64.to_int value)
+      | _ -> Int value
+    in
+    let bind (symbol, bound_ty, place) =
+      let id =
+        B.add_local state ~name:symbol.Symbol.name User bound_ty expr.S.span
+      in
+      B.bind_symbol state symbol id;
+      B.assign state
+        (B.local_place expr.S.span id)
+        (B.copy expr.S.span bound_ty place)
+    in
+    let rec lower_tests fail = function
+      | [] -> ()
+      | (place, ty, value) :: rest ->
+          let next = B.new_block state in
+          let against = B.const_operand expr.S.span ty (wanted ty value) in
+          let found = B.copy expr.S.span ty place in
+          let equal =
+            B.temp_value state TBool expr.S.span (Binary (Eq, found, against))
+          in
+          B.terminate state (Branch (equal, next, fail)) expr.S.span;
+          B.switch state next;
+          lower_tests fail rest
+    in
+    let rec lower_arms = function
+      (* Nothing checks coverage so falling out of the last test is undefined *)
+      | [] -> B.terminate state Unreachable expr.S.span
+      | { S.tpat; tbody } :: rest -> (
+          let tests, binds = pattern_plan subject scrutinee.S.ty tpat in
+          let no = if tests = [] then None else Some (B.new_block state) in
+          Option.iter (fun no -> lower_tests no tests) no;
+          List.iter bind binds;
+          lower_arm state expr result join tbody;
+          match no with
+          | Some no ->
+              B.switch state no;
+              lower_arms rest
+          | None -> ())
+    in
+    lower_arms arms;
+    B.switch state join;
+    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
+    match result with
+    | Some result ->
+        B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
+    | None -> B.constant expr Undef
+
   and lower_arm state (expr : S.texpr) result join body =
     match result with
     | None ->
@@ -793,6 +860,8 @@ module Mir_expr = struct
     | S.TBlock body -> lower_block_value state expr body
     | S.TIf (branches, else_body) ->
         Mir_control.lower_if state expr branches else_body
+    | S.TMatch (scrutinee, arms) ->
+        Mir_control.lower_match state expr scrutinee arms
     | S.TWhile (label, condition, body) ->
         Mir_control.lower_while state expr.S.span label condition body;
         B.constant expr Undef

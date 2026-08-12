@@ -138,6 +138,7 @@ type expr_desc =
   | Continue of loop_label option
   | PairAssign of expr * expr * expr * expr
   | Loop of loop_label option * block
+  | Match of expr * arm list
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
@@ -198,6 +199,16 @@ and func_def = {
   extern_abi : abi;
   func_span : span;
 }
+[@@deriving show { with_path = false }]
+
+and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
+[@@deriving show { with_path = false }]
+
+and pattern = { pdesc : pattern_desc; pspan : span }
+[@@deriving show { with_path = false }]
+
+(* TODO: no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring *)
+and pattern_desc = PatValue of expr | PatWild | PatBind of name
 [@@deriving show { with_path = false }]
 
 (* TODO: a variant carries no explicit value and no payload *)

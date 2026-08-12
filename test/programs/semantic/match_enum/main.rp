@@ -1,0 +1,16 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+enum Color { Red, Green, Blue }
+
+func code(c: Color) i32 {
+  return match c {
+    Color.Red => 10,
+    Color.Green => 20,
+    Color.Blue => 30,
+  }
+}
+
+func main() {
+  printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue))
+  return
+}

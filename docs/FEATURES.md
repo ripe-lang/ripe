@@ -523,6 +523,43 @@ func main() i32 {
 }
 ```
 
+### match
+
+Arms run in order and the first one that matches wins. Nothing checks that the arms cover the scrutinee, so a value no arm names falls out of the match with an undefined result.
+
+```ripe
+enum Color { Red, Green, Blue }
+
+func code(c: Color) i32 {
+  return match c {
+    Color.Red => 10,
+    Color.Green => 20,
+    Color.Blue => 30,
+  }
+}
+
+func classify(n: i32) i32 {
+  return match n {
+    0 => -1,
+    1 => 1,
+    _ => 2,
+  }
+}
+```
+
+### Patterns
+
+A bare name binds and catches everything. A dotted name is a constant.
+
+```ripe
+func describe(n: i32) i32 {
+  return match n {
+    0 => 100,
+    other => other * 2,
+  }
+}
+```
+
 ## Operators
 
 ### Arithmetic and comparison

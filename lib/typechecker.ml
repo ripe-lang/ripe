@@ -460,6 +460,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let tb, ty = check_scoped_block env e.span body Infer in
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) -> check_if env e.span branches else_body None
+  | Match (scrutinee, arms) -> check_match env scrutinee arms Infer
   | While (label, cond, body) ->
       let tc = check env cond TBool in
       let loop = new_loop label ~valued:false in
@@ -526,10 +527,12 @@ and block_result_ty (env : env) (body : block) : ty =
 
 and reconcile_if_result (env : env) (branches : (expr * block Ast.spanned) list)
     (else_b : block) : ty =
-  let arms =
-    List.map (fun (_, { Ast.value; _ }) -> value) branches @ [ else_b ]
-  in
-  let probes = List.map (fun body -> (body, block_result_ty env body)) arms in
+  reconcile_arms env
+    (List.map (fun (_, { Ast.value; _ }) -> value) branches @ [ else_b ])
+
+(* The first arm that can't bend decides so a literal never anchors the type *)
+and reconcile_arms (env : env) (bodies : block list) : ty =
+  let probes = List.map (fun body -> (body, block_result_ty env body)) bodies in
   let rigid =
     List.find_opt
       (fun (body, t) -> (not (block_is_flexible body)) && t <> TNever)
@@ -580,6 +583,8 @@ and check_value_for_use (env : env) (e : expr) : result_use -> T.texpr =
             (check_if_discarded env e.span branches else_body) with
             T.span = e.span;
           }
+      | Match (scrutinee, arms) ->
+          { (check_match env scrutinee arms Discard) with T.span = e.span }
       | _ ->
           let te = synth env e in
           warn_discarded_operation env e te;
@@ -867,6 +872,92 @@ and check_if (env : env) (span : Ast.span)
       in
       T.mk ty (T.TIf (tbranches, telse))
 
+(* A binding lands in the scope of the arm so the env comes back out *)
+and check_pattern (env : env) (sty : ty) (pat : pattern) :
+    env * T.tpattern option =
+  match pat.pdesc with
+  | PatWild -> (env, Some T.TPatWild)
+  | PatBind name ->
+      let symbol = sym env pat.pspan in
+      (* The resolver already decided so a comptime name reads as a constant *)
+      if Symbol.is_comptime symbol.Symbol.kind then
+        check_pattern env sty
+          { pat with pdesc = PatValue { desc = Ident name; span = pat.pspan } }
+      else (extend_var env pat.pspan name sty, Some (T.TPatBind (symbol, sty)))
+  | PatValue e -> (
+      let te = check env e sty in
+      match te.T.desc with
+      | T.TVariant (_, value) -> (env, Some (T.TPatConst value))
+      | T.TInt n -> (env, Some (T.TPatConst n))
+      | T.TBool b -> (env, Some (T.TPatConst (if b then 1L else 0L)))
+      | T.TChar c -> (env, Some (T.TPatConst (Int64.of_int c)))
+      | T.TErrorExpr -> (env, None)
+      (* A comptime name or a folded expression stands for its value *)
+      | _ when Const_eval.foldable te && is_integer te.T.ty ->
+          let value = fold_num_or env dummy_const_num te in
+          (env, Some (T.TPatConst (Const_eval.const_to_int64 te.T.ty value)))
+      (* TODO: comparing these needs more than the integer test an arm emits *)
+      | T.TFloat _ | T.TStr _ | T.TCStr _ ->
+          emit env
+            (Diagnostic.error_at pat.pspan "pattern is not comparable"
+            |> Diagnostic.label ("cannot test " ^ show_ty env te.T.ty));
+          (env, None)
+      | _ ->
+          (* TODO: a named constant and a range should both work as patterns *)
+          emit env
+            (Diagnostic.error_at pat.pspan "pattern is not a literal"
+            |> Diagnostic.help "an arm names a literal or an enum variant");
+          (env, None))
+
+and check_match (env : env) (scrutinee : expr) (arms : arm list)
+    (use : result_use) : T.texpr =
+  let ts = synth env scrutinee in
+  let bodies = List.map (fun (a : arm) -> a.arm_body.Ast.value) arms in
+  let want =
+    match use with
+    | Infer -> Some (reconcile_arms env bodies)
+    | Expect w -> Some w
+    | Discard -> None
+  in
+  let arm_use = match want with Some w -> Expect w | None -> Discard in
+  (* Nothing here checks coverage so a match that names no catch all can fall out *)
+  let seen = ref [] in
+  let caught_all = ref false in
+  let record (pat : pattern) (tpat : T.tpattern) : unit =
+    if !caught_all then
+      emit env (Diagnostic.error_at pat.pspan "arm never runs")
+    else
+      match tpat with
+      | T.TPatWild | T.TPatBind _ -> caught_all := true
+      | T.TPatConst n ->
+          if List.mem n !seen then
+            emit env (Diagnostic.error_at pat.pspan "duplicate pattern")
+          else seen := n :: !seen
+  in
+  let check_arm (a : arm) : T.tarm option =
+    let arm_env, tpat = check_pattern (push_scope env) ts.T.ty a.pat in
+    Option.iter (record a.pat) tpat;
+    (* A broken pattern still checks its body so the errors inside show up *)
+    let tbody, _ =
+      check_scoped_block arm_env a.arm_body.Ast.span a.arm_body.Ast.value
+        arm_use
+    in
+    Option.map (fun tpat -> { T.tpat; tbody }) tpat
+  in
+  let tarms = List.filter_map check_arm arms in
+  (* A catch all with every arm diverging is the only way nothing falls past *)
+  let diverges =
+    !caught_all
+    && List.for_all (fun (a : T.tarm) -> tblock_ty a.T.tbody = TNever) tarms
+  in
+  let ty =
+    match (diverges, want) with
+    | true, _ -> TNever
+    | false, Some w -> w
+    | false, None -> TVoid
+  in
+  T.mk ty (T.TMatch (ts, tarms))
+
 (* The signed ranges are lopsided so each direction needs its own limit *)
 and adopt_int_literal (env : env) (span : Ast.span) (want : ty) (target : ty)
     ~(neg : bool) (n : int64) : T.texpr option =
@@ -1020,6 +1111,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       T.mk ty (T.TBlock tb)
   | If (branches, else_body) ->
       check_if env e.span branches else_body (Some want)
+  | Match (scrutinee, arms) -> check_match env scrutinee arms (Expect want)
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
 
@@ -1862,7 +1954,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   | T.TCall _ | T.TFieldAccess _ | T.TRange _ | T.TRangeInclusive _ | T.TIndex _
   | T.TLen _ | T.TSliceExpr _ | T.TDataPtr _ | T.TBlock _ | T.TIf _ | T.TWhile _
   | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _ | T.TContinue _
-  | T.TLocalDecl | T.TLoop _ ->
+  | T.TLocalDecl | T.TLoop _ | T.TMatch _ ->
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false

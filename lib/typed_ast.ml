@@ -42,11 +42,19 @@ type texpr_desc =
   | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
+  | TMatch of texpr * tarm list
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
 and tblock = texpr list [@@deriving show { with_path = false }]
+
+and tarm = { tpat : tpattern; tbody : tblock }
+[@@deriving show { with_path = false }]
+
+(* A test compares part of the scrutinee and a binding names part of it *)
+and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
+[@@deriving show { with_path = false }]
 
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }

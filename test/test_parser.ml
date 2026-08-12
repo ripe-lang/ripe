@@ -1622,3 +1622,69 @@ let%expect_test "parse: an enum may appear in a block" =
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
   [%expect {| (block (local enum Step)) |}]
+
+let%expect_test "parse: an arm takes an expression or a block" =
+  (match
+     parse
+       {|func f() {
+  match c {
+    0 => 1,
+    1 => { g() },
+    _ => 2,
+  }
+}|}
+   with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect
+    {| (block (match c (0 (block 1)) (1 (block (block (call g)))) (_ (block 2)))) |}]
+
+let%expect_test "parse: a newline separates arms" =
+  (match parse {|func f() {
+  match c {
+    0 => 1
+    _ => 2
+  }
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (match c (0 (block 1)) (_ (block 2)))) |}]
+
+let%expect_test "parse: match is a value" =
+  (match parse "func f() { let x = match c { _ => 1 } }" with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (let x (match c (_ (block 1))))) |}]
+
+let%expect_test "parse: an arm body may leave the loop or the function" =
+  (match
+     parse
+       {|func f() {
+  match c {
+    0 => return,
+    1 => break,
+    _ => continue,
+  }
+}|}
+   with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect
+    {| (block (match c (0 (block (return))) (1 (block (break))) (_ (block (continue))))) |}]
+
+let%expect_test "parse: a scrutinee stops before the arms" =
+  run_src "func f(p: i32) i32 { match p { _ => 1 } }";
+  [%expect {| ok |}]
+
+let%expect_test "parse: a bare name binds and a dotted one is a constant" =
+  (match
+     parse {|func f() {
+  match c {
+    Color.Red => 1,
+    other => 2,
+  }
+}|}
+   with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (match c ((. Color Red) (block 1)) (other (block 2)))) |}]
