@@ -53,7 +53,7 @@ declared private here
 ```text
 prefix with an underscore: _p
 move the operator to the previous line
-use `let _ = ...` when this is intentional
+use `var _ = ...` when this is intentional
 ```
 
 Most of the time you'll be using:
@@ -85,7 +85,7 @@ The `foo` is already under the caret, so naming it again adds nothing. The only 
 ```text
 error: type has no fields
   at t.rp:4:13
-      let _y = *n.x + 1
+      var _y = *n.x + 1
                 ^~~ on i32
 ```
 
