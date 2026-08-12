@@ -160,6 +160,14 @@ let expect_ident_span st =
   let name = expect_ident st in
   (name, span)
 
+let expect_binding_name st =
+  match st.tok with
+  | UNDERSCORE ->
+      let span = st.tok_span in
+      advance st;
+      (Interner.intern "_", span)
+  | _ -> expect_ident_span st
+
 let expect st t =
   if st.tok <> t then
     fail_found st (Printf.sprintf "expected %s" (show_token t))
@@ -785,7 +793,7 @@ and parse_simple_stmt ?(no_pair = false) st =
         | COMPTIME -> Ast.Comptime
         | _ -> Ast.Var
       in
-      let name, nspan = expect_ident_span st in
+      let name, nspan = expect_binding_name st in
       (* Optional type annotation since the typechecker can infer it *)
       let ann =
         if at st COLON then (

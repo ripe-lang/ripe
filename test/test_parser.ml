@@ -1688,3 +1688,12 @@ let%expect_test "parse: a bare name binds and a dotted one is a constant" =
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
   [%expect {| (block (match c ((. Color Red) (block 1)) (other (block 2)))) |}]
+
+let%expect_test "parse: a binding may be named with an underscore" =
+  (match parse {|func f() {
+  let _ = 1
+  var _ = 2
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (let _ 1) (let _ 2)) |}]
