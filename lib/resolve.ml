@@ -250,7 +250,7 @@ let rec find_value (scope : scope) (name : Ast.name) : Symbol.t option =
 
 let is_item_value (sym : Symbol.t) : bool =
   match sym.Symbol.kind with
-  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc
+  | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
   | Symbol.Module ->
       true
   | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local _
@@ -400,6 +400,22 @@ let use_qualified (st : state) ~(what : string) (e : expr) : bool =
            e.span);
       true
 
+(* Color.Red puts a type name where a value usually goes *)
+let use_type_name (st : state) (e : expr) : bool =
+  match Option.bind (access_path e) split_member with
+  | None -> false
+  | Some (path, name) -> (
+      if
+        (* A nearer value wins so a local named str isn't the builtin type *)
+        path = [] && lookup st name <> None
+      then false
+      else
+        match find_type st path name with
+        | None -> false
+        | Some sym ->
+            use_symbol st e.span sym;
+            true)
+
 let rec resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
   | ErrorExpr -> ()
@@ -422,7 +438,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
   | RangeFull -> ()
   | FieldAccess (inner, _, _) ->
-      if not (use_qualified st ~what:"variable" e) then resolve_expr st inner
+      if not (use_qualified st ~what:"variable" e) then
+        if not (use_type_name st inner) then resolve_expr st inner
   | Cast (inner, ty) ->
       resolve_expr st inner;
       resolve_typ st ty
@@ -436,6 +453,9 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       else use_type st path name name_span;
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
+  | Match (scrutinee, arms) ->
+      resolve_expr st scrutinee;
+      List.iter (resolve_arm st) arms
   | If (branches, else_body) ->
       List.iter
         (fun (cond, { Ast.value = body; _ }) ->
@@ -467,6 +487,24 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st fv;
       resolve_expr st sv
 
+(* A binding belongs to the arm it was written in so the scope opens first *)
+and resolve_arm (st : state) (a : arm) : unit =
+  push_scope st;
+  resolve_pattern st a.pat;
+  resolve_block_contents st a.arm_body.value;
+  pop_scope st
+
+and resolve_pattern (st : state) (p : pattern) : unit =
+  match p.pdesc with
+  | PatWild -> ()
+  | PatValue e -> resolve_expr st e
+  (* A name already standing for a constant compares against it so only a name that means nothing yet becomes a binding *)
+  | PatBind name -> (
+      match lookup st name with
+      | Some sym when Symbol.is_comptime sym.Symbol.kind ->
+          use_symbol st p.pspan sym
+      | Some _ | None -> declare_local st (Symbol.Local Ast.Let) name p.pspan)
+
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =
   match t.tdesc with
@@ -485,13 +523,14 @@ and declare_block_item (st : state) (d : local_decl) : unit =
   | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
   | LocalTypeAlias td | LocalNewtype td ->
       declare_local_type st td.alias_name td.alias_span
-  | LocalFunc fd -> declare_local_func st fd.func_name fd.func_span);
+  | LocalFunc fd -> declare_local_func st fd.func_name fd.func_span
+  | LocalEnum ed -> declare_local_type st ed.enum_name ed.enum_span);
   st.out.local_decls <- decl_of_local d :: st.out.local_decls
 
 and resolve_local_decl (st : state) (d : local_decl) : unit =
   match d with
   | LocalFunc fd -> resolve_local_func st fd
-  | LocalStruct _ | LocalTypeAlias _ | LocalNewtype _ ->
+  | LocalStruct _ | LocalTypeAlias _ | LocalNewtype _ | LocalEnum _ ->
       resolve_decl st (decl_of_local d)
 
 and resolve_block_item (st : state) = function
@@ -533,6 +572,8 @@ and resolve_decl (st : state) : decl -> unit = function
   | Struct sd ->
       List.iter (fun (f : field) -> resolve_typ st f.field_typ) sd.fields
   | TypeAlias td | Newtype td -> resolve_typ st td.alias_typ
+  (* TODO: nothing to walk until a variant can hold a type *)
+  | Enum _ -> ()
 
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
@@ -566,7 +607,7 @@ let declare_decls (st : state) (decls : decl list) : unit =
           declare_global ~name_span:fd.func_name_span st Symbol.Extern
             Symbol.Private fd.func_name fd.func_span
       | Global gd ->
-          declare_global ~name_span:gd.name_span st Symbol.Global
+          declare_global ~name_span:gd.name_span st (Symbol.Global gd.kind)
             (visibility gd.modifiers) gd.name gd.span
       | Struct sd ->
           declare_type ~name_span:sd.struct_name_span st
@@ -575,7 +616,11 @@ let declare_decls (st : state) (decls : decl list) : unit =
       | TypeAlias td | Newtype td ->
           declare_type ~name_span:td.alias_name_span st
             (visibility td.alias_modifiers)
-            td.alias_name td.alias_span)
+            td.alias_name td.alias_span
+      | Enum ed ->
+          declare_type ~name_span:ed.enum_name_span st
+            (visibility ed.enum_modifiers)
+            ed.enum_name ed.enum_span)
     decls
 
 let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)

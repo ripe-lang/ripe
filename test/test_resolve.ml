@@ -8,6 +8,7 @@ let decl_name_span = function
   | Ripe.Ast.Struct sd -> (sd.struct_name, sd.struct_span)
   | Ripe.Ast.Global gd -> (gd.name, gd.span)
   | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.alias_name, td.alias_span)
+  | Ripe.Ast.Enum ed -> (ed.enum_name, ed.enum_span)
 
 let compare_module_symbols src =
   let first_symbol module_id =

@@ -1,0 +1,12 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+enum State { Idle, Busy }
+
+let start: State = State.Idle
+var current: State = State.Idle
+
+func main() {
+  current = State.Busy
+  printf("%d %d\n", start == State.Idle, current == State.Busy)
+  return
+}

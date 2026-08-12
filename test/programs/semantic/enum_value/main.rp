@@ -1,0 +1,11 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+enum Color { Red, Green, Blue }
+
+func main() {
+  let red = Color.Red
+  let green = Color.Green
+  let blue = Color.Blue
+  printf("%d %d %d\n", red == Color.Red, green == Color.Green, blue == Color.Blue)
+  return
+}

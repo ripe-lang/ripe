@@ -1,0 +1,8 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func main() {
+  enum Step { First, Second }
+  let s = Step.Second
+  printf("%d\n", s == Step.Second)
+  return
+}

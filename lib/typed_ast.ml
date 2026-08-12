@@ -29,6 +29,8 @@ type texpr_desc =
   | TZero
   | TUndef
   | TStructLit of Qname.t * (int * texpr) list
+  (* TODO: a payload variant carries its arguments here too *)
+  | TVariant of Qname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
   | TWhile of Ast.loop_label option * texpr * tblock
@@ -40,11 +42,19 @@ type texpr_desc =
   | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
+  | TMatch of texpr * tarm list
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
 and tblock = texpr list [@@deriving show { with_path = false }]
+
+and tarm = { tpat : tpattern; tbody : tblock }
+[@@deriving show { with_path = false }]
+
+(* A test compares part of the scrutinee and a binding names part of it *)
+and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
+[@@deriving show { with_path = false }]
 
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
   { desc; ty; span }
@@ -81,4 +91,6 @@ type tdecl =
   | TGlobal of tglobal_def
   | TTypeAlias of Qname.t * ty
   | TNewtype of Qname.t * ty
+  (* An enum is an integer at runtime so nothing past here needs its variants *)
+  | TEnum of Qname.t
 [@@deriving show { with_path = false }]

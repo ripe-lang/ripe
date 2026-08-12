@@ -6,7 +6,8 @@ let all_kinds =
   [
     Symbol.Func;
     Extern;
-    Global;
+    Global Ast.Let;
+    Global Ast.Comptime;
     Type;
     Local Ast.Let;
     Local Ast.Comptime;
@@ -26,7 +27,8 @@ let%expect_test "symbol: is_func covers only func and extern" =
     {|
     Func true
     Extern true
-    Global false
+    (Global Let) false
+    (Global Comptime) false
     Type false
     (Local Let) false
     (Local Comptime) false
@@ -41,7 +43,8 @@ let%expect_test "symbol: is_global covers only global" =
     {|
     Func false
     Extern false
-    Global true
+    (Global Let) true
+    (Global Comptime) true
     Type false
     (Local Let) false
     (Local Comptime) false

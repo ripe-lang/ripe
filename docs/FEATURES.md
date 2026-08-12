@@ -234,6 +234,20 @@ type byte = u8
 newtype Celsius = f32
 ```
 
+### Enums
+
+An enum is its own type and never mixes with an integer.
+
+```ripe
+enum Color { Red, Green, Blue }
+
+func main() i32 {
+  let c: Color = Color.Green
+  if c == Color.Green { return 1 }
+  return 0
+}
+```
+
 ### Local declarations
 
 ```ripe
@@ -506,6 +520,43 @@ func main() i32 {
     if n == 7 { break n * 6 }
   }
   return answer
+}
+```
+
+### match
+
+Arms run in order and the first one that matches wins. Nothing checks that the arms cover the scrutinee, so a value no arm names falls out of the match with an undefined result.
+
+```ripe
+enum Color { Red, Green, Blue }
+
+func code(c: Color) i32 {
+  return match c {
+    Color.Red => 10,
+    Color.Green => 20,
+    Color.Blue => 30,
+  }
+}
+
+func classify(n: i32) i32 {
+  return match n {
+    0 => -1,
+    1 => 1,
+    _ => 2,
+  }
+}
+```
+
+### Patterns
+
+A bare name binds and catches everything. A dotted name is a constant.
+
+```ripe
+func describe(n: i32) i32 {
+  return match n {
+    0 => 100,
+    other => other * 2,
+  }
 }
 ```
 

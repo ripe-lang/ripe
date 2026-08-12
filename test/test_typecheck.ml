@@ -4410,3 +4410,198 @@ let%expect_test "typecheck: a valued break after a bare one is rejected" =
             if true { break }
                       ^~~~~ no value here
     |}]
+
+let%expect_test "typecheck: unknown variant" =
+  run_src {|enum Color { Red }
+func f() { let _c = Color.Green }|};
+  [%expect
+    {|
+    error: no variant
+      at <test>:2:27
+        func f() { let _c = Color.Green }
+                                  ^~~~~ on enum Color
+    |}]
+
+let%expect_test "typecheck: duplicate variant" =
+  run_src "enum Color { Red, Green, Red }";
+  [%expect
+    {|
+    error: duplicate variant
+      at <test>:1:26
+        enum Color { Red, Green, Red }
+                                 ^~~
+    |}]
+
+let%expect_test "typecheck: enum has no arithmetic" =
+  run_src
+    {|enum Color { Red, Green }
+func f() { let _c = Color.Red + Color.Green }|};
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:21
+        func f() { let _c = Color.Red + Color.Green }
+                            ^~~~~~~~~ cannot apply `+` to Color
+    |}]
+
+let%expect_test "typecheck: enum does not cast to an integer" =
+  run_src {|enum Color { Red }
+func f() { let _c = Color.Red as i32 }|};
+  [%expect
+    {|
+    error: invalid cast
+      at <test>:2:21
+        func f() { let _c = Color.Red as i32 }
+                            ^~~~~~~~~~~~~~~~ cannot cast Color to i32
+    |}]
+
+let%expect_test "typecheck: two enums are two types" =
+  run_src
+    {|enum Color { Red }
+enum Fruit { Apple }
+func f() { let _c = Color.Red == Fruit.Apple }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:34
+        func f() { let _c = Color.Red == Fruit.Apple }
+                                         ^~~~~~~~~~~ expected Color, found Fruit
+    |}]
+
+let%expect_test "typecheck: an enum is not an integer" =
+  run_src {|enum Color { Red }
+func f() { let _c: i32 = Color.Red }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:26
+        func f() { let _c: i32 = Color.Red }
+                                 ^~~~~~~~~ expected i32, found Color
+    |}]
+
+let%expect_test "typecheck: a type is not a value" =
+  run_src {|struct Point { x: i32 }
+func f() { let _p = Point.x }|};
+  [%expect
+    {|
+    error: expected a value
+      at <test>:2:21
+        func f() { let _p = Point.x }
+                            ^~~~~ this names a type
+    |}]
+
+let%expect_test "typecheck: an enum match may name only some variants" =
+  run_src
+    {|enum Color { Red, Green, Blue }
+func f(c: Color) i32 { match c { Color.Red => 1 } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: an integer match needs no catch all" =
+  run_src "func f(n: i32) i32 { match n { 0 => 1 } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: duplicate arm" =
+  run_src
+    {|enum Color { Red, Green }
+func f(c: Color) i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } }|};
+  [%expect
+    {|
+    error: duplicate pattern
+      at <test>:2:50
+        func f(c: Color) i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } }
+                                                         ^~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: an arm after the catch all never runs" =
+  run_src
+    {|enum Color { Red, Green }
+func f(c: Color) i32 { match c { _ => 1, Color.Red => 2 } }|};
+  [%expect
+    {|
+    error: arm never runs
+      at <test>:2:42
+        func f(c: Color) i32 { match c { _ => 1, Color.Red => 2 } }
+                                                 ^~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: two catch all arms" =
+  run_src "func f(n: i32) i32 { match n { _ => 1, _ => 2 } }";
+  [%expect
+    {|
+    error: arm never runs
+      at <test>:1:40
+        func f(n: i32) i32 { match n { _ => 1, _ => 2 } }
+                                               ^
+    |}]
+
+let%expect_test "typecheck: arms disagree in value position" =
+  run_src
+    {|enum Color { Red, Green }
+func f(c: Color) i32 { return match c { Color.Red => 1, _ => true } }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:62
+        func f(c: Color) i32 { return match c { Color.Red => 1, _ => true } }
+                                                                     ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: a pattern has the scrutinee type" =
+  run_src
+    {|enum Color { Red, Green }
+func f(c: Color) i32 { match c { 3 => 1, _ => 2 } }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:34
+        func f(c: Color) i32 { match c { 3 => 1, _ => 2 } }
+                                         ^ expected Color, found i32
+    |}]
+
+let%expect_test "typecheck: a bare name binds and catches everything" =
+  run_src "func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }";
+  [%expect
+    {|
+    warning: unused variable: m
+      at <test>:1:16
+        func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
+                       ^~~~~~
+    help: prefix with an underscore: _m
+    error: arm never runs
+      at <test>:1:48
+        func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
+                                                       ^
+    |}]
+
+let%expect_test "typecheck: a struct cannot be matched" =
+  run_src {|struct P { x: i32 }
+func f(p: P) i32 { return match p { _ => 1 } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a float cannot be matched" =
+  run_src "func f(x: f32) i32 { return match x { 1.5 => 1, _ => 2 } }";
+  [%expect
+    {|
+    error: pattern is not comparable
+      at <test>:1:39
+        func f(x: f32) i32 { return match x { 1.5 => 1, _ => 2 } }
+                                              ^~~ cannot test f32
+    |}]
+
+let%expect_test "typecheck: a comptime name in a pattern compares" =
+  run_src
+    {|comptime LIMIT: i32 = 42
+func f(x: i32) i32 { return match x { LIMIT => 1, other => other } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a comptime pattern still checks its type" =
+  run_src
+    {|comptime LIMIT: i32 = 42
+func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:40
+        func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }
+                                               ^~~~~ expected bool, found i32
+    |}]

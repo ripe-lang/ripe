@@ -70,7 +70,7 @@ let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF | LBRACE | LOOP ->
+  | IF | LBRACE | LOOP | MATCH ->
       true
   | _ -> false
 
@@ -121,14 +121,14 @@ let is_stmt_start (tok : token) : bool =
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | LET | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK
   | CONTINUE | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACE | LBRACKET
-  | UNDEFINED | LOOP ->
+  | UNDEFINED | LOOP | MATCH ->
       true
   | _ -> false
 
 let is_item_start (tok : token) : bool =
   match tok with
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | NEWTYPE | IMPORT | LET | COMPTIME
-  | VAR ->
+  | VAR | ENUM ->
       true
   | _ -> false
 
@@ -159,6 +159,14 @@ let expect_ident_span st =
   let span = st.tok_span in
   let name = expect_ident st in
   (name, span)
+
+let expect_binding_name st =
+  match st.tok with
+  | UNDERSCORE ->
+      let span = st.tok_span in
+      advance st;
+      (Interner.intern "_", span)
+  | _ -> expect_ident_span st
 
 let expect st t =
   if st.tok <> t then
@@ -302,7 +310,8 @@ let rec dotted_name (e : expr) : Ast.name list option =
   | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
   | Continue _ | Undefined | Range _ | RangeInclusive _ | RangeFrom _
-  | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ ->
+  | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ | Match _
+    ->
       None
 
 (* i32, *i32, func (i32, i32) i32 *)
@@ -409,6 +418,29 @@ and parse_struct_def st mods =
     fields;
     struct_modifiers = mods;
     struct_span = make_span st lo hi;
+  }
+
+(* enum Color { Red, Green, Blue } *)
+and parse_enum_def st mods =
+  let lo = cur_pos st in
+  advance st;
+  (* ENUM *)
+  let name, name_span = expect_ident_span st in
+  expect st LBRACE;
+  let variants = ref [] in
+  while st.tok <> RBRACE do
+    let vname, vspan = expect_ident_span st in
+    variants := { variant_name = vname; variant_span = vspan } :: !variants;
+    expect_field_sep st
+  done;
+  expect st RBRACE;
+  let hi = st.prev_end in
+  {
+    enum_name = name;
+    enum_name_span = name_span;
+    variants = List.rev !variants;
+    enum_modifiers = mods;
+    enum_span = make_span st lo hi;
   }
 
 (* type binop = (i32, i32) i32 / newtype Celsius = f32 *)
@@ -716,6 +748,7 @@ and parse_primary ?(no_struct_lit = false) st =
       advance st;
       mk lo st Undefined
   | IF -> parse_if st
+  | MATCH -> parse_match st
   | LBRACE -> mk lo st (Block (parse_block st))
   | LOOP -> parse_loop st
   | ELSE ->
@@ -747,7 +780,7 @@ and parse_struct_lit_fields st =
 (* IDENT { in an if/while/for header is the body, not a struct literal *)
 and parse_header_expr st = parse_expr ~no_struct_lit:true st 1
 
-and parse_simple_stmt st =
+and parse_simple_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
   (* let x: i32 = 42 / const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
@@ -760,7 +793,7 @@ and parse_simple_stmt st =
         | COMPTIME -> Ast.Comptime
         | _ -> Ast.Var
       in
-      let name, nspan = expect_ident_span st in
+      let name, nspan = expect_binding_name st in
       (* Optional type annotation since the typechecker can infer it *)
       let ann =
         if at st COLON then (
@@ -782,7 +815,7 @@ and parse_simple_stmt st =
   | BREAK ->
       advance st;
       let target = parse_loop_target st in
-      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
+      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF || at st COMMA then
         mk lo st (Break (target, None))
       else mk lo st (Break (target, Some (parse_expr st 1)))
   | CONTINUE ->
@@ -791,14 +824,15 @@ and parse_simple_stmt st =
   | RETURN ->
       (* Return with no value ends at a newline or closing brace *)
       advance st;
-      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF then
+      if is_semi st.tok || st.tok = RBRACE || st.tok = EOF || at st COMMA then
         mk lo st (Return None)
       else
         let e = parse_expr st 1 in
         mk lo st (Return (Some e))
   | _ ->
       let first = parse_expr st 1 in
-      if at st COMMA then parse_pair_assign st lo first else first
+      if at st COMMA && not no_pair then parse_pair_assign st lo first
+      else first
 
 (* a, b = b, a *)
 and parse_pair_assign (state : state) (lo : int) (ft : expr) : expr =
@@ -862,10 +896,11 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-and parse_stmt st =
+and parse_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
   | IF -> Expr (parse_if st)
+  | MATCH -> Expr (parse_match st)
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
   | LOOP -> Expr (parse_loop st)
@@ -874,8 +909,8 @@ and parse_stmt st =
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
-  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE -> parse_local_decl st
-  | _ -> Expr (parse_simple_stmt st)
+  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE | ENUM -> parse_local_decl st
+  | _ -> Expr (parse_simple_stmt ~no_pair st)
 
 and parse_local_decl st =
   let modifiers = parse_modifiers st in
@@ -885,6 +920,7 @@ and parse_local_decl st =
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
     | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
     | FUNC -> LocalFunc (parse_func_def st modifiers)
+    | ENUM -> LocalEnum (parse_enum_def st modifiers)
     | _ -> fail_found st "expected local declaration"
   in
   Decl decl
@@ -912,6 +948,46 @@ and parse_if st =
   in
   let elseifs, else_body = parse_elseifs [] in
   mk lo st (If ((cond, body) :: elseifs, else_body))
+
+(* match c { Color.Red => 0, _ => 1 } *)
+and parse_match st =
+  let lo = cur_pos st in
+  advance st;
+  (* MATCH *)
+  let scrutinee = parse_header_expr st in
+  expect st LBRACE;
+  let arms = ref [] in
+  while st.tok <> RBRACE do
+    arms := parse_arm st :: !arms;
+    expect_field_sep st
+  done;
+  expect st RBRACE;
+  mk lo st (Match (scrutinee, List.rev !arms))
+
+and parse_arm st =
+  let lo = cur_pos st in
+  let pat = parse_pattern st in
+  expect st FATARROW;
+  let body_lo = cur_pos st in
+  let body =
+    spanned [ parse_stmt ~no_pair:true st ] (make_span st body_lo st.prev_end)
+  in
+  { pat; arm_body = body; arm_span = make_span st lo st.prev_end }
+
+(* A bare name binds and a dotted one names a constant *)
+and parse_pattern st =
+  let lo = cur_pos st in
+  let done_ pdesc = { pdesc; pspan = make_span st lo st.prev_end } in
+  match st.tok with
+  | UNDERSCORE ->
+      advance st;
+      done_ PatWild
+  | IDENT name when (peek st).token <> DOT ->
+      advance st;
+      done_ (PatBind (Interner.intern name))
+  | _ ->
+      let e = parse_expr ~no_struct_lit:true st 1 in
+      { pdesc = PatValue e; pspan = e.span }
 
 (* while i < len { } *)
 and parse_while ?label st =
@@ -1027,6 +1103,7 @@ let parse_decl st =
   | _, (LET | COMPTIME | VAR) -> parse_global st mods
   | _, TYPE -> TypeAlias (parse_alias_def st mods)
   | _, NEWTYPE -> Newtype (parse_alias_def st mods)
+  | _, ENUM -> Enum (parse_enum_def st mods)
   | _ -> err ()
 
 (* import math.vector *)

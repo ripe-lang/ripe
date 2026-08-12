@@ -1,0 +1,19 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+enum Level { Low, Mid, High }
+
+func announce(level: Level) {
+  match level {
+    Level.Low => { printf("low\n") }
+    Level.Mid => { printf("mid\n") }
+    Level.High => { printf("high\n") }
+  }
+  return
+}
+
+func main() {
+  announce(Level.Mid)
+  announce(Level.High)
+  announce(Level.Low)
+  return
+}

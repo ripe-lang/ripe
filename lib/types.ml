@@ -31,6 +31,8 @@ type ty =
   | TNewtype of Qname.t * ty
   | TAlias of Qname.t * ty
   | TError
+  (* TODO: every enum is an i32 until a backing type can be written down *)
+  | TEnum of Qname.t
 [@@deriving show { with_path = false }]
 
 let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
@@ -109,6 +111,7 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TSlice t -> "[]" ^ show_ty t
   | TNewtype (name, _) -> show_name name
   | TAlias (name, _) -> show_name name
+  | TEnum name -> show_name name
   | TFunc (ps, r, _) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TVoid -> "" | t -> " " ^ show_ty t in
@@ -131,7 +134,7 @@ let is_float t =
   | TFloat _ -> true
   | TInt _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull | TPointer _
   | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError ->
+  | TAlias _ | TError | TEnum _ ->
       false
 
 let is_unsigned t =
@@ -140,7 +143,7 @@ let is_unsigned t =
   | TInt (I8 | I16 | I32 | I64 | Isize)
   | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
   | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError ->
+  | TNewtype _ | TAlias _ | TError | TEnum _ ->
       false
 
 (* A byte size of each integer kind: bit width / 8 *)
@@ -157,7 +160,7 @@ let int_kind_of (t : ty) : int_kind =
   | TInt k -> k
   | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
   | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError ->
+  | TNewtype _ | TAlias _ | TError | TEnum _ ->
       Diagnostic.ice "expected an integer type"
 
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
@@ -167,7 +170,7 @@ let div_int_needs_check (t : ty) : bool =
   | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
   | TFloat _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
   | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError ->
+  | TNewtype _ | TAlias _ | TError | TEnum _ ->
       false
 
 let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
@@ -190,6 +193,7 @@ let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
       )
   | TArray (e, _) -> ty_align structs e
   | TSlice _ | TStr -> 8
+  | TEnum _ -> 4
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* `n` and `a` MUST be non-negative *)
@@ -225,6 +229,7 @@ let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
   | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
   (* Fat pointer: { ptr, len } *)
   | TSlice _ | TStr -> 16
+  | TEnum _ -> 4
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
@@ -232,7 +237,8 @@ let is_aggregate t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStr | TStruct _ -> true
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TVoid | TNever | TNull
-  | TPointer _ | TOpaquePtr | TFunc _ | TNewtype _ | TAlias _ | TError ->
+  | TPointer _ | TOpaquePtr | TFunc _ | TNewtype _ | TAlias _ | TError | TEnum _
+    ->
       false
 
 (* A const can only use types the folder knows how to compute *)
@@ -240,7 +246,7 @@ let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
   | TCStr | TStr | TVoid | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
-  | TFunc _ | TArray _ | TSlice _ | TNewtype _ | TAlias _ ->
+  | TFunc _ | TArray _ | TSlice _ | TNewtype _ | TAlias _ | TEnum _ ->
       false
 
 (* Wide values use 8 bytes so constant folding uses a 64 bit result *)
@@ -251,7 +257,7 @@ let is_wide_ty t =
       true
   | TInt (I8 | I16 | I32 | U8 | U16 | U32)
   | TFloat _ | TBool | TChar | TStr | TVoid | TNever | TStruct _ | TArray _
-  | TSlice _ | TNewtype _ | TAlias _ | TError ->
+  | TSlice _ | TNewtype _ | TAlias _ | TError | TEnum _ ->
       false
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
