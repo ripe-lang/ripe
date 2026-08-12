@@ -1,5 +1,5 @@
 func main() i32 {
   pub type Coord = i32
-  let value: Coord = 13
+  var value: Coord = 13
   return value
 }

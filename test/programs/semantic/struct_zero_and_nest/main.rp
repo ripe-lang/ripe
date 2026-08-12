@@ -7,8 +7,8 @@ func area(r: rect) i32 {
 }
 
 func main() i32 {
-  let p = point { x: 3, y: 4 }
-  let q = point { x: 1 }
-  let r = rect { origin: p, w: 2, h: 5 }
+  var p = point { x: 3, y: 4 }
+  var q = point { x: 1 }
+  var r = rect { origin: p, w: 2, h: 5 }
   return p.x + p.y + q.x + q.y + area(r) + r.origin.x
 }

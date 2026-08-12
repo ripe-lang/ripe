@@ -28,16 +28,16 @@ let%expect_test "parse: stray token" =
     |}]
 
 let%expect_test "parse: unterminated string" =
-  run_src "func f() { let s = \"oops";
+  run_src "func f() { var s = \"oops";
   [%expect
     {|
     error: unclosed delimiter
       at <test>:1:10
-        func f() { let s = "oops
+        func f() { var s = "oops
                  ^
     error: unterminated string
       at <test>:1:25
-        func f() { let s = "oops
+        func f() { var s = "oops
                                 ^
     |}]
 
@@ -50,7 +50,7 @@ let%expect_test "parse: line comments stripped" =
   [%expect {| ok |}]
 
 let%expect_test "parse: semicolon-free newline-terminated" =
-  run_src "func f() i32 {\n  let x: i32 = 1\n  return x\n}";
+  run_src "func f() i32 {\n  var x: i32 = 1\n  return x\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: same-line statements require a separator" =
@@ -64,27 +64,37 @@ let%expect_test "parse: same-line statements require a separator" =
     |}]
 
 let%expect_test "parse: explicit semicolon separates statements" =
-  run_src "func f() i32 { let x = 1; return x }";
+  run_src "func f() i32 { var x = 1; return x }";
   [%expect {| ok |}]
 
 let%expect_test "parse: semicolon before an initializer" =
-  run_src "func f() { let x; = 1 }";
+  run_src "func f() { var x; = 1 }";
   [%expect
     {|
-    error: expected =
-      at <test>:1:17
-        func f() { let x; = 1 }
-                        ^ found ;
+    error: cannot infer type
+      at <test>:1:16
+        func f() { var x; = 1 }
+                       ^
+    help: write the type or give it a value
+    error: expected expression
+      at <test>:1:19
+        func f() { var x; = 1 }
+                          ^ found =
     |}]
 
 let%expect_test "parse: newline before an initializer" =
-  run_src "func f() {\n  let x\n  = 1\n}";
+  run_src "func f() {\n  var x\n  = 1\n}";
   [%expect
     {|
-    error: expected =
-      at <test>:2:8
-          let x
-               ^ found ;
+    error: cannot infer type
+      at <test>:2:7
+          var x
+              ^
+    help: write the type or give it a value
+    error: expected expression
+      at <test>:3:3
+          = 1
+          ^ found =
     |}]
 
 let%expect_test "parse: same-line declarations require a separator" =
@@ -165,7 +175,7 @@ let%expect_test "parse: recover, broken then good" =
 let%expect_test "parse: keep binders and collect later type errors" =
   run_src
     {|func f() i32 {
-  let x: = /
+  var x: = /
   return x
 }
 func g() i32 { return true }|};
@@ -173,11 +183,11 @@ func g() i32 { return true }|};
     {|
     error: expected type
       at <test>:2:10
-          let x: = /
+          var x: = /
                  ^ found =
     error: expected expression
       at <test>:2:12
-          let x: = /
+          var x: = /
                    ^ found /
     error: type mismatch
       at <test>:5:23
@@ -336,7 +346,7 @@ let%expect_test "parse: recover, errors in nested blocks" =
 
 let%expect_test "parse: recover, errors across top level declarations" =
   run_src
-    {|let a: = 1
+    {|var a: = 1
 comptime b: = 2
 var c: = 3
 type A = +
@@ -348,7 +358,7 @@ func f(x:) {}|};
     {|
     error: expected type
       at <test>:1:8
-        let a: = 1
+        var a: = 1
                ^ found =
     error: expected type
       at <test>:2:13
@@ -381,24 +391,24 @@ func f(x:) {}|};
     |}]
 
 let%expect_test "parse: recover, explicit separators on one line" =
-  run_src "func f() { return /; return /; let x =; return / }";
+  run_src "func f() { return /; return /; var x =; return / }";
   [%expect
     {|
     error: expected expression
       at <test>:1:19
-        func f() { return /; return /; let x =; return / }
+        func f() { return /; return /; var x =; return / }
                           ^ found /
     error: expected expression
       at <test>:1:29
-        func f() { return /; return /; let x =; return / }
+        func f() { return /; return /; var x =; return / }
                                     ^ found /
     error: expected expression
       at <test>:1:39
-        func f() { return /; return /; let x =; return / }
+        func f() { return /; return /; var x =; return / }
                                               ^ found ;
     error: expected expression
       at <test>:1:48
-        func f() { return /; return /; let x =; return / }
+        func f() { return /; return /; var x =; return / }
                                                        ^ found /
     |}]
 
@@ -425,7 +435,7 @@ let%expect_test "parse: recover, skip nested expression tokens" =
 let%expect_test "parse: recover, preserve valid multiline expressions" =
   run_src
     {|func f() {
-  let x = 1 +
+  var x = 1 +
     2
   return x +
     3
@@ -477,7 +487,7 @@ let%expect_test "parse: recover, restore struct literal parsing" =
     {|struct point { x: i32 }
 func f() {
   if /
-  let p = point { x: 1 }
+  var p = point { x: 1 }
   return /
 }|};
   [%expect
@@ -509,7 +519,7 @@ let%expect_test "parse: recover operators across statement forms" =
   let src =
     {|func f() {
   if 1 *
-  let a = +
+  var a = +
   comptime b = 1 -
   var c = !
   while 2 /
@@ -526,7 +536,7 @@ let%expect_test "parse: recover operators across statement forms" =
                ^
     error: expected expression
       at <test>:3:11
-          let a = +
+          var a = +
                   ^
     error: expected expression
       at <test>:4:18
@@ -791,7 +801,7 @@ let%expect_test "parse: multiline array literal" =
     |}]
 
 let%expect_test "parse: line tracking after multiline string" =
-  run_src "func f() {\n  let s = \"line one\nline two\"\n  @\n}";
+  run_src "func f() {\n  var s = \"line one\nline two\"\n  @\n}";
   [%expect
     {|
     error: unexpected character: @
@@ -805,7 +815,7 @@ let%expect_test "parse: modifiers on func" =
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a global" =
-  run_src "pub let X: i32 = 1";
+  run_src "pub var X: i32 = 1";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifiers on a type alias" =
@@ -864,7 +874,7 @@ let%expect_test "parse: multiline struct literal" =
   run_src
     {|struct pt { x: i32, y: i32 }
 func f() i32 {
-  let p = pt {
+  var p = pt {
     x: 1,
     y: 2,
   }
@@ -918,7 +928,7 @@ let%expect_test "parse: braces are literal in a string" =
   [%expect {| "a{x}b" |}]
 
 let%expect_test "parse: crlf newline as statement separator" =
-  run_src "func f() i32 {\r\n  let x: i32 = 1\r\n  return x\r\n}";
+  run_src "func f() i32 {\r\n  var x: i32 = 1\r\n  return x\r\n}";
   [%expect {| ok |}]
 
 let%expect_test "parse: stray closing paren" =
@@ -1151,12 +1161,12 @@ let%expect_test "parse: expression body wrong return type" =
     |}]
 
 let%expect_test "parse: unknown string escape" =
-  run_src {|func f() { let s = "a\qb" }|};
+  run_src {|func f() { var s = "a\qb" }|};
   [%expect
     {|
     error: unknown escape: \q
       at <test>:1:23
-        func f() { let s = "a\qb" }
+        func f() { var s = "a\qb" }
                               ^
     |}]
 
@@ -1191,17 +1201,17 @@ let%expect_test "parse: struct fields need a separator" =
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
-  run_src "func f() { let s = S { x: 1 y: 2 } }";
+  run_src "func f() { var s = S { x: 1 y: 2 } }";
   [%expect
     {|
     error: expected `,` between fields
       at <test>:1:29
-        func f() { let s = S { x: 1 y: 2 } }
+        func f() { var s = S { x: 1 y: 2 } }
                                     ^ found y
     |}]
 
 let%expect_test "parse: multiline struct literal requires a trailing comma" =
-  run_src "struct S { x: i32 }\nfunc f() {\n  let s = S {\n    x: 1\n  }\n}";
+  run_src "struct S { x: i32 }\nfunc f() {\n  var s = S {\n    x: 1\n  }\n}";
   [%expect
     {|
     error: missing `,` before newline
@@ -1215,27 +1225,27 @@ let%expect_test "parse: never as a return type" =
   [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =
-  run_src "func f() i32 {\n  let x = { var a = 1 }\n  return x\n}";
+  run_src "func f() i32 {\n  var x = { var a = 1 }\n  return x\n}";
   [%expect
     {|
     error: cannot bind void value
       at <test>:2:11
-          let x = { var a = 1 }
+          var x = { var a = 1 }
                   ^~~~~~~~~~~~~
     warning: unused variable: a
       at <test>:2:17
-          let x = { var a = 1 }
+          var x = { var a = 1 }
                         ^
     help: prefix with an underscore: _a
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
-  run_src "func f() i32 {\n  let x = if true { 1 }\n  return x\n}";
+  run_src "func f() i32 {\n  var x = if true { 1 }\n  return x\n}";
   [%expect
     {|
     error: cannot bind void value
       at <test>:2:11
-          let x = if true { 1 }
+          var x = if true { 1 }
                   ^~~~~~~~~~~~~
     |}]
 
@@ -1258,8 +1268,8 @@ let%expect_test "parse: else if chain shape" =
   [%expect {| (if (a (block 1)) (b (block 2)) (block 3)) |}]
 
 let%expect_test "parse: block with a tail value" =
-  parse_expr "{ let a = 1\n a + 2 }";
-  [%expect {| (block (let a 1) (+ a 2)) |}]
+  parse_expr "{ var a = 1\n a + 2 }";
+  [%expect {| (block (var a 1) (+ a 2)) |}]
 
 let%expect_test "parse: nested block" =
   parse_expr "{ { 5 } }";
@@ -1418,7 +1428,7 @@ let%expect_test "parse: module must come before anything else" =
     |}]
 
 let%expect_test "parse: a dotted type path" =
-  (match parse "let p: math.vector.point = undefined" with
+  (match parse "var p: math.vector.point = undefined" with
   | [ Ripe.Ast.Global { typ = Some t; _ } ] -> print_endline (dump_typ t)
   | _ -> print_endline "<expected a global>");
   [%expect {| math.vector.point |}]
@@ -1484,13 +1494,13 @@ func main() {
       at <test>:3:18
           var _x = f(1); +f(2)
                          ^~~~~
-    help: use `let _ = ...` when this is intentional
+    help: use `var _ = ...` when this is intentional
     ok |}]
 
 let%expect_test
     "parse: dereference assignment may follow an automatic semicolon" =
   run_src {|func f(p: *i32) {
-  let _x = 1
+  var _x = 1
   *p = 2
 }|};
   [%expect {| ok |}]
@@ -1651,10 +1661,10 @@ let%expect_test "parse: a newline separates arms" =
   [%expect {| (block (match c (0 (block 1)) (_ (block 2)))) |}]
 
 let%expect_test "parse: match is a value" =
-  (match parse "func f() { let x = match c { _ => 1 } }" with
+  (match parse "func f() { var x = match c { _ => 1 } }" with
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
-  [%expect {| (block (let x (match c (_ (block 1))))) |}]
+  [%expect {| (block (var x (match c (_ (block 1))))) |}]
 
 let%expect_test "parse: an arm body may leave the loop or the function" =
   (match
@@ -1691,9 +1701,9 @@ let%expect_test "parse: a bare name binds and a dotted one is a constant" =
 
 let%expect_test "parse: a binding may be named with an underscore" =
   (match parse {|func f() {
-  let _ = 1
+  var _ = 1
   var _ = 2
 }|} with
   | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
   | _ -> print_endline "<expected a function>");
-  [%expect {| (block (let _ 1) (let _ 2)) |}]
+  [%expect {| (block (var _ 1) (var _ 2)) |}]

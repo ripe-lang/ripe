@@ -1,5 +1,5 @@
 func main() i32 {
-  let x = {
+  var x = {
     var inner = {
       var a = 2
       a + 3

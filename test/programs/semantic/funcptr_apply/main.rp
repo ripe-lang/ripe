@@ -8,6 +8,6 @@ func apply(f: binop, a: i32, b: i32) i32 {
 }
 
 func main() {
-  let op: binop = mul
+  var op: binop = mul
   return apply(op, 6, 7)
 }

@@ -1,7 +1,7 @@
 extern "C" func exit(code: i32) never
 
 func pick(a: bool, b: bool) i32 {
-  let y = if a {
+  var y = if a {
     if b { 10 } else { exit(1) }
   } else {
     20

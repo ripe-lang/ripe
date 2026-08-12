@@ -20,8 +20,8 @@ let%expect_test "qbe accepts string aggregates" =
 struct Box { text: str, value: i32 }
 func make() str { return "hello" }
 func main() i32 {
-  let box: Box = Box { text: "field", value: 1 }
-  let copy: str = make()
+  var box: Box = Box { text: "field", value: 1 }
+  var copy: str = make()
   return (box.text.len + copy.len) as i32
 }
 |};
@@ -56,7 +56,7 @@ let%expect_test "qbe preserves main allocation alignment" =
     {|
 struct Pair { left: i32, right: i32 }
 func main() i32 {
-  let pair = Pair { left: 1, right: 2 }
+  var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
 }
 |}
@@ -68,7 +68,7 @@ let%expect_test "qbe gives local structs unique names" =
     {|
 func main() i32 {
   struct Pair { left: i32, right: i32 }
-  let pair = Pair { left: 1, right: 2 }
+  var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
 }
 |}
@@ -81,7 +81,7 @@ let%expect_test "qbe uses aggregate types for external struct calls" =
 struct Pair { left: i32, right: i32 }
 extern "C" func consume(pair: Pair) i32
 func main() i32 {
-  let pair = Pair { left: 1, right: 2 }
+  var pair = Pair { left: 1, right: 2 }
   return consume(pair)
 }
 |}
@@ -94,7 +94,7 @@ let%expect_test "qbe uses aggregate types for external struct returns" =
 struct Pair { left: i32, right: i32 }
 extern "C" func produce() Pair
 func main() i32 {
-  let pair = produce()
+  var pair = produce()
   return pair.left
 }
 |}
@@ -107,7 +107,7 @@ let%expect_test "qbe uses Ripe ABI for Ripe struct returns" =
 struct Pair { left: i32, right: i32 }
 extern "Ripe" func produce() Pair
 func main() i32 {
-  let pair = produce()
+  var pair = produce()
   return pair.left
 }
 |}

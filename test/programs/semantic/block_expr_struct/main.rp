@@ -3,7 +3,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 struct pt { x: i32, y: i32 }
 
 func main() i32 {
-  let p = {
+  var p = {
     var scale = 3
     pt { x: 2 * scale, y: 5 * scale }
   }

@@ -3,7 +3,7 @@ func deep(x: i32) i32 {
     if x > 0 {
       {
         if x > 5 {
-          let a = x * 2
+          var a = x * 2
           { a + 1 }
         } else {
           x

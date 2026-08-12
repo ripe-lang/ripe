@@ -16,6 +16,7 @@ type kind =
   | Param
   | ForVar
   | Module
+  | MatchBind
 [@@deriving show { with_path = false }]
 
 type t = {
@@ -57,19 +58,20 @@ let prelude_module_id : module_id = -2
 let is_func (kind : kind) : bool =
   match kind with
   | Func | LocalFunc | Extern -> true
-  | Error | Global _ | Type | LocalType | Local _ | Param | ForVar | Module ->
+  | Error | Global _ | Type | LocalType | Local _ | Param | ForVar | Module
+  | MatchBind ->
       false
 
 let is_global (kind : kind) : bool =
   match kind with
   | Global _ -> true
   | Error | Func | LocalFunc | Extern | Type | LocalType | Local _ | Param
-  | ForVar | Module ->
+  | ForVar | Module | MatchBind ->
       false
 
 let is_immutable (kind : kind) : bool =
   match kind with
-  | Local (Ast.Let | Ast.Comptime) | ForVar | Module -> true
+  | Local Ast.Comptime | ForVar | Module | MatchBind -> true
   | Error | Func | LocalFunc | Extern | Global _ | Type | LocalType
   | Local Ast.Var
   | Param ->
@@ -79,7 +81,7 @@ let is_comptime (kind : kind) : bool =
   match kind with
   | Local Ast.Comptime | Global Ast.Comptime -> true
   | Error | Func | LocalFunc | Extern | Type | LocalType
-  | Global (Ast.Var | Ast.Let)
-  | Local (Ast.Var | Ast.Let)
-  | Param | ForVar | Module ->
+  | Global Ast.Var
+  | Local Ast.Var
+  | Param | ForVar | Module | MatchBind ->
       false

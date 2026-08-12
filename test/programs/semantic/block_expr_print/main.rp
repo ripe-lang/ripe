@@ -1,7 +1,7 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
 func main() i32 {
-  let msg = {
+  var msg = {
     var n = 6
     n * 7
   }

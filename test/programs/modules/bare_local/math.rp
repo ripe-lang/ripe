@@ -1,4 +1,4 @@
 pub func bad() {
-  let x: i32 = 1
+  comptime x: i32 = 1
   x = 2
 }

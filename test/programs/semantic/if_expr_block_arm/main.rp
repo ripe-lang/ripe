@@ -1,6 +1,6 @@
 func main() i32 {
   var n = 7
-  let scaled = if n > 5 {
+  var scaled = if n > 5 {
     var factor = 4
     n * factor
   } else {

@@ -1,5 +1,5 @@
 func main() i32 {
   type Coord = i32
-  let x: Coord = 6
+  var x: Coord = 6
   return x
 }

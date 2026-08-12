@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-let TABLE: [N]i32 = [10, 20, 30]
+var TABLE: [N]i32 = [10, 20, 30]
 comptime N: i32 = 3
 comptime DOUBLED: usize = sizeof([N * 2]i32)
 

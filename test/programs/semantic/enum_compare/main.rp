@@ -3,7 +3,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 enum Suit { Clubs, Diamonds, Hearts, Spades }
 
 func main() {
-  let a = Suit.Diamonds
+  var a = Suit.Diamonds
   var b = Suit.Diamonds
   printf("%d %d\n", a == b, a != Suit.Spades)
   b = Suit.Spades

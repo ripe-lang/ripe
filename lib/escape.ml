@@ -13,7 +13,7 @@ let rec storage_is_local (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent s -> (
       match s.Symbol.kind with
-      | Symbol.Local _ | Symbol.Param | Symbol.ForVar -> true
+      | Symbol.Local _ | Symbol.Param | Symbol.ForVar | Symbol.MatchBind -> true
       | _ -> false)
   | T.TArrayLit _ -> true
   | T.TCall _ -> inline_aggregate te.T.ty

@@ -197,21 +197,17 @@ let lookup_func (env : env) (span : Ast.span) : func_sig =
       emit env (Diagnostic.undefined_name span "function");
       { param_tys = []; ret_ty = TVoid; variadic = false; abi = Types.Ripe }
 
-let is_const_global (env : env) (key : Symbol.key) : bool =
-  match Symbol.Table.find_opt env.globals key with
-  | Some (_, (Let | Comptime)) -> true
-  | _ -> false
-
 let is_comptime_global (env : env) (key : Symbol.key) : bool =
   match Symbol.Table.find_opt env.globals key with
   | Some (_, Comptime) -> true
   | _ -> false
 
+(* TODO: An aggregate global has no constant form now that let is gone so nothing can initialize one from another global *)
 let check_const_scalar (env : env) (span : Ast.span) (t : ty) : unit =
   if not (is_scalar t) then
     emit env
       (Diagnostic.with_type span "comptime must be a scalar" (show_ty env t)
-      |> Diagnostic.help "use let for values that need storage")
+      |> Diagnostic.help "use var for values that need storage")
 
 let lookup_struct (env : env) (span : Ast.span) (name : Qname.t) : struct_info =
   match Symbol.Table.find_opt env.types (Qname.key name) with
@@ -561,7 +557,7 @@ and warn_discarded_operation (env : env) (e : expr) (te : T.texpr) : unit =
     emit env
       (Diagnostic.warning "discarded operation result"
       |> Diagnostic.at te.T.span
-      |> Diagnostic.help "use `let _ = ...` when this is intentional")
+      |> Diagnostic.help "use `var _ = ...` when this is intentional")
 
 and check_void_result (env : env) (span : Ast.span) : result_use -> unit =
   function
@@ -1244,7 +1240,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
       | Some s
         when Symbol.is_immutable s.Symbol.kind
              || Symbol.is_global s.Symbol.kind
-                && is_const_global env (Symbol.key s) ->
+                && is_comptime_global env (Symbol.key s) ->
           emit env (Diagnostic.error_at l.span "cannot assign to immutable")
       | _ -> ())
   | _ -> ());
@@ -1343,7 +1339,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
                 && is_comptime_global env (Symbol.key s) ->
           emit env
             (Diagnostic.error_at e.span "cannot take address of a constant"
-            |> Diagnostic.help "a const has no storage, use let")
+            |> Diagnostic.help "a const has no storage, use var")
       | _ ->
           if te.T.ty <> TError && not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
@@ -1534,8 +1530,8 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
       match Symbol.Table.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global (Ast.Let | Ast.Comptime)
-    when Symbol.Table.mem env.g_state (Symbol.key s) ->
+  | Symbol.Global Ast.Comptime when Symbol.Table.mem env.g_state (Symbol.key s)
+    ->
       global_const_num env span (Symbol.key s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
@@ -1844,8 +1840,6 @@ let collect_global (env : env) (gd : global_def) : unit =
   (if gd.init = None then
      match gd.kind with
      | Var -> ()
-     | Let ->
-         emit env (Diagnostic.error_at gd.name_span "let without initializer")
      | Comptime ->
          emit env
            (Diagnostic.error_at gd.name_span "comptime without initializer"));
@@ -1964,7 +1958,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
-      Symbol.is_func s.Symbol.kind || is_const_global env (Symbol.key s)
+      Symbol.is_func s.Symbol.kind || is_comptime_global env (Symbol.key s)
   (* The address of a global is a link time constant *)
   | T.TUnOp (Ast.AddressOf, { T.desc = T.TIdent s; _ }) ->
       Symbol.is_global s.Symbol.kind
@@ -2001,7 +1995,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
           Diagnostic.(
             error "comptime cannot be undefined"
             |> at span
-            |> help "use let for values that need storage");
+            |> help "use var for values that need storage");
         None
     | Some { desc = Undefined; _ } -> None
     | Some e ->

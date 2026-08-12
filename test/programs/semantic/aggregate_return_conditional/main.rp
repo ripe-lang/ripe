@@ -12,7 +12,7 @@ func choose(flag: bool) pair {
 }
 
 func main() i32 {
-  let left = choose(true)
-  let right = choose(false)
+  var left = choose(true)
+  var right = choose(false)
   return left.x + left.y + right.x + right.y
 }

@@ -1,7 +1,7 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
 func tier(n: i32) i32 {
-  let t = if n >= 100 {
+  var t = if n >= 100 {
     if n >= 200 {
       if n >= 300 {
         var base = 3

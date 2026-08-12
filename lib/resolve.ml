@@ -254,7 +254,7 @@ let is_item_value (sym : Symbol.t) : bool =
   | Symbol.Module ->
       true
   | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local _
-  | Symbol.Param | Symbol.ForVar ->
+  | Symbol.Param | Symbol.ForVar | Symbol.MatchBind ->
       false
 
 let rec find_item_value (scope : scope) (name : Ast.name) : Symbol.t option =
@@ -503,7 +503,7 @@ and resolve_pattern (st : state) (p : pattern) : unit =
       match lookup st name with
       | Some sym when Symbol.is_comptime sym.Symbol.kind ->
           use_symbol st p.pspan sym
-      | Some _ | None -> declare_local st (Symbol.Local Ast.Let) name p.pspan)
+      | Some _ | None -> declare_local st Symbol.MatchBind name p.pspan)
 
 (* An array size expression may name constants *)
 and resolve_typ (st : state) (t : typ) : unit =

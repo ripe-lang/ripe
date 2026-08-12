@@ -1,5 +1,5 @@
 func main() i32 {
-  let total = {
+  var total = {
     var sum = 0
     var i = 1
     while i <= 5 {

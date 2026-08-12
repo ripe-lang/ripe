@@ -18,8 +18,8 @@ func sum_to(n: i32) i32 {
 }
 
 func main() {
-  let a: i32 = abs(-7)
-  let s: i32 = sign(3)
-  let t: i32 = sum_to(10)
+  var a: i32 = abs(-7)
+  var s: i32 = sign(3)
+  var t: i32 = sum_to(10)
   return t
 }

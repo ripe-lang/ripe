@@ -3,7 +3,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 enum Size { Small, Large }
 
 func main() {
-  let width = match Size.Large {
+  var width = match Size.Large {
     Size.Small => 10,
     Size.Large => 20,
   }

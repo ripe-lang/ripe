@@ -33,18 +33,18 @@ let%expect_test "typecheck: unbound variable" =
                    ^
     |}]
 
-let%expect_test "typecheck: type mismatch in let" =
-  run_src "func f() { let x: bool = 42 }";
+let%expect_test "typecheck: type mismatch in a binding" =
+  run_src "func f() { var x: bool = 42 }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x: bool = 42 }
+        func f() { var x: bool = 42 }
                        ^
     help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:26
-        func f() { let x: bool = 42 }
+        func f() { var x: bool = 42 }
                                  ^~ expected bool, found i32
     |}]
 
@@ -105,17 +105,17 @@ func f() { g(1) }
     |}]
 
 let%expect_test "typecheck: null assigned to non-pointer" =
-  run_src "func f() { let x: i32 = null }";
+  run_src "func f() { var x: i32 = null }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x: i32 = null }
+        func f() { var x: i32 = null }
                        ^
     help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:25
-        func f() { let x: i32 = null }
+        func f() { var x: i32 = null }
                                 ^~~~ expected i32, found null
     |}]
 
@@ -124,12 +124,12 @@ let%expect_test "typecheck: identity function" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: null assigned to pointer" =
-  run_src "func f() { let p: *i32 = null }";
+  run_src "func f() { var p: *i32 = null }";
   [%expect
     {|
     warning: unused variable: p
       at <test>:1:16
-        func f() { let p: *i32 = null }
+        func f() { var p: *i32 = null }
                        ^
     help: prefix with an underscore: _p
     ok
@@ -341,9 +341,9 @@ func f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global let read from function" =
+let%expect_test "typecheck: global read from function" =
   run_src {|
-let X: i32 = 42
+var X: i32 = 42
 func f() i32 { return X }
 |};
   [%expect {| ok |}]
@@ -368,13 +368,13 @@ func f() bool { return flag }
 let%expect_test "typecheck: global forward reference" =
   run_src {|
 func f() i32 { return X }
-let X: i32 = 7
+var X: i32 = 7
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: assign to let global" =
+let%expect_test "typecheck: assign to a comptime global" =
   run_src {|
-let X: i32 = 1
+comptime X: i32 = 1
 func f() { X = 2 }
 |};
   [%expect
@@ -385,69 +385,47 @@ func f() { X = 2 }
                    ^
     |}]
 
-let%expect_test "typecheck: write to a let struct field" =
+let%expect_test "typecheck: write to a var struct field" =
   run_src
     {|
 struct P { x: i32, y: i32 }
 func f() {
-  let p: P = P { x: 1, y: 2 }
+  var p: P = P { x: 1, y: 2 }
   p.x = 5
 }
 |};
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:5:3
-          p.x = 5
-          ^~~
-    |}]
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: write to a let array element" =
+let%expect_test "typecheck: write to a var array element" =
   run_src {|
 func f() {
-  let arr: [3]i32 = [1, 2, 3]
+  var arr: [3]i32 = [1, 2, 3]
   arr[0] = 9
 }
 |};
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:4:3
-          arr[0] = 9
-          ^~~~~~
-    |}]
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: write through a let pointer" =
+let%expect_test "typecheck: write through a pointer" =
   run_src {|
 var g: i32 = 0
 func f() {
-  let p: *i32 = &g
+  var p: *i32 = &g
   *p = 5
 }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: non-let global initializer" =
+let%expect_test "typecheck: global initializer must be constant" =
   run_src {|
 func g() i32 { return 1 }
-let X: i32 = g()
+var X: i32 = g()
 |};
   [%expect
     {|
     error: initializer must be constant
       at <test>:3:14
-        let X: i32 = g()
+        var X: i32 = g()
                      ^~~
-    |}]
-
-let%expect_test "typecheck: let requires initializer" =
-  run_src "let X: i32";
-  [%expect
-    {|
-    error: let without initializer
-      at <test>:1:5
-        let X: i32
-            ^
     |}]
 
 let%expect_test "typecheck: comptime requires initializer" =
@@ -468,7 +446,7 @@ let%expect_test "typecheck: comptime cannot be undefined" =
       at <test>:1:19
         comptime N: i32 = undefined
                           ^~~~~~~~~
-    help: use let for values that need storage
+    help: use var for values that need storage
     |}]
 
 let%expect_test "typecheck: cannot take address of a comptime global" =
@@ -482,7 +460,7 @@ func f() *i32 { return &N }
       at <test>:3:25
         func f() *i32 { return &N }
                                 ^
-    help: a const has no storage, use let
+    help: a const has no storage, use var
     |}]
 
 let%expect_test "typecheck: cannot take address of a local comptime" =
@@ -503,7 +481,7 @@ func f() {
       at <test>:4:18
           var p: *i32 = &c
                          ^
-    help: a const has no storage, use let
+    help: a const has no storage, use var
     |}]
 
 let%expect_test "typecheck: comptime must be a scalar" =
@@ -518,7 +496,7 @@ func f() {
       at <test>:3:12
           comptime a: [2]i32 = [1, 2]
                    ^ on [2]i32
-    help: use let for values that need storage
+    help: use var for values that need storage
     warning: unused variable: a
       at <test>:3:12
           comptime a: [2]i32 = [1, 2]
@@ -536,7 +514,7 @@ comptime S: cstr = "x"
       at <test>:2:1
         comptime S: cstr = "x"
         ^~~~~~~~~~~~~~~~~~~~~~ on cstr
-    help: use let for values that need storage
+    help: use var for values that need storage
     |}]
 
 let%expect_test "typecheck: local comptime initializer must fold" =
@@ -779,36 +757,36 @@ let%expect_test "typecheck: int arithmetic ok" =
 let%expect_test "typecheck: mixed int widths" =
   run_src {|
 func f() {
-  let a: i32 = 1
-  let b: i64 = 2
-  let c = a + b
+  var a: i32 = 1
+  var b: i64 = 2
+  var c = a + b
 }
 |};
   [%expect
     {|
     warning: unused variable: c
       at <test>:5:7
-          let c = a + b
+          var c = a + b
               ^
     help: prefix with an underscore: _c
     error: type mismatch
       at <test>:5:15
-          let c = a + b
+          var c = a + b
                       ^ expected i32, found i64
     |}]
 
 let%expect_test "typecheck: bool arithmetic rejected" =
-  run_src "func f() { let x = true + false }";
+  run_src "func f() { var x = true + false }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x = true + false }
+        func f() { var x = true + false }
                        ^
     help: prefix with an underscore: _x
     error: invalid operand
       at <test>:1:20
-        func f() { let x = true + false }
+        func f() { var x = true + false }
                            ^~~~ cannot apply `+` to bool
     |}]
 
@@ -817,51 +795,51 @@ let%expect_test "typecheck: comparison yields bool" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: logical and/or require bool" =
-  run_src "func f() { let x = 1 && 2 }";
+  run_src "func f() { var x = 1 && 2 }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x = 1 && 2 }
+        func f() { var x = 1 && 2 }
                        ^
     help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:20
-        func f() { let x = 1 && 2 }
+        func f() { var x = 1 && 2 }
                            ^ expected bool, found i32
     error: type mismatch
       at <test>:1:25
-        func f() { let x = 1 && 2 }
+        func f() { var x = 1 && 2 }
                                 ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: not on non-bool" =
-  run_src "func f() { let x = !1 }";
+  run_src "func f() { var x = !1 }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x = !1 }
+        func f() { var x = !1 }
                        ^
     help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:21
-        func f() { let x = !1 }
+        func f() { var x = !1 }
                             ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: address of rvalue rejected" =
-  run_src "func f() { let x = &5 }";
+  run_src "func f() { var x = &5 }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x = &5 }
+        func f() { var x = &5 }
                        ^
     help: prefix with an underscore: _x
     error: cannot take address of expression
       at <test>:1:21
-        func f() { let x = &5 }
+        func f() { var x = &5 }
                             ^
     |}]
 
@@ -874,17 +852,17 @@ let%expect_test "typecheck: shift literal takes target type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: bitwise on bool rejected" =
-  run_src "func f() { let x = true & false }";
+  run_src "func f() { var x = true & false }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x = true & false }
+        func f() { var x = true & false }
                        ^
     help: prefix with an underscore: _x
     error: invalid operand
       at <test>:1:20
-        func f() { let x = true & false }
+        func f() { var x = true & false }
                            ^~~~ cannot apply `&` to bool
     |}]
 
@@ -897,62 +875,62 @@ let%expect_test "typecheck: sizeof has usize type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cast bool to ptr rejected" =
-  run_src "func f() { let p: *i32 = true as *i32 }";
+  run_src "func f() { var p: *i32 = true as *i32 }";
   [%expect
     {|
     warning: unused variable: p
       at <test>:1:16
-        func f() { let p: *i32 = true as *i32 }
+        func f() { var p: *i32 = true as *i32 }
                        ^
     help: prefix with an underscore: _p
     ok
     |}]
 
 let%expect_test "typecheck: cast cstr to float rejected" =
-  run_src {|func f() { let x: f32 = "hi" as f32 }|};
+  run_src {|func f() { var x: f32 = "hi" as f32 }|};
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:16
-        func f() { let x: f32 = "hi" as f32 }
+        func f() { var x: f32 = "hi" as f32 }
                        ^
     help: prefix with an underscore: _x
     error: invalid cast
       at <test>:1:25
-        func f() { let x: f32 = "hi" as f32 }
+        func f() { var x: f32 = "hi" as f32 }
                                 ^~~~~~~~~~~ cannot cast *i8 to f32
     |}]
 
 let%expect_test "typecheck: cast struct to float rejected" =
   run_src {|
 struct S { x: i32 }
-func f() { var s: S; let y: f64 = s as f64 }
+func f() { var s: S; var y: f64 = s as f64 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:3:26
-        func f() { var s: S; let y: f64 = s as f64 }
+        func f() { var s: S; var y: f64 = s as f64 }
                                  ^
     help: prefix with an underscore: _y
     error: invalid cast
       at <test>:3:35
-        func f() { var s: S; let y: f64 = s as f64 }
+        func f() { var s: S; var y: f64 = s as f64 }
                                           ^~~~~~~~ cannot cast S to f64
     |}]
 
 let%expect_test "typecheck: cast int to bool rejected" =
-  run_src "func f() { let b: bool = 256 as bool }";
+  run_src "func f() { var b: bool = 256 as bool }";
   [%expect
     {|
     warning: unused variable: b
       at <test>:1:16
-        func f() { let b: bool = 256 as bool }
+        func f() { var b: bool = 256 as bool }
                        ^
     help: prefix with an underscore: _b
     error: invalid cast
       at <test>:1:26
-        func f() { let b: bool = 256 as bool }
+        func f() { var b: bool = 256 as bool }
                                  ^~~~~~~~~~~ cannot cast i32 to bool
     help: compare with zero instead e.g. `x != 0`
     |}]
@@ -1015,10 +993,10 @@ let%expect_test "typecheck: nested loops break ok" =
   run_src "func f() { while true { while true { break } } }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: assign to let local" =
+let%expect_test "typecheck: assign to a comptime local" =
   run_src {|
 func f() {
-  let x: i32 = 1
+  comptime x: i32 = 1
   x = 2
 }
 |};
@@ -1033,20 +1011,20 @@ func f() {
 let%expect_test "typecheck: redeclare local shadows" =
   run_src {|
 func f() {
-  let x: i32 = 1
-  let x: i32 = 2
+  var x: i32 = 1
+  var x: i32 = 2
 }
 |};
   [%expect
     {|
     warning: unused variable: x
       at <test>:3:7
-          let x: i32 = 1
+          var x: i32 = 1
               ^
     help: prefix with an underscore: _x
     warning: unused variable: x
       at <test>:4:7
-          let x: i32 = 2
+          var x: i32 = 2
               ^
     help: prefix with an underscore: _x
     ok
@@ -1100,7 +1078,7 @@ let%expect_test "typecheck: use before decl" =
   run_src {|
 func f() {
   x
-  let x: i32 = 1
+  var x: i32 = 1
 }
 |};
   [%expect
@@ -1114,35 +1092,35 @@ func f() {
 let%expect_test "typecheck: deref non-pointer" =
   run_src {|
 func f() {
-  let x: i32 = 1
-  let y = *x
+  var x: i32 = 1
+  var y = *x
 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:4:7
-          let y = *x
+          var y = *x
               ^
     help: prefix with an underscore: _y
     error: cannot dereference
       at <test>:4:12
-          let y = *x
+          var y = *x
                    ^ on i32
     |}]
 
 let%expect_test "typecheck: a failed check does not cascade" =
   run_src {|
 func f() {
-  let n: i32 = 1
-  let _y = *n.x + 1
+  var n: i32 = 1
+  var _y = *n.x + 1
 }
 |};
   [%expect
     {|
     error: type has no fields
       at <test>:4:13
-          let _y = *n.x + 1
+          var _y = *n.x + 1
                     ^~~ on i32
     |}]
 
@@ -1150,7 +1128,7 @@ let%expect_test "typecheck: address-of and deref roundtrip" =
   run_src {|
 func f() i32 {
   var x: i32 = 5
-  let p: *i32 = &x
+  var p: *i32 = &x
   return *p
 }
 |};
@@ -1179,20 +1157,20 @@ func f(p: pt) i32 { return p.z }
 let%expect_test "typecheck: field access on non-struct" =
   run_src {|
 func f() {
-  let x: i32 = 1
-  let y = x.foo
+  var x: i32 = 1
+  var y = x.foo
 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:4:7
-          let y = x.foo
+          var y = x.foo
               ^
     help: prefix with an underscore: _y
     error: type has no fields
       at <test>:4:11
-          let y = x.foo
+          var y = x.foo
                   ^~~~~ on i32
     |}]
 
@@ -1263,7 +1241,7 @@ func f() {
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array literal inferred" =
-  run_src "func f() { let a = [1, 2, 3]; a[0] }";
+  run_src "func f() { var a = [1, 2, 3]; a[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array annotated ok" =
@@ -1301,27 +1279,27 @@ let%expect_test "typecheck: array wrong element count" =
     |}]
 
 let%expect_test "typecheck: heterogeneous inferred literal" =
-  run_src "func f() { let a = [1, true]; a[0] }";
+  run_src "func f() { var a = [1, true]; a[0] }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:24
-        func f() { let a = [1, true]; a[0] }
+        func f() { var a = [1, true]; a[0] }
                                ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: empty array literal needs annotation" =
-  run_src "func f() { let a = [] }";
+  run_src "func f() { var a = [] }";
   [%expect
     {|
     warning: unused variable: a
       at <test>:1:16
-        func f() { let a = [] }
+        func f() { var a = [] }
                        ^
     help: prefix with an underscore: _a
     error: cannot infer type of empty array literal
       at <test>:1:20
-        func f() { let a = [] }
+        func f() { var a = [] }
                            ^~
     |}]
 
@@ -1388,24 +1366,24 @@ let%expect_test "typecheck: index element assign type mismatch" =
     |}]
 
 let%expect_test "typecheck: for over range ok (branch 2)" =
-  run_src "func f() { for i in 0..5 { let x = i } }";
+  run_src "func f() { for i in 0..5 { var x = i } }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:32
-        func f() { for i in 0..5 { let x = i } }
+        func f() { for i in 0..5 { var x = i } }
                                        ^
     help: prefix with an underscore: _x
     ok
     |}]
 
 let%expect_test "typecheck: for over inclusive range ok (branch 2)" =
-  run_src "func f() { for i in 0..=5 { let x = i } }";
+  run_src "func f() { for i in 0..=5 { var x = i } }";
   [%expect
     {|
     warning: unused variable: x
       at <test>:1:33
-        func f() { for i in 0..=5 { let x = i } }
+        func f() { for i in 0..=5 { var x = i } }
                                         ^
     help: prefix with an underscore: _x
     ok
@@ -1416,14 +1394,14 @@ let%expect_test "typecheck: for over array binds element type" =
     {|
 func f() {
   var a: [3]i32 = [1, 2, 3]
-  for x in a { let y: i32 = x }
+  for x in a { var y: i32 = x }
 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:4:20
-          for x in a { let y: i32 = x }
+          for x in a { var y: i32 = x }
                            ^
     help: prefix with an underscore: _y
     ok
@@ -1434,52 +1412,52 @@ let%expect_test "typecheck: for over array wrong element use" =
     {|
 func f() {
   var a: [3]i32 = [1, 2, 3]
-  for x in a { let y: bool = x }
+  for x in a { var y: bool = x }
 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:4:20
-          for x in a { let y: bool = x }
+          for x in a { var y: bool = x }
                            ^
     help: prefix with an underscore: _y
     error: type mismatch
       at <test>:4:30
-          for x in a { let y: bool = x }
+          for x in a { var y: bool = x }
                                      ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: for over non-iterable" =
-  run_src "func f() { for x in 5 { let y = x } }";
+  run_src "func f() { for x in 5 { var y = x } }";
   [%expect
     {|
     error: cannot iterate
       at <test>:1:21
-        func f() { for x in 5 { let y = x } }
+        func f() { for x in 5 { var y = x } }
                             ^ on i32
     warning: unused variable: y
       at <test>:1:29
-        func f() { for x in 5 { let y = x } }
+        func f() { for x in 5 { var y = x } }
                                     ^
     help: prefix with an underscore: _y
     |}]
 
 let%expect_test "typecheck: range bounds must be integers (branch 2)" =
-  run_src "func f() { for i in true..5 { let x = i } }";
+  run_src "func f() { for i in true..5 { var x = i } }";
   [%expect
     {|
     error: range bounds must be integers
       at <test>:1:21
-        func f() { for i in true..5 { let x = i } }
+        func f() { for i in true..5 { var x = i } }
                             ^~~~
     error: type mismatch
       at <test>:1:27
-        func f() { for i in true..5 { let x = i } }
+        func f() { for i in true..5 { var x = i } }
                                   ^ expected bool, found i32
     warning: unused variable: x
       at <test>:1:35
-        func f() { for i in true..5 { let x = i } }
+        func f() { for i in true..5 { var x = i } }
                                           ^
     help: prefix with an underscore: _x
     |}]
@@ -1487,15 +1465,15 @@ let%expect_test "typecheck: range bounds must be integers (branch 2)" =
 let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
   run_src {|
 func f() {
-  let n: i64 = 5
-  for i in 0..n { let x = i }
+  var n: i64 = 5
+  for i in 0..n { var x = i }
 }
 |};
   [%expect
     {|
     warning: unused variable: x
       at <test>:4:23
-          for i in 0..n { let x = i }
+          for i in 0..n { var x = i }
                               ^
     help: prefix with an underscore: _x
     ok
@@ -1515,15 +1493,15 @@ let%expect_test
     "typecheck: typed left endpoint bends the literal right (branch 2)" =
   run_src {|
 func f() {
-  let n: i64 = 5
-  for i in n..10 { let x = i }
+  var n: i64 = 5
+  for i in n..10 { var x = i }
 }
 |};
   [%expect
     {|
     warning: unused variable: x
       at <test>:4:24
-          for i in n..10 { let x = i }
+          for i in n..10 { var x = i }
                                ^
     help: prefix with an underscore: _x
     ok
@@ -1534,14 +1512,14 @@ let%expect_test "typecheck: slice bound over len needs no cast (branch 1)" =
     {|
 func f() {
   var a: [4]i32 = [1, 2, 3, 4]
-  let s: []i32 = a[0..a.len]
+  var s: []i32 = a[0..a.len]
 }
 |};
   [%expect
     {|
     warning: unused variable: s
       at <test>:4:7
-          let s: []i32 = a[0..a.len]
+          var s: []i32 = a[0..a.len]
               ^
     help: prefix with an underscore: _s
     ok
@@ -1551,20 +1529,20 @@ let%expect_test "typecheck: two typed endpoints still must match (branch 2)" =
   run_src
     {|
 func f() {
-  let m: i32 = 0
-  let n: i64 = 5
-  for i in m..n { let x = i }
+  var m: i32 = 0
+  var n: i64 = 5
+  for i in m..n { var x = i }
 }
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:5:15
-          for i in m..n { let x = i }
+          for i in m..n { var x = i }
                       ^ expected i32, found i64
     warning: unused variable: x
       at <test>:5:23
-          for i in m..n { let x = i }
+          for i in m..n { var x = i }
                               ^
     help: prefix with an underscore: _x
     |}]
@@ -1594,12 +1572,12 @@ let%expect_test "typecheck: continue inside for" =
     |}]
 
 let%expect_test "typecheck: unused loop variable warns" =
-  run_src "func f() { for i in 0..5 { let _x = 1 } }";
+  run_src "func f() { for i in 0..5 { var _x = 1 } }";
   [%expect
     {|
     warning: unused variable: i
       at <test>:1:16
-        func f() { for i in 0..5 { let _x = 1 } }
+        func f() { for i in 0..5 { var _x = 1 } }
                        ^
     help: prefix with an underscore: _i
     ok
@@ -1651,7 +1629,7 @@ func f() {
 
 let%expect_test "typecheck: sub-slice ok" =
   run_src
-    "func f() i32 { var a: [4]i32 = [1,2,3,4]; let s: []i32 = a[1..3]; return \
+    "func f() i32 { var a: [4]i32 = [1,2,3,4]; var s: []i32 = a[1..3]; return \
      s[0] }";
   [%expect {| ok |}]
 
@@ -1660,8 +1638,8 @@ let%expect_test "typecheck: slice of a slice ok" =
     {|
 func f() i32 {
   var a: [5]i32 = [1, 2, 3, 4, 5]
-  let s: []i32 = a[1..5]
-  let t: []i32 = s[1..3]
+  var s: []i32 = a[1..5]
+  var t: []i32 = s[1..3]
   return t[0]
 }
 |};
@@ -1674,16 +1652,6 @@ let%expect_test "typecheck: returning a slice of a local rejected" =
     error: slice of a local escapes
       at <test>:1:50
         func f() []i32 { var a: [3]i32 = [1,2,3]; return a[0..2] }
-                                                         ^~~~~~~ points into freed stack memory
-    |}]
-
-let%expect_test "typecheck: returning a slice of a local let rejected" =
-  run_src "func f() []i32 { let a: [3]i32 = [1,2,3]; return a[0..2] }";
-  [%expect
-    {|
-    error: slice of a local escapes
-      at <test>:1:50
-        func f() []i32 { let a: [3]i32 = [1,2,3]; return a[0..2] }
                                                          ^~~~~~~ points into freed stack memory
     |}]
 
@@ -1796,32 +1764,32 @@ let%expect_test "typecheck: returning a slice from a slice call ok" =
 
 let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
-    "func f() i32 { var a: [3]i32 = [1,2,3]; let s: []i32 = a[0..=2]; return \
+    "func f() i32 { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..=2]; return \
      s[2] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
-  run_src "func f() { var a: [3]i32 = [1,2,3]; let s: []i32 = a[true..2] }";
+  run_src "func f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }";
   [%expect
     {|
     warning: unused variable: s
       at <test>:1:41
-        func f() { var a: [3]i32 = [1,2,3]; let s: []i32 = a[true..2] }
+        func f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
                                                 ^
     help: prefix with an underscore: _s
     error: range bounds must be integers
       at <test>:1:54
-        func f() { var a: [3]i32 = [1,2,3]; let s: []i32 = a[true..2] }
+        func f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
                                                              ^~~~
     error: type mismatch
       at <test>:1:60
-        func f() { var a: [3]i32 = [1,2,3]; let s: []i32 = a[true..2] }
+        func f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
                                                                    ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: slice .len is usize" =
   run_src
-    "func f() usize { var a: [3]i32 = [1,2,3]; let s: []i32 = a[0..3]; return \
+    "func f() usize { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..3]; return \
      s.len }";
   [%expect {| ok |}]
 
@@ -1831,7 +1799,7 @@ let%expect_test "typecheck: slice .ptr is pointer" =
 func first(p: *i32) i32 { return 0 }
 func f() i32 {
   var a: [3]i32 = [1, 2, 3]
-  let s: []i32 = a[0..3]
+  var s: []i32 = a[0..3]
   return first(s.ptr)
 }
 |};
@@ -1865,15 +1833,15 @@ let%expect_test "typecheck: for over slice binds element" =
     {|
 func f() {
   var a: [3]i32 = [1, 2, 3]
-  let s: []i32 = a[0..3]
-  for x in s { let y: i32 = x }
+  var s: []i32 = a[0..3]
+  for x in s { var y: i32 = x }
 }
 |};
   [%expect
     {|
     warning: unused variable: y
       at <test>:5:20
-          for x in s { let y: i32 = x }
+          for x in s { var y: i32 = x }
                            ^
     help: prefix with an underscore: _y
     ok
@@ -2084,7 +2052,7 @@ let%expect_test "typecheck: struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 func f() i32 {
-  let p = pt { x: 3, y: 4 }
+  var p = pt { x: 3, y: 4 }
   return p.x + p.y
 }
 |};
@@ -2095,7 +2063,7 @@ let%expect_test "typecheck: empty struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 func f() i32 {
-  let p = pt { }
+  var p = pt { }
   return p.x
 }
 |};
@@ -2105,19 +2073,19 @@ let%expect_test "typecheck: struct literal unknown field" =
   run_src {|
 struct pt { x: i32, y: i32 }
 func f() {
-  let p = pt { z: 1 }
+  var p = pt { z: 1 }
 }
 |};
   [%expect
     {|
     warning: unused variable: p
       at <test>:4:7
-          let p = pt { z: 1 }
+          var p = pt { z: 1 }
               ^
     help: prefix with an underscore: _p
     error: no field
       at <test>:4:16
-          let p = pt { z: 1 }
+          var p = pt { z: 1 }
                        ^
     |}]
 
@@ -2126,19 +2094,19 @@ let%expect_test "typecheck: struct literal duplicate field" =
     {|
 struct pt { x: i32, y: i32 }
 func f() {
-  let p = pt { x: 1, x: 2 }
+  var p = pt { x: 1, x: 2 }
 }
 |};
   [%expect
     {|
     warning: unused variable: p
       at <test>:4:7
-          let p = pt { x: 1, x: 2 }
+          var p = pt { x: 1, x: 2 }
               ^
     help: prefix with an underscore: _p
     error: duplicate field
       at <test>:4:22
-          let p = pt { x: 1, x: 2 }
+          var p = pt { x: 1, x: 2 }
                              ^
     |}]
 
@@ -2147,46 +2115,46 @@ let%expect_test "typecheck: struct literal wrong field type" =
     {|
 struct pt { x: i32, y: i32 }
 func f() {
-  let p = pt { x: true }
+  var p = pt { x: true }
 }
 |};
   [%expect
     {|
     warning: unused variable: p
       at <test>:4:7
-          let p = pt { x: true }
+          var p = pt { x: true }
               ^
     help: prefix with an underscore: _p
     error: type mismatch
       at <test>:4:19
-          let p = pt { x: true }
+          var p = pt { x: true }
                           ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: undefined struct literal" =
   run_src {|
 func f() {
-  let p = nope { x: 1 }
+  var p = nope { x: 1 }
 }
 |};
   [%expect
     {|
     warning: unused variable: p
       at <test>:3:7
-          let p = nope { x: 1 }
+          var p = nope { x: 1 }
               ^
     help: prefix with an underscore: _p
     error: undefined struct
       at <test>:3:11
-          let p = nope { x: 1 }
+          var p = nope { x: 1 }
                   ^~~~
     |}]
 
-let%expect_test "typecheck: let global struct literal" =
+let%expect_test "typecheck: var global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-let origin: pt = pt { x: 1, y: 2 }
+var origin: pt = pt { x: 1, y: 2 }
 func f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
@@ -2196,13 +2164,13 @@ let%expect_test "typecheck: global struct literal must be constant" =
     {|
 struct pt { x: i32, y: i32 }
 func g() i32 { return 1 }
-let p: pt = pt { x: g(), y: 2 }
+var p: pt = pt { x: g(), y: 2 }
 |};
   [%expect
     {|
     error: initializer must be constant
       at <test>:4:13
-        let p: pt = pt { x: g(), y: 2 }
+        var p: pt = pt { x: g(), y: 2 }
                     ^~~~~~~~~~~~~~~~~~~
     |}]
 
@@ -2426,10 +2394,10 @@ func f() {
                ^ expected [4]i32, found [3]i32
     |}]
 
-let%expect_test "typecheck: global var initialized from let" =
+let%expect_test "typecheck: global var initialized from a comptime global" =
   run_src
     {|
-let base: i32 = 10
+comptime base: i32 = 10
 var counter: i32 = base
 func f() i32 { return counter }
 |};
@@ -3051,12 +3019,12 @@ func f() {
   [%expect {| ok |}]
 
 let%expect_test "typecheck: unary plus rejects bool" =
-  run_src "func f() { let _x = +true }";
+  run_src "func f() { var _x = +true }";
   [%expect
     {|
     error: invalid operand
       at <test>:1:22
-        func f() { let _x = +true }
+        func f() { var _x = +true }
                              ^~~~ cannot apply `+` to bool
     |}]
 
@@ -3075,22 +3043,22 @@ func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
     |}]
 
 let%expect_test "typecheck: suffixed unary plus range includes operator" =
-  run_src "func f() { let _x = +128i8 }";
+  run_src "func f() { var _x = +128i8 }";
   [%expect
     {|
     error: integer literal out of range
       at <test>:1:21
-        func f() { let _x = +128i8 }
+        func f() { var _x = +128i8 }
                             ^~~~~~ does not fit in i8
     |}]
 
 let%expect_test "typecheck: explicit positive literal reports full span" =
-  run_src "func f() { let _x: i8 = +128 }";
+  run_src "func f() { var _x: i8 = +128 }";
   [%expect
     {|
     error: integer literal out of range
       at <test>:1:25
-        func f() { let _x: i8 = +128 }
+        func f() { var _x: i8 = +128 }
                                 ^~~~ does not fit in i8
     |}]
 
@@ -3465,7 +3433,7 @@ let%expect_test "typecheck: function pointer may return never" =
   run_src
     {|
 extern "C" func exit(code: i32) never
-func f() { let stop: extern "C" func (i32) never = exit
+func f() { var stop: extern "C" func (i32) never = exit
  stop(1) }
 |};
   [%expect {| ok |}]
@@ -3587,21 +3555,21 @@ let%expect_test "typecheck: if-expr never arm bends to the other arm" =
   run_src
     {|
 extern "C" func exit(c: i32) never
-func f() i32 { let y = if true { 10 } else { exit(1) }; return y }
+func f() i32 { var y = if true { 10 } else { exit(1) }; return y }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: if-expr arm type is order independent" =
   run_src
     "func f() i32 { var x: i64 = 5\n\
-    \ let y = if true { x } else { 10 }; return y as i32 }";
+    \ var y = if true { x } else { 10 }; return y as i32 }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: all-never if-expr binds as never" =
   run_src
     {|
 extern "C" func exit(c: i32) never
-func f() i32 { let _y = if true { exit(3) } else { exit(4) }; return 0 }
+func f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
 |};
   [%expect {| ok |}]
 
@@ -3609,7 +3577,7 @@ let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
     {|
 extern "C" func exit(c: i32) never
-func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else
+func f() i32 { var y = if true { if false { 10 } else { exit(1) } } else
  { 20 }; return y }
 |};
   [%expect {| ok |}]
@@ -3617,7 +3585,7 @@ func f() i32 { let y = if true { if false { 10 } else { exit(1) } } else
 let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
   run_src
     "func f() i32 { var x: i64 = 7\n\
-    \ let y = if true { if false { x } else { 5 } } else { 10 }; return y as \
+    \ var y = if true { if false { x } else { 5 } } else { 10 }; return y as \
      i32 }";
   [%expect {| ok |}]
 
@@ -3628,11 +3596,11 @@ let%expect_test "collapse: trailing if is an implicit return" =
   [%expect {| ok |}]
 
 let%expect_test "collapse: trailing block is an implicit return" =
-  run_src "func f(x: i32) i32 { { let a = x * 2\n a + 1 } }";
+  run_src "func f(x: i32) i32 { { var a = x * 2\n a + 1 } }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: nested block tail flows to the return" =
-  run_src "func f() i32 { { let a: i32 = 1\n { a + 2 } } }";
+  run_src "func f() i32 { { var a: i32 = 1\n { a + 2 } } }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: deeply nested implicit return" =
@@ -3642,54 +3610,54 @@ let%expect_test "collapse: deeply nested implicit return" =
   [%expect {| ok |}]
 
 let%expect_test "collapse: a binding is not a value operand" =
-  run_src "func f() i32 { let x: i32 = let y: i32 = 5\n return x }";
+  run_src "func f() i32 { var x: i32 = var y: i32 = 5\n return x }";
   [%expect
     {|
     error: expected expression
       at <test>:1:29
-        func f() i32 { let x: i32 = let y: i32 = 5
-                                    ^~~ found `let`
+        func f() i32 { var x: i32 = var y: i32 = 5
+                                    ^~~ found `var`
     |}]
 
 let%expect_test "collapse: a block ending in a binding is void" =
-  run_src "func f() i32 { let x: i32 = { var a: i32 = 1 }\n return x }";
+  run_src "func f() i32 { var x: i32 = { var a: i32 = 1 }\n return x }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:31
-        func f() i32 { let x: i32 = { var a: i32 = 1 }
+        func f() i32 { var x: i32 = { var a: i32 = 1 }
                                       ^~~~~~~~~~~~~~ expected i32, found void
     warning: unused variable: a
       at <test>:1:35
-        func f() i32 { let x: i32 = { var a: i32 = 1 }
+        func f() i32 { var x: i32 = { var a: i32 = 1 }
                                           ^
     help: prefix with an underscore: _a
     |}]
 
 let%expect_test "collapse: value if arms must agree" =
   run_src
-    "func f(c: bool) i32 { let x: i32 = if c { 1 } else { true }\n return x }";
+    "func f(c: bool) i32 { var x: i32 = if c { 1 } else { true }\n return x }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:54
-        func f(c: bool) i32 { let x: i32 = if c { 1 } else { true }
+        func f(c: bool) i32 { var x: i32 = if c { 1 } else { true }
                                                              ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "collapse: a never arm coerces to the live arm" =
   run_src
-    "func f(c: bool) i32 { let x: i32 = if c { 1 } else { return 0 }\n\
+    "func f(c: bool) i32 { var x: i32 = if c { 1 } else { return 0 }\n\
     \ return x }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: value if without else is void" =
-  run_src "func f(c: bool) i32 { let x: i32 = if c { 1 }\n return x }";
+  run_src "func f(c: bool) i32 { var x: i32 = if c { 1 }\n return x }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:36
-        func f(c: bool) i32 { let x: i32 = if c { 1 }
+        func f(c: bool) i32 { var x: i32 = if c { 1 }
                                            ^~~~~~~~~~ expected i32, found void
     |}]
 
@@ -3703,14 +3671,14 @@ let%expect_test "collapse: never function may loop forever" =
 
 let%expect_test "collapse: break in a value arm inside a loop" =
   run_src
-    "func f() i32 { while true { let x: i32 = if false { 1 } else { break }\n\
+    "func f() i32 { while true { var x: i32 = if false { 1 } else { break }\n\
     \ return x }; return 0 }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: continue as a value runs the step" =
   run_src
     "func f() i32 { var i: i32 = 0\n\
-    \ while i < 3 { let x: i32 = if i == 2 { i } else { i = i + 1\n\
+    \ while i < 3 { var x: i32 = if i == 2 { i } else { i = i + 1\n\
     \ continue }\n\
     \ return x }; return 9 }";
   [%expect {| ok |}]
@@ -3723,7 +3691,7 @@ let%expect_test "collapse: discarded arithmetic warns" =
       at <test>:1:16
         func f() i32 { 1 + 2
                        ^~~~~
-    help: use `let _ = ...` when this is intentional
+    help: use `var _ = ...` when this is intentional
     ok |}]
 
 let%expect_test "collapse: discarded call stays quiet" =
@@ -3741,11 +3709,11 @@ let%expect_test "collapse: discarded tail arithmetic warns" =
       at <test>:1:12
         func f() { 1 + 2 }
                    ^~~~~
-    help: use `let _ = ...` when this is intentional
+    help: use `var _ = ...` when this is intentional
     ok |}]
 
 let%expect_test "collapse: explicit discard stays quiet" =
-  run_src "func f() { let _ = 1 + 2 }";
+  run_src "func f() { var _ = 1 + 2 }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: implicit return of a wrong tail type" =
@@ -3764,18 +3732,18 @@ let%expect_test "collapse: return if with diverging arms" =
 
 let%expect_test "collapse: break as a value outside a loop still errors" =
   run_src
-    "func f() i32 { let x: i32 = if true { 1 } else { break }\n return x }";
+    "func f() i32 { var x: i32 = if true { 1 } else { break }\n return x }";
   [%expect
     {|
     error: `break` outside a loop
       at <test>:1:50
-        func f() i32 { let x: i32 = if true { 1 } else { break }
+        func f() i32 { var x: i32 = if true { 1 } else { break }
                                                          ^~~~~
     |}]
 
 let%expect_test "collapse: nested value block anchors its type" =
   run_src
-    "func f() i64 { let x: i64 = { let a: i64 = 3\n { a + 1 } }\n return x }";
+    "func f() i64 { var x: i64 = { var a: i64 = 3\n { a + 1 } }\n return x }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: char is distinct from i32" =
@@ -3855,13 +3823,13 @@ let%expect_test "typecheck: pair assignment checks each value" =
     |}]
 
 let%expect_test "typecheck: pair assignment checks each target" =
-  run_src "func f(a: i32, b: i32) { let x = 1; x, b = b, a }";
+  run_src "func f(a: i32, b: i32) { comptime x = 1; x, b = b, a }";
   [%expect
     {|
     error: cannot assign to immutable
-      at <test>:1:37
-        func f(a: i32, b: i32) { let x = 1; x, b = b, a }
-                                            ^
+      at <test>:1:42
+        func f(a: i32, b: i32) { comptime x = 1; x, b = b, a }
+                                                 ^
     |}]
 
 let%expect_test "typecheck: pair assignment rejects an expression target" =
@@ -3909,7 +3877,7 @@ type Meters = i32
 
 let%expect_test "typecheck: a global names a type declared later" =
   run_src {|
-let width: Meters = 3
+var width: Meters = 3
 type Meters = i32
 |};
   [%expect {| ok |}]
@@ -4009,7 +3977,7 @@ let%expect_test "typecheck: a qualified struct literal" =
     [
       ("main.rp", {|
 import math
-func main() { let _p = math.Point { x: 1 } }
+func main() { var _p = math.Point { x: 1 } }
 |});
       ("math.rp", {|
 pub struct Point { x: i32 }
@@ -4022,7 +3990,7 @@ let%expect_test "typecheck: a module needs a member" =
     [
       ("main.rp", {|
 import math
-func main() { let _value = math }
+func main() { var _value = math }
 |});
       ("math.rp", {|
 pub func add(_x: i32) {}
@@ -4064,8 +4032,8 @@ let%expect_test "typecheck: nonliteral operand types binary expression" =
   run_src
     {|
 func add_two(x: i64) i64 {
-  let left = 1 + x
-  let right = x + 1
+  var left = 1 + x
+  var right = x + 1
   return left + right
 }
 |};
@@ -4073,7 +4041,7 @@ func add_two(x: i64) i64 {
 
 let%expect_test "typecheck: a local type may be used before its declaration" =
   run_src {|func f() i32 {
-  let x: Coord = 4
+  var x: Coord = 4
   type Coord = i32
   x
 }|};
@@ -4082,8 +4050,8 @@ let%expect_test "typecheck: a local type may be used before its declaration" =
 let%expect_test "typecheck: local aliases may repeat in separate blocks" =
   run_src
     {|func f() {
-  { type Value = i32; let _x: Value = 1 }
-  { type Value = bool; let _x: Value = true }
+  { type Value = i32; var _x: Value = 1 }
+  { type Value = bool; var _x: Value = true }
 }|};
   [%expect {| ok |}]
 
@@ -4091,14 +4059,14 @@ let%expect_test "typecheck: a local newtype keeps its identity" =
   run_src
     {|func f() {
   newtype Id = i32
-  let base: i32 = 1
-  let _id: Id = base
+  var base: i32 = 1
+  var _id: Id = base
 }|};
   [%expect
     {|
     error: type mismatch
       at <test>:4:17
-          let _id: Id = base
+          var _id: Id = base
                         ^~~~ expected Id, found i32
     |}]
 
@@ -4173,26 +4141,26 @@ let%expect_test "typecheck: if arms still agree where the value is used" =
   run_src
     {|
 extern "C" func printf(fmt: *i8, ...) i32
-func f() i32 { let x = if true { printf("x") } else {}; return x }
+func f() i32 { var x = if true { printf("x") } else {}; return x }
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:3:53
-        func f() i32 { let x = if true { printf("x") } else {}; return x }
+        func f() i32 { var x = if true { printf("x") } else {}; return x }
                                                             ^~ expected i32, found void
     |}]
 
 let%expect_test "typecheck: int is i64" =
-  run_src "func f() i64 { let a: int = 1\n  return a }";
+  run_src "func f() i64 { var a: int = 1\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: float is f64" =
-  run_src "func f() f64 { let a: float = 1.5\n  return a }";
+  run_src "func f() f64 { var a: float = 1.5\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: int is not i32" =
-  run_src "func f() i32 { let a: int = 1\n  return a }";
+  run_src "func f() i32 { var a: int = 1\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -4202,7 +4170,7 @@ let%expect_test "typecheck: int is not i32" =
     |}]
 
 let%expect_test "typecheck: float is not f32" =
-  run_src "func f() f32 { let a: float = 1.5\n  return a }";
+  run_src "func f() f32 { var a: float = 1.5\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -4212,69 +4180,69 @@ let%expect_test "typecheck: float is not f32" =
     |}]
 
 let%expect_test "typecheck: literal too big for int" =
-  run_src "func f() { let _a: int = 9223372036854775808 }";
+  run_src "func f() { var _a: int = 9223372036854775808 }";
   [%expect
     {|
     error: integer literal out of range
       at <test>:1:26
-        func f() { let _a: int = 9223372036854775808 }
+        func f() { var _a: int = 9223372036854775808 }
                                  ^~~~~~~~~~~~~~~~~~~ does not fit in i64
     |}]
 
 let%expect_test "typecheck: int shadowed by an alias" =
-  run_src "type int = i32\nfunc f() i32 { let a: int = 1\n  return a }";
+  run_src "type int = i32\nfunc f() i32 { var a: int = 1\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str literal and len" =
-  run_src "func f() usize { let s: str = \"hello\"\n  return s.len }";
+  run_src "func f() usize { var s: str = \"hello\"\n  return s.len }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str is not cstr" =
-  run_src "func f() { let s: str = \"a\"\n  let _c: cstr = s }";
+  run_src "func f() { var s: str = \"a\"\n  var _c: cstr = s }";
   [%expect
     {|
     error: type mismatch
       at <test>:2:18
-          let _c: cstr = s }
+          var _c: cstr = s }
                          ^ expected cstr, found str
     |}]
 
 let%expect_test "typecheck: cstr is not str" =
-  run_src "func f() { let s: cstr = \"a\"\n  let _t: str = s }";
+  run_src "func f() { var s: cstr = \"a\"\n  var _t: str = s }";
   [%expect
     {|
     error: type mismatch
       at <test>:2:17
-          let _t: str = s }
+          var _t: str = s }
                         ^ expected str, found cstr
     |}]
 
 let%expect_test "typecheck: a bare literal is still cstr" =
-  run_src "func f() { let _s = \"a\" }";
+  run_src "func f() { var _s = \"a\" }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str has no ptr field" =
-  run_src "func f() { let s: str = \"a\"\n  let _p = s.ptr }";
+  run_src "func f() { var s: str = \"a\"\n  var _p = s.ptr }";
   [%expect
     {|
     error: no field
       at <test>:2:14
-          let _p = s.ptr }
+          var _p = s.ptr }
                      ^~~ on str
     |}]
 
 let%expect_test "typecheck: str cannot be indexed" =
-  run_src "func f() { let s: str = \"a\"\n  let _b = s[0] }";
+  run_src "func f() { var s: str = \"a\"\n  var _b = s[0] }";
   [%expect
     {|
     error: cannot index
       at <test>:2:12
-          let _b = s[0] }
+          var _b = s[0] }
                    ^~~~ on str
     |}]
 
 let%expect_test "typecheck: str cannot be compared" =
-  run_src "func f() bool { let s: str = \"a\"\n  return s == \"a\" }";
+  run_src "func f() bool { var s: str = \"a\"\n  return s == \"a\" }";
   [%expect
     {|
     error: invalid operand
@@ -4295,7 +4263,7 @@ let%expect_test "typecheck: a str comptime is rejected" =
       at <test>:1:1
         comptime C: str = "a"
         ^~~~~~~~~~~~~~~~~~~~~ on str
-    help: use let for values that need storage
+    help: use var for values that need storage
     |}]
 
 let%expect_test "typecheck: a labeled break exits an outer loop" =
@@ -4415,12 +4383,12 @@ let%expect_test "typecheck: a valued break after a bare one is rejected" =
 
 let%expect_test "typecheck: unknown variant" =
   run_src {|enum Color { Red }
-func f() { let _c = Color.Green }|};
+func f() { var _c = Color.Green }|};
   [%expect
     {|
     error: no variant
       at <test>:2:27
-        func f() { let _c = Color.Green }
+        func f() { var _c = Color.Green }
                                   ^~~~~ on enum Color
     |}]
 
@@ -4437,23 +4405,23 @@ let%expect_test "typecheck: duplicate variant" =
 let%expect_test "typecheck: enum has no arithmetic" =
   run_src
     {|enum Color { Red, Green }
-func f() { let _c = Color.Red + Color.Green }|};
+func f() { var _c = Color.Red + Color.Green }|};
   [%expect
     {|
     error: invalid operand
       at <test>:2:21
-        func f() { let _c = Color.Red + Color.Green }
+        func f() { var _c = Color.Red + Color.Green }
                             ^~~~~~~~~ cannot apply `+` to Color
     |}]
 
 let%expect_test "typecheck: enum does not cast to an integer" =
   run_src {|enum Color { Red }
-func f() { let _c = Color.Red as i32 }|};
+func f() { var _c = Color.Red as i32 }|};
   [%expect
     {|
     error: invalid cast
       at <test>:2:21
-        func f() { let _c = Color.Red as i32 }
+        func f() { var _c = Color.Red as i32 }
                             ^~~~~~~~~~~~~~~~ cannot cast Color to i32
     |}]
 
@@ -4461,34 +4429,34 @@ let%expect_test "typecheck: two enums are two types" =
   run_src
     {|enum Color { Red }
 enum Fruit { Apple }
-func f() { let _c = Color.Red == Fruit.Apple }|};
+func f() { var _c = Color.Red == Fruit.Apple }|};
   [%expect
     {|
     error: type mismatch
       at <test>:3:34
-        func f() { let _c = Color.Red == Fruit.Apple }
+        func f() { var _c = Color.Red == Fruit.Apple }
                                          ^~~~~~~~~~~ expected Color, found Fruit
     |}]
 
 let%expect_test "typecheck: an enum is not an integer" =
   run_src {|enum Color { Red }
-func f() { let _c: i32 = Color.Red }|};
+func f() { var _c: i32 = Color.Red }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:26
-        func f() { let _c: i32 = Color.Red }
+        func f() { var _c: i32 = Color.Red }
                                  ^~~~~~~~~ expected i32, found Color
     |}]
 
 let%expect_test "typecheck: a type is not a value" =
   run_src {|struct Point { x: i32 }
-func f() { let _p = Point.x }|};
+func f() { var _p = Point.x }|};
   [%expect
     {|
     error: expected a value
       at <test>:2:21
-        func f() { let _p = Point.x }
+        func f() { var _p = Point.x }
                             ^~~~~ this names a type
     |}]
 

@@ -6,7 +6,7 @@ func to_f(c: Celsius) Fahrenheit {
 }
 
 func main() i32 {
-  let boiling: Celsius = 100.0 as Celsius
-  let f: Fahrenheit = to_f(boiling)
+  var boiling: Celsius = 100.0 as Celsius
+  var f: Fahrenheit = to_f(boiling)
   return f as f32 as i32
 }

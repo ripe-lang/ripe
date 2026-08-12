@@ -12,7 +12,7 @@ func check(x: i32) i32 {
 
 func main() {
   comptime LOCAL: i32 = 9
-  let n = match 9 {
+  var n = match 9 {
     LOCAL => 100,
     _ => 0,
   }
