@@ -1049,9 +1049,10 @@ let parse_global st mods =
   advance st;
   let name, name_span = expect_ident_span st in
   let typ =
-    recover_typ_to st depth [ ASSIGN ] (fun () ->
-        expect st COLON;
-        parse_typ st)
+    if at st COLON then (
+      advance st;
+      Some (recover_typ_to st depth [ ASSIGN ] (fun () -> parse_typ st)))
+    else None
   in
   let init =
     if at st ASSIGN then (

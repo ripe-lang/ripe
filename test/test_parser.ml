@@ -1419,7 +1419,7 @@ let%expect_test "parse: module must come before anything else" =
 
 let%expect_test "parse: a dotted type path" =
   (match parse "let p: math.vector.point = undefined" with
-  | [ Ripe.Ast.Global gd ] -> print_endline (dump_typ gd.typ)
+  | [ Ripe.Ast.Global { typ = Some t; _ } ] -> print_endline (dump_typ t)
   | _ -> print_endline "<expected a global>");
   [%expect {| math.vector.point |}]
 

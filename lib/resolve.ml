@@ -567,7 +567,7 @@ and resolve_local_func (st : state) (fd : func_def) : unit =
 and resolve_decl (st : state) : decl -> unit = function
   | Func fd | Extern fd -> resolve_func st fd
   | Global gd ->
-      resolve_typ st gd.typ;
+      Option.iter (resolve_typ st) gd.typ;
       Option.iter (resolve_expr st) gd.init
   | Struct sd ->
       List.iter (fun (f : field) -> resolve_typ st f.field_typ) sd.fields

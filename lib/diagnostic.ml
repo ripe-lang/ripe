@@ -278,6 +278,12 @@ let opaque_operation (span : Ast.span) (action : string) : t =
   |> at span
   |> help "cast to a typed pointer first"
 
+let cannot_infer (span : Ast.span) : t =
+  error "cannot infer type" |> at span
+  |> help "write the type or give it a value"
+
+let bind_void (span : Ast.span) : t = error "cannot bind void value" |> at span
+
 let expected_expression (span : Ast.span) : t =
   error "expected expression" |> at span
 

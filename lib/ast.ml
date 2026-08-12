@@ -239,7 +239,7 @@ let show_named (path : name list) (name : name) : string =
 type global_def = {
   name : name;
   name_span : span;
-  typ : typ;
+  typ : typ option;
   init : expr option;
   kind : binding_kind;
   modifiers : modifier list;

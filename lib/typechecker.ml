@@ -306,7 +306,7 @@ and lookup_var (env : env) (span : Ast.span) : ty =
               TError
           | Some st ->
               st.busy <- true;
-              let t = ty_of_ast env st.def.typ in
+              let t = global_ty env st.def in
               st.busy <- false;
               Symbol.Table.replace env.globals key (t, st.def.kind);
               t
@@ -653,14 +653,14 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
     | None, Some e ->
         let te = synth env e in
         if te.T.ty = TVoid then (
-          emit env (Diagnostic.error_at e.span "cannot bind void value");
+          emit env (Diagnostic.bind_void e.span);
           (TError, te))
         else (te.T.ty, te)
     | Some a, None ->
         let want = ty_of_ast env a in
         (want, T.mk want T.TZero)
     | None, None ->
-        emit env (Diagnostic.error_at nspan "cannot infer type");
+        emit env (Diagnostic.cannot_infer nspan);
         (* A real type here makes every later use mismatch against a type nobody wrote *)
         (TError, dummy_texpr)
   in
@@ -1534,7 +1534,8 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
       match Symbol.Table.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global _ when Symbol.Table.mem env.g_state (Symbol.key s) ->
+  | Symbol.Global (Ast.Let | Ast.Comptime)
+    when Symbol.Table.mem env.g_state (Symbol.key s) ->
       global_const_num env span (Symbol.key s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 
@@ -1574,6 +1575,26 @@ and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
       st.value <- Some v;
       v
 
+(* The init is what an unannotated global gets its type from *)
+and global_ty (env : env) (gd : global_def) : ty =
+  match (gd.typ, gd.init) with
+  | Some t, _ -> ty_of_ast env t
+  | None, Some e -> (
+      let te =
+        try global_typed_init env e.span (key_at env gd.span)
+        with Diagnostic.Errors ds ->
+          List.iter (emit env) ds;
+          dummy_texpr
+      in
+      match te.T.ty with
+      | TVoid ->
+          emit env (Diagnostic.bind_void e.span);
+          TError
+      | t -> t)
+  | None, None ->
+      emit env (Diagnostic.cannot_infer gd.name_span);
+      TError
+
 (* Typing shares the busy flag so a self demand mid typing is a cycle *)
 and global_typed_init (env : env) (span : Ast.span) (key : Symbol.key) : T.texpr
     =
@@ -1593,8 +1614,13 @@ and global_typed_init (env : env) (span : Ast.span) (key : Symbol.key) : T.texpr
         | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
       in
       st.busy <- true;
+      let typed () =
+        match typ with
+        | Some t -> check env e (ty_of_ast env t)
+        | None -> synth env e
+      in
       let te =
-        match check env e (ty_of_ast env typ) with
+        match typed () with
         | te -> te
         | exception ex ->
             st.busy <- false;
@@ -1823,7 +1849,7 @@ let collect_global (env : env) (gd : global_def) : unit =
      | Comptime ->
          emit env
            (Diagnostic.error_at gd.name_span "comptime without initializer"));
-  let t = ty_of_ast env gd.typ in
+  let t = global_ty env gd in
   Symbol.Table.replace env.globals (key_at env gd.span) (t, gd.kind)
 
 let fill_struct_fields_decl (env : env) (decl : decl) : unit =
@@ -1964,7 +1990,7 @@ let check_global (env : env) (gd : global_def) : T.tglobal_def =
   let t =
     match Symbol.Table.find_opt env.globals (key_at env gd.span) with
     | Some (t, _) -> t
-    | None -> ty_of_ast env gd.typ
+    | None -> global_ty env gd
   in
   if gd.kind = Comptime then check_const_scalar env gd.span t;
   let tinit =
@@ -2064,7 +2090,7 @@ let typecheck ~(diags : Diagnostic.sink) (uses : Resolve.t) (decls : decl list)
   (* An early array size can demand any later const so defs go in first *)
   List.iter
     (function
-      | Global ({ kind = Let | Comptime; _ } as gd) ->
+      | Global gd ->
           Symbol.Table.replace env.g_state (key_at env gd.span)
             { def = gd; typed = None; value = None; busy = false }
       | _ -> ())
