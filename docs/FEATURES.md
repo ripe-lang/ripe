@@ -234,6 +234,20 @@ type byte = u8
 newtype Celsius = f32
 ```
 
+### Enums
+
+An enum is its own type and never mixes with an integer.
+
+```ripe
+enum Color { Red, Green, Blue }
+
+func main() i32 {
+  let c: Color = Color.Green
+  if c == Color.Green { return 1 }
+  return 0
+}
+```
+
 ### Local declarations
 
 ```ripe

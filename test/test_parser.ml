@@ -1596,3 +1596,29 @@ let%expect_test "parse: a bare break ends at a newline" =
 let%expect_test "parse: a loop is a value in a binding" =
   parse_expr "x = loop { break 1 }";
   [%expect {| (= x (loop (block (break 1)))) |}]
+
+let%expect_test "parse: an enum declares its variants" =
+  (match parse "enum Color { Red, Green, Blue }" with
+  | [ Ripe.Ast.Enum ed ] ->
+      let name (v : Ripe.Ast.variant) = Ripe.Interner.text v.variant_name in
+      print_endline (String.concat " " (List.map name ed.variants))
+  | _ -> print_endline "<expected an enum>");
+  [%expect {| Red Green Blue |}]
+
+let%expect_test "parse: a newline separates variants" =
+  (match parse {|enum Color {
+  Red
+  Green
+}|} with
+  | [ Ripe.Ast.Enum ed ] ->
+      print_endline (string_of_int (List.length ed.variants))
+  | _ -> print_endline "<expected an enum>");
+  [%expect {| 2 |}]
+
+let%expect_test "parse: an enum may appear in a block" =
+  (match parse {|func f() {
+  enum Step { First }
+}|} with
+  | [ Ripe.Ast.Func fd ] -> print_endline (dump_block fd.body)
+  | _ -> print_endline "<expected a function>");
+  [%expect {| (block (local enum Step)) |}]

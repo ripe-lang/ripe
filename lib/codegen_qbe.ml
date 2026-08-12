@@ -7,7 +7,7 @@ type qbe_base = W | L | S | D
 
 let qbe_base (t : ty) : qbe_base =
   match resolve_ty t with
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool | TChar -> W
+  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool | TChar | TEnum _ -> W
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       L
@@ -39,7 +39,7 @@ let float_lit (ty : ty) (f : float) : string =
     | TFloat F64 -> ("d_", 17)
     | TInt _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
     | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-    | TNewtype _ | TAlias _ | TError ->
+    | TNewtype _ | TAlias _ | TError | TEnum _ ->
         Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
@@ -59,7 +59,7 @@ let qbe_load (t : ty) : string =
   | TInt U8 | TBool -> "loadub"
   | TInt I16 -> "loadsh"
   | TInt U16 -> "loaduh"
-  | TInt I32 -> "loadsw"
+  | TInt I32 | TEnum _ -> "loadsw"
   | TInt U32 | TChar -> "loaduw"
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
@@ -76,7 +76,7 @@ let qbe_store (t : ty) : string =
   match resolve_ty t with
   | TInt (I8 | U8) | TBool -> "storeb"
   | TInt (I16 | U16) -> "storeh"
-  | TInt (I32 | U32) | TChar -> "storew"
+  | TInt (I32 | U32) | TChar | TEnum _ -> "storew"
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       "storel"
@@ -368,7 +368,7 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   match resolve_ty t with
   | TInt (I8 | U8) | TBool -> "b"
   | TInt (I16 | U16) -> "h"
-  | TInt (I32 | U32) | TChar -> "w"
+  | TInt (I32 | U32) | TChar | TEnum _ -> "w"
   (* Null is a pointer no type but all pointers are 64-bit *)
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->

@@ -128,7 +128,7 @@ let is_stmt_start (tok : token) : bool =
 let is_item_start (tok : token) : bool =
   match tok with
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | NEWTYPE | IMPORT | LET | COMPTIME
-  | VAR ->
+  | VAR | ENUM ->
       true
   | _ -> false
 
@@ -409,6 +409,29 @@ and parse_struct_def st mods =
     fields;
     struct_modifiers = mods;
     struct_span = make_span st lo hi;
+  }
+
+(* enum Color { Red, Green, Blue } *)
+and parse_enum_def st mods =
+  let lo = cur_pos st in
+  advance st;
+  (* ENUM *)
+  let name, name_span = expect_ident_span st in
+  expect st LBRACE;
+  let variants = ref [] in
+  while st.tok <> RBRACE do
+    let vname, vspan = expect_ident_span st in
+    variants := { variant_name = vname; variant_span = vspan } :: !variants;
+    expect_field_sep st
+  done;
+  expect st RBRACE;
+  let hi = st.prev_end in
+  {
+    enum_name = name;
+    enum_name_span = name_span;
+    variants = List.rev !variants;
+    enum_modifiers = mods;
+    enum_span = make_span st lo hi;
   }
 
 (* type binop = (i32, i32) i32 / newtype Celsius = f32 *)
@@ -874,7 +897,7 @@ and parse_stmt st =
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
-  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE -> parse_local_decl st
+  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE | ENUM -> parse_local_decl st
   | _ -> Expr (parse_simple_stmt st)
 
 and parse_local_decl st =
@@ -885,6 +908,7 @@ and parse_local_decl st =
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
     | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
     | FUNC -> LocalFunc (parse_func_def st modifiers)
+    | ENUM -> LocalEnum (parse_enum_def st modifiers)
     | _ -> fail_found st "expected local declaration"
   in
   Decl decl
@@ -1027,6 +1051,7 @@ let parse_decl st =
   | _, (LET | COMPTIME | VAR) -> parse_global st mods
   | _, TYPE -> TypeAlias (parse_alias_def st mods)
   | _, NEWTYPE -> Newtype (parse_alias_def st mods)
+  | _, ENUM -> Enum (parse_enum_def st mods)
   | _ -> err ()
 
 (* import math.vector *)

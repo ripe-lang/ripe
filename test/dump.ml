@@ -119,6 +119,8 @@ and dump_block (body : Ripe.Ast.block) : string =
         "(local func "
         ^ Ripe.Interner.text fd.func_name
         ^ " " ^ dump_block fd.body ^ ")"
+    | Decl (LocalEnum ed) ->
+        "(local enum " ^ Ripe.Interner.text ed.enum_name ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 

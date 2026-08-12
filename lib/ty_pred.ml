@@ -50,7 +50,7 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
   | T.TContinue _ ->
       false
-  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ -> false
+  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TVariant _ -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_lvalue (te : T.texpr) : T.texpr option =
@@ -65,7 +65,7 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
   | T.TBreak _ | T.TContinue _ ->
       None
-  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ -> None
+  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TVariant _ -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through (base : T.texpr) : T.texpr option =
@@ -91,7 +91,7 @@ let is_integer t =
 (* A newtype hides every operation of its base *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
-  | TError ->
+  | TError | TEnum _ ->
       true
   | TAlias (_, base) -> is_comparable base
   | TStr | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _
@@ -112,7 +112,9 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
-  | TStr | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError ->
+  (* TODO: no enum to integer cast until the boundary is settled *)
+  | TStr | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _
+    ->
       Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
 

@@ -4416,3 +4416,82 @@ let%expect_test "typecheck: a valued break after a bare one is rejected" =
             if true { break }
                       ^~~~~ no value here
     |}]
+
+let%expect_test "typecheck: unknown variant" =
+  run_src {|enum Color { Red }
+func f() { let _c = Color.Green }|};
+  [%expect
+    {|
+    error: no variant
+      at <test>:2:27
+        func f() { let _c = Color.Green }
+                                  ^~~~~ on enum Color
+    |}]
+
+let%expect_test "typecheck: duplicate variant" =
+  run_src "enum Color { Red, Green, Red }";
+  [%expect
+    {|
+    error: duplicate variant
+      at <test>:1:26
+        enum Color { Red, Green, Red }
+                                 ^~~
+    |}]
+
+let%expect_test "typecheck: enum has no arithmetic" =
+  run_src
+    {|enum Color { Red, Green }
+func f() { let _c = Color.Red + Color.Green }|};
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:21
+        func f() { let _c = Color.Red + Color.Green }
+                            ^~~~~~~~~ cannot apply `+` to Color
+    |}]
+
+let%expect_test "typecheck: enum does not cast to an integer" =
+  run_src {|enum Color { Red }
+func f() { let _c = Color.Red as i32 }|};
+  [%expect
+    {|
+    error: invalid cast
+      at <test>:2:21
+        func f() { let _c = Color.Red as i32 }
+                            ^~~~~~~~~~~~~~~~ cannot cast Color to i32
+    |}]
+
+let%expect_test "typecheck: two enums are two types" =
+  run_src
+    {|enum Color { Red }
+enum Fruit { Apple }
+func f() { let _c = Color.Red == Fruit.Apple }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:34
+        func f() { let _c = Color.Red == Fruit.Apple }
+                                         ^~~~~~~~~~~ expected Color, found Fruit
+    |}]
+
+let%expect_test "typecheck: an enum is not an integer" =
+  run_src {|enum Color { Red }
+func f() { let _c: i32 = Color.Red }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:26
+        func f() { let _c: i32 = Color.Red }
+                                 ^~~~~~~~~ expected i32, found Color
+    |}]
+
+let%expect_test "typecheck: a type is not a value" =
+  run_src {|struct Point { x: i32 }
+func f() { let _p = Point.x }|};
+  [%expect
+    {|
+    error: expected a value
+      at <test>:2:21
+        func f() { let _p = Point.x }
+                            ^~~~~ this names a type
+    |}]

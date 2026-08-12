@@ -200,11 +200,26 @@ and func_def = {
 }
 [@@deriving show { with_path = false }]
 
+(* TODO: a variant carries no explicit value and no payload *)
+and variant = { variant_name : name; variant_span : span }
+[@@deriving show { with_path = false }]
+
+(* TODO: every enum is an i32 and flags don't exist *)
+and enum_def = {
+  enum_name : name;
+  enum_name_span : span;
+  variants : variant list;
+  enum_modifiers : modifier list;
+  enum_span : span;
+}
+[@@deriving show { with_path = false }]
+
 and local_decl =
   | LocalStruct of struct_def
   | LocalTypeAlias of type_alias_def
   | LocalNewtype of type_alias_def
   | LocalFunc of func_def
+  | LocalEnum of enum_def
 [@@deriving show { with_path = false }]
 
 let show_named (path : name list) (name : name) : string =
@@ -228,6 +243,7 @@ type decl =
   | Global of global_def
   | TypeAlias of type_alias_def
   | Newtype of type_alias_def
+  | Enum of enum_def
 [@@deriving show { with_path = false }]
 
 (* A local declaration carries the same payload so it checks like a global one *)
@@ -236,6 +252,7 @@ let decl_of_local : local_decl -> decl = function
   | LocalTypeAlias td -> TypeAlias td
   | LocalNewtype td -> Newtype td
   | LocalFunc fd -> Func fd
+  | LocalEnum ed -> Enum ed
 
 type import = { path : name list; span : span }
 [@@deriving show { with_path = false }]

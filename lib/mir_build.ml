@@ -30,7 +30,8 @@ module Mir_const = struct
               { init = global.S.init; value = None; busy = false };
             if global.S.kind = Ast.Comptime then
               Symbol.Table.add comptime_globals global.S.key ()
-        | S.TFunc _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ -> ())
+        | S.TFunc _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ | S.TEnum _ ->
+            ())
       declarations;
     { structs; globals; comptime_globals }
 
@@ -101,6 +102,7 @@ module Mir_const = struct
   let rec global_init context (expr : S.texpr) =
     match expr.S.desc with
     | S.TInt value -> GlobalConst (Int value, expr.S.ty)
+    | S.TVariant (_, value) -> GlobalConst (Int value, expr.S.ty)
     | S.TFloat value -> GlobalConst (Float value, expr.S.ty)
     | S.TBool value -> GlobalConst (Bool value, expr.S.ty)
     | S.TNull -> GlobalConst (Null, expr.S.ty)
@@ -715,6 +717,7 @@ module Mir_expr = struct
     | S.TErrorExpr ->
         Diagnostic.ice ~span:expr.S.span "error expression reached MIR"
     | S.TInt value -> B.constant expr (Int value)
+    | S.TVariant (_, value) -> B.constant expr (Int value)
     | S.TFloat value -> B.constant expr (Float value)
     | S.TBool value -> B.constant expr (Bool value)
     | S.TNull -> B.constant expr Null
@@ -1118,7 +1121,8 @@ let build (declarations : S.tdecl list) : Mir.program =
             }
             :: !globals_rev
       | S.TFunc func -> functions_rev := func :: !functions_rev
-      | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ -> ())
+      | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ | S.TEnum _ ->
+          ())
     declarations;
   let structs = List.rev !structs_rev in
   let globals = List.rev !globals_rev in

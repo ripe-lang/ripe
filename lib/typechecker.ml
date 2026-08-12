@@ -13,6 +13,7 @@ type func_sig = {
 }
 
 type struct_info = { field_tys : (Ast.name * ty) list }
+type enum_info = { variant_vals : (Ast.name * int64) list }
 
 (* Structs newtypes aliases and builtins share one namespace of type names *)
 type type_def =
@@ -20,6 +21,7 @@ type type_def =
   | DNewtype of ty
   | DAlias of ty
   | DBuiltin of Types.builtin
+  | DEnum of enum_info
 
 type result_use = Infer | Expect of ty | Discard
 type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
@@ -88,6 +90,7 @@ let decl_span : decl -> Ast.span = function
   | Global gd -> gd.span
   | Struct sd -> sd.struct_span
   | TypeAlias td | Newtype td -> td.alias_span
+  | Enum ed -> ed.enum_span
 
 (* The path comes off the declaration being checked not off the root module *)
 let reading (env : env) (decl : decl) : env =
@@ -168,7 +171,7 @@ let key_at (env : env) (span : Ast.span) : Symbol.key =
 let builtin_at (env : env) (span : Ast.span) : Types.builtin option =
   match Symbol.Table.find_opt env.types (key_at env span) with
   | Some (DBuiltin b) -> Some b
-  | Some (DStruct _ | DNewtype _ | DAlias _) | None -> None
+  | Some (DStruct _ | DNewtype _ | DAlias _ | DEnum _) | None -> None
 
 (* The path comes off the symbol so a message can say which module a type is from *)
 let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
@@ -257,6 +260,7 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
       | Some (DStruct _) -> TStruct (qname_at env t.tspan shown, [])
       | Some (DNewtype base) -> TNewtype (qname_at env t.tspan shown, base)
       | Some (DAlias aliased) -> TAlias (qname_at env t.tspan shown, aliased)
+      | Some (DEnum _) -> TEnum (qname_at env t.tspan shown)
       | None -> (
           match Resolve.sym_at_opt env.uses t.tspan with
           | Some { Symbol.kind = Symbol.Error; _ } -> TError
@@ -363,7 +367,16 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | Some s
         when Symbol.is_func s.Symbol.kind || Symbol.is_global s.Symbol.kind ->
           T.mk (lookup_var env e.span) (T.TIdent s)
-      | _ -> synth_field env e.span inner_e fname fspan)
+      | _ -> (
+          match Symbol.Table.find_opt env.types (key_at env inner_e.span) with
+          | Some (DEnum info) -> synth_variant env inner_e info fname fspan
+          (* Only an enum has members to name so any other type is a mistake *)
+          | Some (DStruct _ | DNewtype _ | DAlias _ | DBuiltin _) ->
+              emit env
+                (Diagnostic.error_at inner_e.span "expected a value"
+                |> Diagnostic.label "this names a type");
+              dummy_texpr
+          | None -> synth_field env e.span inner_e fname fspan))
   | Cast (operand, t) ->
       let te = synth env operand in
       let ty = ty_of_ast env t in
@@ -1272,6 +1285,20 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : Ast.name)
       dummy_texpr
   | _ -> synth_struct_field env span te ty fname fspan
 
+(* A variant is a compile time constant so nothing of the enum survives here *)
+and synth_variant (env : env) (inner : expr) (info : enum_info)
+    (fname : Ast.name) (fspan : Ast.span) : T.texpr =
+  let shown = Interner.text fname in
+  let name = qname_at env inner.span shown in
+  match List.assoc_opt fname info.variant_vals with
+  | Some value -> T.mk (TEnum name) (T.TVariant (name, value))
+  | None ->
+      emit env
+        (Diagnostic.error_at fspan "no variant"
+        |> Diagnostic.label
+             (Printf.sprintf "on enum %s" (show_ty env (TEnum name))));
+      dummy_texpr
+
 and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
     (fname : Ast.name) (fspan : Ast.span) : T.texpr =
   let rec peel depth = function
@@ -1594,6 +1621,21 @@ let check_struct_cycle (env : env) (sd : struct_def) : unit =
       (Diagnostic.error_at sd.struct_name_span
          "recursive struct has infinite size")
 
+(* A variant names no type so one pass settles the whole enum *)
+let reserve_enum_name (env : env) (ed : enum_def) : unit =
+  if not (type_name_taken env ed.enum_span) then begin
+    let add (vals, next) (v : variant) =
+      if List.mem_assoc v.variant_name vals then begin
+        emit env (Diagnostic.error_at v.variant_span "duplicate variant");
+        (vals, next)
+      end
+      else ((v.variant_name, next) :: vals, Int64.succ next)
+    in
+    let vals, _ = List.fold_left add ([], 0L) ed.variants in
+    Symbol.Table.replace env.types (key_at env ed.enum_span)
+      (DEnum { variant_vals = List.rev vals })
+  end
+
 (* A fake error type goes in the table first and it just means the real body hasn't been read yet *)
 let reserve_alias_name (env : env) (td : type_alias_def) : unit =
   if not (type_name_taken env td.alias_span) then
@@ -1638,7 +1680,7 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
         let key = key_at env td.alias_span in
         if key <> unresolved_key && not (Hashtbl.mem defs key) then
           Hashtbl.add defs key decl
-    | Func _ | Extern _ | Global _ | Struct _ -> ()
+    | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
   in
   let unfilled (decl : decl) : bool =
     match decl with
@@ -1648,13 +1690,13 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
     | Newtype td ->
         Symbol.Table.find_opt env.types (key_at env td.alias_span)
         = Some (DNewtype TError)
-    | Func _ | Extern _ | Global _ | Struct _ -> false
+    | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> false
   in
   let fill (decl : decl) : unit =
     match decl with
     | TypeAlias td -> collect_alias env td
     | Newtype td -> collect_newtype env td
-    | Func _ | Extern _ | Global _ | Struct _ -> ()
+    | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
   in
   let on_path = Hashtbl.create 8 in
   let rec force (key : Symbol.key) : unit =
@@ -1670,14 +1712,14 @@ let collect_type_bodies (env : env) (decls : decl list) : unit =
           Hashtbl.remove on_path key;
           if unfilled decl then fill decl
         end
-    | Some (Func _ | Extern _ | Global _ | Struct _) -> ()
+    | Some (Func _ | Extern _ | Global _ | Struct _ | Enum _) -> ()
   in
   List.iter remember decls;
   (* The order here follows the file so the same type gets blamed every time *)
   List.iter
     (function
       | TypeAlias td | Newtype td -> force (key_at env td.alias_span)
-      | Func _ | Extern _ | Global _ | Struct _ -> ())
+      | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ())
     decls
 
 let collect_global (env : env) (gd : global_def) : unit =
@@ -1705,6 +1747,7 @@ let reserve_type_name (env : env) (decl : decl) : unit =
   | Struct sd -> reserve_struct_name env sd
   | TypeAlias td -> reserve_alias_name env td
   | Newtype td -> reserve_newtype_name env td
+  | Enum ed -> reserve_enum_name env ed
   | Func _ | Extern _ | Global _ -> ()
 
 let collect_decl (env : env) (decl : decl) : unit =
@@ -1712,7 +1755,7 @@ let collect_decl (env : env) (decl : decl) : unit =
   match decl with
   | Func fd | Extern fd -> collect_func env fd
   | Global gd -> collect_global env gd
-  | Struct _ | TypeAlias _ | Newtype _ -> ()
+  | Struct _ | TypeAlias _ | Newtype _ | Enum _ -> ()
 
 let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   (* The collected signature is reused so a bad array size errors once *)
@@ -1799,7 +1842,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
   (* Already reported once so there's nothing more to say here *)
   | T.TErrorExpr -> true
   | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TChar _ | T.TCStr _
-  | T.TStr _ | T.TSizeOf _ ->
+  | T.TStr _ | T.TSizeOf _ | T.TVariant _ ->
       true
   (* A function address is a link time constant *)
   | T.TIdent s ->
@@ -1910,6 +1953,7 @@ let check_decl (env : env) (decl : decl) : T.tdecl =
         | _ -> ty_of_ast env td.alias_typ
       in
       T.TNewtype (qname_at env td.alias_span (Interner.text td.alias_name), t)
+  | Enum ed -> T.TEnum (qname_at env ed.enum_span (Interner.text ed.enum_name))
 
 let force_global_consts (env : env) (tdecls : T.tdecl list) : unit =
   List.iter
