@@ -1415,7 +1415,7 @@ and resolve_const (env : env) (s : Symbol.t) (_ : ty) (span : Ast.span) :
       match Symbol.Table.find_opt env.l_vals (Symbol.key s) with
       | Some v -> v
       | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ]))
-  | Symbol.Global when Symbol.Table.mem env.g_state (Symbol.key s) ->
+  | Symbol.Global _ when Symbol.Table.mem env.g_state (Symbol.key s) ->
       global_const_num env span (Symbol.key s)
   | _ -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
 

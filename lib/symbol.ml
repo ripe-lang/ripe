@@ -9,7 +9,7 @@ type kind =
   | Func
   | LocalFunc
   | Extern
-  | Global
+  | Global of Ast.binding_kind
   | Type
   | LocalType
   | Local of Ast.binding_kind
@@ -57,12 +57,12 @@ let prelude_module_id : module_id = -2
 let is_func (kind : kind) : bool =
   match kind with
   | Func | LocalFunc | Extern -> true
-  | Error | Global | Type | LocalType | Local _ | Param | ForVar | Module ->
+  | Error | Global _ | Type | LocalType | Local _ | Param | ForVar | Module ->
       false
 
 let is_global (kind : kind) : bool =
   match kind with
-  | Global -> true
+  | Global _ -> true
   | Error | Func | LocalFunc | Extern | Type | LocalType | Local _ | Param
   | ForVar | Module ->
       false
@@ -70,15 +70,16 @@ let is_global (kind : kind) : bool =
 let is_immutable (kind : kind) : bool =
   match kind with
   | Local (Ast.Let | Ast.Comptime) | ForVar | Module -> true
-  | Error | Func | LocalFunc | Extern | Global | Type | LocalType
+  | Error | Func | LocalFunc | Extern | Global _ | Type | LocalType
   | Local Ast.Var
   | Param ->
       false
 
 let is_comptime (kind : kind) : bool =
   match kind with
-  | Local Ast.Comptime -> true
-  | Error | Func | LocalFunc | Extern | Global | Type | LocalType
+  | Local Ast.Comptime | Global Ast.Comptime -> true
+  | Error | Func | LocalFunc | Extern | Type | LocalType
+  | Global (Ast.Var | Ast.Let)
   | Local (Ast.Var | Ast.Let)
   | Param | ForVar | Module ->
       false

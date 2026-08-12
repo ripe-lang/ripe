@@ -250,7 +250,7 @@ let rec find_value (scope : scope) (name : Ast.name) : Symbol.t option =
 
 let is_item_value (sym : Symbol.t) : bool =
   match sym.Symbol.kind with
-  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc
+  | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
   | Symbol.Module ->
       true
   | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local _
@@ -566,7 +566,7 @@ let declare_decls (st : state) (decls : decl list) : unit =
           declare_global ~name_span:fd.func_name_span st Symbol.Extern
             Symbol.Private fd.func_name fd.func_span
       | Global gd ->
-          declare_global ~name_span:gd.name_span st Symbol.Global
+          declare_global ~name_span:gd.name_span st (Symbol.Global gd.kind)
             (visibility gd.modifiers) gd.name gd.span
       | Struct sd ->
           declare_type ~name_span:sd.struct_name_span st
