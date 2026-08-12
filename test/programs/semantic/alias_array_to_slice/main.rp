@@ -8,5 +8,5 @@ func sum(s: []i32) i32 {
 
 func main() i32 {
   var r: Row = [1, 2, 3]
-  return sum(r[..])
+  return sum(r)
 }

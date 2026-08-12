@@ -1008,7 +1008,7 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
       in
       emit env mismatch;
       te)
-    else te
+    else adopt_slice want te
   in
   match e.desc with
   | ErrorExpr -> dummy_texpr
@@ -1110,6 +1110,15 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | Match (scrutinee, arms) -> check_match env scrutinee arms (Expect want)
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
+
+(* A slice is an address and a length so the array already holds what the view needs *)
+and adopt_slice (want : ty) (te : T.texpr) : T.texpr =
+  match (strip_alias want, strip_alias te.T.ty) with
+  | TSlice _, TArray _ ->
+      let zero = T.mk (TInt Usize) (T.TInt 0L) in
+      let len = T.mk (TInt Usize) (T.TLen te) in
+      T.mk want (T.TSliceExpr (te, zero, len))
+  | _ -> te
 
 and check_matching_operands (env : env) (l : expr) (r : expr) :
     T.texpr * T.texpr * ty =
