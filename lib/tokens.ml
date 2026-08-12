@@ -82,6 +82,7 @@ type token =
   | ENUM
   | MATCH
   | FATARROW
+  | UNDERSCORE
 
 let keywords =
   [
@@ -176,6 +177,7 @@ let show_token = function
   | ELLIPSIS -> "..."
   | DOT -> "."
   | FATARROW -> "=>"
+  | UNDERSCORE -> "_"
   | AUTOSEMI | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"

@@ -632,10 +632,24 @@ let%expect_test "lexer: every suffix in octal form" =
     |}]
 
 let%expect_test "lexer: enum and match keywords and the arrow" =
-  dump_tokens "enum match =>\n";
+  dump_tokens "enum match => _\n";
   [%expect {|
     KW enum
     KW match
     =>
+    _
+    AUTOSEMI
+    EOF
+    |}]
+
+let%expect_test "lexer: an identifier may start with an underscore" =
+  dump_tokens "_ _x x_ _1\n";
+  [%expect
+    {|
+    _
+    IDENT _x
+    IDENT x_
+    IDENT _1
+    AUTOSEMI
     EOF
     |}]

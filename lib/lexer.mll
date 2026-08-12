@@ -93,7 +93,7 @@ let can_end_stmt = function
   | IDENT _ | INT _ | FLOAT _ | STRING _ | CHAR _
   | TRUE | FALSE | NULL | UNDEFINED
   | BREAK | CONTINUE | RETURN
-  | RPAREN | RBRACE | RBRACKET -> true
+  | RPAREN | RBRACE | RBRACKET | UNDERSCORE -> true
   | _ -> false
 }
 
@@ -133,6 +133,7 @@ rule read_main st = parse
   | decimals exp floatsuf? as f  { float_token f }
   | decimals floatsuf as f       { float_token f }
   | (decimals intsuf?) as n      { decimal_int_token st lexbuf n }
+  | '_'                { UNDERSCORE }
   | alpha alnum* as s  {
       match lookup_keyword s with
       | Some t -> t

@@ -3744,7 +3744,13 @@ let%expect_test "collapse: discarded tail arithmetic warns" =
 
 let%expect_test "collapse: explicit discard stays quiet" =
   run_src "func f() { let _ = 1 + 2 }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:16
+        func f() { let _ = 1 + 2 }
+                       ^ found _
+    |}]
 
 let%expect_test "collapse: implicit return of a wrong tail type" =
   run_src "func f() i32 { true }";
