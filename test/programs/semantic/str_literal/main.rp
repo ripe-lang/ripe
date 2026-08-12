@@ -3,8 +3,8 @@ func take(s: str) usize {
 }
 
 func main() i32 {
-  let a: str = "hello"
+  var a: str = "hello"
   var b: str = a
-  let empty: str = ""
+  var empty: str = ""
   return (a.len + take(b) + take("héllo") + empty.len) as i32
 }

@@ -36,7 +36,6 @@ type token =
   | CARET_ASSIGN
   | LSHIFT_ASSIGN
   | RSHIFT_ASSIGN
-  | LET
   | COMPTIME
   | VAR
   | RETURN
@@ -86,7 +85,6 @@ type token =
 
 let keywords =
   [
-    ("let", LET);
     ("comptime", COMPTIME);
     ("var", VAR);
     ("return", RETURN);
@@ -181,10 +179,10 @@ let show_token = function
   | AUTOSEMI | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | ( LET | COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE
-    | FALSE | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC
-    | FUNC | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH
-      ) as t ->
+  | ( COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE
+    | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC | FUNC
+    | TYPE | NEWTYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH ) as t
+    ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token (token : token) : string =

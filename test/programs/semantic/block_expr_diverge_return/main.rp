@@ -1,5 +1,5 @@
 func f() i32 {
-  let x = {
+  var x = {
     return 7
     99
   }

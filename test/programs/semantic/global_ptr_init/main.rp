@@ -1,6 +1,6 @@
 var g: i32 = 41
 
-let p: *i32 = &g
+var p: *i32 = &g
 
 func main() i32 {
   *p += 1

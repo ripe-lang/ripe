@@ -1,6 +1,6 @@
 func f(x: i32) i32 {
   {
-    let a = x * 2
+    var a = x * 2
     a + 1
   }
 }

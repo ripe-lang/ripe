@@ -1,13 +1,13 @@
 func main() i32 {
-  let first = {
+  var first = {
     struct Value { number: i32 }
-    let value = Value { number: 5 }
+    var value = Value { number: 5 }
     value.number
   }
 
-  let second = {
+  var second = {
     struct Value { number: i32, extra: i32 }
-    let value = Value { number: 1, extra: 7 }
+    var value = Value { number: 1, extra: 7 }
     value.extra
   }
 

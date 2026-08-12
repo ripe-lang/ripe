@@ -1,6 +1,6 @@
 func main() i32 {
   var n = 7
-  let cls = {
+  var cls = {
     var r = 0
     if n > 5 { r = 100 } else { r = 1 }
     r

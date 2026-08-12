@@ -2,7 +2,7 @@ func sum_to(n: i32) i32 {
   if n == 0 {
     0
   } else {
-    let rest = sum_to(n - 1)
+    var rest = sum_to(n - 1)
     n + rest
   }
 }

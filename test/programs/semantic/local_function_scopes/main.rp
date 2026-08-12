@@ -1,10 +1,10 @@
 func main() i32 {
-  let first = {
+  var first = {
     func value() i32 { 8 }
     value()
   }
 
-  let second = {
+  var second = {
     func value() i32 { 10 }
     value()
   }

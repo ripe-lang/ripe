@@ -18,7 +18,7 @@ let%expect_test "multi line" =
   Printf.printf " (%d,%d)" l c;
   [%expect {| (1,1) (2,1) (3,2) |}]
 
-(* "let x = 5\nreturn x" span {4,15} = (1,5)-(2,6) *)
+(* "var x = 5\nreturn x" span {4,15} = (1,5)-(2,6) *)
 let%expect_test "span across lines" =
   let sm = Ripe.Source_map.create ~base:0 "let x = 5\nreturn x" in
   let span = Ripe.Span.make 4 15 in

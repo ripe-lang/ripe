@@ -1,6 +1,6 @@
 func main() i32 {
   var base = 10
-  let y = {
+  var y = {
     var step = 3
     base + step
   }

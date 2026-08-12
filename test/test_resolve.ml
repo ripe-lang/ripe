@@ -166,7 +166,7 @@ let%expect_test "resolve: address of a function lowers" =
     {|
 func g() i32 { return 7 }
 func main() i32 {
-  let _p = &g
+  var _p = &g
   return 0
 }
 |};
@@ -185,10 +185,10 @@ func main() i32 {
     }
     |}]
 
-let%expect_test "resolve: var shadowing a let global is assignable" =
+let%expect_test "resolve: var shadowing a global is assignable" =
   run_src
     {|
-let C: i32 = 5
+var C: i32 = 5
 func main() i32 {
   var C: i32 = 1
   C = 2
@@ -342,9 +342,9 @@ func main() i32 { return nope() }
                                  ^~~~
     |}]
 
-let%expect_test "resolve: global let is visible in a function" =
+let%expect_test "resolve: global is visible in a function" =
   run_src {|
-let C: i32 = 5
+var C: i32 = 5
 func main() i32 { return C }
 |};
   [%expect {| ok |}]
@@ -373,7 +373,7 @@ pub func api() {}
 func helper() {}
 pub struct point {}
 struct secret {}
-pub let LIMIT: i32 = 1
+pub var LIMIT: i32 = 1
 var count: i32 = 0
 pub type meters = i32
 newtype celsius = f32
@@ -603,7 +603,7 @@ let%expect_test "resolve: a local function may call a later sibling" =
 
 let%expect_test "resolve: a local function cannot capture a variable" =
   run_src {|func f() i32 {
-  let x = 4
+  var x = 4
   func read() i32 { x }
   read()
 }|};
@@ -618,13 +618,13 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 let%expect_test "resolve: a local declaration stays in its block" =
   run_src {|func f() {
   { type Coord = i32 }
-  let x: Coord = 1
+  var x: Coord = 1
 }|};
   [%expect
     {|
     error: undefined type
       at <test>:3:10
-          let x: Coord = 1
+          var x: Coord = 1
                  ^~~~~
     |}]
 
@@ -632,7 +632,7 @@ let%expect_test "resolve: a captured variable shadows a module function" =
   run_src
     {|func x() i32 { 7 }
 func outer() i32 {
-  let x = 1
+  var x = 1
   func inner() i32 { x() }
   inner()
 }|};

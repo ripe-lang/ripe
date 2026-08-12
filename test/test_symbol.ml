@@ -6,14 +6,14 @@ let all_kinds =
   [
     Symbol.Func;
     Extern;
-    Global Ast.Let;
+    Global Ast.Var;
     Global Ast.Comptime;
     Type;
-    Local Ast.Let;
     Local Ast.Comptime;
     Local Ast.Var;
     Param;
     ForVar;
+    MatchBind;
   ]
 
 let dump_kinds pred =
@@ -27,14 +27,14 @@ let%expect_test "symbol: is_func covers only func and extern" =
     {|
     Func true
     Extern true
-    (Global Let) false
+    (Global Var) false
     (Global Comptime) false
     Type false
-    (Local Let) false
     (Local Comptime) false
     (Local Var) false
     Param false
     ForVar false
+    MatchBind false
     |}]
 
 let%expect_test "symbol: is_global covers only global" =
@@ -43,12 +43,12 @@ let%expect_test "symbol: is_global covers only global" =
     {|
     Func false
     Extern false
-    (Global Let) true
+    (Global Var) true
     (Global Comptime) true
     Type false
-    (Local Let) false
     (Local Comptime) false
     (Local Var) false
     Param false
     ForVar false
+    MatchBind false
     |}]

@@ -7,11 +7,11 @@ func descend(n: i32) pair {
   if n == 0 {
     return pair { x: 1, y: 2 }
   }
-  let previous = descend(n - 1)
+  var previous = descend(n - 1)
   return pair { x: previous.x + 1, y: previous.y + 1 }
 }
 
 func main() i32 {
-  let value = descend(3)
+  var value = descend(3)
   return value.x + value.y
 }

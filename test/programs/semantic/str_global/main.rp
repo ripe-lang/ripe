@@ -1,9 +1,9 @@
 struct Box { text: str, value: i32 }
 
-let G: str = "global"
+var G: str = "global"
 var M: str = "mutable"
-let B: Box = Box { text: "boxed", value: 7 }
-let E: str = ""
+var B: Box = Box { text: "boxed", value: 7 }
+var E: str = ""
 
 func main() i32 {
   var total: usize = G.len + M.len + B.text.len + E.len

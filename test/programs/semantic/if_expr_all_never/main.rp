@@ -1,6 +1,6 @@
 extern "C" func exit(code: i32) never
 
 func main() i32 {
-  let _y = if true { exit(3) } else { exit(4) }
+  var _y = if true { exit(3) } else { exit(4) }
   return 99
 }

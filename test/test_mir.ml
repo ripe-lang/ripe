@@ -291,7 +291,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 func main() i32 {
   var i = 0
-  let found = outer: loop {
+  var found = outer: loop {
     var j = 0
     loop {
       j += 1

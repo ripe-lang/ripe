@@ -1,6 +1,6 @@
-let PRESENT: i32 = 1
-let WRITABLE: i32 = 2
-let USER: i32 = 4
+var PRESENT: i32 = 1
+var WRITABLE: i32 = 2
+var USER: i32 = 4
 
 func has_flag(flags: i32, flag: i32) bool {
   return flags & flag != 0

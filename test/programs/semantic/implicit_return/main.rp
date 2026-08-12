@@ -1,7 +1,7 @@
 func square(x: i32) i32 { x * x }
 
 func add(a: i32, b: i32) i32 {
-  let s = a + b
+  var s = a + b
   s
 }
 

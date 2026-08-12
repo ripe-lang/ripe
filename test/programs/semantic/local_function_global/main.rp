@@ -1,4 +1,4 @@
-let base: i32 = 21
+var base: i32 = 21
 
 func main() i32 {
   func read() i32 { base }

@@ -1,1 +1,1 @@
-pub let LIMIT: i32 = 1
+pub comptime LIMIT: i32 = 1

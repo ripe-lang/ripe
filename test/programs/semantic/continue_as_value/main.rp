@@ -2,7 +2,7 @@ func sum_evens(n: i32) i32 {
   var total: i32 = 0
   var i: i32 = 0
   while i < n {
-    let add: i32 = if i % 2 == 0 { i } else { i = i + 1; continue }
+    var add: i32 = if i % 2 == 0 { i } else { i = i + 1; continue }
     total = total + add
     i = i + 1
   }

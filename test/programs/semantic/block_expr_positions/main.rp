@@ -3,11 +3,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 func id(x: i32) i32 { return x }
 
 func main() i32 {
-  let a = 1 + { let t = 2; t }
-  let arr = [{ let t = 1; t }, 2, 3]
-  let i = arr[{ let t = 0; t }]
+  var a = 1 + { var t = 2; t }
+  var arr = [{ var t = 1; t }, 2, 3]
+  var i = arr[{ var t = 0; t }]
   var m = 0
-  m = { let t = 9; t }
-  printf("%d %d %d %d\n", a, id({ let t = 4; t + 1 }), i, m)
+  m = { var t = 9; t }
+  printf("%d %d %d %d\n", a, id({ var t = 4; t + 1 }), i, m)
   return a
 }
