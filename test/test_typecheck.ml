@@ -1999,6 +1999,7 @@ let%expect_test "typecheck: var without type or value cannot infer" =
       at <test>:1:16
         func f() { var x }
                        ^
+    help: write the type or give it a value
     warning: unused variable: x
       at <test>:1:16
         func f() { var x }
@@ -2014,6 +2015,7 @@ let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
       at <test>:1:16
         func f() { var x
                        ^
+    help: write the type or give it a value
     |}]
 
 let%expect_test "typecheck: undefined without type cannot infer" =
