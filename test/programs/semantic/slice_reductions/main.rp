@@ -21,7 +21,7 @@ func main() i32 {
   for i in 0..scores.len {
     scores[i] += 1
   }
-  var total: i32 = sum(scores[..])
-  var top: i32 = max(scores[..])
+  var total: i32 = sum(scores)
+  var top: i32 = max(scores)
   return total - top - 100
 }

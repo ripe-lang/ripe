@@ -15,6 +15,7 @@ let rec compatible (want : ty) (got : ty) : bool =
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
   (* A fixed array coerces to a slice of the same element type *)
+  | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
       (abi1 = abi2 || abi1 = Types.AbiError || abi2 = Types.AbiError)

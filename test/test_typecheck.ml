@@ -1599,10 +1599,7 @@ func f() i32 {
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    error: type mismatch
-      at <test>:5:14
-          return sum(a)
-                     ^ expected []i32, found [3]i32
+    ok
     |}]
 
 let%expect_test "typecheck: slice element wrong type rejected" =
@@ -1945,10 +1942,7 @@ func f() i32 { return sum([1, 2, 3]) }
         func sum(xs: []i32) i32 { return 0 }
                  ^~~~~~~~~
     help: prefix with an underscore: _xs
-    error: type mismatch
-      at <test>:3:27
-        func f() i32 { return sum([1, 2, 3]) }
-                                  ^~~~~~~~~ expected []i32, found [3]i32
+    ok
     |}]
 
 let%expect_test "typecheck: scalar zero init" =
@@ -2738,13 +2732,7 @@ type Row = [3]i32
 func take(s: []i32) i32 { return s[0] }
 func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
 |};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:4:52
-        func f() i32 { var r: Row = [1, 2, 3]; return take(r) }
-                                                           ^ expected []i32, found Row
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: aggregate cast sees through an alias element" =
   run_src
@@ -2767,13 +2755,7 @@ func f() i32 {
   return take_slice(s) + take_ptr(&m)
 }
 |};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:7:21
-          var s: []Meters = a
-                            ^ expected []Meters, found [3]Meters
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: alias and base compare with each other" =
   run_src

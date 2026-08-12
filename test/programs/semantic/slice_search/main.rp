@@ -9,8 +9,8 @@ func index_of(xs: []i32, target: i32) i32 {
 
 func main() i32 {
   var data: [6]i32 = [4, 8, 15, 16, 23, 42]
-  var at: i32 = index_of(data[..], 16)
-  var missing: i32 = index_of(data[..], 99)
+  var at: i32 = index_of(data, 16)
+  var missing: i32 = index_of(data, 99)
   var in_tail: i32 = index_of(data[3..6], 42)
   return at + in_tail - missing
 }
