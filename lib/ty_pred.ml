@@ -36,9 +36,6 @@ and compatible_under_pointer (want : ty) (got : ty) : bool =
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | s_want, s_got -> ty_equal s_want s_got
 
-(* An error type matches anything so a broken subexpr doesn't cascade *)
-let strict_eq (a : ty) (b : ty) : bool = a = TError || b = TError || a = b
-
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
@@ -101,8 +98,41 @@ let rec is_comparable = function
   | TUnit ->
       false
 
-let is_num_literal (e : expr) =
-  match e.desc with Int _ | Float _ -> true | _ -> false
+let rec is_num_literal (e : expr) =
+  match e.desc with
+  | Int _ | Float _ -> true
+  | UnOp ((Pos | Neg), operand) -> is_num_literal operand
+  | _ -> false
+
+let widens_to (src : ty) (tgt : ty) : bool =
+  match (strip_alias src, strip_alias tgt) with
+  | TInt src_kind, TInt tgt_kind ->
+      int_kind_size src_kind < int_kind_size tgt_kind
+      && (is_unsigned src || not (is_unsigned tgt))
+  | TFloat F32, TFloat F64 -> true
+  | _ -> false
+
+let signed_ty_above (kind : int_kind) : ty option =
+  match int_kind_size kind with
+  | 1 -> Some (TInt I16)
+  | 2 -> Some (TInt I32)
+  | 4 -> Some (TInt I64)
+  | 8 -> None
+  | _ -> Diagnostic.ice "invalid integer size"
+
+let common_numeric_ty (left : ty) (right : ty) : ty option =
+  if ty_equal left right then Some left
+  else if widens_to left right then Some right
+  else if widens_to right left then Some left
+  else
+    match (strip_alias left, strip_alias right) with
+    | TInt left_kind, TInt right_kind when is_unsigned left <> is_unsigned right
+      ->
+        let unsigned_kind =
+          if is_unsigned left then left_kind else right_kind
+        in
+        signed_ty_above unsigned_kind
+    | _ -> None
 
 let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
 

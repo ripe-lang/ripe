@@ -35,10 +35,16 @@ type gstate = {
   mutable busy : bool;
 }
 
+type loop_result =
+  | InferLoopResult
+  | ExpectLoopResult of ty
+  | FlexibleLoopResult of ty * Ast.span * expr list
+  | RigidLoopResult of ty * Ast.span * expr list
+
 type loop_ctx = {
   lbl : Ast.name option;
   valued : bool;
-  mutable result : (ty * Ast.span) option;
+  mutable result : loop_result;
   mutable bare_break : Ast.span option;
 }
 
@@ -61,6 +67,8 @@ type env = {
   diags : Diagnostic.sink;
   uses : Resolve.t;
 }
+
+type coercion_input = Contextual of expr | Typed of expr * T.texpr
 
 let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
   let types = Symbol.Table.create 16 in
@@ -120,6 +128,17 @@ let round_to_float_kind (kind : float_kind) (f : float) : float =
   | F64 -> f
 
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
+
+let clone_loop (loop : loop_ctx) : loop_ctx =
+  {
+    lbl = loop.lbl;
+    valued = loop.valued;
+    result = loop.result;
+    bare_break = loop.bare_break;
+  }
+
+let probing (env : env) : env =
+  { env with loops = List.map clone_loop env.loops; diags = Diagnostic.sink () }
 
 let warn_unused_in_scope (env : env) : unit =
   match env.vars with
@@ -406,19 +425,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | ArrayLit [] ->
       add_error env e.span "cannot infer type of empty array literal";
       dummy_texpr
-  | ArrayLit (e0 :: rest) ->
-      let te0 = synth env e0 in
-      let elem =
-        match te0.T.ty with
-        | (TUnit | TNever) as t ->
-            add_error env e0.span
-              (Printf.sprintf "array element cannot have type %s"
-                 (show_ty env t));
-            TError
-        | t -> t
-      in
-      let tes = te0 :: List.map (fun e -> check env e elem) rest in
-      T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
+  | ArrayLit (first :: rest) -> synth_array_lit env first rest
   | Index (base, idx) -> synth_index env e.span base idx
   | Undefined ->
       add_error env e.span "cannot infer type of undefined";
@@ -479,16 +486,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       ignore (check_loop_target env e.span "`continue` outside a loop" label);
       T.mk TNever (T.TContinue label)
   | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
-  | Loop (label, body) ->
-      let loop = new_loop label ~valued:true in
-      let tb, _ = check_scoped_block ~loop env e.span body Discard in
-      let ty =
-        match (loop.result, loop.bare_break) with
-        | Some (t, _), _ -> t
-        | None, Some _ -> TUnit
-        | None, None -> TNever
-      in
-      T.mk ty (T.TLoop (label, tb))
+  | Loop (label, body) -> check_loop_expr env e.span label body None
   | Unit -> T.mk TUnit T.TUnit
 
 (* The value of a block is its last element and unit when the block is empty *)
@@ -518,30 +516,89 @@ and block_is_flexible (body : block) : bool =
 
 (* Probe a block's result type with diagnostics muted so a sibling can anchor it *)
 and block_result_ty (env : env) (body : block) : ty =
-  let quiet = { env with diags = Diagnostic.sink () } in
+  let quiet = probing env in
   let inner = push_scope quiet in
   let _, tb = check_block inner Ast.dummy_span body Infer in
   tblock_ty tb
+
+and common_ty (current : ty) (candidate : ty) : ty =
+  match (current, candidate) with
+  | TNever, candidate -> candidate
+  | current, TNever -> current
+  | TNull, candidate -> candidate
+  | current, TNull -> current
+  | current, candidate ->
+      Option.value (common_numeric_ty current candidate) ~default:current
+
+and coerce_common (env : env) (first : coercion_input)
+    (rest : coercion_input list) : T.texpr list * ty =
+  let add_typed common = function
+    | Typed (_, typed) -> common_ty common typed.T.ty
+    | Contextual _ -> common
+  in
+  let common = List.fold_left add_typed (add_typed TNever first) rest in
+  let common, first =
+    if common <> TNever then (common, first)
+    else
+      match first with
+      | Contextual source ->
+          let typed = synth env source in
+          (typed.T.ty, Typed (source, typed))
+      | Typed (_, typed) -> (typed.T.ty, first)
+  in
+  let coerce = function
+    | Contextual source -> check env source common
+    | Typed (source, typed) -> coerce_expr env source common typed
+  in
+  (coerce first :: List.map coerce rest, common)
+
+and coerce_common_pair (env : env) ~(contextual : expr -> bool) (left : expr)
+    (right : expr) : T.texpr * T.texpr * ty =
+  if contextual left && not (contextual right) then
+    let typed_right = synth env right in
+    let common = typed_right.T.ty in
+    (check env left common, typed_right, common)
+  else if contextual right then
+    let typed_left = synth env left in
+    let common = typed_left.T.ty in
+    (typed_left, check env right common, common)
+  else
+    let typed_left = synth env left in
+    let typed_right = synth env right in
+    let common = common_ty typed_left.T.ty typed_right.T.ty in
+    ( coerce_expr env left common typed_left,
+      coerce_expr env right common typed_right,
+      common )
+
+and synth_array_lit (env : env) (first : expr) (rest : expr list) : T.texpr =
+  let probe e =
+    if arm_is_flexible e then Contextual e else Typed (e, synth env e)
+  in
+  let tes, elem = coerce_common env (probe first) (List.map probe rest) in
+  let elem =
+    match elem with
+    | (TUnit | TNever) as t ->
+        add_error env first.span
+          (Printf.sprintf "array element cannot have type %s" (show_ty env t));
+        TError
+    | t -> t
+  in
+  T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
 
 and reconcile_if_result (env : env) (branches : (expr * block Ast.spanned) list)
     (else_b : block) : ty =
   reconcile_arms env
     (List.map (fun (_, { Ast.value; _ }) -> value) branches @ [ else_b ])
 
-(* The first arm that can't bend decides so a literal never anchors the type *)
+(* Literals bend to the common rigid type so they don't anchor it *)
 and reconcile_arms (env : env) (bodies : block list) : ty =
-  let probes = List.map (fun body -> (body, block_result_ty env body)) bodies in
-  let rigid =
-    List.find_opt
-      (fun (body, t) -> (not (block_is_flexible body)) && t <> TNever)
-      probes
+  let add_candidate (rigid, flexible) body =
+    let candidate = block_result_ty env body in
+    if block_is_flexible body then (rigid, common_ty flexible candidate)
+    else (common_ty rigid candidate, flexible)
   in
-  match rigid with
-  | Some (_, t) -> t
-  | None -> (
-      match List.find_opt (fun (_, t) -> t <> TNever) probes with
-      | Some (_, t) -> t
-      | None -> TNever)
+  let rigid, flexible = List.fold_left add_candidate (TNever, TNever) bodies in
+  if rigid = TNever then flexible else rigid
 
 and is_unused_operation (e : expr) : bool =
   match e.desc with
@@ -682,11 +739,31 @@ and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
       let te = check env e env.ret_ty in
       T.mk TNever (T.TReturn (Some te))
 
+and check_loop_expr (env : env) (span : Ast.span)
+    (label : Ast.loop_label option) (body : block) (want : ty option) : T.texpr
+    =
+  let loop = new_loop label ~valued:true in
+  loop.result <-
+    Option.fold ~none:InferLoopResult ~some:(fun t -> ExpectLoopResult t) want;
+  let tb, _ = check_scoped_block ~loop env span body Discard in
+  let ty =
+    match (loop.result, loop.bare_break) with
+    | FlexibleLoopResult (t, _, _), _ | RigidLoopResult (t, _, _), _ -> t
+    | (InferLoopResult | ExpectLoopResult _), None -> TNever
+    | InferLoopResult, Some _ -> TUnit
+    | ExpectLoopResult want, Some break_span ->
+        emit env
+          (Diagnostic.type_mismatch break_span ~expected:(show_ty env want)
+             ~found:"()");
+        TUnit
+  in
+  T.mk ty (T.TLoop (label, tb))
+
 and new_loop (label : Ast.loop_label option) ~(valued : bool) : loop_ctx =
   {
     lbl = Option.map (fun (l : Ast.loop_label) -> l.Ast.value) label;
     valued;
-    result = None;
+    result = InferLoopResult;
     bare_break = None;
   }
 
@@ -707,8 +784,8 @@ and check_loop_target (env : env) (span : Ast.span) (headline : string)
 and check_bare_break (env : env) (span : Ast.span) (lc : loop_ctx) : unit =
   if lc.bare_break = None then lc.bare_break <- Some span;
   match lc.result with
-  | None -> ()
-  | Some (t, first) ->
+  | InferLoopResult | ExpectLoopResult _ -> ()
+  | FlexibleLoopResult (t, first, _) | RigidLoopResult (t, first, _) ->
       emit env
         (Diagnostic.error "`break` values disagree"
         |> Diagnostic.at span
@@ -716,23 +793,65 @@ and check_bare_break (env : env) (span : Ast.span) (lc : loop_ctx) : unit =
         |> Diagnostic.secondary first
              (Printf.sprintf "breaks with %s" (show_ty env t)))
 
-(* The first valued break fixes the type and the rest have to match it *)
 and check_valued_break (env : env) (lc : loop_ctx) (ve : expr) : T.texpr =
+  let flexible = arm_is_flexible ve in
+  let check_flexible_values want values =
+    List.iter (fun e -> ignore (check env e want)) values
+  in
+  let report_bare ty =
+    let report first =
+      emit env
+        (Diagnostic.error "`break` values disagree"
+        |> Diagnostic.at ve.span
+        |> Diagnostic.label (Printf.sprintf "breaks with %s" (show_ty env ty))
+        |> Diagnostic.secondary first "no value here")
+    in
+    Option.iter report lc.bare_break
+  in
   match lc.result with
-  | Some (want, _) -> check env ve want
-  | None ->
-      let te = synth env ve in
-      let disagrees first =
-        emit env
-          (Diagnostic.error "`break` values disagree"
-          |> Diagnostic.at ve.span
-          |> Diagnostic.label
-               (Printf.sprintf "breaks with %s" (show_ty env te.T.ty))
-          |> Diagnostic.secondary first "no value here")
-      in
-      Option.iter disagrees lc.bare_break;
-      lc.result <- Some (te.T.ty, ve.span);
-      te
+  | InferLoopResult ->
+      let typed = synth env ve in
+      if typed.T.ty <> TNever then begin
+        report_bare typed.T.ty;
+        lc.result <-
+          (if flexible then FlexibleLoopResult (typed.T.ty, ve.span, [ ve ])
+           else RigidLoopResult (typed.T.ty, ve.span, []))
+      end;
+      typed
+  | ExpectLoopResult want ->
+      let typed = check env ve want in
+      if typed.T.ty <> TNever then begin
+        report_bare want;
+        lc.result <-
+          RigidLoopResult (want, ve.span, if flexible then [ ve ] else [])
+      end;
+      typed
+  | FlexibleLoopResult (want, first, values) ->
+      if flexible then begin
+        lc.result <- FlexibleLoopResult (want, first, ve :: values);
+        check env ve want
+      end
+      else
+        let typed = synth env ve in
+        if typed.T.ty = TNever then typed
+        else begin
+          check_flexible_values typed.T.ty values;
+          lc.result <- RigidLoopResult (typed.T.ty, first, values);
+          typed
+        end
+  | RigidLoopResult (want, first, values) ->
+      if flexible then begin
+        lc.result <- RigidLoopResult (want, first, ve :: values);
+        check env ve want
+      end
+      else
+        let typed = synth env ve in
+        let common = common_ty want typed.T.ty in
+        if not (ty_equal common want) then begin
+          check_flexible_values common values;
+          lc.result <- RigidLoopResult (common, first, values)
+        end;
+        coerce_expr env ve common typed
 
 and synth_break (env : env) (span : Ast.span) (label : Ast.loop_label option)
     (value : expr option) : T.texpr =
@@ -981,32 +1100,13 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   (* Synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
-    let got = te.T.ty in
-    if not (compatible want got) then (
-      let mismatch =
-        Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-          ~found:(show_ty env got)
-      in
-      let mismatch =
-        match (e.desc, strip_alias want) with
-        | BinOp (Assign, _, _), TBool ->
-            Diagnostic.help "did you mean `==` to compare?" mismatch
-        | _ -> mismatch
-      in
-      emit env mismatch;
-      te)
-    else adopt_slice want te
+    coerce_expr env e want te
   in
   match e.desc with
   | ErrorExpr -> dummy_texpr
   | Int (_, Some _) ->
-      (* The suffix already picked the type so a wrong target is an error not a quiet coercion *)
       let te = synth_desc env e in
-      if not (strict_eq (strip_alias want) te.T.ty) then
-        emit env
-          (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-             ~found:(show_ty env te.T.ty));
-      te
+      coerce_expr env e want te
   | Int (n, None) -> (
       (* An untyped literal adopts a newtype over an int and checks its base *)
       match adopt_int_literal env e.span want target ~neg:false n with
@@ -1018,13 +1118,8 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
                ~found:"i32");
           T.mk (TInt I32) (T.TInt n))
   | Float (_, Some _) ->
-      (* The suffix already picked the type so a wrong target is an error not a quiet coercion *)
       let te = synth_desc env e in
-      if not (strict_eq (strip_alias want) te.T.ty) then
-        emit env
-          (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-             ~found:(show_ty env te.T.ty));
-      te
+      coerce_expr env e want te
   | Float (f, None) -> (
       match target with
       | TFloat _ -> T.mk want (T.TFloat f)
@@ -1095,8 +1190,28 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | If (branches, else_body) ->
       check_if env e.span branches else_body (Some want)
   | Match (scrutinee, arms) -> check_match env scrutinee arms (Expect want)
+  | Loop (label, body) -> check_loop_expr env e.span label body (Some want)
   | Undefined -> T.mk want T.TUndef
   | _ -> check_by_synth ()
+
+and coerce_expr (env : env) (e : expr) (want : ty) (te : T.texpr) : T.texpr =
+  let got = te.T.ty in
+  if compatible want got then adopt_slice want te
+  else if widens_to got want then T.mk ~span:e.span want (T.TCast te)
+  else begin
+    let mismatch =
+      Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
+        ~found:(show_ty env got)
+    in
+    let mismatch =
+      match (e.desc, strip_alias want) with
+      | BinOp (Assign, _, _), TBool ->
+          Diagnostic.help "did you mean `==` to compare?" mismatch
+      | _ -> mismatch
+    in
+    emit env mismatch;
+    te
+  end
 
 (* A slice is an address and a length so the array already holds what the view needs *)
 and adopt_slice (want : ty) (te : T.texpr) : T.texpr =
@@ -1109,14 +1224,7 @@ and adopt_slice (want : ty) (te : T.texpr) : T.texpr =
 
 and check_matching_operands (env : env) (l : expr) (r : expr) :
     T.texpr * T.texpr * ty =
-  if is_num_literal l && not (is_num_literal r) then
-    let tr = synth env r in
-    let t = tr.T.ty in
-    (check env l t, tr, t)
-  else
-    let tl = synth env l in
-    let t = tl.T.ty in
-    (tl, check env r t, t)
+  coerce_common_pair env ~contextual:is_num_literal l r
 
 and check_range_bounds (env : env) (lo : expr) (hi : expr) =
   let tlo, thi, t = check_matching_operands env lo hi in
@@ -1170,32 +1278,32 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
       then emit env (Diagnostic.bad_operand l.span ~op:"%" ~ty:(show_ty env t));
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
-      let tl = synth env l in
-      let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
+      let tl, tr, t = check_comparison_operands env l r in
       if not (is_comparable t) then
         emit env
           (Diagnostic.bad_operand l.span ~op:(show_binop_sym op)
              ~ty:(show_ty env t));
-      let tl = if tl.T.ty = TNull then check env l t else tl in
-      let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
   | Lt | Gt | Lte | Gte ->
-      let tl = synth env l in
-      let t = if tl.T.ty = TNull then (synth env r).T.ty else tl.T.ty in
+      let tl, tr, t = check_comparison_operands env l r in
       if not (is_ordered t) then
         emit env
           (Diagnostic.bad_operand l.span ~op:(show_binop_sym op)
              ~ty:(show_ty env t));
-      let tl = if tl.T.ty = TNull then check env l t else tl in
-      let tr = check env r t in
       T.mk TBool (T.TBinOp (op, tl, tr))
   | And | Or ->
       let tl = check env l TBool in
       let tr = check env r TBool in
       T.mk TBool (T.TBinOp (op, tl, tr))
   | BitAnd | BitOr | BitXor | Lshift | Rshift ->
-      let tl = synth env l in
-      let t = tl.T.ty in
+      let tl, tr, t =
+        match op with
+        | Lshift | Rshift ->
+            let tl = synth env l in
+            let tr = synth env r in
+            (tl, tr, tl.T.ty)
+        | _ -> check_matching_operands env l r
+      in
       if not (is_integer t) then
         emit env
           (Diagnostic.bad_operand l.span ~op:(show_binop_sym op)
@@ -1204,13 +1312,12 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
         match op with
         (* The count keeps its own integer type since it is only a number of positions *)
         | Lshift | Rshift ->
-            let tr = synth env r in
             if not (is_integer tr.T.ty) then
               add_error env r.span
                 (Printf.sprintf "shift count must be an integer, found %s"
                    (show_ty env tr.T.ty));
             tr
-        | _ -> check env r t
+        | _ -> tr
       in
       T.mk t (T.TBinOp (op, tl, tr))
   | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
@@ -1220,6 +1327,13 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
 and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   let tl, tr = check_assign_operands env op l r in
   T.mk TUnit (T.TBinOp (op, tl, tr))
+
+and check_comparison_operands (env : env) (l : expr) (r : expr) :
+    T.texpr * T.texpr * ty =
+  let is_contextual_literal e =
+    is_num_literal e || match e.desc with String _ -> true | _ -> false
+  in
+  coerce_common_pair env ~contextual:is_contextual_literal l r
 
 and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     T.texpr * T.texpr =

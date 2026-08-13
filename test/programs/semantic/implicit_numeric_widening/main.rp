@@ -1,0 +1,35 @@
+comptime SMALL: u8 = 200
+comptime WIDE: u32 = SMALL
+var GLOBAL: i64 = SMALL
+
+func main() i32 {
+  var signed: i8 = -5
+  var unsigned: u8 = 255
+  var single: f32 = 2.5
+
+  var signed_wide: i64 = signed
+  var unsigned_wide: i64 = unsigned
+  var double: f64 = single
+  var sum = signed + unsigned_wide
+  var values = [signed, unsigned_wide]
+  var branch = if true { signed } else { unsigned_wide }
+  var matched = match true { true => unsigned, false => signed_wide }
+  var looped = loop { if false { break signed }; break unsigned_wide }
+  var loop_literal = loop { if false { break 1 }; break 255u64 }
+  var mixed_signed: i32 = -5
+  var mixed_unsigned: u32 = 10
+  var mixed = mixed_signed + mixed_unsigned
+
+  if signed_wide != -5 { return 1 }
+  if unsigned_wide != 255 { return 2 }
+  if double != 2.5 { return 3 }
+  if sum != 250 { return 4 }
+  if values[0] != -5 || values[1] != 255 { return 5 }
+  if branch != -5 { return 6 }
+  if matched != 255 { return 7 }
+  if looped != 255 { return 8 }
+  if WIDE != 200 || GLOBAL != 200 { return 9 }
+  if loop_literal != 255 { return 10 }
+  if mixed != 5 { return 11 }
+  return 0
+}

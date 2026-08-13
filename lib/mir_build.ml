@@ -139,7 +139,7 @@ module Mir_builder = struct
     label : Ast.name option;
     continue_block : block_id;
     break_block : block_id;
-    result : place option;
+    result : (place * Types.ty) option;
   }
 
   type state = {
@@ -684,7 +684,8 @@ module Mir_control = struct
     B.terminate state (Jump body_block) span;
     B.switch state body_block;
     B.with_loop state label ~continue_block:body_block ~break_block:exit_block
-      ~result (fun () -> List.iter (lower_statement state) body);
+      ~result:(Option.map (fun place -> (place, ty)) result)
+      (fun () -> List.iter (lower_statement state) body);
     if B.is_live state then B.terminate state (Jump body_block) span;
     B.switch state exit_block;
     match result with
@@ -1092,7 +1093,15 @@ module Mir_expr = struct
             (fun value ->
               let lowered = lower_expr state value in
               match target.B.result with
-              | Some result -> B.assign state result lowered
+              | Some (result, result_ty) ->
+                  let lowered =
+                    (* A later value can widen the inferred loop type *)
+                    if lowered.ty = TNever || ty_equal lowered.ty result_ty then
+                      lowered
+                    else
+                      B.temp_value state result_ty value.S.span (Cast lowered)
+                  in
+                  B.assign state result lowered
               | None when value.S.ty = TUnit -> ()
               | None -> Diagnostic.ice ~span:expr.S.span "loop has no result")
             value;

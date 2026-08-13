@@ -73,10 +73,7 @@ let%expect_test "typecheck: float suffix disagrees with the annotation" =
         func f() { var x: f64 = 1.5f32 }
                        ^
     help: prefix with an underscore: _x
-    error: type mismatch
-      at <test>:1:25
-        func f() { var x: f64 = 1.5f32 }
-                                ^~~~~~ expected f64, found f32
+    ok
     |}]
 
 let%expect_test "typecheck: unused parameter warns" =
@@ -769,10 +766,7 @@ func f() {
           var c = a + b
               ^
     help: prefix with an underscore: _c
-    error: type mismatch
-      at <test>:5:15
-          var c = a + b
-                      ^ expected i32, found i64
+    ok
     |}]
 
 let%expect_test "typecheck: bool arithmetic rejected" =
@@ -1283,9 +1277,9 @@ let%expect_test "typecheck: heterogeneous inferred literal" =
   [%expect
     {|
     error: type mismatch
-      at <test>:1:24
+      at <test>:1:21
         func f() { var a = [1, true]; a[0] }
-                               ^~~~ expected i32, found bool
+                            ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: empty array literal needs annotation" =
@@ -1536,15 +1530,12 @@ func f() {
 |};
   [%expect
     {|
-    error: type mismatch
-      at <test>:5:15
-          for i in m..n { var x = i }
-                      ^ expected i32, found i64
     warning: unused variable: x
       at <test>:5:23
           for i in m..n { var x = i }
                               ^
     help: prefix with an underscore: _x
+    ok
     |}]
 
 let%expect_test "typecheck: break inside for" =
@@ -4492,3 +4483,322 @@ let%expect_test "typecheck: binding block tail is unit" =
                              ^
     help: prefix with an underscore: _x
     |}]
+
+let%expect_test "typecheck: exact integer widening matrix" =
+  run_src
+    {|
+func f(si8: i8, si16: i16, si32: i32, ui8: u8, ui16: u16, ui32: u32) {
+  var _a: i16 = si8
+  var _b: i32 = si8
+  var _c: i64 = si8
+  var _d: isize = si8
+  var _e: i32 = si16
+  var _f: i64 = si16
+  var _g: isize = si16
+  var _h: i64 = si32
+  var _i: isize = si32
+  var _j: u16 = ui8
+  var _k: u32 = ui8
+  var _l: u64 = ui8
+  var _m: usize = ui8
+  var _n: i16 = ui8
+  var _o: i32 = ui8
+  var _p: i64 = ui8
+  var _q: isize = ui8
+  var _r: u32 = ui16
+  var _s: u64 = ui16
+  var _t: usize = ui16
+  var _u: i32 = ui16
+  var _v: i64 = ui16
+  var _w: isize = ui16
+  var _x: u64 = ui32
+  var _y: usize = ui32
+  var _z: i64 = ui32
+  var _aa: isize = ui32
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: float widening" =
+  run_src "func f(x: f32) f64 { return x }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: widening reaches expected value positions" =
+  run_src
+    {|
+struct Box { value: i64 }
+func take(value: i64) i64 { return value }
+func f(small: u8) i64 {
+  var wide: i64 = small
+  wide = small
+  wide += small
+  var box: Box = Box { value: small }
+  var values: [2]i64 = [small, wide]
+  return take(small) + box.value + values[0]
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: aliases widen as their bases" =
+  run_src
+    {|
+type Small = u8
+type Wide = i64
+func f(value: Small) Wide { return value }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: inferred numeric joins ignore source order" =
+  run_src
+    {|
+func f(small: i8, wide: i64, single: f32, double: f64) i64 {
+  var a = small + wide
+  var b = wide + small
+  var _c = single + double
+  var _d = double + single
+  var _e = small < wide
+  var _f = wide > small
+  var _g = small & wide
+  var _h = wide | small
+  var i = [small, wide]
+  var j = [wide, small]
+  var k = if true { small } else { wide }
+  var l = if true { wide } else { small }
+  var m = match true { true => small, false => wide }
+  var n = match true { true => wide, false => small }
+  var o = loop { if false { break small }; break wide }
+  var p = loop { if false { break wide }; break small }
+  for _index in small..wide {}
+  return a + b + i[0] + j[1] + k + l + m + n + o + p
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: lossy numeric conversions stay explicit" =
+  run_src
+    {|
+func f(si8: i8, ui8: u8, ui16: u16, si64: i64, size: isize,
+    double: f64, integer: i32) {
+  var _a: u16 = si8
+  var _b: i8 = ui8
+  var _c: u8 = ui16
+  var _d: isize = si64
+  var _e: i64 = size
+  var _f: f32 = double
+  var _g: f64 = integer
+}
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:17
+          var _a: u16 = si8
+                        ^~~ expected u16, found i8
+    error: type mismatch
+      at <test>:5:16
+          var _b: i8 = ui8
+                       ^~~ expected i8, found u8
+    error: type mismatch
+      at <test>:6:16
+          var _c: u8 = ui16
+                       ^~~~ expected u8, found u16
+    error: type mismatch
+      at <test>:7:19
+          var _d: isize = si64
+                          ^~~~ expected isize, found i64
+    error: type mismatch
+      at <test>:8:17
+          var _e: i64 = size
+                        ^~~~ expected i64, found isize
+    error: type mismatch
+      at <test>:9:17
+          var _f: f32 = double
+                        ^~~~~~ expected f32, found f64
+    error: type mismatch
+      at <test>:10:17
+          var _g: f64 = integer
+                        ^~~~~~~ expected f64, found i32
+    |}]
+
+let%expect_test "typecheck: numeric joins infer a third safe type" =
+  run_src
+    {|
+func f(signed: i32, unsigned: u32) {
+  var _a = signed + unsigned
+  var _b = unsigned + signed
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: context supplies a third wider type" =
+  run_src "func f(signed: i32, unsigned: u32) i64 { return signed + unsigned }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: newtypes do not widen implicitly" =
+  run_src
+    {|
+newtype Small = u8
+func f(value: Small) { var _wide: u32 = value }
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:41
+        func f(value: Small) { var _wide: u32 = value }
+                                                ^~~~~ expected u32, found Small
+    |}]
+
+let%expect_test "typecheck: loop literals follow a later rigid type" =
+  run_src
+    {|
+func f(wide: u64) u64 {
+  var a = loop { if false { break 1 }; break wide }
+  var b = loop { if false { break wide }; break 1 }
+  return a + b
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: loop literal must fit a later rigid type" =
+  run_src
+    {|
+func f(wide: u64) u64 {
+  return loop { if false { break -1 }; break wide }
+}
+|};
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:34
+          return loop { if false { break -1 }; break wide }
+                                         ^~ does not fit in u64
+    |}]
+
+let%expect_test "typecheck: explicit widening stays legal" =
+  run_src "func f(value: u8) i64 { return value as i64 }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: smallest common integer type" =
+  run_src
+    {|
+func f(si8: i8, si16: i16, si32: i32, si64: i64,
+    ui8: u8, ui16: u16, ui32: u32, ui64: u64) {
+  var a = si8 + ui8
+  var b = si16 + ui16
+  var c = si32 + ui32
+  var d = si32 + ui16
+  var e = si64 + ui32
+  var g = ui32 + ui64
+  var _a: i16 = a
+  var _b: i32 = b
+  var _c: i64 = c
+  var _d: i32 = d
+  var _e: i64 = e
+  var _g: u64 = g
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: common integer type reaches inferred positions" =
+  run_src
+    {|
+func f(signed: i32, unsigned: u32) i64 {
+  var a = signed + unsigned
+  var _b = signed < unsigned
+  var _c = [signed, unsigned]
+  var d = if true { signed } else { unsigned }
+  var e = match true { true => signed, false => unsigned }
+  var g = loop { if false { break signed }; break unsigned }
+  for _index in signed..unsigned {}
+  return a + d + e + g
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: no common integer type without i128" =
+  run_src
+    {|
+func f(signed: i64, unsigned: u64) {
+  var _a = signed + unsigned
+  var _b = unsigned + signed
+}
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:21
+          var _a = signed + unsigned
+                            ^~~~~~~~ expected i64, found u64
+    error: type mismatch
+      at <test>:4:23
+          var _b = unsigned + signed
+                              ^~~~~~ expected u64, found i64
+    |}]
+
+let%expect_test "typecheck: expected loop result does not widen" =
+  run_src "func f() i32 { return loop { break 1i64 } }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:36
+        func f() i32 { return loop { break 1i64 } }
+                                           ^~~~ expected i32, found i64
+    |}]
+
+let%expect_test "typecheck: expected loop rejects a bare break" =
+  run_src "func f() i32 { return loop { break } }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:30
+        func f() i32 { return loop { break } }
+                                     ^~~~~ expected i32, found ()
+    |}]
+
+let%expect_test "typecheck: diverging break value does not fix loop type" =
+  run_src
+    {|
+func stop() never { loop {} }
+func f() {
+  loop { if false { break stop() }; break }
+  var _value = 1
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: widening reaches field assignment" =
+  run_src
+    {|
+struct Box { x: i32 }
+func f(value: i8) i32 {
+  var box: Box
+  box.x = value
+  return box.x
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: widening reaches remaining value positions" =
+  run_src
+    {|
+comptime SMALL: u8 = 1
+func take(value: i64) i64 { value }
+func tail(value: i32) i64 { value }
+func apply(f: func (i64) i64, value: i8) i64 { f(value) }
+func f(small: i8, index: u8) i64 {
+  var left: i64 = 0
+  var right: i64 = 0
+  left, right = small, small
+  var nested: i64 = { small }
+  var negative: i64 = -small
+  var positive: i64 = +small
+  var values: [2]i32 = [small, small]
+  var _element = values[index]
+  var _from = values[index..]
+  var _to = values[..index]
+  var pattern = match 1i64 { SMALL => small, _ => 0i64 }
+  return left + right + nested + negative + positive + pattern +
+      tail(small) + apply(take, small)
+}
+|};
+  [%expect {| ok |}]
