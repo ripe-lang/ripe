@@ -170,7 +170,7 @@ let expect_binding_name st =
 
 let expect st t =
   if st.tok <> t then
-    fail_found st (Printf.sprintf "expected %s" (show_token t))
+    fail_found st (Printf.sprintf "expected `%s`" (show_token t))
   else advance st
 
 (* item (, item)* with an optional trailing comma before stop *)
@@ -518,15 +518,7 @@ and parse_signature st =
 and parse_func_def st mods =
   let lo = cur_pos st in
   let name, name_span, params, ret, variadic = parse_signature st in
-  let body =
-    if st.tok = ASSIGN then begin
-      let slo = cur_pos st in
-      advance st;
-      let e = parse_expr st 1 in
-      [ Expr (mk slo st (Return (Some e))) ]
-    end
-    else parse_block st
-  in
+  let body = parse_block st in
   let hi = st.prev_end in
   {
     func_name = name;

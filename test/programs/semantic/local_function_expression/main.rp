@@ -1,4 +1,4 @@
 func main() i32 {
-  func double(value: i32) i32 = value * 2
+  func double(value: i32) i32 { value * 2 }
   return double(12)
 }
