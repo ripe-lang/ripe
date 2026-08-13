@@ -518,15 +518,8 @@ and parse_signature st =
 and parse_func_def st mods =
   let lo = cur_pos st in
   let name, name_span, params, ret, variadic = parse_signature st in
-  let body =
-    if st.tok = ASSIGN then begin
-      let slo = cur_pos st in
-      advance st;
-      let e = parse_expr st 1 in
-      [ Expr (mk slo st (Return (Some e))) ]
-    end
-    else parse_block st
-  in
+  if st.tok <> LBRACE then fail_found st "expected `{`";
+  let body = parse_block st in
   let hi = st.prev_end in
   {
     func_name = name;

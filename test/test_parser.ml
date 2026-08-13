@@ -142,7 +142,7 @@ let%expect_test "parse: newline before a block" =
   run_src "func f(x: bool) {\n  if x\n  {}\n}";
   [%expect
     {|
-    error: expected {
+    error: expected `{`
       at <test>:2:7
           if x
               ^ found ;
@@ -1112,52 +1112,14 @@ func f(x: i32) i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "parse: expression body desugars to return" =
-  let src = "func square(x: i32) i32 = x * x" in
-  (match parse src with
-  | [
-   Ripe.Ast.Func
-     {
-       body = [ Expr { desc = Return (Some expression); span = return_span } ];
-       _;
-     };
-  ] ->
-      Printf.printf "%s\nreturn %s\nexpression %s\n" (dump_expr expression)
-        (Ripe.Span.show return_span)
-        (Ripe.Span.show expression.span)
-  | _ -> print_endline "<unexpected shape>");
-  [%expect {|
-    (* x x)
-    return (24,31)
-    expression (26,31)
-    |}]
-
-let%expect_test "parse: expression body typechecks" =
-  run_src
-    {|
-func square(x: i32) i32 = x * x
-func main() i32 { return square(7) }
-|};
-  [%expect {| ok |}]
-
-let%expect_test "parse: expression body missing expression" =
-  run_src "func f() i32 =";
+let%expect_test "parse: function body requires a block" =
+  run_src "func f() i32 = 1";
   [%expect
     {|
-    error: expected expression
-      at <test>:1:15
-        func f() i32 =
-                      ^ found <eof>
-    |}]
-
-let%expect_test "parse: expression body wrong return type" =
-  run_src "func f() i32 = true";
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:1:16
-        func f() i32 = true
-                       ^~~~ expected i32, found bool
+    error: expected `{`
+      at <test>:1:14
+        func f() i32 = 1
+                     ^ found =
     |}]
 
 let%expect_test "parse: unknown string escape" =
