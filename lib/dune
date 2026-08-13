@@ -19,7 +19,6 @@
   types
   resolve
   ty_pred
-  escape
   reachability
   typechecker
   typed_ast
