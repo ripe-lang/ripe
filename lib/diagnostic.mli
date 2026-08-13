@@ -49,7 +49,6 @@ val int_out_of_range : Ast.span -> ty:string -> t
 val bad_operand : Ast.span -> op:string -> ty:string -> t
 val opaque_operation : Ast.span -> string -> t
 val cannot_infer : Ast.span -> t
-val bind_void : Ast.span -> t
 val expected_expression : Ast.span -> t
 val expected_type : Ast.span -> t
 val with_found : Ast.span -> string -> string -> t

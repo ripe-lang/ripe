@@ -486,6 +486,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st st';
       resolve_expr st fv;
       resolve_expr st sv
+  | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
 and resolve_arm (st : state) (a : arm) : unit =
@@ -517,6 +518,7 @@ and resolve_typ (st : state) (t : typ) : unit =
   | FuncPtr (_, ps, ret) ->
       List.iter (resolve_typ st) ps;
       Option.iter (resolve_typ st) ret
+  | UnitType -> ()
 
 and declare_block_item (st : state) (d : local_decl) : unit =
   (match d with

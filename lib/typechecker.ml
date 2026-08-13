@@ -74,7 +74,7 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) : env =
     globals = Symbol.Table.create 16;
     g_state = Symbol.Table.create 16;
     l_vals = Symbol.Table.create 16;
-    ret_ty = TVoid;
+    ret_ty = TUnit;
     loops = [];
     in_main = false;
     suppress_warnings = Diagnostic.has_errors diags;
@@ -195,7 +195,7 @@ let lookup_func (env : env) (span : Ast.span) : func_sig =
   | Some s -> s
   | None ->
       emit env (Diagnostic.undefined_name span "function");
-      { param_tys = []; ret_ty = TVoid; variadic = false; abi = Types.Ripe }
+      { param_tys = []; ret_ty = TUnit; variadic = false; abi = Types.Ripe }
 
 let is_comptime_global (env : env) (key : Symbol.key) : bool =
   match Symbol.Table.find_opt env.globals key with
@@ -273,12 +273,13 @@ let rec ty_of_ast (env : env) (t : typ) : ty =
   | FuncPtr (abi, ps, ret) -> (
       let pts = List.map (ty_of_ast env) ps in
       let rt =
-        match ret with Some t -> return_ty_of_ast env t | None -> TVoid
+        match ret with Some t -> return_ty_of_ast env t | None -> TUnit
       in
       match (resolve_abi env abi, rt, List.mem TError pts) with
       | Types.AbiError, _, _ -> TError
       | abi, rt, false when rt <> TError -> TFunc (pts, rt, abi)
       | _ -> TError)
+  | UnitType -> TUnit
 
 and return_ty_of_ast (env : env) (t : typ) : ty =
   match builtin_at env t.tspan with
@@ -409,7 +410,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let te0 = synth env e0 in
       let elem =
         match te0.T.ty with
-        | (TVoid | TNever) as t ->
+        | (TUnit | TNever) as t ->
             add_error env e0.span
               (Printf.sprintf "array element cannot have type %s"
                  (show_ty env t));
@@ -467,7 +468,7 @@ and synth_desc (env : env) (e : expr) : T.texpr =
         | Bool true -> not (Reachability.loop_has_break ?label body)
         | _ -> false
       in
-      T.mk (if diverges then TNever else TVoid) (T.TWhile (label, tc, tb))
+      T.mk (if diverges then TNever else TUnit) (T.TWhile (label, tc, tb))
   | For (label, name, nspan, iter, body) ->
       synth_for env e.span label name nspan iter body
   | Binding (kind, name, nspan, ann, init) ->
@@ -484,14 +485,15 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       let ty =
         match (loop.result, loop.bare_break) with
         | Some (t, _), _ -> t
-        | None, Some _ -> TVoid
+        | None, Some _ -> TUnit
         | None, None -> TNever
       in
       T.mk ty (T.TLoop (label, tb))
+  | Unit -> T.mk TUnit T.TUnit
 
-(* The value of a block is its last element and void when the block is empty *)
+(* The value of a block is its last element and unit when the block is empty *)
 and tblock_ty (tb : T.tblock) : ty =
-  match List.rev tb with te :: _ -> te.T.ty | [] -> TVoid
+  match List.rev tb with te :: _ -> te.T.ty | [] -> TUnit
 
 (* A literal or diverging tail bends to a sibling so it can't anchor the type *)
 and arm_is_flexible (e : expr) : bool =
@@ -551,7 +553,7 @@ and warn_discarded_operation (env : env) (e : expr) (te : T.texpr) : unit =
   if
     (not env.suppress_warnings)
     && (not (Diagnostic.has_errors env.diags))
-    && is_unused_operation e && te.T.ty <> TVoid && te.T.ty <> TNever
+    && is_unused_operation e && te.T.ty <> TUnit && te.T.ty <> TNever
     && te.T.ty <> TError
   then
     emit env
@@ -559,12 +561,12 @@ and warn_discarded_operation (env : env) (e : expr) (te : T.texpr) : unit =
       |> Diagnostic.at te.T.span
       |> Diagnostic.help "use `var _ = ...` when this is intentional")
 
-and check_void_result (env : env) (span : Ast.span) : result_use -> unit =
+and check_unit_result (env : env) (span : Ast.span) : result_use -> unit =
   function
-  | Expect want when strip_alias want <> TVoid ->
+  | Expect want when strip_alias want <> TUnit ->
       emit env
         (Diagnostic.type_mismatch span ~expected:(show_ty env want)
-           ~found:(show_ty env TVoid))
+           ~found:(show_ty env TUnit))
   | Infer | Discard | Expect _ -> ()
 
 and check_value_for_use (env : env) (e : expr) : result_use -> T.texpr =
@@ -592,7 +594,7 @@ and check_block (env : env) (span : Ast.span) (body : block) (use : result_use)
   let rec go env diverged acc (elems : block_item list) =
     match elems with
     | [] ->
-        check_void_result env span use;
+        check_unit_result env span use;
         (env, List.rev acc)
     | [ last ] ->
         (* A dead tail keeps only its warning and its type need not match *)
@@ -617,11 +619,11 @@ and check_elem (env : env) (item : block_item) (use : result_use) :
     env * T.texpr =
   match item with
   | Decl _ ->
-      check_void_result env (block_item_span item) use;
-      (env, T.mk TVoid T.TLocalDecl)
+      check_unit_result env (block_item_span item) use;
+      (env, T.mk TUnit T.TLocalDecl)
   | Expr ({ desc = Binding (kind, name, nspan, ann, init); _ } as e) ->
       let env', tb = check_binding env kind name nspan ann init in
-      check_void_result env e.span use;
+      check_unit_result env e.span use;
       (env', tb)
   | Expr e -> (env, check_value_for_use env e use)
 
@@ -648,10 +650,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
         (want, te)
     | None, Some e ->
         let te = synth env e in
-        if te.T.ty = TVoid then (
-          emit env (Diagnostic.bind_void e.span);
-          (TError, te))
-        else (te.T.ty, te)
+        (te.T.ty, te)
     | Some a, None ->
         let want = ty_of_ast env a in
         (want, T.mk want T.TZero)
@@ -666,15 +665,15 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
       (Symbol.key (sym env nspan))
       (fold_num_or env dummy_const_num te));
   ( extend_var env nspan name t,
-    T.mk TVoid (T.TBinding (kind, sym env nspan, t, te)) )
+    T.mk TUnit (T.TBinding (kind, sym env nspan, t, te)) )
 
 and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
   match init with
   | None ->
       if env.ret_ty = TNever then
         add_error env span "a never function cannot return"
-      else if env.ret_ty <> TVoid && not env.in_main then
-        add_error env span "empty return in non-void function";
+      else if env.ret_ty <> TUnit && not env.in_main then
+        add_error env span "empty return in non-unit function";
       T.mk TNever (T.TReturn None)
   | Some e when env.ret_ty = TNever ->
       add_error env span "a never function cannot return";
@@ -783,7 +782,7 @@ and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
   let inner = extend_var inner nspan name elem_ty in
   let final_inner, tb = check_block inner span body Discard in
   warn_unused_in_scope final_inner;
-  T.mk TVoid (T.TFor (label, sym env nspan, elem_ty, titer, tb))
+  T.mk TUnit (T.TFor (label, sym env nspan, elem_ty, titer, tb))
 
 (* An arm can end in a call whose value nobody wanted so each one is checked on its own *)
 and check_if_discarded (env : env) (span : Ast.span)
@@ -804,7 +803,7 @@ and check_if_discarded (env : env) (span : Ast.span)
   let ty =
     if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys then
       TNever
-    else TVoid
+    else TUnit
   in
   T.mk ty (T.TIf (tbranches, telse))
 
@@ -820,7 +819,7 @@ and check_if (env : env) (span : Ast.span)
             (check env c TBool, fst (check_scoped_block env span body Discard)))
           branches
       in
-      T.mk TVoid (T.TIf (tbranches, None))
+      T.mk TUnit (T.TIf (tbranches, None))
   | None, Some { Ast.value = else_b; _ } ->
       let rty = reconcile_if_result env branches else_b in
       check_if env span branches else_body (Some rty)
@@ -838,10 +837,10 @@ and check_if (env : env) (span : Ast.span)
         | Some { Ast.value = body; span = bspan } ->
             Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
-            if strip_alias w <> TVoid then
+            if strip_alias w <> TUnit then
               emit env
                 (Diagnostic.type_mismatch span ~expected:(show_ty env w)
-                   ~found:(show_ty env TVoid));
+                   ~found:(show_ty env TUnit));
             None
       in
       let arm_tys =
@@ -938,7 +937,7 @@ and check_match (env : env) (scrutinee : expr) (arms : arm list)
     match (diverges, want) with
     | true, _ -> TNever
     | false, Some w -> w
-    | false, None -> TVoid
+    | false, None -> TUnit
   in
   T.mk ty (T.TMatch (ts, tarms))
 
@@ -1220,7 +1219,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
 
 and synth_assign (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
   let tl, tr = check_assign_operands env op l r in
-  T.mk TVoid (T.TBinOp (op, tl, tr))
+  T.mk TUnit (T.TBinOp (op, tl, tr))
 
 and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     T.texpr * T.texpr =
@@ -1290,7 +1289,7 @@ and synth_pair_assign (env : env) (ft : expr) (st : expr) (fv : expr)
     (sv : expr) : T.texpr =
   let ft, fv = check_assign_operands env Assign ft fv in
   let st, sv = check_assign_operands env Assign st sv in
-  T.mk TVoid (T.TPairAssign (ft, st, fv, sv))
+  T.mk TUnit (T.TPairAssign (ft, st, fv, sv))
 
 and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
   match op with
@@ -1572,18 +1571,14 @@ and global_const_num (env : env) (span : Ast.span) (key : Symbol.key) :
 and global_ty (env : env) (gd : global_def) : ty =
   match (gd.typ, gd.init) with
   | Some t, _ -> ty_of_ast env t
-  | None, Some e -> (
+  | None, Some e ->
       let te =
         try global_typed_init env e.span (key_at env gd.span)
         with Diagnostic.Errors ds ->
           List.iter (emit env) ds;
           dummy_texpr
       in
-      match te.T.ty with
-      | TVoid ->
-          emit env (Diagnostic.bind_void e.span);
-          TError
-      | t -> t)
+      te.T.ty
   | None, None ->
       emit env (Diagnostic.cannot_infer gd.name_span);
       TError
@@ -1655,12 +1650,12 @@ and eval_array_size (env : env) (e : expr) : int =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-(* Main implicitly returns i32 for the C runtime and everything else is void *)
+(* Main implicitly returns i32 for the C runtime and everything else returns unit *)
 (* FIXME(80e8): The default keeps main working until return types are inferred *)
 let ret_ty_of (env : env) (fd : func_def) : ty =
   match fd.ret with
   | Some t -> return_ty_of_ast env t
-  | None -> if is_entry env fd.func_span then TInt I32 else TVoid
+  | None -> if is_entry env fd.func_span then TInt I32 else TUnit
 
 (* First pass collecting signatures so that the compiler can handle forward references *)
 let collect_func (env : env) (fd : func_def) : unit =
@@ -1778,6 +1773,7 @@ let rec named_type_spans (t : typ) : Ast.span list =
   | FuncPtr (_, params, ret) ->
       List.concat_map named_type_spans params
       @ Option.value ~default:[] (Option.map named_type_spans ret)
+  | UnitType -> []
 
 (* An alias is only a second name for what it points at. A pointer in the
    middle doesn't save it the way it saves a struct field *)
@@ -1907,13 +1903,13 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   let is_entry_point = is_entry env fd.func_span in
   (* An unwritten i32 on main comes from the runtime and not from the user *)
   let implicit_return =
-    (not is_extern) && ret_ty <> TVoid
+    (not is_extern) && ret_ty <> TUnit
     && ((not is_entry_point) || fd.ret <> None)
   in
   let body_use =
     if not implicit_return then Discard
     else if is_entry_point then
-      (* The main function can fall off the end with 0 so a void tail stays fine *)
+      (* The main function can fall off the end with 0 so a unit tail stays fine *)
       Infer
     else Expect ret_ty
   in
@@ -1975,6 +1971,7 @@ let rec is_const_texpr (env : env) (te : T.texpr) : bool =
       false
   | T.TUndef -> true
   | T.TPairAssign _ -> false
+  | T.TUnit -> true
 
 let check_global (env : env) (gd : global_def) : T.tglobal_def =
   (* The collected type is reused so a bad array size errors once *)

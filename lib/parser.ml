@@ -80,7 +80,7 @@ let require_expr_start st span =
 
 let is_type_start (tok : token) : bool =
   match tok with
-  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN -> true
+  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
 
 let expect_type_after st span =
@@ -311,7 +311,7 @@ let rec dotted_name (e : expr) : Ast.name list option =
   | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
   | Continue _ | Undefined | Range _ | RangeInclusive _ | RangeFrom _
   | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ | Match _
-    ->
+  | Unit ->
       None
 
 (* i32, *i32, func (i32, i32) i32 *)
@@ -348,6 +348,16 @@ let rec parse_typ st =
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
   | FUNC -> parse_func_ptr st lo Ast.NoAbi
+  | LPAREN ->
+      advance st;
+      if at st RPAREN then begin
+        advance st;
+        mkt lo st UnitType
+      end
+      else
+        let inner = parse_typ st in
+        expect st RPAREN;
+        { inner with tspan = Span.make lo st.prev_end }
   | _ -> fail_found st "expected type"
 
 (* func (i32, i32) i32, extern "C" func (i32) i32 *)
@@ -704,9 +714,14 @@ and parse_primary ?(no_struct_lit = false) st =
       mk lo st Null
   | LPAREN ->
       advance st;
-      let e = parse_expr st 1 in
-      expect st RPAREN;
-      e
+      if at st RPAREN then begin
+        advance st;
+        mk lo st Unit
+      end
+      else
+        let e = parse_expr st 1 in
+        expect st RPAREN;
+        e
   (* [1, 2, 3] array literal *)
   | LBRACKET ->
       advance st;

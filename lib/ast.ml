@@ -137,6 +137,7 @@ type expr_desc =
   | PairAssign of expr * expr * expr * expr
   | Loop of loop_label option * block
   | Match of expr * arm list
+  | Unit
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
@@ -154,6 +155,7 @@ and typ_desc =
   | FuncPtr of abi * typ list * typ option
   | Array of expr * typ
   | Slice of typ
+  | UnitType
 [@@deriving show { with_path = false }]
 
 and typ = { tdesc : typ_desc; tspan : span }

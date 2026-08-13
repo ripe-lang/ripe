@@ -331,7 +331,7 @@ func f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: void fn ptr zero args" =
+let%expect_test "typecheck: unit fn ptr zero args" =
   run_src {|
 func noop() {}
 func f() {
@@ -939,20 +939,20 @@ let%expect_test "typecheck: missing return value" =
   run_src "func f() i32 { return }";
   [%expect
     {|
-    error: empty return in non-void function
+    error: empty return in non-unit function
       at <test>:1:16
         func f() i32 { return }
                        ^~~~~~
     |}]
 
-let%expect_test "typecheck: return value in void fn" =
+let%expect_test "typecheck: return value in unit fn" =
   run_src "func f() { return 1 }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:19
         func f() { return 1 }
-                          ^ expected void, found i32
+                          ^ expected (), found i32
     |}]
 
 let%expect_test "typecheck: return type mismatch" =
@@ -1912,7 +1912,7 @@ let%expect_test "typecheck: missing return on a path" =
     error: type mismatch
       at <test>:1:22
         func f(n: i32) i32 { if n > 0 { return 1 } }
-                             ^~~~~~~~~~~~~~~~~~~~~ expected i32, found void
+                             ^~~~~~~~~~~~~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: if and else both return ok" =
@@ -1930,7 +1930,7 @@ let%expect_test "typecheck: while true with break still needs a return" =
     error: type mismatch
       at <test>:1:16
         func f() i32 { while true { break } }
-                       ^~~~~~~~~~~~~~~~~~~~ expected i32, found void
+                       ^~~~~~~~~~~~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: inner loop break does not exit outer" =
@@ -1944,7 +1944,7 @@ let%expect_test "typecheck: break under if still needs a return" =
     error: type mismatch
       at <test>:2:2
          while true { if c { break } } }
-         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ expected i32, found void
+         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: struct literal" =
@@ -2211,7 +2211,7 @@ func f() i32 { return origin().x }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: void call result cannot be assigned" =
+let%expect_test "typecheck: unit call result cannot be assigned" =
   run_src {|
 func g() { }
 func f() { var x: i32 = g() }
@@ -2226,7 +2226,7 @@ func f() { var x: i32 = g() }
     error: type mismatch
       at <test>:3:25
         func f() { var x: i32 = g() }
-                                ^~~ expected i32, found void
+                                ^~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: struct field whose type is another struct" =
@@ -2355,7 +2355,7 @@ func f() bool {
                  ^ cannot apply `==` to P
     |}]
 
-let%expect_test "typecheck: void equality rejected" =
+let%expect_test "typecheck: unit equality rejected" =
   run_src {|
 func g() {}
 func f() bool {
@@ -2367,7 +2367,7 @@ func f() bool {
     error: invalid operand
       at <test>:4:10
           return g() == g()
-                 ^~~ cannot apply `==` to void
+                 ^~~ cannot apply `==` to ()
     |}]
 
 let%expect_test "typecheck: float modulo rejected" =
@@ -2400,7 +2400,7 @@ func g() i32 {
 |};
   [%expect
     {|
-    error: empty return in non-void function
+    error: empty return in non-unit function
       at <test>:3:3
           return
           ^~~~~~
@@ -3199,7 +3199,7 @@ let%expect_test "typecheck: assignment in condition is not a value" =
     error: type mismatch
       at <test>:1:36
         func f() { var b: bool = false; if b = true { } }
-                                           ^~~~~~~~ expected bool, found void
+                                           ^~~~~~~~ expected bool, found ()
     help: did you mean `==` to compare?
     |}]
 
@@ -3210,7 +3210,7 @@ let%expect_test "typecheck: chained assignment is not a value" =
     error: type mismatch
       at <test>:1:48
         func f() { var a: i32 = 0; var b: i32 = 0; a = b = 5 }
-                                                       ^~~~~ expected i32, found void
+                                                       ^~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: assign to for loop variable" =
@@ -3507,14 +3507,14 @@ let%expect_test "collapse: a binding is not a value operand" =
                                     ^~~ found `var`
     |}]
 
-let%expect_test "collapse: a block ending in a binding is void" =
+let%expect_test "collapse: a block ending in a binding is unit" =
   run_src "func f() i32 { var x: i32 = { var a: i32 = 1 }\n return x }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:31
         func f() i32 { var x: i32 = { var a: i32 = 1 }
-                                      ^~~~~~~~~~~~~~ expected i32, found void
+                                      ^~~~~~~~~~~~~~ expected i32, found ()
     warning: unused variable: a
       at <test>:1:35
         func f() i32 { var x: i32 = { var a: i32 = 1 }
@@ -3539,14 +3539,14 @@ let%expect_test "collapse: a never arm coerces to the live arm" =
     \ return x }";
   [%expect {| ok |}]
 
-let%expect_test "collapse: value if without else is void" =
+let%expect_test "collapse: value if without else is unit" =
   run_src "func f(c: bool) i32 { var x: i32 = if c { 1 }\n return x }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:36
         func f(c: bool) i32 { var x: i32 = if c { 1 }
-                                           ^~~~~~~~~~ expected i32, found void
+                                           ^~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "collapse: while true with no break is never" =
@@ -3681,20 +3681,9 @@ let%expect_test "typecheck: char does not cast to a float" =
                               ^~~~~~~~~~ cannot cast char to f32
     |}]
 
-let%expect_test "typecheck: binding a void call is rejected" =
-  run_src "func foo() { }; func f() { var x = foo() }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:32
-        func foo() { }; func f() { var x = foo() }
-                                       ^
-    help: prefix with an underscore: _x
-    error: cannot bind void value
-      at <test>:1:36
-        func foo() { }; func f() { var x = foo() }
-                                           ^~~~~
-    |}]
+let%expect_test "typecheck: binding a unit call" =
+  run_src "func foo() { }; func f() { var _value = foo() }";
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: pair assignment checks each value" =
   run_src "func f(a: i32, b: bool) { a, b = b, a }";
@@ -3734,7 +3723,7 @@ let%expect_test "typecheck: pair assignment allows different target types" =
   run_src "func f(a: i32, b: bool) { a, b = 1, true }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: newline operator continues into void call" =
+let%expect_test "typecheck: newline operator continues into unit call" =
   run_src {|func g() {}
 func f() i32 {
   return 1 +
@@ -3745,7 +3734,7 @@ func f() i32 {
     error: type mismatch
       at <test>:4:5
             g()
-            ^~~ expected i32, found void
+            ^~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: newline operator continues into integer call" =
@@ -3828,14 +3817,14 @@ func take(value: Feet) i32 { return value }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: inferred storage rejects never and void" =
+let%expect_test "typecheck: inferred storage rejects never and unit" =
   run_src
     {|
 extern "C" func stop() never
 func noop() {}
 func f() {
   var never_array = [stop(), stop()]
-  var void_array = [noop(), noop()]
+  var unit_array = [noop(), noop()]
 }
 |};
   [%expect
@@ -3849,14 +3838,14 @@ func f() {
       at <test>:5:22
           var never_array = [stop(), stop()]
                              ^~~~~~
-    warning: unused variable: void_array
+    warning: unused variable: unit_array
       at <test>:6:7
-          var void_array = [noop(), noop()]
+          var unit_array = [noop(), noop()]
               ^~~~~~~~~~
-    help: prefix with an underscore: _void_array
-    error: array element cannot have type void
+    help: prefix with an underscore: _unit_array
+    error: array element cannot have type ()
       at <test>:6:21
-          var void_array = [noop(), noop()]
+          var unit_array = [noop(), noop()]
                             ^~~~~~
     |}]
 
@@ -4036,7 +4025,7 @@ func f() i32 { var x = if true { printf("x") } else {}; return x }
     error: type mismatch
       at <test>:3:53
         func f() i32 { var x = if true { printf("x") } else {}; return x }
-                                                            ^~ expected i32, found void
+                                                            ^~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: int is i64" =
@@ -4462,4 +4451,44 @@ func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }|};
       at <test>:2:40
         func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }
                                                ^~~~~ expected bool, found i32
+    |}]
+
+let%expect_test "typecheck: unit type and value" =
+  run_src
+    {|func pass(value: ()) () { value }
+func make() () { () }
+func use() { var value = make(); pass(value) }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: unit return mismatch" =
+  run_src "func f() { return 1 }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:19
+        func f() { return 1 }
+                          ^ expected (), found i32
+    |}]
+
+let%expect_test "typecheck: explicit semicolon preserves block tail" =
+  run_src "func f() i32 { { var x = 5; x; } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: unterminated block tail returns its value" =
+  run_src "func f() i32 { { var x = 5; x } }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: binding block tail is unit" =
+  run_src "func f() i32 { { var x = 5; } }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:18
+        func f() i32 { { var x = 5; } }
+                         ^~~~~~~~~ expected i32, found ()
+    warning: unused variable: x
+      at <test>:1:22
+        func f() i32 { { var x = 5; } }
+                             ^
+    help: prefix with an underscore: _x
     |}]

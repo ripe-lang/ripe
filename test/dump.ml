@@ -29,6 +29,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
       let ps = String.concat ", " (List.map dump_typ params) in
       let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
       "(" ^ ps ^ ")" ^ r
+  | UnitType -> "()"
 
 and dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
@@ -113,6 +114,7 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | PairAssign (ft, st, fv, sv) ->
       "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"
+  | Unit -> "()"
 
 and dump_pattern (p : Ripe.Ast.pattern) : string =
   match p.pdesc with

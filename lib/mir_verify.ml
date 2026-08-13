@@ -183,9 +183,9 @@ let verify (program : Mir.program) : unit =
             | None -> add span "aggregate call has no result storage"
           else
             match (call.return_ty, destination_ty) with
-            | (TVoid | TNever), None -> ()
-            | (TVoid | TNever), Some _ ->
-                add span "void call has result storage"
+            | (TUnit | TNever), None -> ()
+            | (TUnit | TNever), Some _ ->
+                add span "unit call has result storage"
             | return_ty, Some ty when ty_equal ty return_ty -> ()
             | return_ty, Some ty ->
                 add span
@@ -220,10 +220,10 @@ let verify (program : Mir.program) : unit =
       | ReturnValue None when func.result <> None -> ()
       | ReturnValue returned -> (
           match (func.return_ty, returned) with
-          | TVoid, None | TNever, None -> ()
-          | TVoid, Some value ->
+          | TUnit, None | TNever, None -> ()
+          | TUnit, Some value ->
               ignore (operand value);
-              add span "void function returns a value"
+              add span "unit function returns a runtime value"
           | return_ty, Some value ->
               ignore (operand value);
               if not (Ty_pred.compatible return_ty value.ty) then
