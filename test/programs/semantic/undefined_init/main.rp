@@ -5,5 +5,5 @@ func main() i32 {
   for i in 0..buf.len {
     buf[i] = i as u8
   }
-  return counter + buf[3] as i32
+  return counter + buf[3]
 }

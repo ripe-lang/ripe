@@ -4,7 +4,7 @@ extern "C" func free(p: *opaque)
 
 struct pt { x: i32, y: i32 }
 
-func take(n: u8) i32 { return n as i32 }
+func take(n: u8) i32 { return n }
 
 func main() i32 {
   var a: u64 = sizeof(pt)
