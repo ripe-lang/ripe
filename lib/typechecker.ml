@@ -681,18 +681,6 @@ and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
       T.mk TNever (T.TReturn (Some (synth env e)))
   | Some e ->
       let te = check env e env.ret_ty in
-      (match Escape.return_escapes te with
-      | Some kind ->
-          let noun =
-            match kind with
-            | Escape.Slice -> "slice of a local"
-            | Escape.Address -> "address of a local"
-          in
-          emit env
-            (Diagnostic.error (noun ^ " escapes")
-            |> Diagnostic.at e.span
-            |> Diagnostic.label "points into freed stack memory")
-      | None -> ());
       T.mk TNever (T.TReturn (Some te))
 
 and new_loop (label : Ast.loop_label option) ~(valued : bool) : loop_ctx =
