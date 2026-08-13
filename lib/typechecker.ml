@@ -681,15 +681,19 @@ and synth_return (env : env) (span : Ast.span) (init : expr option) : T.texpr =
       T.mk TNever (T.TReturn (Some (synth env e)))
   | Some e ->
       let te = check env e env.ret_ty in
-      report_escape env e.span (Escape.escapes te);
+      (match Escape.return_escapes te with
+      | Some kind ->
+          let noun =
+            match kind with
+            | Escape.Slice -> "slice of a local"
+            | Escape.Address -> "address of a local"
+          in
+          emit env
+            (Diagnostic.error (noun ^ " escapes")
+            |> Diagnostic.at e.span
+            |> Diagnostic.label "points into freed stack memory")
+      | None -> ());
       T.mk TNever (T.TReturn (Some te))
-
-and report_escape (env : env) (span : Ast.span) (kind : Escape.escape option) :
-    unit =
-  match kind with
-  | Some Escape.Slice -> emit env (Diagnostic.escaping_local span "slice")
-  | Some Escape.Address -> emit env (Diagnostic.escaping_local span "address")
-  | None -> ()
 
 and new_loop (label : Ast.loop_label option) ~(valued : bool) : loop_ctx =
   {
@@ -1277,7 +1281,6 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
         tr
     | _ -> check env r t
   in
-  report_escape env r.span (Escape.assign_escapes tl tr);
   (tl, tr)
 
 (* An array or struct parameter arrives as a copy so the caller never sees the write *)
