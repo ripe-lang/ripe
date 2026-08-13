@@ -43,6 +43,7 @@ type texpr_desc =
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
   | TMatch of texpr * tarm list
+  | TUnit
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]

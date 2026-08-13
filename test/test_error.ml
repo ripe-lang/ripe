@@ -70,14 +70,15 @@ let%expect_test "error: integer literal out of range" =
 
 let%expect_test "error: internal compiler error" =
   let src = "func main() {}\n" in
-  render src (Diagnostic.internal ~span:(span src "main") "TVoid has no size");
+  render src
+    (Diagnostic.internal ~span:(span src "main") "test invariant failed");
   [%expect
     {|
     error: internal compiler error
       at <test>:1:6
         func main() {}
              ^~~~
-    TVoid has no size
+    test invariant failed
     help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
     |}]
 

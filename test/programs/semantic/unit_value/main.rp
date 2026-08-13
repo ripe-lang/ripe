@@ -1,0 +1,29 @@
+var global: () = ()
+
+func pass(value: ()) () { value }
+
+func make() () { () }
+
+func number() (i32) { 4 }
+
+func block_value() i32 { { var x = 5; x; } }
+
+func explicit_return() () { return () }
+
+func assign() {
+  var value: ()
+  value = ()
+  pass(value)
+}
+
+func indirect(fn: func (()) ()) { fn(global) }
+
+func main() i32 {
+  var value = make()
+  pass(value)
+  explicit_return()
+  assign()
+  indirect(pass)
+  return sizeof(()) as i32 + sizeof((())) as i32 + sizeof(((((()))))) as i32 +
+    sizeof((i32)) as i32 + number() + block_value()
+}

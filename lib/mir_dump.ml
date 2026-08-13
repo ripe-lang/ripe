@@ -144,7 +144,7 @@ let func (func : Mir.func) : string =
     |> String.concat ", "
   in
   let return_type =
-    match func.return_ty with Types.TVoid -> "" | ty -> " " ^ Types.show_ty ty
+    match func.return_ty with Types.TUnit -> "" | ty -> " " ^ Types.show_ty ty
   in
   Printf.bprintf buffer "func %s(%s)%s {\n" func.name params return_type;
   Array.iteri

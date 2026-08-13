@@ -15,9 +15,9 @@ let qbe_base (t : ty) : qbe_base =
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ | TStr -> L
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Diagnostic.ice "TVoid has no QBE base type"
   | TNever -> Diagnostic.ice "TNever has no QBE base type"
   | TError -> Diagnostic.ice "TError has no QBE base type"
+  | TUnit -> Diagnostic.ice "TUnit has no QBE base type"
 
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
@@ -37,9 +37,9 @@ let float_lit (ty : ty) (f : float) : string =
     match resolve_ty ty with
     | TFloat F32 -> ("s_", 9)
     | TFloat F64 -> ("d_", 17)
-    | TInt _ | TBool | TChar | TCStr | TStr | TVoid | TNever | TNull
-    | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _
-    | TNewtype _ | TAlias _ | TError | TEnum _ ->
+    | TInt _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
+    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+    | TAlias _ | TError | TEnum _ | TUnit ->
         Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
@@ -68,9 +68,9 @@ let qbe_load (t : ty) : string =
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ | TStr -> "loadl"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Diagnostic.ice "TVoid has no load instruction"
   | TNever -> Diagnostic.ice "TNever has no load instruction"
   | TError -> Diagnostic.ice "TError has no load instruction"
+  | TUnit -> Diagnostic.ice "TUnit has no load instruction"
 
 let qbe_store (t : ty) : string =
   match resolve_ty t with
@@ -84,9 +84,9 @@ let qbe_store (t : ty) : string =
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ | TStr -> "storel"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Diagnostic.ice "TVoid has no store instruction"
   | TNever -> Diagnostic.ice "TNever has no store instruction"
   | TError -> Diagnostic.ice "TError has no store instruction"
+  | TUnit -> Diagnostic.ice "TUnit has no store instruction"
 
 type ctx = {
   structs : ty list Symbol.Table.t;
@@ -390,9 +390,9 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   (* Fat pointer stored inline as two longs *)
   | TSlice _ | TStr -> "l 2"
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TVoid -> Diagnostic.ice "TVoid has no extended type"
   | TNever -> Diagnostic.ice "TNever has no extended type"
   | TError -> Diagnostic.ice "TError has no extended type"
+  | TUnit -> Diagnostic.ice "TUnit has no extended type"
 
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
   let field_strs = List.map (qbe_ext_ty (qbe_struct_name ctx)) fields in
@@ -783,7 +783,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   let is_main = func.Mir.entry_point && func.Mir.return_ty = TInt I32 in
   let return_text =
     if
-      func.Mir.return_ty = TVoid
+      func.Mir.return_ty = TUnit
       || func.Mir.return_ty = TNever
       || func.Mir.result <> None
     then ""

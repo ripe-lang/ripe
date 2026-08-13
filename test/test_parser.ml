@@ -447,7 +447,7 @@ let%expect_test "parse: recover, preserve valid multiline expressions" =
     error: type mismatch
       at <test>:4:10
           return x +
-                 ^~~ expected void, found i32
+                 ^~~ expected (), found i32
     error: expected expression
       at <test>:6:10
           return /
@@ -1190,25 +1190,25 @@ let%expect_test "parse: block expression needs a trailing value" =
   run_src "func f() i32 {\n  var x = { var a = 1 }\n  return x\n}";
   [%expect
     {|
-    error: cannot bind void value
-      at <test>:2:11
-          var x = { var a = 1 }
-                  ^~~~~~~~~~~~~
     warning: unused variable: a
       at <test>:2:17
           var x = { var a = 1 }
                         ^
     help: prefix with an underscore: _a
+    error: type mismatch
+      at <test>:3:10
+          return x
+                 ^ expected i32, found ()
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
   run_src "func f() i32 {\n  var x = if true { 1 }\n  return x\n}";
   [%expect
     {|
-    error: cannot bind void value
-      at <test>:2:11
-          var x = if true { 1 }
-                  ^~~~~~~~~~~~~
+    error: type mismatch
+      at <test>:3:10
+          return x
+                 ^ expected i32, found ()
     |}]
 
 let%expect_test "parse: an early exit block yields a value" =

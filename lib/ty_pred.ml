@@ -49,7 +49,7 @@ let is_lvalue (te : T.texpr) : bool =
   | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TSliceExpr _
   | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _ | T.TBlock _ | T.TIf _
   | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
-  | T.TContinue _ ->
+  | T.TContinue _ | T.TUnit ->
       false
   | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TMatch _ | T.TVariant _ ->
       false
@@ -65,7 +65,7 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TSizeOf _ | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _
   | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
   | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ ->
+  | T.TBreak _ | T.TContinue _ | T.TUnit ->
       None
   | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TMatch _ | T.TVariant _ ->
       None
@@ -97,8 +97,8 @@ let rec is_comparable = function
   | TError | TEnum _ ->
       true
   | TAlias (_, base) -> is_comparable base
-  | TStr | TVoid | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _
-  | TNewtype _ ->
+  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
+  | TUnit ->
       false
 
 let is_num_literal (e : expr) =
@@ -116,7 +116,7 @@ let cast_class t =
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
   (* TODO: no enum to integer cast until the boundary is settled *)
-  | TStr | TVoid | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _
+  | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
   | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
