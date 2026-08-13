@@ -53,5 +53,6 @@ val bind_void : Ast.span -> t
 val expected_expression : Ast.span -> t
 val expected_type : Ast.span -> t
 val with_found : Ast.span -> string -> string -> t
+val escaping_local : Ast.span -> string -> t
 val internal : ?span:Ast.span -> string -> t
 val ice : ?span:Ast.span -> string -> 'a

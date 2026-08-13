@@ -32,7 +32,11 @@ let rec slice_escapes (te : T.texpr) : bool =
   | _ -> false
 
 (* The frame dies at return so slices and addresses into it dangle *)
-let return_escapes (te : T.texpr) : escape option =
+let escapes (te : T.texpr) : escape option =
   match te.T.desc with
   | T.TUnOp (Ast.AddressOf, target) when storage_is_local target -> Some Address
   | _ -> if slice_escapes te then Some Slice else None
+
+(* Anything outside the frame is still alive after the frame dies so a ref left there goes bad too *)
+let assign_escapes (dest : T.texpr) (value : T.texpr) : escape option =
+  if storage_is_local dest then None else escapes value

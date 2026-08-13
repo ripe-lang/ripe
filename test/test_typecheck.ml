@@ -1759,6 +1759,61 @@ let%expect_test "typecheck: returning a slice from a slice call ok" =
      g(xs) }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: storing a slice of a local in a global rejected" =
+  run_src
+    "var view: []i32 = undefined; func f() { var a: [3]i32 = [1,2,3]; view = a \
+     }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:73
+        var view: []i32 = undefined; func f() { var a: [3]i32 = [1,2,3]; view = a }
+                                                                                ^ points into freed stack memory
+    |}]
+
+let%expect_test
+    "typecheck: writing a slice of a local through a pointer rejected" =
+  run_src "func f(out: *[]i32) { var a: [3]i32 = [1,2,3]; *out = a }";
+  [%expect
+    {|
+    error: slice of a local escapes
+      at <test>:1:55
+        func f(out: *[]i32) { var a: [3]i32 = [1,2,3]; *out = a }
+                                                              ^ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: storing the address of a local in a global rejected"
+    =
+  run_src "var p: *i32 = undefined; func f() { var x: i32 = 5; p = &x }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:57
+        var p: *i32 = undefined; func f() { var x: i32 = 5; p = &x }
+                                                                ^~ points into freed stack memory
+    |}]
+
+let%expect_test
+    "typecheck: writing the address of a local through a pointer rejected" =
+  run_src "func f(q: **i32) { var x: i32 = 5; *q = &x }";
+  [%expect
+    {|
+    error: address of a local escapes
+      at <test>:1:41
+        func f(q: **i32) { var x: i32 = 5; *q = &x }
+                                                ^~ points into freed stack memory
+    |}]
+
+let%expect_test "typecheck: writing a sub-slice of a slice param out ok" =
+  run_src "func f(xs: []i32, out: *[]i32) { *out = xs[0..2] }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: storing a slice of a local in a local ok" =
+  run_src
+    "func f() i32 { var a: [3]i32 = [1,2,3]; var s: []i32 = a; s = a[0..2]; \
+     return s[0] }";
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
     "func f() i32 { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..=2]; return \
