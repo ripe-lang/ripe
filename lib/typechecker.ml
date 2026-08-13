@@ -36,9 +36,23 @@ type gstate = {
 }
 
 type loop_result =
+  (* var value = loop {
+       continue
+     } *)
   | InferLoopResult
+  (* var value: i64 = loop {
+       break 5
+     } *)
   | ExpectLoopResult of ty
+  (* var value = loop {
+       if condition { break 1 }
+       break 2
+     } *)
   | FlexibleLoopResult of ty * Ast.span * expr list
+  (* var value = loop {
+       if condition { break known_i32 }
+       break known_i64
+     } *)
   | RigidLoopResult of ty * Ast.span * expr list
 
 type loop_ctx = {
