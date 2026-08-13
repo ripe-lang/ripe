@@ -2,4 +2,5 @@
 
 type escape = Slice | Address
 
-val return_escapes : Typed_ast.texpr -> escape option
+val escapes : Typed_ast.texpr -> escape option
+val assign_escapes : Typed_ast.texpr -> Typed_ast.texpr -> escape option

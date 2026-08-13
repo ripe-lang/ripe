@@ -292,6 +292,11 @@ let expected_type (span : Ast.span) : t = error "expected type" |> at span
 let with_found (span : Ast.span) (msg : string) (found : string) : t =
   error msg |> at span |> label ("found " ^ found)
 
+let escaping_local (span : Ast.span) (noun : string) : t =
+  error (noun ^ " of a local escapes")
+  |> at span
+  |> label "points into freed stack memory"
+
 let internal ?(span : Ast.span option) (msg : string) : t =
   let d =
     error "internal compiler error"
