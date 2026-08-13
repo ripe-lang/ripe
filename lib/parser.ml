@@ -1175,15 +1175,14 @@ let stream read lexbuf diags =
     | t, sp, line -> (
         let info = { token = t; span = sp; line; depth = !depth } in
         match Bracket_check.step diags !stack t sp with
-        | Bracket_check.Done ->
-            if t <> EOF then begin
-              stack := List.tl !stack;
-              decr depth
-            end;
+        | Bracket_check.End -> info
+        | Bracket_check.Closed rest ->
+            stack := rest;
+            decr depth;
             info
         | Bracket_check.Stray | Bracket_check.Other -> info
-        | Bracket_check.Open ->
-            stack := (t, sp) :: !stack;
+        | Bracket_check.Open opener ->
+            stack := (opener, sp) :: !stack;
             incr depth;
             info)
   in

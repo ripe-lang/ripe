@@ -27,6 +27,7 @@ type result_use = Infer | Expect of ty | Discard
 type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
 
 (* The typed and value fields only ever go from None to Some so nothing rolls back *)
+(* TODO: I should model the cache states explicitly without slowing global heavy code *)
 type gstate = {
   def : global_def;
   mutable typed : T.texpr option;
