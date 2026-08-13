@@ -1503,7 +1503,7 @@ let%expect_test "parse: a loop rejects a condition" =
   run_src "func f(x: bool) { loop x { } }";
   [%expect
     {|
-    error: expected {
+    error: expected `{`
       at <test>:1:24
         func f(x: bool) { loop x { } }
                                ^ found x
