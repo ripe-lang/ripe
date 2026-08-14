@@ -1,3 +1,4 @@
 version = 0.29.0
 margin = 80
 wrap-comments = false
+module-item-spacing = preserve
