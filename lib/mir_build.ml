@@ -1053,7 +1053,14 @@ module Mir_expr = struct
       match expr.S.desc with
       | S.TBinding (_, _, ty, init) when ty = TNever || init.S.ty = TNever ->
           ignore (lower_expr state init)
-      | S.TBinding (_, _, TUnit, init) -> ignore (lower_expr state init)
+      (* A unit local still gets a slot so you can take its address, it just has no bytes to store *)
+      | S.TBinding (_, symbol, TUnit, init) ->
+          let id =
+            B.add_local state ~name:symbol.Symbol.name User TUnit
+              symbol.Symbol.span
+          in
+          B.bind_symbol state symbol id;
+          ignore (lower_expr state init)
       | S.TBinding (Ast.Comptime, symbol, _, init) ->
           Hashtbl.replace state.B.consts (Symbol.key symbol)
             (B.eval_const state init)
