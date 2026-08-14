@@ -15,7 +15,7 @@ A systems programming language.
 
 ## Documentation
 
-Read the documentation at [ripe-lang.com](https://www.ripe-lang.com).
+Read the documentation at [ripe-lang.org](https://www.ripe-lang.org).
 
 ## Contributing
 
