@@ -105,7 +105,7 @@ type ctx = {
 let fresh ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
-  Printf.sprintf "%%t%d" n
+  "%t" ^ string_of_int n
 
 (* This is to handle collisions because t0 or t1 would collide with the temps *)
 let spelled_like_temp name =
@@ -765,7 +765,7 @@ let emit_mir_statement mctx (statement : Mir.statement) =
       emit_mir_slice mctx destination source lo hi
 
 let mir_block_label id =
-  if id = 0 then "@start" else Printf.sprintf "@block%d" id
+  if id = 0 then "@start" else "@block" ^ string_of_int id
 
 let emit_mir_terminator mctx (terminator : Mir.terminator) =
   let ctx = mctx.qbe in
@@ -793,11 +793,11 @@ let bind_mir_slots ctx (func : Mir.func) =
   Array.mapi
     (fun id (local : Mir.local) ->
       let base =
-        Option.value local.Mir.name ~default:(Printf.sprintf "m%d" id)
+        match local.Mir.name with Some n -> n | None -> "m" ^ string_of_int id
       in
       let slot =
         if Hashtbl.mem ctx.used_slots base || spelled_like_temp base then
-          Printf.sprintf "%s.%d" base id
+          base ^ "." ^ string_of_int id
         else base
       in
       Hashtbl.add ctx.used_slots slot ();
@@ -828,9 +828,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   in
   let params_text =
     (match result_tmp with None -> [] | Some tmp -> [ "l " ^ tmp ])
-    @ List.map
-        (fun (_, ty, tmp) -> Printf.sprintf "%s %s" (qbe_ty ty) tmp)
-        params
+    @ List.map (fun (_, ty, tmp) -> qbe_ty ty ^ " " ^ tmp) params
   in
   let is_main = func.Mir.entry_point && func.Mir.return_ty = TInt I32 in
   let return_text =
