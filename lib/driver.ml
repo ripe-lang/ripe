@@ -12,8 +12,22 @@ type stage =
   | Obj
   | Bin
 
+let stage_name : stage -> string = function
+  | Tokens -> "tokens"
+  | Ast -> "ast"
+  | Resolve -> "resolve"
+  | Tast -> "tast"
+  | Check -> "check"
+  | Mir -> "mir"
+  | Qbe -> "qbe"
+  | Asm -> "asm"
+  | Obj -> "obj"
+  | Bin -> "bin"
+
 module Backend = struct
   type t = Qbe
+
+  let name : t -> string = function Qbe -> "qbe"
 end
 
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all

@@ -12,8 +12,12 @@ type stage =
   | Obj
   | Bin
 
+val stage_name : stage -> string
+
 module Backend : sig
   type t = Qbe
+
+  val name : t -> string
 end
 
 val compile :
