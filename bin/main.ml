@@ -5,26 +5,27 @@ open Climate
 
 let emit_stages =
   [
-    ("tokens", Driver.Tokens, "the lexer token stream");
-    ("ast", Driver.Ast, "the untyped syntax tree");
-    ("resolve", Driver.Resolve, "the resolved symbol table");
-    ("tast", Driver.Tast, "the typed syntax tree");
-    ("check", Driver.Check, "the typecheck result");
-    ("mir", Driver.Mir, "the middle intermediate representation");
-    ("qbe", Driver.Qbe, "the QBE intermediate representation");
-    ("asm", Driver.Asm, "the target assembly");
-    ("obj", Driver.Obj, "the relocatable object file");
+    (Driver.Tokens, "the lexer token stream");
+    (Driver.Ast, "the untyped syntax tree");
+    (Driver.Resolve, "the resolved symbol table");
+    (Driver.Tast, "the typed syntax tree");
+    (Driver.Check, "the typecheck result");
+    (Driver.Mir, "the middle intermediate representation");
+    (Driver.Qbe, "the QBE intermediate representation");
+    (Driver.Asm, "the target assembly");
+    (Driver.Obj, "the relocatable object file");
   ]
 
 let stage_help =
   String.concat "\n"
     (List.map
-       (fun (name, _, desc) ->
-         Printf.sprintf "                          %-6s  %s" name desc)
+       (fun (stage, desc) ->
+         Printf.sprintf "                          %-6s  %s"
+           (Driver.stage_name stage) desc)
        emit_stages)
 
-let backends = [ ("qbe", Driver.Backend.Qbe) ]
-let backend_names = String.concat ", " (List.map fst backends)
+let backends = [ Driver.Backend.Qbe ]
+let backend_names = String.concat ", " (List.map Driver.Backend.name backends)
 
 let usage_msg =
   Printf.sprintf
@@ -49,9 +50,11 @@ let usage_msg =
 
 let emit_conv =
   Arg_parser.enum ~default_value_name:"STAGE"
-    (List.map (fun (name, stage, _) -> (name, stage)) emit_stages)
+    (List.map (fun (stage, _) -> (Driver.stage_name stage, stage)) emit_stages)
 
-let backend_conv = Arg_parser.enum ~default_value_name:"NAME" backends
+let backend_conv =
+  Arg_parser.enum ~default_value_name:"NAME"
+    (List.map (fun backend -> (Driver.Backend.name backend, backend)) backends)
 
 let command =
   let open Arg_parser in
