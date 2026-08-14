@@ -24,5 +24,11 @@ func main() i32 {
 
   var r: divres = div(17, 5)
   printf("%d %d %d\n", r.quot, r.rem, sizeof(divres) as i32)
+
+  var pu: *() = null
+  var _u: () = *pu
+  var pe: *empty = null
+  var _e: empty = *pe
+  printf("null read of a zero size type is fine\n")
   return 0
 }

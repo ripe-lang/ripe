@@ -362,7 +362,11 @@ module Mir_check = struct
   let slice_bounds state lo hi length span =
     emit_check state (SliceBounds (lo, hi, length)) span
 
-  let null state pointer span = emit_check state (Null pointer) span
+  (* Reading through a pointer to something zero bytes wide touches no memory, so there's nothing for a null to fault on *)
+  let null state pointee pointer span =
+    let structs = state.B.const_context.Mir_const.structs in
+    if ty_size structs pointee > 0 then emit_check state (Null pointer) span
+
   let div_zero state divisor span = emit_check state (DivZero divisor) span
 
   let negative_shift state count span =
@@ -926,15 +930,15 @@ module Mir_expr = struct
     | S.TIdent symbol -> B.symbol_place state expr.S.span symbol
     | S.TUnOp (Ast.Deref, inner) ->
         let pointer = lower_expr state inner in
-        Mir_check.null state pointer expr.S.span;
+        Mir_check.null state expr.S.ty pointer expr.S.span;
         let source = B.materialize state pointer in
         { source with projections = source.projections @ [ Deref ] }
     | S.TFieldAccess (base, field) ->
         let source =
           match resolve_ty base.S.ty with
-          | TPointer _ ->
+          | TPointer pointee ->
               let pointer = lower_expr state base in
-              Mir_check.null state pointer base.S.span;
+              Mir_check.null state pointee pointer base.S.span;
               let source = B.materialize state pointer in
               { source with projections = source.projections @ [ Deref ] }
           | _ -> lower_expr state base |> B.materialize state
