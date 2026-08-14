@@ -394,7 +394,9 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   | TError -> Diagnostic.ice "TError has no extended type"
   | TUnit -> Diagnostic.ice "TUnit has no extended type"
 
+(* A field that takes up no bytes changes nothing here, and leaving one in makes QBE think the whole struct is empty *)
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
+  let fields = List.filter (fun ft -> ty_size ctx.structs ft > 0) fields in
   let field_strs = List.map (qbe_ext_ty (qbe_struct_name ctx)) fields in
   emit ctx "type :%s = { %s }\n" (qbe_struct_name ctx name)
     (String.concat ", " field_strs)

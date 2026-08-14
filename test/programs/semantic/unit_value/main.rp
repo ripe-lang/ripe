@@ -18,6 +18,15 @@ func assign() {
 
 func indirect(fn: func (()) ()) { fn(global) }
 
+func addressable() i32 {
+  var value: () = ()
+  var p: *() = &value
+  var q: *() = &value
+  if p as usize == 0 { return 0 }
+  if p as usize != q as usize { return 0 }
+  return 1
+}
+
 func main() i32 {
   var value = make()
   pass(value)
@@ -25,5 +34,5 @@ func main() i32 {
   assign()
   indirect(pass)
   return sizeof(()) as i32 + sizeof((())) as i32 + sizeof(((((()))))) as i32 +
-    sizeof((i32)) as i32 + number() + block_value()
+    sizeof((i32)) as i32 + number() + block_value() + addressable()
 }
