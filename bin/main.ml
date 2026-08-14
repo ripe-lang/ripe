@@ -13,6 +13,7 @@ let emit_stages =
     ("mir", Driver.Mir, "the middle intermediate representation");
     ("qbe", Driver.Qbe, "the QBE intermediate representation");
     ("asm", Driver.Asm, "the target assembly");
+    ("obj", Driver.Obj, "the relocatable object file");
   ]
 
 let stage_help =
