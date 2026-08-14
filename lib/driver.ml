@@ -1,6 +1,16 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
-type stage = Tokens | Ast | Resolve | Tast | Check | Mir | Qbe | Asm | Bin
+type stage =
+  | Tokens
+  | Ast
+  | Resolve
+  | Tast
+  | Check
+  | Mir
+  | Qbe
+  | Asm
+  | Obj
+  | Bin
 
 module Backend = struct
   type t = Qbe
@@ -73,6 +83,18 @@ let emit_asm il =
   let asm = read_file tmp_asm in
   Sys.remove tmp_asm;
   asm
+
+(* The same object the linker would have consumed, handed back instead *)
+let emit_obj il =
+  let target = Lazy.force target in
+  let tmp_asm, _ = run_qbe il in
+  let tmp_obj = Filename.temp_file "ripe" ".o" in
+  let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
+  run (shell_command args);
+  let obj = read_file tmp_obj in
+  Sys.remove tmp_asm;
+  Sys.remove tmp_obj;
+  obj
 
 let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
@@ -232,6 +254,13 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     if out = "" then print_string s
     else Out_channel.with_open_text out (fun oc -> output_string oc s)
   in
+  (* An object holds bytes that stdout would otherwise be free to translate *)
+  let output_bytes s =
+    if out = "" then (
+      set_binary_mode_out stdout true;
+      print_string s)
+    else Out_channel.with_open_bin out (fun oc -> output_string oc s)
+  in
   let output_binary il =
     let base =
       if out = "" then Filename.remove_extension (Filename.basename filename)
@@ -289,6 +318,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     let codegen_time = Unix.gettimeofday () -. codegen_start in
     stop_at Qbe (fun () -> output_text il);
     stop_at Asm (fun () -> output_text (emit_asm il));
+    stop_at Obj (fun () -> output_bytes (emit_obj il));
     let qbe_time, backend_time, link_time = output_binary il in
     if stats then begin
       let total_time = Unix.gettimeofday () -. total_start in
