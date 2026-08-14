@@ -1,5 +1,43 @@
 # Ripe's OCaml Style Guide
 
+## Design advice
+
+- Use a variant when fields or booleans describe mutually exclusive states. Make invalid combinations impossible to construct.
+
+```ocaml
+type loop_result =
+  | Infer
+  | Expect of ty
+  | Flexible of inferred_result
+  | Rigid of inferred_result
+```
+
+- Give `None` one meaning. Use a variant when an option would mean both deferred work and missing data.
+
+```ocaml
+type coercion_input =
+  | Contextual of expr
+  | Typed of expr * texpr
+```
+
+- You should put nonempty input in the function signature. Take `first` and `rest` when an empty input is invalid.
+
+```ocaml
+let fold_nonempty f first rest =
+  List.fold_left f first rest
+```
+
+- Carry completed work forward explicitly. Don't recover it later through
+  mutable anchor state or physical identity.
+
+```ocaml
+let type_input = function
+  | Contextual source -> check source
+  | Typed (_, typed) -> typed
+```
+
+## Style rules
+
 - Keep code simple and readable because people read code more often than they write it
 
 ```ocaml
