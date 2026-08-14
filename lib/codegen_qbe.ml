@@ -117,18 +117,56 @@ let spelled_like_temp name =
 
 let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
 
+(* Three shapes basically cover everything so they skip the format interpreter *)
+let put ctx s = Buffer.add_string !(ctx.buf) s
+
+let put_char ctx c = Buffer.add_char !(ctx.buf) c
+
+let emit_op1 ctx dest ty op arg =
+  put ctx "    ";
+  put ctx dest;
+  put ctx " =";
+  put ctx ty;
+  put_char ctx ' ';
+  put ctx op;
+  put_char ctx ' ';
+  put ctx arg;
+  put_char ctx '\n'
+
+let emit_op2 ctx dest ty op lhs rhs =
+  put ctx "    ";
+  put ctx dest;
+  put ctx " =";
+  put ctx ty;
+  put_char ctx ' ';
+  put ctx op;
+  put_char ctx ' ';
+  put ctx lhs;
+  put ctx ", ";
+  put ctx rhs;
+  put_char ctx '\n'
+
+let emit_store ctx store value addr =
+  put ctx "    ";
+  put ctx store;
+  put_char ctx ' ';
+  put ctx value;
+  put ctx ", ";
+  put ctx addr;
+  put_char ctx '\n'
+
 (* The data pointer sits at offset 0 in the fat pointer *)
 let load_slice_ptr ctx addr =
   let ptr = fresh ctx in
-  emit ctx "    %s =l loadl %s\n" ptr addr;
+  emit_op1 ctx ptr "l" "loadl" addr;
   ptr
 
 (* The length sits at offset 8 in the fat pointer *)
 let load_slice_len ctx addr =
   let lenp = fresh ctx in
-  emit ctx "    %s =l add %s, 8\n" lenp addr;
+  emit_op2 ctx lenp "l" "add" addr "8";
   let len = fresh ctx in
-  emit ctx "    %s =l loadl %s\n" len lenp;
+  emit_op1 ctx len "l" "loadl" lenp;
   len
 
 let intern_string ctx s =
@@ -137,11 +175,23 @@ let intern_string ctx s =
   ctx.strings := (lbl, s) :: !(ctx.strings);
   lbl
 
-let emit_label ctx lbl = emit ctx "%s\n" lbl
-let emit_jmp ctx lbl = emit ctx "    jmp %s\n" lbl
+let emit_label ctx lbl =
+  put ctx lbl;
+  put_char ctx '\n'
+
+let emit_jmp ctx lbl =
+  put ctx "    jmp ";
+  put ctx lbl;
+  put_char ctx '\n'
 
 let emit_jnz ctx v then_lbl else_lbl =
-  emit ctx "    jnz %s, %s, %s\n" v then_lbl else_lbl
+  put ctx "    jnz ";
+  put ctx v;
+  put ctx ", ";
+  put ctx then_lbl;
+  put ctx ", ";
+  put ctx else_lbl;
+  put_char ctx '\n'
 
 let field_offset structs fields field_id =
   let rec go index off = function
@@ -162,11 +212,8 @@ let offset_addr ctx base off =
   if off = 0 then base
   else
     let a = fresh ctx in
-    emit ctx "    %s =l add %s, %d\n" a base off;
+    emit_op2 ctx a "l" "add" base (string_of_int off);
     a
-
-let alloc_slot ctx t =
-  Printf.sprintf "%s %d" (alloc_instr ctx.structs t) (ty_size ctx.structs t)
 
 (* Pointer math is 64-bit so widen a word-sized value to a long *)
 let widen_to_l ctx v ty =
@@ -174,12 +221,12 @@ let widen_to_l ctx v ty =
   else
     let t = fresh ctx in
     let ins = if is_unsigned ty then "extuw" else "extsw" in
-    emit ctx "    %s =l %s %s\n" t ins v;
+    emit_op1 ctx t "l" ins v;
     t
 
 let bounds_condition (ctx : ctx) (idx : string) (len : string) : string =
   let cond = fresh ctx in
-  emit ctx "    %s =w cugel %s, %s\n" cond idx len;
+  emit_op2 ctx cond "w" "cugel" idx len;
   cond
 
 let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
@@ -221,7 +268,7 @@ let emit_zero_into ctx dest t =
         let off = ref 0 in
         let step w store =
           while w <= align && !off + w <= size do
-            emit ctx "    %s 0, %s\n" store (offset_addr ctx dest !off);
+            emit_store ctx store "0" (offset_addr ctx dest !off);
             off := !off + w
           done
         in
@@ -230,13 +277,21 @@ let emit_zero_into ctx dest t =
         step 2 "storeh";
         step 1 "storeb"
       end
-  | _ -> emit ctx "    %s 0, %s\n" (qbe_store t) dest
+  | _ -> emit_store ctx (qbe_store t) "0" dest
 
 (* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
 let emit_aggregate_copy ctx dest src size =
   if size > bulk_mem_threshold then
     emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
-  else emit ctx "    blit %s, %s, %d\n" src dest size
+  else begin
+    put ctx "    blit ";
+    put ctx src;
+    put ctx ", ";
+    put ctx dest;
+    put ctx ", ";
+    put ctx (string_of_int size);
+    put_char ctx '\n'
+  end
 
 let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
     ~count_ty lv rv =
@@ -247,42 +302,37 @@ let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
 
   let tmp = fresh ctx in
   (match op with
-  | Mir.Add -> emit ctx "    %s =%s add %s, %s\n" tmp qt lv rv
-  | Mir.Sub -> emit ctx "    %s =%s sub %s, %s\n" tmp qt lv rv
-  | Mir.Mul -> emit ctx "    %s =%s mul %s, %s\n" tmp qt lv rv
-  | Mir.Div ->
-      if unsigned then emit ctx "    %s =%s udiv %s, %s\n" tmp qt lv rv
-      else emit ctx "    %s =%s div %s, %s\n" tmp qt lv rv
-  | Mir.Mod ->
-      if unsigned then emit ctx "    %s =%s urem %s, %s\n" tmp qt lv rv
-      else emit ctx "    %s =%s rem %s, %s\n" tmp qt lv rv
+  | Mir.Add -> emit_op2 ctx tmp qt "add" lv rv
+  | Mir.Sub -> emit_op2 ctx tmp qt "sub" lv rv
+  | Mir.Mul -> emit_op2 ctx tmp qt "mul" lv rv
+  | Mir.Div -> emit_op2 ctx tmp qt (if unsigned then "udiv" else "div") lv rv
+  | Mir.Mod -> emit_op2 ctx tmp qt (if unsigned then "urem" else "rem") lv rv
   (* Floats: ceqs, ceqd / ints: ceqw, ceql *)
-  | Mir.Eq -> emit ctx "    %s =w ceq%s %s, %s\n" tmp op_qt lv rv
-  | Mir.Neq -> emit ctx "    %s =w cne%s %s, %s\n" tmp op_qt lv rv
+  | Mir.Eq -> emit_op2 ctx tmp "w" ("ceq" ^ op_qt) lv rv
+  | Mir.Neq -> emit_op2 ctx tmp "w" ("cne" ^ op_qt) lv rv
   (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
   | Mir.Lt ->
-      if is_float lty then emit ctx "    %s =w clt%s %s, %s\n" tmp op_qt lv rv
-      else emit ctx "    %s =w c%slt%s %s, %s\n" tmp sign op_qt lv rv
+      if is_float lty then emit_op2 ctx tmp "w" ("clt" ^ op_qt) lv rv
+      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "lt" ^ op_qt) lv rv
   | Mir.Gt ->
-      if is_float lty then emit ctx "    %s =w cgt%s %s, %s\n" tmp op_qt lv rv
-      else emit ctx "    %s =w c%sgt%s %s, %s\n" tmp sign op_qt lv rv
+      if is_float lty then emit_op2 ctx tmp "w" ("cgt" ^ op_qt) lv rv
+      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "gt" ^ op_qt) lv rv
   | Mir.Lte ->
-      if is_float lty then emit ctx "    %s =w cle%s %s, %s\n" tmp op_qt lv rv
-      else emit ctx "    %s =w c%sle%s %s, %s\n" tmp sign op_qt lv rv
+      if is_float lty then emit_op2 ctx tmp "w" ("cle" ^ op_qt) lv rv
+      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "le" ^ op_qt) lv rv
   | Mir.Gte ->
-      if is_float lty then emit ctx "    %s =w cge%s %s, %s\n" tmp op_qt lv rv
-      else emit ctx "    %s =w c%sge%s %s, %s\n" tmp sign op_qt lv rv
-  | Mir.BitAnd -> emit ctx "    %s =%s and %s, %s\n" tmp qt lv rv
-  | Mir.BitOr -> emit ctx "    %s =%s or %s, %s\n" tmp qt lv rv
-  | Mir.BitXor -> emit ctx "    %s =%s xor %s, %s\n" tmp qt lv rv
+      if is_float lty then emit_op2 ctx tmp "w" ("cge" ^ op_qt) lv rv
+      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "ge" ^ op_qt) lv rv
+  | Mir.BitAnd -> emit_op2 ctx tmp qt "and" lv rv
+  | Mir.BitOr -> emit_op2 ctx tmp qt "or" lv rv
+  | Mir.BitXor -> emit_op2 ctx tmp qt "xor" lv rv
   | Mir.Lshift | Mir.Rshift ->
       let instr =
         match op with
         | Mir.Lshift -> "shl"
         | _ -> if unsigned then "shr" else "sar"
       in
-      emit ctx "    %s =%s %s %s, %s\n" tmp qt instr lv
-        (word_count ctx count_ty rv));
+      emit_op2 ctx tmp qt instr lv (word_count ctx count_ty rv));
   match op with
   | Mir.Add | Mir.Sub | Mir.Mul | Mir.Div | Mir.Lshift ->
       narrow_int_to ctx tmp t
@@ -293,7 +343,7 @@ and word_count ctx count_ty rv =
   match qbe_base count_ty with
   | L ->
       let w = fresh ctx in
-      emit ctx "    %s =w copy %s\n" w rv;
+      emit_op1 ctx w "w" "copy" rv;
       w
   | _ -> rv
 
@@ -312,7 +362,7 @@ and narrow_int_to ctx v target_ty =
   | None -> v
   | Some instr ->
       let tmp = fresh ctx in
-      emit ctx "    %s =w %s %s\n" tmp instr v;
+      emit_op1 ctx tmp "w" instr v;
       tmp
 
 and emit_cast ctx v src_ty target_ty =
@@ -321,17 +371,17 @@ and emit_cast ctx v src_ty target_ty =
   (* The extend already truncates so the copy would be redundant *)
   match (narrow_int_instr target_ty, qbe_base src_ty) with
   | Some instr, (W | L) ->
-      emit ctx "    %s =w %s %s\n" tmp instr v;
+      emit_op1 ctx tmp "w" instr v;
       tmp
   | _ ->
       (match (qbe_base src_ty, qbe_base target_ty) with
       (* The same base type is a plain bit copy *)
-      | W, W | L, L | S, S | D, D -> emit ctx "    %s =%s copy %s\n" tmp tgt v
+      | W, W | L, L | S, S | D, D -> emit_op1 ctx tmp tgt "copy" v
       (* Word widens to long, long truncates to word *)
       | W, L ->
           let instr = if is_unsigned src_ty then "extuw" else "extsw" in
-          emit ctx "    %s =l %s %s\n" tmp instr v
-      | L, W -> emit ctx "    %s =w copy %s\n" tmp v
+          emit_op1 ctx tmp "l" instr v
+      | L, W -> emit_op1 ctx tmp "w" "copy" v
       (* Single and double swap precision *)
       | S, D -> emit ctx "    %s =d exts %s\n" tmp v
       | D, S -> emit ctx "    %s =s truncd %s\n" tmp v
@@ -443,7 +493,7 @@ let rec emit_mir_operand mctx (operand : Mir.operand) =
       if is_aggregate ty then addr
       else
         let value = fresh mctx.qbe in
-        emit mctx.qbe "    %s =%s %s %s\n" value (qbe_ty ty) (qbe_load ty) addr;
+        emit_op1 mctx.qbe value (qbe_ty ty) (qbe_load ty) addr;
         value
 
 and emit_mir_constant ctx ty = function
@@ -467,7 +517,7 @@ and emit_mir_place mctx (place : Mir.place) =
     | [] -> (addr, ty)
     | Mir.Deref :: rest ->
         let pointer = fresh ctx in
-        emit ctx "    %s =l loadl %s\n" pointer addr;
+        emit_op1 ctx pointer "l" "loadl" addr;
         let inner =
           match resolve_ty ty with
           | TPointer inner -> inner
@@ -498,17 +548,17 @@ and emit_mir_place mctx (place : Mir.place) =
           | TSlice _ -> load_slice_ptr ctx addr
           | TPointer _ ->
               let pointer = fresh ctx in
-              emit ctx "    %s =l loadl %s\n" pointer addr;
+              emit_op1 ctx pointer "l" "loadl" addr;
               pointer
           | _ -> assert false
         in
         let index = emit_mir_operand mctx index_operand in
         let index = widen_to_l ctx index index_operand.Mir.ty in
         let offset = fresh ctx in
-        emit ctx "    %s =l mul %s, %d\n" offset index
-          (stride ctx.structs element);
+        emit_op2 ctx offset "l" "mul" index
+          (string_of_int (stride ctx.structs element));
         let addr = fresh ctx in
-        emit ctx "    %s =l add %s, %s\n" addr storage offset;
+        emit_op2 ctx addr "l" "add" storage offset;
         project addr element rest
   in
   project addr (mir_base_ty mctx place.Mir.base) place.Mir.projections
@@ -518,13 +568,13 @@ let emit_mir_unary ctx (op : Mir.unop) operand ty =
   let result = fresh ctx in
   match op with
   | Mir.Neg ->
-      emit ctx "    %s =%s neg %s\n" result qt operand;
+      emit_op1 ctx result qt "neg" operand;
       narrow_int_to ctx result ty
   | Mir.BitNot ->
-      emit ctx "    %s =%s xor %s, -1\n" result qt operand;
+      emit_op2 ctx result qt "xor" operand "-1";
       narrow_int_to ctx result ty
   | Mir.Not ->
-      emit ctx "    %s =w ceqw %s, 0\n" result operand;
+      emit_op2 ctx result "w" "ceqw" operand "0";
       result
 
 let emit_mir_value mctx (value : Mir.value) =
@@ -570,8 +620,7 @@ let emit_mir_assign mctx destination (value : Mir.value) =
         (ty_size ctx.structs destination_ty)
   | _ ->
       let result = emit_mir_value mctx value in
-      emit ctx "    %s %s, %s\n" (qbe_store destination_ty) result
-        destination_addr
+      emit_store ctx (qbe_store destination_ty) result destination_addr
 
 let emit_mir_slice mctx destination source lo hi =
   let ctx = mctx.qbe in
@@ -706,9 +755,7 @@ let emit_mir_call mctx (call : Mir.call) =
       if is_aggregate destination_ty then
         emit_aggregate_copy ctx destination_addr result
           (ty_size ctx.structs destination_ty)
-      else
-        emit ctx "    %s %s, %s\n" (qbe_store destination_ty) result
-          destination_addr
+      else emit_store ctx (qbe_store destination_ty) result destination_addr
 
 let emit_mir_statement mctx (statement : Mir.statement) =
   match statement.Mir.desc with
@@ -733,10 +780,13 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
         (emit_mir_check_condition mctx check)
         (mir_block_label fail) (mir_block_label ok)
   | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
-  | Mir.ReturnValue None -> emit ctx "    ret\n"
+  | Mir.ReturnValue None -> put ctx "    ret\n"
   | Mir.ReturnValue (Some returned) ->
-      emit ctx "    ret %s\n" (emit_mir_operand mctx returned)
-  | Mir.Unreachable -> emit ctx "    hlt\n"
+      let returned = emit_mir_operand mctx returned in
+      put ctx "    ret ";
+      put ctx returned;
+      put_char ctx '\n'
+  | Mir.Unreachable -> put ctx "    hlt\n"
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_mir_slots ctx (func : Mir.func) =
@@ -799,13 +849,15 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   Array.iteri
     (fun id (local : Mir.local) ->
       if Some id <> func.Mir.result then
-        emit ctx "    %s =l %s\n" slots.(id) (alloc_slot ctx local.Mir.ty))
+        emit_op1 ctx slots.(id) "l"
+          (alloc_instr ctx.structs local.Mir.ty)
+          (string_of_int (ty_size ctx.structs local.Mir.ty)))
     func.Mir.locals;
   List.iter
     (fun (id, ty, tmp) ->
       if is_aggregate ty then
         emit_aggregate_copy ctx slots.(id) tmp (ty_size ctx.structs ty)
-      else emit ctx "    %s %s, %s\n" (qbe_store ty) tmp slots.(id))
+      else emit_store ctx (qbe_store ty) tmp slots.(id))
     params;
   let mctx = { qbe = ctx; func; slots; global_types } in
   Array.iteri
