@@ -123,7 +123,6 @@ let put ctx s = Buffer.add_string !(ctx.buf) s
 let put_char ctx c = Buffer.add_char !(ctx.buf) c
 
 let emit_op1 ctx dest ty op arg =
-  put ctx "    ";
   put ctx dest;
   put ctx " =";
   put ctx ty;
@@ -134,7 +133,6 @@ let emit_op1 ctx dest ty op arg =
   put_char ctx '\n'
 
 let emit_op2 ctx dest ty op lhs rhs =
-  put ctx "    ";
   put ctx dest;
   put ctx " =";
   put ctx ty;
@@ -147,7 +145,6 @@ let emit_op2 ctx dest ty op lhs rhs =
   put_char ctx '\n'
 
 let emit_store ctx store value addr =
-  put ctx "    ";
   put ctx store;
   put_char ctx ' ';
   put ctx value;
@@ -180,12 +177,12 @@ let emit_label ctx lbl =
   put_char ctx '\n'
 
 let emit_jmp ctx lbl =
-  put ctx "    jmp ";
+  put ctx "jmp ";
   put ctx lbl;
   put_char ctx '\n'
 
 let emit_jnz ctx v then_lbl else_lbl =
-  put ctx "    jnz ";
+  put ctx "jnz ";
   put ctx v;
   put ctx ", ";
   put ctx then_lbl;
@@ -232,28 +229,28 @@ let bounds_condition (ctx : ctx) (idx : string) (len : string) : string =
 let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
     (len : string) : string =
   let hi_bad = fresh ctx in
-  emit ctx "    %s =w cugtl %s, %s\n" hi_bad hi len;
+  emit ctx "%s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
-  emit ctx "    %s =w cugtl %s, %s\n" lo_bad lo hi;
+  emit ctx "%s =w cugtl %s, %s\n" lo_bad lo hi;
   let bad = fresh ctx in
-  emit ctx "    %s =w or %s, %s\n" bad hi_bad lo_bad;
+  emit ctx "%s =w or %s, %s\n" bad hi_bad lo_bad;
   bad
 
 let null_condition (ctx : ctx) (ptr : string) : string =
   let isnull = fresh ctx in
-  emit ctx "    %s =w ceql %s, 0\n" isnull ptr;
+  emit ctx "%s =w ceql %s, 0\n" isnull ptr;
   isnull
 
 let div_zero_condition (ctx : ctx) (divisor : string) (op_qt : string) : string
     =
   let zero = fresh ctx in
-  emit ctx "    %s =w ceq%s %s, 0\n" zero op_qt divisor;
+  emit ctx "%s =w ceq%s %s, 0\n" zero op_qt divisor;
   zero
 
 let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) :
     string =
   let neg = fresh ctx in
-  emit ctx "    %s =w cslt%s %s, 0\n" neg count_qt count;
+  emit ctx "%s =w cslt%s %s, 0\n" neg count_qt count;
   neg
 
 (* Write a zero value of type t to dest *)
@@ -262,7 +259,7 @@ let emit_zero_into ctx dest t =
   | TArray _ | TSlice _ | TStruct _ ->
       let size = ty_size ctx.structs t in
       if size > bulk_mem_threshold then
-        emit ctx "    call $memset(l %s, w 0, l %d)\n" dest size
+        emit ctx "call $memset(l %s, w 0, l %d)\n" dest size
       else begin
         let align = ty_align ctx.structs t in
         let off = ref 0 in
@@ -282,9 +279,9 @@ let emit_zero_into ctx dest t =
 (* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
 let emit_aggregate_copy ctx dest src size =
   if size > bulk_mem_threshold then
-    emit ctx "    call $memcpy(l %s, l %s, l %d)\n" dest src size
+    emit ctx "call $memcpy(l %s, l %s, l %d)\n" dest src size
   else begin
-    put ctx "    blit ";
+    put ctx "blit ";
     put ctx src;
     put ctx ", ";
     put ctx dest;
@@ -383,8 +380,8 @@ and emit_cast ctx v src_ty target_ty =
           emit_op1 ctx tmp "l" instr v
       | L, W -> emit_op1 ctx tmp "w" "copy" v
       (* Single and double swap precision *)
-      | S, D -> emit ctx "    %s =d exts %s\n" tmp v
-      | D, S -> emit ctx "    %s =s truncd %s\n" tmp v
+      | S, D -> emit ctx "%s =d exts %s\n" tmp v
+      | D, S -> emit ctx "%s =s truncd %s\n" tmp v
       (* An integer turns into a float *)
       | (W | L), (S | D) ->
           let instr =
@@ -396,7 +393,7 @@ and emit_cast ctx v src_ty target_ty =
             | (S | D), _ ->
                 Diagnostic.ice "float to float conversion in integer path"
           in
-          emit ctx "    %s =%s %s %s\n" tmp tgt instr v
+          emit ctx "%s =%s %s %s\n" tmp tgt instr v
       (* A float turns into an integer *)
       | (S | D), (W | L) ->
           let instr =
@@ -408,7 +405,7 @@ and emit_cast ctx v src_ty target_ty =
             | (W | L), _ ->
                 Diagnostic.ice "integer to integer conversion in float path"
           in
-          emit ctx "    %s =%s %s %s\n" tmp tgt instr v);
+          emit ctx "%s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
 let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
@@ -469,8 +466,8 @@ let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
 
 let emit_string_into ctx destination content =
   let label = intern_string ctx content in
-  emit ctx "    storel %s, %s\n" label destination;
-  emit ctx "    storel %d, %s\n" (String.length content)
+  emit ctx "storel %s, %s\n" label destination;
+  emit ctx "storel %d, %s\n" (String.length content)
     (offset_addr ctx destination 8)
 
 type mir_ctx = {
@@ -663,9 +660,9 @@ let emit_mir_slice mctx destination source lo hi =
   let hi_value = widened_operand mctx hi in
   let pointer = emit_mir_index_addr mctx storage element lo in
   let length = fresh ctx in
-  emit ctx "    %s =l sub %s, %s\n" length hi_value lo_value;
-  emit ctx "    storel %s, %s\n" pointer destination_addr;
-  emit ctx "    storel %s, %s\n" length (offset_addr ctx destination_addr 8)
+  emit ctx "%s =l sub %s, %s\n" length hi_value lo_value;
+  emit ctx "storel %s, %s\n" pointer destination_addr;
+  emit ctx "storel %s, %s\n" length (offset_addr ctx destination_addr 8)
 
 (* The condition is true when the check fails so it feeds the branch to the panic block *)
 let emit_mir_check_condition mctx = function
@@ -692,17 +689,17 @@ let emit_mir_panic mctx span check =
   let site = Panic_table.record ctx.panics span in
   (match check with
   | Mir.Bounds (index, length) ->
-      emit ctx "    call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
+      emit ctx "call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
         (widened_operand mctx index)
         (widened_operand mctx length)
   | Mir.SliceBounds (lo, hi, length) ->
-      emit ctx "    call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n"
-        site (widened_operand mctx lo) (widened_operand mctx hi)
+      emit ctx "call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n" site
+        (widened_operand mctx lo) (widened_operand mctx hi)
         (widened_operand mctx length)
-  | Mir.Null _ -> emit ctx "    call $ripe_panic_null(w %d)\n" site
-  | Mir.DivZero _ -> emit ctx "    call $ripe_panic_divzero(w %d)\n" site
-  | Mir.NegativeShift _ -> emit ctx "    call $ripe_panic_shift(w %d)\n" site);
-  emit ctx "    hlt\n"
+  | Mir.Null _ -> emit ctx "call $ripe_panic_null(w %d)\n" site
+  | Mir.DivZero _ -> emit ctx "call $ripe_panic_divzero(w %d)\n" site
+  | Mir.NegativeShift _ -> emit ctx "call $ripe_panic_shift(w %d)\n" site);
+  emit ctx "hlt\n"
 
 let mir_callee mctx = function
   | Mir.Direct name -> "$" ^ name
@@ -759,12 +756,12 @@ let emit_mir_call mctx (call : Mir.call) =
   in
   let callee = mir_callee mctx call.Mir.callee in
   match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
-  | None, _, _ -> emit ctx "    call %s(%s)\n" callee (String.concat ", " args)
+  | None, _, _ -> emit ctx "call %s(%s)\n" callee (String.concat ", " args)
   | Some _, return_ty, Mir.Internal when is_aggregate return_ty ->
-      emit ctx "    call %s(%s)\n" callee (String.concat ", " args)
+      emit ctx "call %s(%s)\n" callee (String.concat ", " args)
   | Some destination, return_ty, _ ->
       let result = fresh ctx in
-      emit ctx "    %s =%s call %s(%s)\n" result
+      emit ctx "%s =%s call %s(%s)\n" result
         (qbe_call_ty ctx call.Mir.kind return_ty)
         callee (String.concat ", " args);
       let destination_addr, destination_ty = emit_mir_place mctx destination in
@@ -796,13 +793,13 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
         (emit_mir_check_condition mctx check)
         (mir_block_label fail) (mir_block_label ok)
   | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
-  | Mir.ReturnValue None -> put ctx "    ret\n"
+  | Mir.ReturnValue None -> put ctx "ret\n"
   | Mir.ReturnValue (Some returned) ->
       let returned = emit_mir_operand mctx returned in
-      put ctx "    ret ";
+      put ctx "ret ";
       put ctx returned;
       put_char ctx '\n'
-  | Mir.Unreachable -> put ctx "    hlt\n"
+  | Mir.Unreachable -> put ctx "hlt\n"
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_mir_slots ctx (func : Mir.func) =
