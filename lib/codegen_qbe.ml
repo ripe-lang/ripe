@@ -506,6 +506,34 @@ and emit_mir_constant ctx ty = function
   | Mir.Function name -> "$" ^ name
   | Mir.Str _ -> Diagnostic.ice "str constant requires a destination"
 
+and widened_operand (mctx : mir_ctx) (operand : Mir.operand) : string =
+  match operand.Mir.desc with
+  | Mir.Const (Mir.Int value) -> Int64.to_string value
+  | Mir.Const (Mir.Bool value) -> if value then "1" else "0"
+  | Mir.Const (Mir.Char value) -> string_of_int value
+  | _ -> widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.ty
+
+and emit_mir_index_addr (mctx : mir_ctx) storage element
+    (index_operand : Mir.operand) : string =
+  let ctx = mctx.qbe in
+  let element_stride = stride ctx.structs element in
+  match index_operand.Mir.desc with
+  | Mir.Const (Mir.Int value) ->
+      let offset = Int64.mul value (Int64.of_int element_stride) in
+      if offset = 0L then storage
+      else begin
+        let addr = fresh ctx in
+        emit_op2 ctx addr "l" "add" storage (Int64.to_string offset);
+        addr
+      end
+  | _ ->
+      let index = widened_operand mctx index_operand in
+      let offset = fresh ctx in
+      emit_op2 ctx offset "l" "mul" index (string_of_int element_stride);
+      let addr = fresh ctx in
+      emit_op2 ctx addr "l" "add" storage offset;
+      addr
+
 and emit_mir_place mctx (place : Mir.place) =
   let ctx = mctx.qbe in
   let addr =
@@ -552,13 +580,7 @@ and emit_mir_place mctx (place : Mir.place) =
               pointer
           | _ -> assert false
         in
-        let index = emit_mir_operand mctx index_operand in
-        let index = widen_to_l ctx index index_operand.Mir.ty in
-        let offset = fresh ctx in
-        emit_op2 ctx offset "l" "mul" index
-          (string_of_int (stride ctx.structs element));
-        let addr = fresh ctx in
-        emit_op2 ctx addr "l" "add" storage offset;
+        let addr = emit_mir_index_addr mctx storage element index_operand in
         project addr element rest
   in
   project addr (mir_base_ty mctx place.Mir.base) place.Mir.projections
@@ -637,19 +659,13 @@ let emit_mir_slice mctx destination source lo hi =
     | TSlice element -> element
     | _ -> Diagnostic.ice "MIR slice result has invalid type"
   in
-  let lo_value = widen_to_l ctx (emit_mir_operand mctx lo) lo.Mir.ty in
-  let hi_value = widen_to_l ctx (emit_mir_operand mctx hi) hi.Mir.ty in
-  let offset = fresh ctx in
-  emit ctx "    %s =l mul %s, %d\n" offset lo_value (stride ctx.structs element);
-  let pointer = fresh ctx in
-  emit ctx "    %s =l add %s, %s\n" pointer storage offset;
+  let lo_value = widened_operand mctx lo in
+  let hi_value = widened_operand mctx hi in
+  let pointer = emit_mir_index_addr mctx storage element lo in
   let length = fresh ctx in
   emit ctx "    %s =l sub %s, %s\n" length hi_value lo_value;
   emit ctx "    storel %s, %s\n" pointer destination_addr;
   emit ctx "    storel %s, %s\n" length (offset_addr ctx destination_addr 8)
-
-let widened_operand mctx (operand : Mir.operand) =
-  widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.ty
 
 (* The condition is true when the check fails so it feeds the branch to the panic block *)
 let emit_mir_check_condition mctx = function
