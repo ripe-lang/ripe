@@ -101,6 +101,17 @@ type ctx = {
   str_ctr : int ref;
 }
 
+type local_binding = Value of string | Memory of string
+
+type local_usage = { address_taken : bool array; defined : bool array }
+
+type mir_ctx = {
+  qbe : ctx;
+  func : Mir.func;
+  bindings : local_binding array;
+  global_types : (string, ty) Hashtbl.t;
+}
+
 (* Fresh temps use names like %t0 and %t1 *)
 let fresh ctx =
   let n = !(ctx.tmp) in
@@ -470,12 +481,11 @@ let emit_string_into ctx destination content =
   emit ctx "storel %d, %s\n" (String.length content)
     (offset_addr ctx destination 8)
 
-type mir_ctx = {
-  qbe : ctx;
-  func : Mir.func;
-  slots : string array;
-  global_types : (string, ty) Hashtbl.t;
-}
+let direct_value_binding (mctx : mir_ctx) (place : Mir.place) : string option =
+  match (place.Mir.base, place.Mir.projections) with
+  | Mir.Local id, [] -> (
+      match mctx.bindings.(id) with Value name -> Some name | Memory _ -> None)
+  | Mir.Local _, _ | Mir.Global _, _ -> None
 
 let mir_base_ty mctx (base : Mir.place_base) =
   match base with
@@ -485,13 +495,16 @@ let mir_base_ty mctx (base : Mir.place_base) =
 let rec emit_mir_operand mctx (operand : Mir.operand) =
   match operand.Mir.desc with
   | Mir.Const constant -> emit_mir_constant mctx.qbe operand.Mir.ty constant
-  | Mir.Copy place ->
-      let addr, ty = emit_mir_place mctx place in
-      if is_aggregate ty then addr
-      else
-        let value = fresh mctx.qbe in
-        emit_op1 mctx.qbe value (qbe_ty ty) (qbe_load ty) addr;
-        value
+  | Mir.Copy place -> (
+      match direct_value_binding mctx place with
+      | Some value -> value
+      | None ->
+          let addr, ty = emit_mir_place mctx place in
+          if is_aggregate ty then addr
+          else
+            let value = fresh mctx.qbe in
+            emit_op1 mctx.qbe value (qbe_ty ty) (qbe_load ty) addr;
+            value)
 
 and emit_mir_constant ctx ty = function
   | Mir.Int value -> Int64.to_string value
@@ -533,11 +546,6 @@ and emit_mir_index_addr (mctx : mir_ctx) storage element
 
 and emit_mir_place mctx (place : Mir.place) =
   let ctx = mctx.qbe in
-  let addr =
-    match place.Mir.base with
-    | Mir.Local id -> mctx.slots.(id)
-    | Mir.Global name -> "$" ^ name
-  in
   let rec project addr ty = function
     | [] -> (addr, ty)
     | Mir.Deref :: rest ->
@@ -580,7 +588,25 @@ and emit_mir_place mctx (place : Mir.place) =
         let addr = emit_mir_index_addr mctx storage element index_operand in
         project addr element rest
   in
-  project addr (mir_base_ty mctx place.Mir.base) place.Mir.projections
+  let base_ty = mir_base_ty mctx place.Mir.base in
+  match place.Mir.base with
+  | Mir.Global name -> project ("$" ^ name) base_ty place.Mir.projections
+  | Mir.Local id -> (
+      match (mctx.bindings.(id), place.Mir.projections) with
+      | Memory addr, projections -> project addr base_ty projections
+      | Value pointer, Mir.Deref :: rest -> (
+          match resolve_ty base_ty with
+          | TPointer inner -> project pointer inner rest
+          | _ -> Diagnostic.ice "MIR deref on non pointer")
+      | Value pointer, Mir.Index index :: rest -> (
+          match resolve_ty base_ty with
+          | TPointer element ->
+              let addr = emit_mir_index_addr mctx pointer element index in
+              project addr element rest
+          | _ -> Diagnostic.ice "MIR index on non pointer")
+      | Value _, [] -> Diagnostic.ice "value local used as an address"
+      | Value _, Mir.Field _ :: _ ->
+          Diagnostic.ice "MIR projection on scalar local")
 
 let emit_mir_unary ctx (op : Mir.unop) operand ty =
   let qt = qbe_ty ty in
@@ -624,22 +650,35 @@ let emit_mir_value mctx (value : Mir.value) =
       | _ -> Diagnostic.ice "MIR data pointer on invalid place")
   | Mir.SizeOf ty -> string_of_int (ty_size ctx.structs ty)
 
+let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
+    (destination_ty : ty) (value : string) : unit =
+  match direct_value_binding mctx destination with
+  | Some binding ->
+      emit_op1 mctx.qbe binding (qbe_ty destination_ty) "copy" value
+  | None ->
+      let destination_addr, destination_ty = emit_mir_place mctx destination in
+      if is_aggregate destination_ty then
+        emit_aggregate_copy mctx.qbe destination_addr value
+          (ty_size mctx.qbe.structs destination_ty)
+      else emit_store mctx.qbe (qbe_store destination_ty) value destination_addr
+
 let emit_mir_assign mctx destination (value : Mir.value) =
   let ctx = mctx.qbe in
-  let destination_addr, destination_ty = emit_mir_place mctx destination in
   match value.Mir.desc with
-  | Mir.Use { Mir.desc = Mir.Const (Mir.Str content); _ } ->
-      emit_string_into ctx destination_addr content
   | Mir.Use { Mir.desc = Mir.Const Mir.Undef; _ } -> ()
+  | Mir.Use { Mir.desc = Mir.Const (Mir.Str content); _ } ->
+      let destination_addr, _ = emit_mir_place mctx destination in
+      emit_string_into ctx destination_addr content
   | Mir.Use { Mir.desc = Mir.Const Mir.Zero; _ } ->
-      emit_zero_into ctx destination_addr destination_ty
-  | _ when is_aggregate destination_ty ->
-      let source = emit_mir_value mctx value in
-      emit_aggregate_copy ctx destination_addr source
-        (ty_size ctx.structs destination_ty)
+      let destination_ty = value.Mir.ty in
+      if is_aggregate destination_ty then begin
+        let destination_addr, _ = emit_mir_place mctx destination in
+        emit_zero_into ctx destination_addr destination_ty
+      end
+      else emit_value_into mctx destination destination_ty "0"
   | _ ->
       let result = emit_mir_value mctx value in
-      emit_store ctx (qbe_store destination_ty) result destination_addr
+      emit_value_into mctx destination value.Mir.ty result
 
 let emit_mir_slice mctx destination source lo hi =
   let ctx = mctx.qbe in
@@ -764,11 +803,7 @@ let emit_mir_call mctx (call : Mir.call) =
       emit ctx "%s =%s call %s(%s)\n" result
         (qbe_call_ty ctx call.Mir.kind return_ty)
         callee (String.concat ", " args);
-      let destination_addr, destination_ty = emit_mir_place mctx destination in
-      if is_aggregate destination_ty then
-        emit_aggregate_copy ctx destination_addr result
-          (ty_size ctx.structs destination_ty)
-      else emit_store ctx (qbe_store destination_ty) result destination_addr
+      emit_value_into mctx destination return_ty result
 
 let emit_mir_statement mctx (statement : Mir.statement) =
   match statement.Mir.desc with
@@ -801,8 +836,44 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
       put_char ctx '\n'
   | Mir.Unreachable -> put ctx "hlt\n"
 
+let analyze_local_usage (func : Mir.func) : local_usage =
+  let address_taken = Array.make (Array.length func.Mir.locals) false in
+  let defined = Array.make (Array.length func.Mir.locals) false in
+  let mark_defined (place : Mir.place) =
+    match (place.Mir.base, place.Mir.projections) with
+    | Mir.Local id, [] -> defined.(id) <- true
+    | Mir.Local _, _ | Mir.Global _, _ -> ()
+  in
+  let mark_statement (statement : Mir.statement) =
+    match statement.Mir.desc with
+    | Mir.Assign (destination, value) ->
+        begin match value.Mir.desc with
+        | Mir.Use { Mir.desc = Mir.Const Mir.Undef; _ } -> ()
+        | Mir.AddressOf { Mir.base = Mir.Local id; projections = []; _ } ->
+            mark_defined destination;
+            address_taken.(id) <- true
+        | _ -> mark_defined destination
+        end
+    | Mir.Call call -> Option.iter mark_defined call.Mir.destination
+    | Mir.Slice (destination, _, _, _) -> mark_defined destination
+  in
+  let mark_block (block : Mir.block) =
+    List.iter mark_statement block.Mir.statements
+  in
+  Array.iter mark_block func.Mir.blocks;
+  List.iter (fun id -> defined.(id) <- true) func.Mir.params;
+  { address_taken; defined }
+
+let can_bind_value (local : Mir.local) : bool =
+  match resolve_ty local.Mir.ty with
+  | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> true
+  | TStruct _ | TArray _ | TSlice _ | TStr -> false
+  | TNever | TNewtype _ | TAlias _ | TError | TUnit -> false
+
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
-let bind_mir_slots ctx (func : Mir.func) =
+let bind_mir_locals (ctx : ctx) (func : Mir.func) : local_binding array =
+  let usage = analyze_local_usage func in
   Array.mapi
     (fun id (local : Mir.local) ->
       let base =
@@ -814,21 +885,26 @@ let bind_mir_slots ctx (func : Mir.func) =
         else base
       in
       Hashtbl.add ctx.used_slots slot ();
-      "%" ^ slot)
+      let name = "%" ^ slot in
+      if
+        can_bind_value local && usage.defined.(id)
+        && not usage.address_taken.(id)
+      then Value name
+      else Memory name)
     func.Mir.locals
 
 let emit_mir_func ctx global_types (func : Mir.func) =
   Panic_table.enter_func ctx.panics func.Mir.source_name;
   ctx.tmp := 0;
   Hashtbl.clear ctx.used_slots;
-  let slots = bind_mir_slots ctx func in
+  let bindings = bind_mir_locals ctx func in
   (* The result local lives in the caller's storage so it borrows the hidden pointer *)
   let result_tmp =
     match func.Mir.result with
     | None -> None
     | Some id ->
         let tmp = fresh ctx in
-        slots.(id) <- tmp;
+        bindings.(id) <- Memory tmp;
         Some tmp
   in
   let params =
@@ -859,18 +935,25 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   emit_label ctx "@start";
   Array.iteri
     (fun id (local : Mir.local) ->
-      if Some id <> func.Mir.result then
-        emit_op1 ctx slots.(id) "l"
-          (alloc_instr ctx.structs local.Mir.ty)
-          (string_of_int (ty_size ctx.structs local.Mir.ty)))
+      match bindings.(id) with
+      | Value _ -> ()
+      | Memory slot ->
+          if Some id <> func.Mir.result then
+            emit_op1 ctx slot "l"
+              (alloc_instr ctx.structs local.Mir.ty)
+              (string_of_int (ty_size ctx.structs local.Mir.ty)))
     func.Mir.locals;
   List.iter
     (fun (id, ty, tmp) ->
-      if is_aggregate ty then
-        emit_aggregate_copy ctx slots.(id) tmp (ty_size ctx.structs ty)
-      else emit_store ctx (qbe_store ty) tmp slots.(id))
+      match bindings.(id) with
+      | Value binding ->
+          emit_op1 ctx binding (qbe_ty ty) "copy" (narrow_int_to ctx tmp ty)
+      | Memory slot ->
+          if is_aggregate ty then
+            emit_aggregate_copy ctx slot tmp (ty_size ctx.structs ty)
+          else emit_store ctx (qbe_store ty) tmp slot)
     params;
-  let mctx = { qbe = ctx; func; slots; global_types } in
+  let mctx = { qbe = ctx; func; bindings; global_types } in
   Array.iteri
     (fun id (block : Mir.block) ->
       if id > 0 then emit_label ctx (mir_block_label id);
