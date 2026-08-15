@@ -174,14 +174,14 @@ func main() i32 {
     {|
     function w $g() {
     @start
-        ret 7
+    ret 7
     }
 
     export function w $main() {
     @start
-        %_p =l alloc8 8
-        storel $g, %_p
-        ret 0
+    %_p =l alloc8 8
+    storel $g, %_p
+    ret 0
     }
     |}]
 
