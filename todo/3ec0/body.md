@@ -1,0 +1,1 @@
+An unclosed block comment nested inside another only reports the outer one as unterminated. Other malformed input produces a cascade of unrelated looking "unclosed delimiter" and "unterminated string" errors that all trace back to one root cause.

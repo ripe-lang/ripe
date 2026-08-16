@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:39:46.082381",
+  "depends": [],
+  "id": "ec4e",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Only the first invalid global initializer is reported, not all of them",
+  "updated_at": "2026-08-16 16:39:46.082394"
+}

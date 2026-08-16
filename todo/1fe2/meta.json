@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:41:59.638892",
+  "depends": [],
+  "id": "1fe2",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Arithmetic overflow does not trap",
+  "updated_at": "2026-08-16 16:41:59.638908"
+}

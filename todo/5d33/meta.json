@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:41:59.663031",
+  "depends": [],
+  "id": "5d33",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Narrowing as does not trap on range loss",
+  "updated_at": "2026-08-16 16:41:59.663046"
+}
