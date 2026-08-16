@@ -28,6 +28,10 @@
   mir_build
   const_eval
   codegen_qbe
+  x86_ir
+  x86_encode
+  elf64
+  codegen_x86
   ripe_sites
   panic_table
   driver)

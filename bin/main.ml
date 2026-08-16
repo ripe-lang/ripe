@@ -24,7 +24,7 @@ let stage_help =
            (Driver.stage_name stage) desc)
        emit_stages)
 
-let backends = [ Driver.Backend.Qbe ]
+let backends = [ Driver.Backend.Qbe; Driver.Backend.X86 ]
 let backend_names = String.concat ", " (List.map Driver.Backend.name backends)
 
 let usage_msg =

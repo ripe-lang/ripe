@@ -113,3 +113,23 @@ func main() i32 {
 |}
     [ "call $produce(l " ];
   [%expect {| call $produce(l : true |}]
+
+let%expect_test "qbe keeps scalar locals out of memory" =
+  run_codegen_contains
+    {|
+func main() i32 {
+  var value: i32 = 1
+  value = value + 2
+  var addressed: i32 = 3
+  var pointer = &addressed
+  *pointer = value
+  return addressed
+}
+|}
+    [ "%value =l alloc4 4"; "%value =w copy 1"; "%addressed =l alloc4 4" ];
+  [%expect
+    {|
+    %value =l alloc4 4: false
+    %value =w copy 1: true
+    %addressed =l alloc4 4: true
+    |}]
