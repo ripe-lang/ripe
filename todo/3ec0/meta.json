@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:16:51.948605",
+  "depends": [],
+  "id": "3ec0",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Nested unclosed block comments and other malformed input produce misleading cascades of unrelated errors",
+  "updated_at": "2026-08-16 16:16:51.948855"
+}

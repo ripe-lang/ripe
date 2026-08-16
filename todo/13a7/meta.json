@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:20:22.302765",
+  "depends": [],
+  "id": "13a7",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "low"
+  ],
+  "title": "A cast to the exact type a value already has gives no diagnostic",
+  "updated_at": "2026-08-16 16:20:22.302779"
+}

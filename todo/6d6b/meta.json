@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:17:03.816756",
+  "depends": [],
+  "id": "6d6b",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "Constant overflow in untyped literal arithmetic is not diagnosed",
+  "updated_at": "2026-08-16 16:17:03.816771"
+}

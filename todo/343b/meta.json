@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-16 16:17:03.864455",
+  "depends": [],
+  "id": "343b",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "medium"
+  ],
+  "title": "A folded literal expression is not range checked against its target type",
+  "updated_at": "2026-08-16 16:17:03.864470"
+}
