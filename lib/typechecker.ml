@@ -425,7 +425,13 @@ and synth_desc (env : env) (e : expr) : T.texpr =
           else d
         in
         emit env d
-      end;
+      end
+      else if te.T.ty = ty then
+        emit env
+          (Diagnostic.warning "cast has no effect"
+          |> Diagnostic.at e.span
+          |> Diagnostic.label (Printf.sprintf "already %s" (show_ty env ty))
+          |> Diagnostic.help "remove the cast");
       if te.T.ty = TError || ty = TError then dummy_texpr
       else T.mk ty (T.TCast te)
   | SizeOf t -> (
