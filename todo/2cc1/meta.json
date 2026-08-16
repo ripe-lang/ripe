@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-07-04 23:13:07.939737",
+  "depends": [],
+  "id": "2cc1",
+  "priority": "low",
+  "source": "lib/codegen_qbe.ml",
+  "status": "open",
+  "tags": [],
+  "title": "the local arithmetic always emits instructions instead of folding through fold_const_num",
+  "updated_at": "2026-07-25 21:11:11.553730"
+}
