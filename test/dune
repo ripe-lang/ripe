@@ -20,4 +20,5 @@
   test_error
   test_mangle
   test_config
-  test_mir))
+  test_mir
+  test_x86))
