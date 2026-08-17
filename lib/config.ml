@@ -9,15 +9,16 @@ let toolchain_roots () =
   let source_root = Filename.concat exe_dir "../../../" in
   let installed_root = Filename.concat exe_dir "../lib/ripe/" in
   let shared_root = Filename.concat exe_dir "../share/ripe/" in
+  let toolchain = Filename.concat "toolchain" (Platform.host ()) in
   match Sys.getenv_opt "RIPE_TOOLCHAIN" with
   | Some root when String.trim root <> "" -> [ root ]
   | _ ->
       [
-        Filename.concat (Sys.getcwd ()) "vendor/toolchain/linux-x86_64";
-        Filename.concat source_root "vendor/toolchain/linux-x86_64";
+        Filename.concat (Sys.getcwd ()) (Filename.concat "vendor" toolchain);
+        Filename.concat source_root (Filename.concat "vendor" toolchain);
         Filename.concat exe_dir "..";
-        Filename.concat installed_root "toolchain/linux-x86_64";
-        Filename.concat shared_root "toolchain/linux-x86_64";
+        Filename.concat installed_root toolchain;
+        Filename.concat shared_root toolchain;
       ]
 
 let bundled_tool name =
