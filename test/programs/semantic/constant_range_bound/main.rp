@@ -1,0 +1,12 @@
+comptime START: u8 = 0
+
+func main() i32 {
+  var total: i32 = 0
+  var backing: [4]i32 = [1, 2, 3, 4]
+
+  for _i in START..300 {
+    total += 1
+  }
+  var _slice: []i32 = backing[START..300]
+  return total
+}

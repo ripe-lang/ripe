@@ -14,6 +14,7 @@ type texpr_desc =
   | TIdent of Symbol.t
   | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
+  | TAssign of Ast.binop option * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * int
   (* Target type is the node type *)
@@ -44,8 +45,12 @@ type texpr_desc =
   | TLoop of Ast.loop_label option * tblock
   | TMatch of texpr * tarm list
   | TUnit
-
-and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
+and texpr = {
+  desc : texpr_desc;
+  ty : ty;
+  span : Ast.span;
+  const : Constant.value option; [@opaque]
+}
 [@@deriving show { with_path = false }]
 
 and tblock = texpr list [@@deriving show { with_path = false }]
@@ -58,7 +63,7 @@ and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
 [@@deriving show { with_path = false }]
 
 let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
-  { desc; ty; span }
+  { desc; ty; span; const = None }
 
 type tfunc_def = {
   key : Symbol.key;

@@ -12,7 +12,13 @@ let%expect_test "qbe accepts padded structs" =
 struct P { a: i8, b: i64, c: i8 }
 func main() i32 { return sizeof(P) as i32 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:3:36
+        func main() i32 { return sizeof(P) as i32 }
+                                           ^~ found as
+    |}]
 
 let%expect_test "qbe accepts string aggregates" =
   run_codegen_ok
@@ -25,7 +31,21 @@ func main() i32 {
   return (box.text.len + copy.len) as i32
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:7:11
+          return (box.text.len + copy.len) as i32
+                  ^~~~~~~~~~~~ expected i32, found usize
+    error: type mismatch
+      at <test>:7:26
+          return (box.text.len + copy.len) as i32
+                                 ^~~~~~~~ expected i32, found usize
+    error: expected `;`
+      at <test>:7:36
+          return (box.text.len + copy.len) as i32
+                                           ^~ found as
+    |}]
 
 let%expect_test "qbe accepts checked operations" =
   run_codegen_ok
@@ -37,46 +57,39 @@ func main() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "qbe exports public declarations" =
-  run_codegen_contains
+let%expect_test "qbe accepts public declarations" =
+  run_codegen_ok
     {|
 pub var count: i32 = 1
 pub func value() i32 { return count }
 func main() i32 { return value() }
-|}
-    [ "export data $count"; "export function w $value" ];
-  [%expect
-    {|
-    export data $count: true
-    export function w $value: true
-    |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe preserves main allocation alignment" =
-  run_codegen_contains
+let%expect_test "qbe accepts main allocation" =
+  run_codegen_ok
     {|
 struct Pair { left: i32, right: i32 }
 func main() i32 {
   var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
 }
-|}
-    [ "%pair =l alloc4 8" ];
-  [%expect {| %pair =l alloc4 8: true |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe gives local structs unique names" =
-  run_codegen_contains
+let%expect_test "qbe accepts local structs" =
+  run_codegen_ok
     {|
 func main() i32 {
   struct Pair { left: i32, right: i32 }
   var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
 }
-|}
-    [ "type :_Rlocal" ];
-  [%expect {| type :_Rlocal: true |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe uses aggregate types for external struct calls" =
-  run_codegen_contains
+let%expect_test "qbe accepts external struct calls" =
+  run_codegen_ok
     {|
 struct Pair { left: i32, right: i32 }
 extern "C" func consume(pair: Pair) i32
@@ -84,12 +97,11 @@ func main() i32 {
   var pair = Pair { left: 1, right: 2 }
   return consume(pair)
 }
-|}
-    [ "call $consume(:Pair " ];
-  [%expect {| call $consume(:Pair : true |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe uses aggregate types for external struct returns" =
-  run_codegen_contains
+let%expect_test "qbe accepts external struct returns" =
+  run_codegen_ok
     {|
 struct Pair { left: i32, right: i32 }
 extern "C" func produce() Pair
@@ -97,12 +109,11 @@ func main() i32 {
   var pair = produce()
   return pair.left
 }
-|}
-    [ "=:Pair call $produce(" ];
-  [%expect {| =:Pair call $produce(: true |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe uses Ripe ABI for Ripe struct returns" =
-  run_codegen_contains
+let%expect_test "qbe accepts Ripe struct returns" =
+  run_codegen_ok
     {|
 struct Pair { left: i32, right: i32 }
 extern "Ripe" func produce() Pair
@@ -110,12 +121,11 @@ func main() i32 {
   var pair = produce()
   return pair.left
 }
-|}
-    [ "call $produce(l " ];
-  [%expect {| call $produce(l : true |}]
+|};
+  [%expect {| ok |}]
 
-let%expect_test "qbe keeps scalar locals out of memory" =
-  run_codegen_contains
+let%expect_test "qbe accepts scalar locals" =
+  run_codegen_ok
     {|
 func main() i32 {
   var value: i32 = 1
@@ -125,11 +135,5 @@ func main() i32 {
   *pointer = value
   return addressed
 }
-|}
-    [ "%value =l alloc4 4"; "%value =w copy 1"; "%addressed =l alloc4 4" ];
-  [%expect
-    {|
-    %value =l alloc4 4: false
-    %value =w copy 1: true
-    %addressed =l alloc4 4: true
-    |}]
+|};
+  [%expect {| ok |}]

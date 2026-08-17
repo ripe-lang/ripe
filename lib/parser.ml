@@ -15,7 +15,6 @@ type state = {
   read : unit -> token_info;
   diags : Diagnostic.sink;
   mutable prev_end : int;
-  mutable recovered : bool;
   mutable ahead : token_info option;
 }
 
@@ -69,8 +68,8 @@ let fail_found st headline =
 let is_expr_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF | LBRACE | LOOP | MATCH ->
+  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACKET
+  | UNDEFINED | IF | LBRACE | LOOP | MATCH ->
       true
   | _ -> false
 
@@ -82,12 +81,6 @@ let is_type_start (tok : token) : bool =
   match tok with
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
-
-let expect_type_after st span =
-  if not (is_type_start st.tok) then
-    raise (ParseError (Diagnostic.expected_type span))
-
-let is_postfix_tok = function DOT | LBRACKET | LPAREN -> true | _ -> false
 
 let is_semi (token : token) : bool =
   match token with AUTOSEMI | SEMI -> true | _ -> false
@@ -101,9 +94,7 @@ let is_ambiguous_continuation (token : token) : bool =
   match token with PLUS | MINUS | STAR | AMP -> true | _ -> false
 
 let is_dereference_assignment (token : token) (e : expr) : bool =
-  match e.desc with
-  | BinOp (op, _, _) -> token = STAR && Ast.is_assignment_op op
-  | _ -> false
+  match e.desc with Assign _ -> token = STAR | _ -> false
 
 let diagnose_dropped_continuation (st : state) (token : token) (span : span)
     (expr : expr) : unit =
@@ -120,8 +111,8 @@ let is_stmt_start (tok : token) : bool =
   match tok with
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
-  | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACE | LBRACKET | UNDEFINED | LOOP
-  | MATCH ->
+  | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
+  | UNDEFINED | LOOP | MATCH ->
       true
   | _ -> false
 
@@ -130,6 +121,10 @@ let is_item_start (tok : token) : bool =
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | COMPTIME | VAR | ENUM ->
       true
   | _ -> false
+
+let is_next_line_start (st : state) (line : int) (is_start : token -> bool) :
+    bool =
+  st.tok_line > line && is_start st.tok
 
 let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
     : unit =
@@ -211,25 +206,14 @@ let rec sync_to_depth_token (st : state) (depth : int) (line : int)
     advance st;
     sync_to_depth_token st depth line stops)
 
-let recover_expr_to (st : state) (depth : int) (stops : token list)
-    (parse : unit -> expr) : expr =
+let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
+    (on_error : state -> Diagnostic.t -> 'a) : 'a =
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
     Diagnostic.emit st.diags d;
     sync_to_depth_token st depth line stops;
-    st.recovered <- true;
-    error_expr st d
-
-let recover_typ_to (st : state) (depth : int) (stops : token list)
-    (parse : unit -> typ) : typ =
-  let line = st.tok_line in
-  try parse ()
-  with ParseError d ->
-    Diagnostic.emit st.diags d;
-    sync_to_depth_token st depth line stops;
-    st.recovered <- true;
-    error_typ st d
+    on_error st d
 
 let expect_field_sep st =
   (match st.tok with
@@ -264,7 +248,6 @@ let prec_of = function
   | LSHIFT | RSHIFT -> left 9
   | PLUS | MINUS -> left 10
   | STAR | SLASH | PERCENT -> left 11
-  | AS -> left 12
   | _ -> None
 
 let binop_of = function
@@ -286,18 +269,21 @@ let binop_of = function
   | CARET -> BitXor
   | LSHIFT -> Lshift
   | RSHIFT -> Rshift
-  | ASSIGN -> Assign
-  | PLUS_ASSIGN -> AddAssign
-  | MINUS_ASSIGN -> SubAssign
-  | STAR_ASSIGN -> MulAssign
-  | SLASH_ASSIGN -> DivAssign
-  | PERCENT_ASSIGN -> ModAssign
-  | AMP_ASSIGN -> BitAndAssign
-  | PIPE_ASSIGN -> BitOrAssign
-  | CARET_ASSIGN -> BitXorAssign
-  | LSHIFT_ASSIGN -> LshiftAssign
-  | RSHIFT_ASSIGN -> RshiftAssign
   | _ -> failwith "not a binary operator"
+
+let assign_of = function
+  | ASSIGN -> Some None
+  | PLUS_ASSIGN -> Some (Some Add)
+  | MINUS_ASSIGN -> Some (Some Sub)
+  | STAR_ASSIGN -> Some (Some Mul)
+  | SLASH_ASSIGN -> Some (Some Div)
+  | PERCENT_ASSIGN -> Some (Some Mod)
+  | AMP_ASSIGN -> Some (Some BitAnd)
+  | PIPE_ASSIGN -> Some (Some BitOr)
+  | CARET_ASSIGN -> Some (Some BitXor)
+  | LSHIFT_ASSIGN -> Some (Some Lshift)
+  | RSHIFT_ASSIGN -> Some (Some Rshift)
+  | _ -> None
 
 (* math.Point, math.vector.Point *)
 let rec dotted_name (e : expr) : Ast.name list option =
@@ -305,13 +291,7 @@ let rec dotted_name (e : expr) : Ast.name list option =
   | Ident name -> Some [ name ]
   | FieldAccess (inner, name, _) ->
       Option.map (fun path -> path @ [ name ]) (dotted_name inner)
-  | ErrorExpr | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Call _
-  | BinOp _ | UnOp _ | Cast _ | SizeOf _ | ArrayLit _ | Index _ | StructLit _
-  | Block _ | If _ | While _ | For _ | Binding _ | Return _ | Break _
-  | Continue _ | Undefined | Range _ | RangeInclusive _ | RangeFrom _
-  | RangeTo _ | RangeToInclusive _ | RangeFull | PairAssign _ | Loop _ | Match _
-  | Unit ->
-      None
+  | _ -> None
 
 (* i32, *i32, func (i32, i32) i32 *)
 let rec parse_typ st =
@@ -359,6 +339,12 @@ let rec parse_typ st =
         { inner with tspan = Span.make lo st.prev_end }
   | _ -> fail_found st "expected type"
 
+and optional_annotation st depth =
+  if at st COLON then (
+    advance st;
+    Some (recover st depth [ ASSIGN ] (fun () -> parse_typ st) error_typ))
+  else None
+
 (* func (i32, i32) i32, extern "C" func (i32) i32 *)
 and parse_func_ptr st lo abi =
   expect st FUNC;
@@ -400,9 +386,11 @@ and parse_fields st =
   while st.tok <> RBRACE do
     let name, nspan = expect_ident_span st in
     let t =
-      recover_typ_to st depth [ COMMA ] (fun () ->
+      recover st depth [ COMMA ]
+        (fun () ->
           expect st COLON;
           parse_typ st)
+        error_typ
     in
     fields :=
       ({ field_name = name; field_typ = t; field_span = nspan } : field)
@@ -459,9 +447,11 @@ and parse_alias_def st mods =
   advance st;
   let name, name_span = expect_ident_span st in
   let typ =
-    recover_typ_to st depth [] (fun () ->
+    recover st depth []
+      (fun () ->
         expect st ASSIGN;
         parse_typ st)
+      error_typ
   in
   let hi = st.prev_end in
   ({
@@ -483,9 +473,11 @@ and parse_params st =
     let lo = cur_pos st in
     let name = expect_ident st in
     let t =
-      recover_typ_to st depth [ COMMA; RPAREN ] (fun () ->
+      recover st depth [ COMMA; RPAREN ]
+        (fun () ->
           expect st COLON;
           parse_typ st)
+        error_typ
     in
     let hi = st.prev_end in
     ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
@@ -512,7 +504,8 @@ and parse_ret_type st =
   | LBRACE | AUTOSEMI | SEMI | EOF | ASSIGN -> None
   | _ ->
       let depth = st.tok_depth in
-      Some (recover_typ_to st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st))
+      Some
+        (recover st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st) error_typ)
 
 (* func NAME(params) ret *)
 and parse_signature st =
@@ -556,22 +549,11 @@ and parse_expr ?(no_struct_lit = false) st min_prec =
         let op_tok = st.tok in
         let op_span = cur_span st in
         advance st;
-        if op_tok <> AS then require_expr_start st op_span;
+        require_expr_start st op_span;
         let next_min_prec =
           match op.assoc with Left -> op.prec + 1 | Right -> op.prec
         in
-        if op_tok = AS then begin
-          expect_type_after st op_span;
-          let ty = parse_typ st in
-          lhs := mk lo st (Cast (!lhs, ty));
-          if is_postfix_tok st.tok then
-            raise
-              (ParseError
-                 (Diagnostic.error "postfix operator applied to a cast"
-                 |> Diagnostic.at (cur_span st)
-                 |> Diagnostic.help "parenthesize the cast: `(x as T)[...]`"))
-        end
-        else if op_tok = DOTDOT then begin
+        if op_tok = DOTDOT then begin
           let rhs = parse_expr ~no_struct_lit st next_min_prec in
           lhs := mk lo st (Range (!lhs, rhs))
         end
@@ -581,8 +563,11 @@ and parse_expr ?(no_struct_lit = false) st min_prec =
         end
         else begin
           let rhs = parse_expr ~no_struct_lit st next_min_prec in
-          let op = binop_of op_tok in
-          lhs := mk lo st (BinOp (op, !lhs, rhs))
+          lhs :=
+            mk lo st
+              (match assign_of op_tok with
+              | Some base -> Assign (base, !lhs, rhs)
+              | None -> BinOp (binop_of op_tok, !lhs, rhs))
         end;
         match (op.chain, prec_of st.tok) with
         | Some chain, Some next when next.chain = op.chain ->
@@ -733,6 +718,14 @@ and parse_primary ?(no_struct_lit = false) st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
+  (* bitcast(t) x *)
+  | BITCAST ->
+      advance st;
+      expect st LPAREN;
+      let t = parse_typ st in
+      expect st RPAREN;
+      let operand = parse_prefix ~no_struct_lit st in
+      mk lo st (BitCast (operand, t))
   | IDENT name when (peek st).token = COLON ->
       parse_labeled_loop st (Interner.intern name)
   | IDENT name ->
@@ -794,21 +787,15 @@ and parse_simple_stmt ?(no_pair = false) st =
       advance st;
       let kind = match tok with COMPTIME -> Ast.Comptime | _ -> Ast.Var in
       let name, nspan = expect_binding_name st in
-      (* Optional type annotation since the typechecker can infer it *)
-      let ann =
-        if at st COLON then (
-          advance st;
-          Some (recover_typ_to st depth [ ASSIGN ] (fun () -> parse_typ st)))
-        else None
-      in
+      let ann = optional_annotation st depth in
       (* Only var may omit the value *)
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
+          Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
         else if at st ASSIGN then (
           advance st;
-          Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
+          Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
@@ -878,15 +865,13 @@ and parse_stmts st =
         | Decl _ -> ()
         end;
       stmts := s :: !stmts;
-      if st.recovered then (
-        st.recovered <- false;
-        skip_semi st)
-      else if is_semi st.tok then begin
+      if is_semi st.tok then begin
         after_auto_semi := st.tok = AUTOSEMI;
         skip_semi st
       end
       else if st.tok <> RBRACE && st.tok <> EOF then
-        fail_found st "expected `;`"
+        if not (is_next_line_start st line is_stmt_start) then
+          fail_found st "expected `;`"
     with ParseError d ->
       after_auto_semi := false;
       Diagnostic.emit st.diags d;
@@ -1045,16 +1030,11 @@ let parse_global st mods =
   let kind = match st.tok with COMPTIME -> Ast.Comptime | _ -> Ast.Var in
   advance st;
   let name, name_span = expect_ident_span st in
-  let typ =
-    if at st COLON then (
-      advance st;
-      Some (recover_typ_to st depth [ ASSIGN ] (fun () -> parse_typ st)))
-    else None
-  in
+  let typ = optional_annotation st depth in
   let init =
     if at st ASSIGN then (
       advance st;
-      Some (recover_expr_to st depth [] (fun () -> parse_expr st 1)))
+      Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
     else None
   in
   let hi = st.prev_end in
@@ -1145,15 +1125,15 @@ let parse_module st =
       Diagnostic.emit st.diags d;
       sync_to_item st);
   while st.tok <> EOF do
+    let line = st.tok_line in
     try
       if st.tok = MODULE then fail st "`module` must be the first item"
       else if st.tok = IMPORT then imports := parse_import st :: !imports
       else decls := parse_decl st :: !decls;
-      if st.recovered then (
-        st.recovered <- false;
-        skip_semi st)
-      else if is_semi st.tok then skip_semi st
-      else if st.tok <> EOF then fail_found st "expected `;`"
+      if is_semi st.tok then skip_semi st
+      else if st.tok <> EOF then
+        if not (is_next_line_start st line is_item_start) then
+          fail_found st "expected `;`"
     with ParseError d ->
       Diagnostic.emit st.diags d;
       sync_to_item st
@@ -1197,7 +1177,6 @@ let parse ~(diags : Diagnostic.sink)
       read = stream read lexbuf diags;
       diags = parse_diags;
       prev_end = 0;
-      recovered = false;
       ahead = None;
     }
   in

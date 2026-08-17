@@ -49,6 +49,9 @@ let func ?(locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |])
     span;
   }
 
+let func_with_block ?locals ?return_ty ?(statements = []) terminator =
+  func ?locals ?return_ty ~blocks:[| block ~statements terminator |] ()
+
 let program ?(structs = []) (function_ : M.func) : M.program =
   { M.structs; globals = []; functions = [ function_ ] }
 
@@ -61,21 +64,19 @@ let verify (program : M.program) : unit =
       (fun error -> print_endline (Ripe.Mir_verify.show_error error))
       errors
 
+let verify_func ?structs function_ = verify (program ?structs function_)
+
 let%expect_test "mir verifier: every block has a terminator" =
-  verify (program (func ~blocks:[| block None |] ()));
+  verify_func (func_with_block None);
   [%expect {| f: block 0 has no terminator |}]
 
 let%expect_test "mir verifier: every referenced block exists" =
-  verify (program (func ~blocks:[| block (term (M.Jump 1)) |] ()));
+  verify_func (func_with_block (term (M.Jump 1)));
   [%expect {| f: block 1 does not exist |}]
 
 let%expect_test "mir verifier: every local has a type" =
-  verify
-    (program
-       (func
-          ~locals:[| local Ripe.Types.TError |]
-          ~blocks:[| block (term M.Unreachable) |]
-          ()));
+  verify_func
+    (func_with_block ~locals:[| local Ripe.Types.TError |] (term M.Unreachable));
   [%expect {| f: local has no type |}]
 
 let%expect_test "mir verifier: every place projection is valid" =
@@ -89,34 +90,19 @@ let%expect_test "mir verifier: every place projection is valid" =
   let statement : M.statement =
     { M.desc = M.Assign (bad_place, value); span }
   in
-  verify
-    (program
-       (func
-          ~blocks:[| block ~statements:[ statement ] (term M.Unreachable) |]
-          ()));
+  verify_func (func_with_block ~statements:[ statement ] (term M.Unreachable));
   [%expect {| f: deref projection requires a pointer |}]
 
 let%expect_test "mir verifier: returns match the function type" =
   let returned : M.operand =
     { M.desc = M.Const (M.Bool true); ty = Ripe.Types.TBool; span }
   in
-  verify
-    (program
-       (func ~blocks:[| block (term (M.ReturnValue (Some returned))) |] ()));
+  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
   [%expect {| f: return has type bool but function returns i32 |}]
 
 let%expect_test "mir verifier: every referenced local exists" =
-  verify
-    (program
-       (func
-          ~blocks:
-            [|
-              block
-                (term
-                   (M.ReturnValue
-                      (Some (copy (Ripe.Types.TInt Ripe.Types.I32) 4))));
-            |]
-          ()));
+  let returned = copy (Ripe.Types.TInt Ripe.Types.I32) 4 in
+  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
   [%expect {| f: local 4 does not exist |}]
 
 let%expect_test "mir verifier: aggregate call storage has the result type" =
@@ -141,11 +127,8 @@ let%expect_test "mir verifier: aggregate call storage has the result type" =
       local = false;
     }
   in
-  verify
-    (program ~structs:[ struct_decl ]
-       (func
-          ~blocks:[| block ~statements:[ statement ] (term M.Unreachable) |]
-          ()));
+  verify_func ~structs:[ struct_decl ]
+    (func_with_block ~statements:[ statement ] (term M.Unreachable));
   [%expect {| f: aggregate result storage has type i32 but call returns pair |}]
 
 let%expect_test "mir: continue uses one shared step block" =
@@ -215,16 +198,10 @@ func f() i32 {
   return n + (1 + 2)
 }
 |};
-  [%expect
-    {|
+  [%expect {|
     func f() i32 {
-      local %0: i32 temp
-      local %1: i32 temp
-
       block0:
-        %0 = 1 + 2
-        %1 = 5 + copy %0
-        return copy %1
+        return 8
     }
     |}]
 
@@ -419,5 +396,32 @@ let%expect_test "mir: a returned str literal goes through storage" =
       block0:
         %0 = str "hello"
         return
+    }
+    |}]
+
+let%expect_test "mir: a folded binding initializer needs no arithmetic" =
+  Pipeline.run_mir
+    {|
+comptime k: i32 = 6
+
+func f(runtime: i32) i32 {
+  var folded: i32 = k * 7
+  var partial: i32 = k + runtime
+  return folded + partial
+}
+|};
+  [%expect
+    {|
+    func f(%0: i32) i32 {
+      local %0 runtime: i32 param
+      local %1 folded: i32 user
+      local %2 partial: i32 user
+      local %3: i32 temp
+
+      block0:
+        %1 = 42
+        %2 = 6 + copy %0
+        %3 = copy %1 + copy %2
+        return copy %3
     }
     |}]

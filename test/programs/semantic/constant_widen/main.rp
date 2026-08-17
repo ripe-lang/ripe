@@ -1,0 +1,16 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+comptime SMALL: i32 = 1000
+comptime TINY: i8 = 100
+
+func wide(x: i64) i64 {
+  return x
+}
+
+func main() i32 {
+  var widened: i64 = SMALL
+  var from_tiny: i32 = TINY
+  var summed: i64 = SMALL + 1
+  printf("%lld %d %lld %lld\n", widened, from_tiny, summed, wide(SMALL))
+  return 0
+}

@@ -7,6 +7,6 @@ func main() i32 {
   var d = 1e3f64
   var e: f32 = -4.5f32
   var f: f64 = 1_000.5f64
-  printf("%f %f %f %f %f %f\n", a as f64, b, c as f64, d, e as f64, f)
+  printf("%f %f %f %f %f %f\n", f64(a), b, f64(c), d, f64(e), f)
   return 0
 }

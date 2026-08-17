@@ -43,7 +43,7 @@ let run_program files =
   try
     let resolved, diags = load_program files in
     let checked =
-      Ripe.Typechecker.typecheck ~diags resolved.Ripe.Resolve.uses
+      Ripe.Sema.analyze ~diags resolved.Ripe.Resolve.uses
         resolved.Ripe.Resolve.decls
     in
     let _, warns = Diag.finish diags checked in
@@ -54,10 +54,11 @@ let run_program files =
 (* the front of the pipeline every runner shares *)
 let check_src src =
   let decls, uses, diags = front_src 0 src in
-  Diag.finish diags (Ripe.Typechecker.typecheck ~diags uses decls)
+  Diag.finish diags (Ripe.Sema.analyze ~diags uses decls)
 
 let mir_src src =
-  let program = Ripe.Mir_build.build (fst (check_src src)) in
+  let tdecls = fst (check_src src) in
+  let program = Ripe.Mir_build.build tdecls in
   Ripe.Mir_verify.verify program;
   program
 
@@ -130,24 +131,6 @@ let run_codegen_ok src =
     in
     check_qbe il;
     print_endline "ok"
-  with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
-
-let run_codegen_contains src fragments =
-  try
-    let il =
-      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
-    in
-    List.iter
-      (fun fragment ->
-        let present =
-          try
-            ignore (Str.search_forward (Str.regexp_string fragment) il 0);
-            true
-          with Not_found -> false
-        in
-        Printf.printf "%s: %b\n" fragment present)
-      fragments;
-    check_qbe il
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
 let run_mir src = print_string (Ripe.Mir_dump.program (mir_src src))

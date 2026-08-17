@@ -5,8 +5,8 @@ func main() i32 {
   var newline: char = '\n'
   var emoji: char = '😀'
   var lo: char = '\0'
-  printf("%d %d %d %d\n", a as i32, newline as i32, emoji as i32, lo as i32)
+  printf("%d %d %d %d\n", i32(a), i32(newline), i32(emoji), i32(lo))
   if a == 'A' { printf("eq\n") }
   if a < 'B' { printf("lt\n") }
-  return a as i32
+  return i32(a)
 }

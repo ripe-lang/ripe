@@ -1,5 +1,5 @@
 func main() i32 {
   var f: f64 = 2.5
   var g: f64 = f * 2.0
-  return g as i32
+  return i32(g)
 }

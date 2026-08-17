@@ -2,5 +2,5 @@ extern "C" func strlen(s: cstr) i64
 
 func main() i32 {
   var s: cstr = "hello"
-  return strlen(s) as i32
+  return i32(strlen(s))
 }

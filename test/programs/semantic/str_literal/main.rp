@@ -6,5 +6,5 @@ func main() i32 {
   var a: str = "hello"
   var b: str = a
   var empty: str = ""
-  return (a.len + take(b) + take("héllo") + empty.len) as i32
+  return i32(a.len + take(b) + take("héllo") + empty.len)
 }
