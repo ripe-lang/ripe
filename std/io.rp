@@ -17,5 +17,5 @@ pub func print_int(n: int) {
 
 // TODO(3ab7): A char holds a full scalar so anything past 0x7F truncates here
 pub func print_char(c: char) {
-  putchar(c as i32)
+  putchar(i32(c))
 }
