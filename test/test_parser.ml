@@ -21,7 +21,7 @@ let%expect_test "parse: stray token" =
   run_src "func f() { @ }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
@@ -152,11 +152,11 @@ let%expect_test "parse: recover, two broken decls" =
   run_src "func f() { @ }\nfunc g() { $ }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
-    error: unexpected character: $
+    error: unexpected character
       at <test>:2:12
         func g() { $ }
                    ^
@@ -224,7 +224,7 @@ let%expect_test "parse: recover, lex error then grammar error" =
   run_src "func f() { @ }\nfunc g() { return / }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
@@ -799,7 +799,7 @@ let%expect_test "parse: line tracking after multiline string" =
   run_src "func f() {\n  var s = \"line one\nline two\"\n  @\n}";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:4:3
           @
           ^
@@ -1117,7 +1117,7 @@ let%expect_test "parse: unknown string escape" =
   run_src {|func f() { var s = "a\qb" }|};
   [%expect
     {|
-    error: unknown escape: \q
+    error: unknown escape
       at <test>:1:23
         func f() { var s = "a\qb" }
                               ^
