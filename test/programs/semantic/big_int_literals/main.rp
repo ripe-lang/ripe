@@ -4,7 +4,7 @@ func main() i32 {
   var diff: i64 = max_i - 9223372036854775800
   var wrapped: u64 = max_u + 1
   if wrapped == 0 {
-    return diff as i32
+    return i32(diff)
   }
   return 0
 }

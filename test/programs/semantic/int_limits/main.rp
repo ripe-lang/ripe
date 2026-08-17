@@ -4,7 +4,7 @@ func main() i32 {
   var wide: int = max - 9223372036854775800
   var narrow: i64 = min + 9223372036854775807
   if narrow == -1 && sizeof(int) == 8 {
-    return wide as i32
+    return i32(wide)
   }
   return 0
 }

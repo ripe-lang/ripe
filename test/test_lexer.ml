@@ -217,8 +217,8 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    "var comptime var return if else while for in true false break continue as \
-     sizeof null extern struct pub func type undefined\n\
+    "var comptime var return if else while for in true false break continue \
+     sizeof bitcast null extern struct pub func type undefined\n\
      import module loop\n";
   [%expect
     {|
@@ -235,8 +235,8 @@ let%expect_test "lexer: all keywords" =
     KW false
     KW break
     KW continue
-    KW as
     KW sizeof
+    KW bitcast
     KW null
     KW extern
     KW struct
@@ -342,14 +342,14 @@ let%expect_test "lexer: exponent floats" =
 let%expect_test "lexer: malformed hex is an error" =
   dump_tokens "0xg\n";
   [%expect {|
-    ERROR invalid number literal: 0xg
+    ERROR invalid number literal
     EOF
     |}]
 
 let%expect_test "lexer: malformed binary is an error" =
   dump_tokens "0b12\n";
   [%expect {|
-    ERROR invalid number literal: 0b12
+    ERROR invalid number literal
     EOF
     |}]
 
@@ -385,14 +385,14 @@ let%expect_test "lexer: unknown escape is an error" =
   dump_tokens {|"a\qb"|};
   [%expect {|
     STRING ab
-    ERROR unknown escape: \q
+    ERROR unknown escape
     EOF
     |}]
 
 let%expect_test "lexer: unexpected character is an error" =
   dump_tokens "@\n";
   [%expect {|
-    ERROR unexpected character: @
+    ERROR unexpected character
     EOF
     |}]
 
@@ -528,7 +528,7 @@ let%expect_test "lexer: separators anywhere after the first digit" =
 let%expect_test "lexer: separator right after a base prefix" =
   dump_tokens "0x_ff\n";
   [%expect {|
-    ERROR invalid number literal: 0x_ff
+    ERROR invalid number literal
     EOF
     |}]
 

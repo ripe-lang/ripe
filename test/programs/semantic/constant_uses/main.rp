@@ -1,0 +1,22 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+struct pair { a: i32, b: i32 }
+
+comptime SIZE: i32 = 3
+comptime SCALE: i32 = 4
+var GLOBAL: i32 = SCALE * 10
+
+func take(x: i64) i64 {
+  return x + 1
+}
+
+func main() i32 {
+  var sized: [SIZE * 2]i32 = [1, 2, 3, 4, 5, 6]
+  var lit: [3]i32 = [SCALE, SCALE + 1, SCALE * 2]
+  var p: pair = pair { a: SCALE, b: SCALE - 1 }
+  var runtime: i32 = 2
+
+  printf("%d %d %d %d %d %d %lld %d %d\n", sized[SIZE], lit[0], lit[1], lit[2],
+         p.a, p.b, take(SCALE), GLOBAL, SCALE + runtime)
+  return 0
+}

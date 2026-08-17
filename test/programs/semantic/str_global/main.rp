@@ -9,5 +9,5 @@ func main() i32 {
   var total: usize = G.len + M.len + B.text.len + E.len
   M = "changed"
   total = total + M.len
-  return (total + B.value as usize) as i32
+  return i32(total + usize(B.value))
 }

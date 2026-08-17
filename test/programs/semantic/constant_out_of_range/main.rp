@@ -1,0 +1,15 @@
+comptime K: i8 = 100
+comptime OVER: i8 = 100 + 100
+
+func main() i32 {
+  var runtime: u8 = 7
+  var _a: i8 = 100 + 100
+  var _b: u8 = 200 + 100
+  var _named: i8 = K + K
+  var _shifted: u8 = 1 << 9
+  var _negative: i8 = -129
+  var _mixed: u8 = 300 + runtime
+  var _partial: u8 = 200 + 100 + runtime
+  var _nested: u8 = (200 + 100) - runtime
+  return 0
+}

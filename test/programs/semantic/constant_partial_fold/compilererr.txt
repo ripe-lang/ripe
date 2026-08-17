@@ -1,0 +1,20 @@
+error: integer literal out of range
+  at main.rp:6:24
+      var _cast: u16 = u16(300 + runtime)
+                           ^~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:7:21
+      var _unop: i8 = -(200 + signed)
+                        ^~~ does not fit in i8
+error: integer literal out of range
+  at main.rp:8:23
+      var _nested: u8 = ((200 + 100) - runtime) + 1
+                          ^~~~~~~~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:9:34
+      var _compare: bool = NARROW == 300
+                                     ^~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:10:19
+      var _both: u8 = (200 + 100) + (400 + 100) + runtime
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~ does not fit in u8

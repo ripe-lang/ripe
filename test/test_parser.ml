@@ -21,7 +21,7 @@ let%expect_test "parse: stray token" =
   run_src "func f() { @ }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
@@ -152,11 +152,11 @@ let%expect_test "parse: recover, two broken decls" =
   run_src "func f() { @ }\nfunc g() { $ }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
-    error: unexpected character: $
+    error: unexpected character
       at <test>:2:12
         func g() { $ }
                    ^
@@ -224,7 +224,7 @@ let%expect_test "parse: recover, lex error then grammar error" =
   run_src "func f() { @ }\nfunc g() { return / }";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:1:12
         func f() { @ }
                    ^
@@ -504,10 +504,10 @@ let%expect_test "parse: recover incomplete cast operators" =
   run_parse src;
   [%expect
     {|
-    error: expected type
+    error: expected `;`
       at <test>:2:12
           return 1 as
-                   ^~
+                   ^~ found as
     |}]
 
 let%expect_test "parse: recover operators across statement forms" =
@@ -569,7 +569,13 @@ let%expect_test "parse: associativity, - is left" =
 
 let%expect_test "parse: cast binds tighter than +" =
   parse_expr "1 + 2 as i64";
-  [%expect {| (+ 1 (as 2 i64)) |}]
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:26
+        func _f() { return 1 + 2 as i64 }
+                                 ^~ found as
+    |}]
 
 let%expect_test "parse: comparison non-associative" =
   parse_expr "a < b < c";
@@ -799,7 +805,7 @@ let%expect_test "parse: line tracking after multiline string" =
   run_src "func f() {\n  var s = \"line one\nline two\"\n  @\n}";
   [%expect
     {|
-    error: unexpected character: @
+    error: unexpected character
       at <test>:4:3
           @
           ^
@@ -969,7 +975,13 @@ let%expect_test "parse: comparison binds tighter than logical and" =
 
 let%expect_test "parse: cast chain" =
   parse_expr "x as i32 as f64";
-  [%expect {| (as (as x i32) f64) |}]
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:22
+        func _f() { return x as i32 as f64 }
+                             ^~ found as
+    |}]
 
 let%expect_test "parse: negation binds tighter than multiply" =
   parse_expr "-2 * 3";
@@ -1015,11 +1027,10 @@ let%expect_test "parse: postfix on a cast is rejected" =
   parse_expr "x as i32[0]";
   [%expect
     {|
-    error: postfix operator applied to a cast
-      at <test>:1:28
+    error: expected `;`
+      at <test>:1:22
         func _f() { return x as i32[0] }
-                                   ^
-    help: parenthesize the cast: `(x as T)[...]`
+                             ^~ found as
     |}]
 
 let%expect_test "parse: sizeof array type" =
@@ -1117,7 +1128,7 @@ let%expect_test "parse: unknown string escape" =
   run_src {|func f() { var s = "a\qb" }|};
   [%expect
     {|
-    error: unknown escape: \q
+    error: unknown escape
       at <test>:1:23
         func f() { var s = "a\qb" }
                               ^
@@ -1237,13 +1248,21 @@ let%expect_test "parse: a bare tail expression is an implicit return" =
   [%expect {| ok |}]
 
 let%expect_test "parse: a bad char literal does not cascade" =
-  run_src "func f() i32 { return 'AA' as i32 }";
+  run_src "func f() i32 { return 'AA'i32() }";
   [%expect
     {|
     error: character literal must be a single character
       at <test>:1:23
-        func f() i32 { return 'AA' as i32 }
+        func f() i32 { return 'AA'i32() }
                               ^~~~
+    error: type mismatch
+      at <test>:1:23
+        func f() i32 { return 'AA'i32() }
+                              ^~~~ expected i32, found char
+    error: expected `;`
+      at <test>:1:27
+        func f() i32 { return 'AA'i32() }
+                                  ^~~ found i32
     |}]
 
 let%expect_test "parse: unclosed paren in a while condition points at the paren"

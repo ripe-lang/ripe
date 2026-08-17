@@ -9,7 +9,7 @@ struct box { buf: [N]i32, tail: i32 }
 func main() i32 {
   var wide: [N * 2 + 1]i32 = undefined
   for i in 0..7 {
-    wide[i] = i as i32
+    wide[i] = i32(i)
   }
   var suffixed: [2u8]i32 = [5, 6]
   comptime local_size: i32 = N + 1
@@ -20,6 +20,6 @@ func main() i32 {
     sum = sum + b.buf[i]
   }
   printf("%d %d %d %d %d %d\n", TABLE[2], wide[6], suffixed[1], sized_by_local[3], sum, b.tail)
-  printf("%d %d %d\n", sizeof([N * 2 + 1]i32) as i32, DOUBLED as i32, sizeof(box) as i32)
+  printf("%d %d %d\n", i32(sizeof([N * 2 + 1]i32)), i32(DOUBLED), i32(sizeof(box)))
   return 0
 }

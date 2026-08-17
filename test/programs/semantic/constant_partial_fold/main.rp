@@ -1,0 +1,12 @@
+comptime NARROW: u8 = 100
+
+func main() i32 {
+  var runtime: u8 = 7
+  var signed: i8 = 7
+  var _cast: u16 = u16(300 + runtime)
+  var _unop: i8 = -(200 + signed)
+  var _nested: u8 = ((200 + 100) - runtime) + 1
+  var _compare: bool = NARROW == 300
+  var _both: u8 = (200 + 100) + (400 + 100) + runtime
+  return 0
+}

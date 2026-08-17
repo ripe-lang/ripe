@@ -16,7 +16,7 @@ func main() i32 {
     comptime step: i32 = 2
     sum = sum + step
   }
-  printf("%d %d %d %d %d %d %d\n", N, M, LATER, STORED, SIZE as i32, local, sum)
+  printf("%d %d %d %d %d %d %d\n", N, M, LATER, STORED, i32(SIZE), local, sum)
   if M == 9 && local == 90 && LATER == 99 {
     return 0
   }
