@@ -130,8 +130,6 @@ and dump_block (body : Ripe.Ast.block) : string =
         "(local struct " ^ Ripe.Interner.text sd.struct_name ^ ")"
     | Decl (LocalTypeAlias td) ->
         "(local type " ^ Ripe.Interner.text td.alias_name ^ ")"
-    | Decl (LocalNewtype td) ->
-        "(local newtype " ^ Ripe.Interner.text td.alias_name ^ ")"
     | Decl (LocalFunc fd) ->
         "(local func "
         ^ Ripe.Interner.text fd.func_name

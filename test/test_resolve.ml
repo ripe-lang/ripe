@@ -7,7 +7,7 @@ let decl_name_span = function
   | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.func_name, fd.func_span)
   | Ripe.Ast.Struct sd -> (sd.struct_name, sd.struct_span)
   | Ripe.Ast.Global gd -> (gd.name, gd.span)
-  | Ripe.Ast.TypeAlias td | Ripe.Ast.Newtype td -> (td.alias_name, td.alias_span)
+  | Ripe.Ast.TypeAlias td -> (td.alias_name, td.alias_span)
   | Ripe.Ast.Enum ed -> (ed.enum_name, ed.enum_span)
 
 let compare_module_symbols src =
@@ -375,7 +375,6 @@ struct secret {}
 pub var LIMIT: i32 = 1
 var count: i32 = 0
 pub type meters = i32
-newtype celsius = f32
 |};
   [%expect
     {|
@@ -386,7 +385,6 @@ newtype celsius = f32
     LIMIT Public
     count Private
     meters Public
-    celsius Private
     |}]
 
 let resolve_program_src ?(search_roots = []) (files : (string * string) list) =

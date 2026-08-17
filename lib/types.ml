@@ -27,7 +27,6 @@ type ty =
   | TFunc of ty list * ty * func_abi
   | TArray of ty * int
   | TSlice of ty
-  | TNewtype of Qname.t * ty
   | TAlias of Qname.t * ty
   | TError
   (* TODO: every enum is an i32 until a backing type can be written down *)
@@ -108,7 +107,6 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
         (String.concat ", " (List.map show_ty args))
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
-  | TNewtype (name, _) -> show_name name
   | TAlias (name, _) -> show_name name
   | TEnum name -> show_name name
   | TFunc (ps, r, _) ->
@@ -124,17 +122,15 @@ let show_ty (t : ty) : string = show_ty_with Qname.show t
 let show_ty_in (current : string list) (t : ty) : string =
   show_ty_with (Qname.show_in current) t
 
-(* Sees through a newtype or alias to a representation tat the codegen can use *)
-let rec resolve_ty = function
-  | TNewtype (_, base) | TAlias (_, base) -> resolve_ty base
-  | t -> t
+(* Sees through an alias to a representation tat the codegen can use *)
+let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
 let is_float t =
   match resolve_ty t with
   | TFloat _ -> true
   | TInt _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError | TEnum _ | TUnit ->
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
+  | TEnum _ | TUnit ->
       false
 
 let is_unsigned t =
@@ -142,8 +138,8 @@ let is_unsigned t =
   | TInt (U8 | U16 | U32 | U64 | Usize) -> true
   | TInt (I8 | I16 | I32 | I64 | Isize)
   | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError | TEnum _ | TUnit ->
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
+  | TEnum _ | TUnit ->
       false
 
 (* A byte size of each integer kind: bit width / 8 *)
@@ -159,8 +155,8 @@ let int_kind_of (t : ty) : int_kind =
   match resolve_ty t with
   | TInt k -> k
   | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError | TEnum _ | TUnit ->
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
+  | TEnum _ | TUnit ->
       Diagnostic.ice "expected an integer type"
 
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
@@ -169,8 +165,8 @@ let div_int_needs_check (t : ty) : bool =
   | TInt (I32 | I64 | Isize) -> true
   | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
   | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TAlias _ | TError | TEnum _ | TUnit ->
+  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
+  | TEnum _ | TUnit ->
       false
 
 let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
@@ -193,7 +189,7 @@ let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   | TArray (e, _) -> ty_align structs e
   | TSlice _ | TStr -> 8
   | TEnum _ -> 4
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TUnit -> 1
 
 (* `n` and `a` MUST be non-negative *)
@@ -229,7 +225,7 @@ let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
   (* Fat pointer: { ptr, len } *)
   | TSlice _ | TStr -> 16
   | TEnum _ -> 4
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TUnit -> 0
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
@@ -237,7 +233,7 @@ let is_aggregate t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStr | TStruct _ -> true
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TFunc _ | TNewtype _ | TAlias _ | TError | TEnum _ | TUnit ->
+  | TOpaquePtr | TFunc _ | TAlias _ | TError | TEnum _ | TUnit ->
       false
 
 (* A const can only use types the folder knows how to compute *)
@@ -245,7 +241,7 @@ let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
   | TCStr | TStr | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
-  | TFunc _ | TArray _ | TSlice _ | TNewtype _ | TAlias _ | TEnum _ | TUnit ->
+  | TFunc _ | TArray _ | TSlice _ | TAlias _ | TEnum _ | TUnit ->
       false
 
 (* Wide values use 8 bytes so constant folding uses a 64 bit result *)
@@ -256,7 +252,7 @@ let is_wide_ty t =
       true
   | TInt (I8 | I16 | I32 | U8 | U16 | U32)
   | TFloat _ | TBool | TChar | TStr | TNever | TStruct _ | TArray _ | TSlice _
-  | TNewtype _ | TAlias _ | TError | TEnum _ | TUnit ->
+  | TAlias _ | TError | TEnum _ | TUnit ->
       false
 
 let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
@@ -269,7 +265,6 @@ let rec erase_aliases = function
   | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
   | TArray (t, n) -> TArray (erase_aliases t, n)
   | TSlice t -> TSlice (erase_aliases t)
-  | TNewtype (name, base) -> TNewtype (name, erase_aliases base)
   | t -> t
 
 let ty_equal a b =

@@ -91,7 +91,6 @@ type tdecl =
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
   | TTypeAlias of Qname.t * ty
-  | TNewtype of Qname.t * ty
   (* An enum is an integer at runtime so nothing past here needs its variants *)
   | TEnum of Qname.t
 [@@deriving show { with_path = false }]

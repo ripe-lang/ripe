@@ -25,8 +25,6 @@ let rec compatible (want : ty) (got : ty) : bool =
   (* A struct matches nominally by name and its type arguments must match exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
-  (* A newtype is its own type and never matches its base *)
-  | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
   | s_want, s_got -> ty_equal s_want s_got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
@@ -88,15 +86,12 @@ let is_ordered t =
 let is_integer t =
   match strip_alias t with TInt _ | TError -> true | _ -> false
 
-(* A newtype hides every operation of its base *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
   | TError | TEnum _ ->
       true
   | TAlias (_, base) -> is_comparable base
-  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TUnit ->
-      false
+  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit -> false
 
 let rec is_num_literal (e : expr) =
   match e.desc with
@@ -149,7 +144,7 @@ let cast_class t =
   | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =

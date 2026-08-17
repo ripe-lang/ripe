@@ -228,7 +228,6 @@ and enum_def = {
 and local_decl =
   | LocalStruct of struct_def
   | LocalTypeAlias of type_alias_def
-  | LocalNewtype of type_alias_def
   | LocalFunc of func_def
   | LocalEnum of enum_def
 [@@deriving show { with_path = false }]
@@ -253,7 +252,6 @@ type decl =
   | Extern of func_def
   | Global of global_def
   | TypeAlias of type_alias_def
-  | Newtype of type_alias_def
   | Enum of enum_def
 [@@deriving show { with_path = false }]
 
@@ -261,7 +259,6 @@ type decl =
 let decl_of_local : local_decl -> decl = function
   | LocalStruct sd -> Struct sd
   | LocalTypeAlias td -> TypeAlias td
-  | LocalNewtype td -> Newtype td
   | LocalFunc fd -> Func fd
   | LocalEnum ed -> Enum ed
 

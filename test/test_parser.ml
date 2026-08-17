@@ -350,7 +350,6 @@ let%expect_test "parse: recover, errors across top level declarations" =
 comptime b: = 2
 var c: = 3
 type A = +
-newtype B = +
 struct S { x: }
 extern "C" func e(x:)
 func f(x:) {}|};
@@ -373,19 +372,15 @@ func f(x:) {}|};
         type A = +
                  ^ found +
     error: expected type
-      at <test>:5:13
-        newtype B = +
-                    ^ found +
-    error: expected type
-      at <test>:6:15
+      at <test>:5:15
         struct S { x: }
                       ^ found }
     error: expected type
-      at <test>:7:21
+      at <test>:6:21
         extern "C" func e(x:)
                             ^ found )
     error: expected type
-      at <test>:8:10
+      at <test>:7:10
         func f(x:) {}
                  ^ found )
     |}]
@@ -820,10 +815,6 @@ let%expect_test "parse: modifiers on a global" =
 
 let%expect_test "parse: modifiers on a type alias" =
   run_src "pub type binop = func (i32, i32) i32";
-  [%expect {| ok |}]
-
-let%expect_test "parse: modifiers on a newtype" =
-  run_src "pub newtype Celsius = f32";
   [%expect {| ok |}]
 
 let%expect_test "parse: modifier before extern" =
@@ -1472,7 +1463,6 @@ let%expect_test "parse: declarations may appear in a block" =
      parse
        {|func f() {
   type Coord = i32
-  newtype Score = i32
   struct Point { x: Coord }
   func read(p: Point) Coord { p.x }
 }|}
@@ -1481,7 +1471,7 @@ let%expect_test "parse: declarations may appear in a block" =
   | _ -> print_endline "<expected a function>");
   [%expect
     {|
-    (block (local type Coord) (local newtype Score) (local struct Point) (local func read (block (. p x)))) |}]
+    (block (local type Coord) (local struct Point) (local func read (block (. p x)))) |}]
 
 let%expect_test "parse: pub on a local declaration is accepted" =
   run_src {|func f() {

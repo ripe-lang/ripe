@@ -14,7 +14,7 @@ let qbe_base (t : ty) : qbe_base =
   | TFloat F32 -> S
   | TFloat F64 -> D
   | TStruct _ | TArray _ | TSlice _ | TStr -> L
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TNever -> Diagnostic.ice "TNever has no QBE base type"
   | TError -> Diagnostic.ice "TError has no QBE base type"
   | TUnit -> Diagnostic.ice "TUnit has no QBE base type"
@@ -38,8 +38,8 @@ let float_lit (ty : ty) (f : float) : string =
     | TFloat F32 -> ("s_", 9)
     | TFloat F64 -> ("d_", 17)
     | TInt _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-    | TAlias _ | TError | TEnum _ | TUnit ->
+    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
+    | TEnum _ | TUnit ->
         Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
@@ -67,7 +67,7 @@ let qbe_load (t : ty) : string =
   | TFloat F32 -> "loads"
   | TFloat F64 -> "loadd"
   | TStruct _ | TArray _ | TSlice _ | TStr -> "loadl"
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TNever -> Diagnostic.ice "TNever has no load instruction"
   | TError -> Diagnostic.ice "TError has no load instruction"
   | TUnit -> Diagnostic.ice "TUnit has no load instruction"
@@ -83,7 +83,7 @@ let qbe_store (t : ty) : string =
   | TFloat F32 -> "stores"
   | TFloat F64 -> "stored"
   | TStruct _ | TArray _ | TSlice _ | TStr -> "storel"
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TNever -> Diagnostic.ice "TNever has no store instruction"
   | TError -> Diagnostic.ice "TError has no store instruction"
   | TUnit -> Diagnostic.ice "TUnit has no store instruction"
@@ -447,7 +447,7 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
       Printf.sprintf "%s %d" unit_ty reps
   (* Fat pointer stored inline as two longs *)
   | TSlice _ | TStr -> "l 2"
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TNever -> Diagnostic.ice "TNever has no extended type"
   | TError -> Diagnostic.ice "TError has no extended type"
   | TUnit -> Diagnostic.ice "TUnit has no extended type"
@@ -869,7 +869,7 @@ let can_bind_value (local : Mir.local) : bool =
   | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> true
   | TStruct _ | TArray _ | TSlice _ | TStr -> false
-  | TNever | TNewtype _ | TAlias _ | TError | TUnit -> false
+  | TNever | TAlias _ | TError | TUnit -> false
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_mir_locals (ctx : ctx) (func : Mir.func) : local_binding array =

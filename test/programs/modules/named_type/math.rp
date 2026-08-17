@@ -1,1 +1,1 @@
-pub newtype Celsius = f32
+pub type Celsius = f32

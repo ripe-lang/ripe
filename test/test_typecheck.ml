@@ -2113,35 +2113,6 @@ func g() { f(true) }
                      ^~~~ expected myint, found bool
     |}]
 
-let%expect_test "typecheck: newtype does not mix with its base type" =
-  run_src
-    {|
-newtype Celsius = f32
-func f(x: Celsius) i32 { return 0 }
-func g() { f(1.0) }
-|};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:3:8
-        func f(x: Celsius) i32 { return 0 }
-               ^~~~~~~~~~
-    help: prefix with an underscore: _x
-    error: type mismatch
-      at <test>:4:14
-        func g() { f(1.0) }
-                     ^~~ expected Celsius, found f64
-    |}]
-
-let%expect_test "typecheck: newtype casts to and from its base type" =
-  run_src
-    {|
-newtype Celsius = f32
-func to_f32(c: Celsius) f32 { return c as f32 }
-func to_celsius(x: f32) Celsius { return x as Celsius }
-|};
-  [%expect {| ok |}]
-
 let%expect_test "typecheck: cstr parameter accepts string literal" =
   run_src
     {|
@@ -2579,49 +2550,6 @@ func f() i32 { var op: BinOp = add; return op(2, 3) }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: newtype value satisfies its own parameter" =
-  run_src
-    {|
-newtype Id = i32
-func take(x: Id) i32 { return 0 }
-func f() i32 { var a: Id = 5 as Id; return take(a) }
-|};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:3:11
-        func take(x: Id) i32 { return 0 }
-                  ^~~~~
-    help: prefix with an underscore: _x
-    ok
-    |}]
-
-let%expect_test
-    "typecheck: type alias is interchangeable with its base both ways" =
-  run_src
-    {|
-type Meters = i32
-func take_base(x: i32) i32 { return x }
-func take_alias(x: Meters) i32 { return x }
-func f() i32 { var m: Meters = 5; var b: i32 = 7; return take_base(m) + take_alias(b) }
-|};
-  [%expect {| ok |}]
-
-let%expect_test
-    "typecheck: alias element inside an array is transparent both ways" =
-  run_src
-    {|
-type Meters = i32
-func take_base(x: [3]i32) i32 { return x[0] }
-func take_alias(x: [3]Meters) i32 { return x[0] }
-func f() i32 {
-  var m: [3]Meters = [1, 2, 3]
-  var b: [3]i32 = [4, 5, 6]
-  return take_base(m) + take_alias(b)
-}
-|};
-  [%expect {| ok |}]
-
 let%expect_test "typecheck: alias of an array coerces to a slice" =
   run_src
     {|
@@ -2662,232 +2590,6 @@ func f() bool { var m: Meters = 5; var b: i32 = 5; return m == b }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: alias of a newtype keeps the newtype opaque" =
-  run_src
-    {|
-newtype Id = i32
-type Handle = Id
-func take(x: i32) i32 { return x }
-func f() i32 { var h: Handle = 5 as Id; return take(h) }
-|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:5:53
-        func f() i32 { var h: Handle = 5 as Id; return take(h) }
-                                                            ^ expected i32, found Handle
-    |}]
-
-let%expect_test "typecheck: two newtypes with the same base do not mix" =
-  run_src
-    {|
-newtype Id = i32
-newtype Age = i32
-func take(x: Id) i32 { return 0 }
-func f() i32 { var a: Age = 5 as Age; return take(a) }
-|};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:4:11
-        func take(x: Id) i32 { return 0 }
-                  ^~~~~
-    help: prefix with an underscore: _x
-    error: type mismatch
-      at <test>:5:51
-        func f() i32 { var a: Age = 5 as Age; return take(a) }
-                                                          ^ expected Id, found Age
-    |}]
-
-let%expect_test "typecheck: newtype stays opaque inside an array" =
-  run_src
-    {|
-newtype Id = i32
-func take(x: [3]i32) i32 { return x[0] }
-func f() i32 { var a: [3]Id; return take(a) }
-|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:4:42
-        func f() i32 { var a: [3]Id; return take(a) }
-                                                 ^ expected [3]i32, found [3]Id
-    |}]
-
-let%expect_test "typecheck: newtype stays opaque under a pointer" =
-  run_src
-    {|
-newtype Id = i32
-func take(p: *i32) i32 { return *p }
-func f() i32 { var a: Id = 5 as Id; return take(&a) }
-|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:4:49
-        func f() i32 { var a: Id = 5 as Id; return take(&a) }
-                                                        ^~ expected *i32, found *Id
-    |}]
-
-let%expect_test "typecheck: newtype of an array does not coerce to a slice" =
-  run_src
-    {|
-newtype Row = [3]i32
-func take(s: []i32) i32 { return s[0] }
-func f() i32 { var r: Row; return take(r) }
-|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:4:40
-        func f() i32 { var r: Row; return take(r) }
-                                               ^ expected []i32, found Row
-    |}]
-
-let%expect_test "typecheck: newtype does not compare even with itself" =
-  run_src
-    {|
-newtype Id = i32
-func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a == b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:66
-        func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a == b }
-                                                                         ^ cannot apply `==` to Id
-    |}]
-
-let%expect_test "typecheck: newtype does not compare with its base" =
-  run_src
-    {|
-newtype Id = i32
-func f() bool { var a: Id = 5 as Id; return a == 5 }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:45
-        func f() bool { var a: Id = 5 as Id; return a == 5 }
-                                                    ^ cannot apply `==` to Id
-    error: type mismatch
-      at <test>:3:50
-        func f() bool { var a: Id = 5 as Id; return a == 5 }
-                                                         ^ expected Id, found i32
-    |}]
-
-let%expect_test "typecheck: newtype has no arithmetic without a cast" =
-  run_src
-    {|
-newtype Id = i32
-func f() i32 { var a: Id = 5 as Id; var b: Id = a + a; return b as i32 }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:49
-        func f() i32 { var a: Id = 5 as Id; var b: Id = a + a; return b as i32 }
-                                                        ^ cannot apply `+` to Id
-    |}]
-
-let%expect_test "typecheck: newtype of a struct hides its fields" =
-  run_src
-    {|
-struct P { x: i32 }
-newtype Q = P
-func f() i32 { var q: Q = P { x: 3 } as Q; return q.x }
-|};
-  [%expect
-    {|
-    error: type has no fields
-      at <test>:4:51
-        func f() i32 { var q: Q = P { x: 3 } as Q; return q.x }
-                                                          ^~~ on Q
-    |}]
-
-let%expect_test "typecheck: newtype has no ordering without a cast" =
-  run_src
-    {|
-newtype Id = i32
-func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a < b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:66
-        func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return a < b }
-                                                                         ^ cannot apply `<` to Id
-    |}]
-
-let%expect_test "typecheck: newtype of a float has no comparisons" =
-  run_src
-    {|
-newtype Temp = f32
-func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a == b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:78
-        func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a == b }
-                                                                                     ^ cannot apply `==` to Temp
-    |}]
-
-let%expect_test "typecheck: newtype of a float has no ordering" =
-  run_src
-    {|
-newtype Temp = f32
-func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a <= b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:78
-        func f() bool { var a: Temp = 1.5 as Temp; var b: Temp = 2.5 as Temp; return a <= b }
-                                                                                     ^ cannot apply `<=` to Temp
-    |}]
-
-let%expect_test "typecheck: newtype of a bool has no equality" =
-  run_src
-    {|
-newtype Flag = bool
-func f() bool { var a: Flag = true as Flag; var b: Flag = false as Flag; return a != b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:81
-        func f() bool { var a: Flag = true as Flag; var b: Flag = false as Flag; return a != b }
-                                                                                        ^ cannot apply `!=` to Flag
-    |}]
-
-let%expect_test "typecheck: newtype has no compound assignment" =
-  run_src {|
-newtype Id = i32
-func f() { var a: Id = 5 as Id; a += 6 as Id }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:33
-        func f() { var a: Id = 5 as Id; a += 6 as Id }
-                                        ^ cannot apply `+=` to Id
-    |}]
-
-let%expect_test "typecheck: newtype has no unary negation" =
-  run_src
-    {|
-newtype Id = i32
-func f() i32 { var a: Id = 5 as Id; return (-a) as i32 }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:46
-        func f() i32 { var a: Id = 5 as Id; return (-a) as i32 }
-                                                     ^ cannot apply `-` to Id
-    |}]
-
 let%expect_test "typecheck: unary plus accepts numeric operands" =
   run_src {|
 func f() {
@@ -2905,20 +2607,6 @@ let%expect_test "typecheck: unary plus rejects bool" =
       at <test>:1:22
         func f() { var _x = +true }
                              ^~~~ cannot apply `+` to bool
-    |}]
-
-let%expect_test "typecheck: newtype has no unary plus" =
-  run_src
-    {|
-newtype Id = i32
-func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:46
-        func f() i32 { var a: Id = 5 as Id; return (+a) as i32 }
-                                                     ^ cannot apply `+` to Id
     |}]
 
 let%expect_test "typecheck: suffixed unary plus range includes operator" =
@@ -2940,28 +2628,6 @@ let%expect_test "typecheck: explicit positive literal reports full span" =
         func f() { var _x: i8 = +128 }
                                 ^~~~ does not fit in i8
     |}]
-
-let%expect_test "typecheck: newtype has no remainder" =
-  run_src
-    {|
-newtype Id = i32
-func f() i32 { var a: Id = 5 as Id; return (a % a) as i32 }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:3:45
-        func f() i32 { var a: Id = 5 as Id; return (a % a) as i32 }
-                                                    ^ cannot apply `%` to Id
-    |}]
-
-let%expect_test "typecheck: newtype compares after casting both sides" =
-  run_src
-    {|
-newtype Id = i32
-func f() bool { var a: Id = 5 as Id; var b: Id = 6 as Id; return (a as i32) < (b as i32) }
-|};
-  [%expect {| ok |}]
 
 let%expect_test "typecheck: type alias keeps every comparison of its base" =
   run_src
@@ -3022,21 +2688,6 @@ func f() bool { var a: Meters = 5; var raw: i32 = 6; return a < raw && raw > a }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: alias of a newtype still has no operators" =
-  run_src
-    {|
-newtype Id = i32
-type Handle = Id
-func f() bool { var a: Handle = 5 as Id; var b: Handle = 6 as Id; return a == b }
-|};
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:4:74
-        func f() bool { var a: Handle = 5 as Id; var b: Handle = 6 as Id; return a == b }
-                                                                                 ^ cannot apply `==` to Handle
-    |}]
-
 let%expect_test "typecheck: a type alias name collides with a struct" =
   run_src {|
 type Foo = i32
@@ -3051,22 +2702,6 @@ struct Foo { x: i32 }
       at <test>:2:6
         type Foo = i32
              ^~~ previous definition here
-    |}]
-
-let%expect_test "typecheck: a type alias name collides with a newtype" =
-  run_src {|
-newtype Foo = i32
-type Foo = i64
-|};
-  [%expect
-    {|
-    error: already defined
-      at <test>:3:6
-        type Foo = i64
-             ^~~
-      at <test>:2:9
-        newtype Foo = i32
-                ^~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type name shadows a builtin" =
@@ -3787,18 +3422,6 @@ type Loop = *Loop
              ^~~~
     |}]
 
-let%expect_test "typecheck: a newtype names itself" =
-  run_src {|
-newtype Loop = Loop
-|};
-  [%expect
-    {|
-    error: recursive type
-      at <test>:2:9
-        newtype Loop = Loop
-                ^~~~
-    |}]
-
 let%expect_test "typecheck: an alias chain resolves in either order" =
   run_src
     {|
@@ -3922,21 +3545,6 @@ let%expect_test "typecheck: local aliases may repeat in separate blocks" =
   { type Value = bool; var _x: Value = true }
 }|};
   [%expect {| ok |}]
-
-let%expect_test "typecheck: a local newtype keeps its identity" =
-  run_src
-    {|func f() {
-  newtype Id = i32
-  var base: i32 = 1
-  var _id: Id = base
-}|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:4:17
-          var _id: Id = base
-                        ^~~~ expected Id, found i32
-    |}]
 
 let%expect_test "typecheck: an unreachable local declaration warns" =
   run_src {|func f() i32 {
@@ -4633,20 +4241,6 @@ func f(signed: i32, unsigned: u32) {
 let%expect_test "typecheck: context supplies a third wider type" =
   run_src "func f(signed: i32, unsigned: u32) i64 { return signed + unsigned }";
   [%expect {| ok |}]
-
-let%expect_test "typecheck: newtypes do not widen implicitly" =
-  run_src
-    {|
-newtype Small = u8
-func f(value: Small) { var _wide: u32 = value }
-|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:3:41
-        func f(value: Small) { var _wide: u32 = value }
-                                                ^~~~~ expected u32, found Small
-    |}]
 
 let%expect_test "typecheck: loop literals follow a later rigid type" =
   run_src

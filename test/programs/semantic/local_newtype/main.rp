@@ -1,5 +1,0 @@
-func main() i32 {
-  newtype Score = i32
-  var score = 8 as Score
-  return score as i32
-}
