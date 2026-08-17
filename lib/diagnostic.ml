@@ -273,6 +273,12 @@ let bad_operand (span : Ast.span) ~(op : string) ~(ty : string) : t =
   error "invalid operand" |> at span
   |> label (Printf.sprintf "cannot apply `%s` to %s" op ty)
 
+let break_disagree (span : Ast.span) (message : string) ~(other : Ast.span)
+    ~(other_message : string) : t =
+  error "`break` values disagree"
+  |> at span |> label message
+  |> secondary other other_message
+
 let opaque_operation (span : Ast.span) (action : string) : t =
   error (Printf.sprintf "cannot %s *opaque" action)
   |> at span
