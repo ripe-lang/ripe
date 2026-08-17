@@ -3,7 +3,7 @@ func main() i32 {
   counter += 1
   var buf: [4]u8 = undefined
   for i in 0..buf.len {
-    buf[i] = i as u8
+    buf[i] = u8(i)
   }
   return counter + buf[3]
 }

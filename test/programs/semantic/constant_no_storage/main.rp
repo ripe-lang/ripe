@@ -1,0 +1,10 @@
+comptime GLOBAL: i32 = 40
+
+func main() i32 {
+  comptime local: i32 = 2
+  local = 3
+  GLOBAL = 5
+  var _p: *i32 = &GLOBAL
+  var _q: *i32 = &local
+  return 0
+}

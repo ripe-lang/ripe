@@ -1,0 +1,13 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+comptime GREATER: bool = 10 > 3
+comptime EQUAL: bool = 5 == 5
+comptime UNEQUAL: bool = 5 != 5
+comptime CHAINED: bool = (2 + 2) <= 4
+comptime FLOATCMP: bool = 1.5 < 2.5
+
+func main() i32 {
+  printf("%d %d %d %d %d\n", i32(GREATER), i32(EQUAL), i32(UNEQUAL),
+         i32(CHAINED), i32(FLOATCMP))
+  return 0
+}

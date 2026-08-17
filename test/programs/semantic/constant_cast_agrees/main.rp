@@ -1,0 +1,32 @@
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func abs(v: i32) i32
+extern "C" func atof(s: cstr) f64
+
+comptime BIG: i64 = 4294967297
+
+// A folded cast and the same cast on a runtime value must agree. The libc
+// calls are opaque so the second column really is computed at run time.
+func main() i32 {
+  var r200: i32 = abs(-200)
+  var r300: i32 = abs(-300)
+  var rneg1: i32 = 0 - abs(1)
+  var rbig: i64 = i64(abs(-1)) * BIG
+  var rf: f64 = atof("3.9")
+  var rfneg: f64 = atof("-3.9")
+
+  printf("i32->i8   %d %d\n", i8(200), i8(r200))
+  printf("i32->u8   %d %d\n", i32(u8(300)), i32(u8(r300)))
+  printf("neg->u8   %d %d\n", i32(u8(-1)), i32(u8(rneg1)))
+  printf("neg->u32  %u %u\n", u32(-1), u32(rneg1))
+  printf("i8->i32   %d %d\n", i32(i8(-1)), i32(i8(rneg1)))
+  printf("i32->char %d %d\n", i32(char(65)), i32(char(65)))
+  printf("neg->i64  %lld %lld\n", i64(-1), i64(rneg1))
+  printf("i64->i32  %d %d\n", i32(BIG), i32(rbig))
+  printf("i64->i16  %d %d\n", i32(i16(BIG)), i32(i16(rbig)))
+  printf("f64->i32  %d %d\n", i32(3.9), i32(rf))
+  printf("negf->i32 %d %d\n", i32(-3.9), i32(rfneg))
+  printf("f64->f32  %f %f\n", f64(f32(3.9)), f64(f32(rf)))
+  printf("f64->u8   %d %d\n", i32(u8(3.9)), i32(u8(rf)))
+  printf("i32->f64  %f %f\n", f64(200), f64(r200))
+  return 0
+}

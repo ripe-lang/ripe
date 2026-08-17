@@ -1,0 +1,36 @@
+error: integer literal out of range
+  at main.rp:2:21
+    comptime OVER: i8 = 100 + 100
+                        ^~~~~~~~~ does not fit in i8
+error: integer literal out of range
+  at main.rp:6:16
+      var _a: i8 = 100 + 100
+                   ^~~~~~~~~ does not fit in i8
+error: integer literal out of range
+  at main.rp:7:16
+      var _b: u8 = 200 + 100
+                   ^~~~~~~~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:8:20
+      var _named: i8 = K + K
+                       ^~~~~ does not fit in i8
+error: integer literal out of range
+  at main.rp:9:22
+      var _shifted: u8 = 1 << 9
+                         ^~~~~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:10:23
+      var _negative: i8 = -129
+                          ^~~~ does not fit in i8
+error: integer literal out of range
+  at main.rp:11:20
+      var _mixed: u8 = 300 + runtime
+                       ^~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:12:22
+      var _partial: u8 = 200 + 100 + runtime
+                         ^~~~~~~~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:13:22
+      var _nested: u8 = (200 + 100) - runtime
+                         ^~~~~~~~~ does not fit in u8

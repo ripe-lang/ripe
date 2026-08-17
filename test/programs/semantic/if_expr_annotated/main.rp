@@ -1,4 +1,4 @@
 func main() i32 {
   var y: i64 = if false { 1 } else { 2 }
-  return y as i32
+  return i32(y)
 }

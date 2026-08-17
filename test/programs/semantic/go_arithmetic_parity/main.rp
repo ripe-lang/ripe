@@ -26,7 +26,7 @@ func main() i32 {
 
   var h: i32 = 1
   var s31: u32 = 31
-  if ((h << s31) as i64) != -2147483648 { return 9 }
+  if (i64(h << s31)) != -2147483648 { return 9 }
 
   return 0
 }

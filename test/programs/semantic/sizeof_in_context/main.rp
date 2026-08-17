@@ -14,7 +14,7 @@ func main() i32 {
   var buf: [sizeof(pt)]u8 = undefined
   var p = malloc(sizeof(pt))
   free(p)
-  printf("%llu %d %d %llu %d %d\n", a, b, c as i32, d, buf.len as i32,
+  printf("%llu %d %d %llu %d %d\n", a, b, i32(c), d, i32(buf.len),
     take(sizeof(i32)))
   return 0
 }

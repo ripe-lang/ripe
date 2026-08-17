@@ -8,5 +8,5 @@ func main() i32 {
   var box: named = named { s: "field", n: 1 }
   var arr: [2]str = ["one", "three"]
   var r: str = give()
-  return (box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str)) as i32
+  return i32(box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str))
 }

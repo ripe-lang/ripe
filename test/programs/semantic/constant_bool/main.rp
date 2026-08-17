@@ -1,0 +1,21 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+comptime YES: bool = true
+comptime NO: bool = false
+comptime BOTH: bool = YES && !NO
+comptime EITHER: bool = NO || YES
+
+func pick(b: bool) i32 {
+  match b {
+    YES => return 10,
+    _ => return 20,
+  }
+}
+
+func main() i32 {
+  var taken: i32 = 0
+  if BOTH { taken = 1 } else { taken = 2 }
+  printf("%d %d %d %d %d %d\n", i32(YES), i32(NO), i32(BOTH),
+         i32(EITHER), taken, pick(true))
+  return 0
+}
