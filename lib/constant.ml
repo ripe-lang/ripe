@@ -128,10 +128,15 @@ let exact_of : value -> exact = function
   | VBool b -> if b then one else zero
   | VChar c -> of_magnitude (Int64.of_int c)
 
+let of_float (kind : float_kind) (f : float) : value =
+  match kind with
+  | F32 -> VFloat (Int32.float_of_bits (Int32.bits_of_float f), F32)
+  | F64 -> VFloat (f, F64)
+
 let of_int64 (ty : ty) (n : int64) : value =
   match resolve_ty ty with
   | TInt kind -> VInt (narrow kind n, kind)
-  | TFloat kind -> VFloat (Int64.to_float n, kind)
+  | TFloat kind -> of_float kind (Int64.to_float n)
   | TBool -> VBool (n <> 0L)
   | TChar -> VChar (Int64.to_int n)
   | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _
@@ -154,7 +159,7 @@ let of_literal (ty : ty) (n : int64) : value =
 let retype (ty : ty) (e : exact) : value =
   match resolve_ty ty with
   | TInt kind -> VInt (e, kind)
-  | TFloat kind -> VFloat (Int64.to_float (bits_of e), kind)
+  | TFloat kind -> of_float kind (Int64.to_float (bits_of e))
   | TBool -> VBool (bits_of e <> 0L)
   | TChar -> VChar (Int64.to_int (bits_of e))
   | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _
@@ -208,8 +213,8 @@ let int_unop (span : Ast.span) (op : Ast.unop) (a : exact) : exact option =
 
 let cast (target : ty) (v : value) : value =
   match (resolve_ty target, v) with
-  | TFloat kind, VFloat (f, _) -> VFloat (f, kind)
-  | TFloat kind, _ -> VFloat (float_of v, kind)
+  | TFloat kind, VFloat (f, _) -> of_float kind f
+  | TFloat kind, _ -> of_float kind (float_of v)
   | _, VFloat (f, _) -> of_int64 target (Int64.of_float f)
   | _, _ -> of_int64 target (int_of v)
 
@@ -217,7 +222,7 @@ let unop (span : Ast.span) (op : Ast.unop) ~(result_ty : ty) (v : value) :
     value option =
   match (op, v) with
   | Ast.Pos, _ -> Some v
-  | Ast.Neg, VFloat (f, kind) -> Some (VFloat (-.f, kind))
+  | Ast.Neg, VFloat (f, kind) -> Some (of_float kind (-.f))
   | Ast.Neg, _ -> Some (retype result_ty (negate (exact_of v)))
   | Ast.BitNot, VFloat _ -> None
   | Ast.BitNot, _ -> (
@@ -233,7 +238,7 @@ let binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty) (a : value)
   | VFloat _, _ | _, VFloat _ -> (
       let x = float_of a and y = float_of b in
       (* The kind is read in the arm so a compare never asks a bool for one *)
-      let arith f = Some (VFloat (f x y, float_kind_of result_ty)) in
+      let arith f = Some (of_float (float_kind_of result_ty) (f x y)) in
       let test b = Some (VBool b) in
       match op with
       | Ast.Add -> arith ( +. )

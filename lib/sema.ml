@@ -378,7 +378,7 @@ and const_of (env : env) (te : T.texpr) : Constant.value option =
   | T.TInt n -> Some (Constant.of_literal te.T.ty n)
   | T.TBool b -> Some (Constant.VBool b)
   | T.TChar cp -> Some (Constant.VChar cp)
-  | T.TFloat f -> Some (Constant.VFloat (f, float_kind_of te.T.ty))
+  | T.TFloat f -> Some (Constant.of_float (float_kind_of te.T.ty) f)
   | T.TSizeOf t ->
       Some
         (Constant.of_literal te.T.ty
