@@ -125,22 +125,14 @@ let show_ty_in (current : string list) (t : ty) : string =
 (* Sees through an alias to a representation tat the codegen can use *)
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
-let is_float t =
-  match resolve_ty t with
-  | TFloat _ -> true
-  | TInt _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
-  | TEnum _ | TUnit ->
-      false
+let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
+
+let int_kind_unsigned = function
+  | U8 | U16 | U32 | U64 | Usize -> true
+  | I8 | I16 | I32 | I64 | Isize -> false
 
 let is_unsigned t =
-  match resolve_ty t with
-  | TInt (U8 | U16 | U32 | U64 | Usize) -> true
-  | TInt (I8 | I16 | I32 | I64 | Isize)
-  | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
-  | TEnum _ | TUnit ->
-      false
+  match resolve_ty t with TInt k -> int_kind_unsigned k | _ -> false
 
 (* A byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
@@ -159,15 +151,17 @@ let int_kind_of (t : ty) : int_kind =
   | TEnum _ | TUnit ->
       Diagnostic.ice "expected an integer type"
 
+let float_kind_of (t : ty) : float_kind =
+  match resolve_ty t with
+  | TFloat k -> k
+  | TInt _ | TBool | TChar | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _
+  | TFunc _ | TArray _ | TSlice _ | TAlias _ | TEnum _ | TNever | TNull | TError
+  | TUnit ->
+      Diagnostic.ice "expected a float type"
+
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
 let div_int_needs_check (t : ty) : bool =
-  match resolve_ty t with
-  | TInt (I32 | I64 | Isize) -> true
-  | TInt (I8 | I16 | U8 | U16 | U32 | U64 | Usize)
-  | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
-  | TEnum _ | TUnit ->
-      false
+  match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
 
 let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
@@ -207,53 +201,55 @@ let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
   | TStruct (name, _) -> (
       match Symbol.Table.find_opt structs (Qname.key name) with
       | Some fields ->
-          let struct_align = ty_align structs t in
-          let offset =
-            List.fold_left
-              (fun off ft ->
-                let a = ty_align structs ft in
-                let off = align_to off a in
-                off + ty_size structs ft)
-              0 fields
-          in
-          align_to offset struct_align
+          let offset = field_offset structs fields (List.length fields) in
+          align_to offset (ty_align structs t)
       | None ->
           Diagnostic.ice
             (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
       )
-  | TArray (e, n) -> n * align_to (ty_size structs e) (ty_align structs e)
+  | TArray (e, n) -> n * stride structs e
   (* Fat pointer: { ptr, len } *)
   | TSlice _ | TStr -> 16
   | TEnum _ -> 4
   | TAlias _ -> assert false (* resolve_ty strips these *)
   | TUnit -> 0
 
+(* Walking one past the last index gives where the whole thing ends *)
+and field_offset (structs : ty list Symbol.Table.t) (fields : ty list)
+    (index : int) : int =
+  let rec go i off = function
+    | [] ->
+        if i = index then off
+        else Diagnostic.ice (Printf.sprintf "unknown field index %d" index)
+    | ft :: rest ->
+        let off = align_to off (ty_align structs ft) in
+        if i = index then off else go (i + 1) (off + ty_size structs ft) rest
+  in
+  go 0 0 fields
+
+(* The number of bytes from one element to the next after round the alignment *)
+and stride (structs : ty list Symbol.Table.t) (elem : ty) : int =
+  align_to (ty_size structs elem) (ty_align structs elem)
+
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStr | TStruct _ -> true
-  | TInt _ | TFloat _ | TBool | TChar | TCStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TFunc _ | TAlias _ | TError | TEnum _ | TUnit ->
-      false
+  | _ -> false
 
-(* A const can only use types the folder knows how to compute *)
+(* A const can only use types comptime evaluation knows how to compute *)
 let is_scalar t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar | TError -> true
-  | TCStr | TStr | TNever | TNull | TPointer _ | TOpaquePtr | TStruct _
-  | TFunc _ | TArray _ | TSlice _ | TAlias _ | TEnum _ | TUnit ->
-      false
+  | _ -> false
 
-(* Wide values use 8 bytes so constant folding uses a 64 bit result *)
+(* Wide values use 8 bytes so comptime eval uses a 64 bit result *)
 let is_wide_ty t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32)
-  | TFloat _ | TBool | TChar | TStr | TNever | TStruct _ | TArray _ | TSlice _
-  | TAlias _ | TError | TEnum _ | TUnit ->
-      false
+  | _ -> false
 
 (* An alias is just another name for its base type so it doesn't make two types *)
 let rec erase_aliases = function
