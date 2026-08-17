@@ -307,10 +307,14 @@ let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
   check_visibility st span sym;
   Span.Table.replace st.out.syms span sym
 
-let split_member (path : Ast.name list) : (Ast.name list * Ast.name) option =
-  match List.rev path with
-  | member :: rest -> Some (List.rev rest, member)
-  | [] -> None
+let split_path (segs : (Ast.name * Ast.span) list) : Ast.name list * Ast.name =
+  match List.rev segs with
+  | (member, _) :: rest -> (List.rev_map fst rest, member)
+  | [] -> assert false
+
+let drop_member (segs : (Ast.name * Ast.span) list) : (Ast.name * Ast.span) list
+    =
+  match List.rev segs with _ :: rest -> List.rev rest | [] -> []
 
 (* A nearer value binding wins so a local named math is not a module *)
 let find_module (st : state) (path : Ast.name list) : scope option =
@@ -370,68 +374,74 @@ let declare_param (st : state) (p : param) : unit =
       Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
-let rec access_path (e : expr) : Ast.name list option =
-  match e.desc with
-  | Ident name -> Some [ name ]
-  | FieldAccess (inner, name, _) ->
-      Option.map (fun path -> path @ [ name ]) (access_path inner)
-  | _ -> None
-
-let qualified_use (st : state) (e : expr) : qualified =
-  match Option.bind (access_path e) split_member with
+let qualified_use (st : state) (segs : (Ast.name * Ast.span) list) : qualified =
+  let module_path, member = split_path segs in
+  match find_module st module_path with
   | None -> Local
-  | Some (module_path, member) -> (
-      match find_module st module_path with
-      | None -> Local
-      | Some scope -> (
-          match Names.find_opt scope.values member with
-          | Some sym -> Found sym
-          | None -> Missing (module_path, member)))
+  | Some scope -> (
+      match Names.find_opt scope.values member with
+      | Some sym -> Found sym
+      | None -> Missing (module_path, member))
 
-let use_qualified (st : state) ~(what : string) (e : expr) : bool =
-  match qualified_use st e with
+let use_qualified (st : state) ~(what : string) segs (span : Ast.span) : bool =
+  match qualified_use st segs with
   | Local -> false
   | Found sym ->
-      use_symbol st e.span sym;
+      use_symbol st span sym;
       true
   | Missing (module_path, member) ->
       (* The import already failed so every name under it would say the same thing twice *)
       if not (failed_import st module_path) then
-        Diagnostic.emit st.diags (Diagnostic.undefined_name e.span what);
+        Diagnostic.emit st.diags (Diagnostic.undefined_name span what);
       (* The stages after this read a symbol back off every span they walk *)
       ignore
         (mint st Symbol.Error
            (Interner.intern (Ast.show_named module_path member))
-           e.span);
+           span);
       true
 
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name (st : state) (e : expr) : bool =
-  match Option.bind (access_path e) split_member with
-  | None -> false
-  | Some (path, name) -> (
-      if
-        (* A nearer value wins so a local named str isn't the builtin type *)
-        path = [] && lookup st name <> None
-      then false
-      else
-        match find_type st path name with
-        | None -> false
-        | Some sym ->
-            use_symbol st e.span sym;
-            true)
+let use_type_name (st : state) segs (span : Ast.span) : bool =
+  let path, name = split_path segs in
+  (* A nearer value wins so a local named str isn't the builtin type *)
+  if path = [] && lookup st name <> None then false
+  else
+    match find_type st path name with
+    | None -> false
+    | Some sym ->
+        use_symbol st span sym;
+        true
 
-let rec resolve_expr (st : state) (e : expr) : unit =
+let use_qualified_callee (st : state) segs (span : Ast.span) : bool =
+  match qualified_use st segs with
+  | Local -> false
+  | Found sym ->
+      use_symbol st span sym;
+      true
+  | Missing _ ->
+      use_type_name st segs span || use_qualified st ~what:"function" segs span
+
+let rec resolve_path (st : state) (segs : (Ast.name * Ast.span) list)
+    (span : Ast.span) : unit =
+  if not (use_qualified st ~what:"variable" segs span) then begin
+    let owner = drop_member segs in
+    let prefix = Ast.path_expr owner in
+    if not (use_type_name st owner prefix.span) then resolve_expr st prefix
+  end
+
+and resolve_expr (st : state) (e : expr) : unit =
   match e.desc with
   | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
-  | Call (({ desc = Ident name; span } as callee), args) ->
-      if not (use_qualified st ~what:"function" callee) then
-        use_callee st name span;
+  | Call ({ desc = Ident name; span }, args) ->
+      use_callee st name span;
+      List.iter (resolve_expr st) args
+  | Call (({ desc = Path segs; _ } as callee), args) ->
+      if not (use_qualified_callee st segs callee.span) then
+        resolve_path st segs callee.span;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
-      if not (use_qualified st ~what:"function" callee) then
-        resolve_expr st callee;
+      resolve_expr st callee;
       List.iter (resolve_expr st) args
   | BinOp (_, l, r) | Assign (_, l, r) ->
       resolve_expr st l;
@@ -442,9 +452,8 @@ let rec resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st r
   | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
   | RangeFull -> ()
-  | FieldAccess (inner, _, _) ->
-      if not (use_qualified st ~what:"variable" e) then
-        if not (use_type_name st inner) then resolve_expr st inner
+  | Path segs -> resolve_path st segs e.span
+  | FieldAccess (inner, _, _) -> resolve_expr st inner
   | BitCast (inner, ty) ->
       resolve_expr st inner;
       resolve_typ st ty

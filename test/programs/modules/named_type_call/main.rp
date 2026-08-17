@@ -1,0 +1,7 @@
+import math
+
+func main() i32 {
+  var big: i64 = 300
+  var s: math.Small = math.Small(big)
+  return i32(s)
+}

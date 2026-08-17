@@ -91,6 +91,7 @@ type expr_desc =
   | RangeTo of expr
   | RangeToInclusive of expr
   | RangeFull
+  | Path of (name * span) list
   | FieldAccess of expr * name * span
   | BitCast of expr * typ
   | SizeOf of typ
@@ -206,6 +207,21 @@ and local_decl =
 
 let show_named (path : name list) (name : name) : string =
   String.concat "." (List.map Interner.text (path @ [ name ]))
+
+let path_expr (segs : (name * span) list) : expr =
+  let rec last_span = function
+    | [ (_, span) ] -> span
+    | _ :: rest -> last_span rest
+    | [] -> assert false
+  in
+  match segs with
+  | [ (name, span) ] -> { desc = Ident name; span }
+  | (_, first) :: _ ->
+      {
+        desc = Path segs;
+        span = Span.make (Span.lo first) (Span.hi (last_span segs));
+      }
+  | [] -> assert false
 
 type global_def = {
   name : name;
