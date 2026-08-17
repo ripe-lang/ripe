@@ -343,7 +343,7 @@ let use_type (st : state) (path : Ast.name list) (name : Ast.name)
         Diagnostic.emit st.diags (Diagnostic.undefined_name span "type");
       ignore (mint st Symbol.Error (Interner.intern shown) span)
 
-(* The typechecker already reports an unknown struct literal *)
+(* Semantic analysis already reports an unknown struct literal *)
 let use_type_if_found (st : state) (name : Ast.name) (span : Ast.span) : unit =
   match find_type st [] name with
   | Some sym -> use_symbol st span sym
@@ -355,6 +355,11 @@ let use (st : state) ~(what : string) name span : unit =
   | None ->
       Diagnostic.emit st.diags (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
+
+let use_callee (st : state) name span : unit =
+  match (lookup st name, find_type st [] name) with
+  | None, Some sym -> use_symbol st span sym
+  | _ -> use st ~what:"function" name span
 
 (* Body binders can redeclare but params can't repeat *)
 let declare_param (st : state) (p : param) : unit =
@@ -422,13 +427,13 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | Ident name -> use st ~what:"variable" name e.span
   | Call (({ desc = Ident name; span } as callee), args) ->
       if not (use_qualified st ~what:"function" callee) then
-        use st ~what:"function" name span;
+        use_callee st name span;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
       if not (use_qualified st ~what:"function" callee) then
         resolve_expr st callee;
       List.iter (resolve_expr st) args
-  | BinOp (_, l, r) ->
+  | BinOp (_, l, r) | Assign (_, l, r) ->
       resolve_expr st l;
       resolve_expr st r
   | UnOp (_, inner) -> resolve_expr st inner
@@ -440,7 +445,7 @@ let rec resolve_expr (st : state) (e : expr) : unit =
   | FieldAccess (inner, _, _) ->
       if not (use_qualified st ~what:"variable" e) then
         if not (use_type_name st inner) then resolve_expr st inner
-  | Cast (inner, ty) ->
+  | BitCast (inner, ty) ->
       resolve_expr st inner;
       resolve_typ st ty
   | SizeOf ty -> resolve_typ st ty

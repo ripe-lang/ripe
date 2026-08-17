@@ -54,8 +54,8 @@ type token =
   | TRUE
   | FALSE
   | NULL
-  | AS
   | SIZEOF
+  | BITCAST
   | LPAREN
   | RPAREN
   | LBRACE
@@ -96,8 +96,8 @@ let keywords =
     ("false", FALSE);
     ("break", BREAK);
     ("continue", CONTINUE);
-    ("as", AS);
     ("sizeof", SIZEOF);
+    ("bitcast", BITCAST);
     ("null", NULL);
     ("extern", EXTERN);
     ("struct", STRUCT);
@@ -178,8 +178,8 @@ let show_token = function
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( COMPTIME | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE
-    | BREAK | CONTINUE | AS | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC | FUNC
-    | TYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH ) as t ->
+    | BREAK | CONTINUE | SIZEOF | BITCAST | NULL | EXTERN | STRUCT | PUBLIC
+    | FUNC | TYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token (token : token) : string =

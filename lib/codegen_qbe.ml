@@ -3,21 +3,36 @@
 (* Https://c9x.me/compile/doc/il.html *)
 open Types
 
-type qbe_base = W | L | S | D
+type qbe_scalar = B | H | W | L | S | D
 
-let qbe_base (t : ty) : qbe_base =
+let qbe_scalar (t : ty) : qbe_scalar =
   match resolve_ty t with
-  | TInt (I8 | I16 | I32 | U8 | U16 | U32) | TBool | TChar | TEnum _ -> W
-  | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
-      L
+  | TBool -> B
+  | TChar | TEnum _ -> W
+  | TInt k -> ( match int_kind_size k with 1 -> B | 2 -> H | 4 -> W | _ -> L)
   | TFloat F32 -> S
   | TFloat F64 -> D
-  | TStruct _ | TArray _ | TSlice _ | TStr -> L
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ | TStruct _ | TArray _
+  | TSlice _ | TStr ->
+      L
   | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TNever -> Diagnostic.ice "TNever has no QBE base type"
-  | TError -> Diagnostic.ice "TError has no QBE base type"
-  | TUnit -> Diagnostic.ice "TUnit has no QBE base type"
+  | TNever -> Diagnostic.ice "TNever has no QBE type"
+  | TError -> Diagnostic.ice "TError has no QBE type"
+  | TUnit -> Diagnostic.ice "TUnit has no QBE type"
+
+let scalar_letter = function
+  | B -> "b"
+  | H -> "h"
+  | W -> "w"
+  | L -> "l"
+  | S -> "s"
+  | D -> "d"
+
+type qbe_base = W | L | S | D
+
+(* QBE doesn't have sub word reg so a byte and a half word both live in a w *)
+let qbe_base (t : ty) : qbe_base =
+  match qbe_scalar t with B | H | W -> W | L -> L | S -> S | D -> D
 
 let qbe_ty (t : ty) : string =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
@@ -25,7 +40,7 @@ let qbe_ty (t : ty) : string =
 (* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness (t : ty) : string =
   match resolve_ty t with
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TChar -> "u"
+  | TPointer _ | TOpaquePtr | TNull | TCStr | TChar | TBool -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
 (* This is the hard limit where libc call stops emitting one instruction per word *)
@@ -53,40 +68,13 @@ let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
       Diagnostic.ice
         (Printf.sprintf "no alloc instruction for %d byte alignment" a)
 
+(* A narrow load says how to fill the rest of the register but a wide one can't *)
 let qbe_load (t : ty) : string =
-  match resolve_ty t with
-  | TInt I8 -> "loadsb"
-  | TInt U8 | TBool -> "loadub"
-  | TInt I16 -> "loadsh"
-  | TInt U16 -> "loaduh"
-  | TInt I32 | TEnum _ -> "loadsw"
-  | TInt U32 | TChar -> "loaduw"
-  | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
-      "loadl"
-  | TFloat F32 -> "loads"
-  | TFloat F64 -> "loadd"
-  | TStruct _ | TArray _ | TSlice _ | TStr -> "loadl"
-  | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TNever -> Diagnostic.ice "TNever has no load instruction"
-  | TError -> Diagnostic.ice "TError has no load instruction"
-  | TUnit -> Diagnostic.ice "TUnit has no load instruction"
+  match qbe_scalar t with
+  | (B | H | W) as s -> "load" ^ signedness t ^ scalar_letter s
+  | (L | S | D) as s -> "load" ^ scalar_letter s
 
-let qbe_store (t : ty) : string =
-  match resolve_ty t with
-  | TInt (I8 | U8) | TBool -> "storeb"
-  | TInt (I16 | U16) -> "storeh"
-  | TInt (I32 | U32) | TChar | TEnum _ -> "storew"
-  | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
-      "storel"
-  | TFloat F32 -> "stores"
-  | TFloat F64 -> "stored"
-  | TStruct _ | TArray _ | TSlice _ | TStr -> "storel"
-  | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TNever -> Diagnostic.ice "TNever has no store instruction"
-  | TError -> Diagnostic.ice "TError has no store instruction"
-  | TUnit -> Diagnostic.ice "TUnit has no store instruction"
+let qbe_store (t : ty) : string = "store" ^ scalar_letter (qbe_scalar t)
 
 type ctx = {
   structs : ty list Symbol.Table.t;
@@ -98,6 +86,8 @@ type ctx = {
   abi_types : (ty, string) Hashtbl.t;
   next_abi_type : int ref;
   tmp : int ref;
+  temp_names : string array ref;
+  block_labels : string array ref;
   str_ctr : int ref;
 }
 
@@ -112,11 +102,32 @@ type mir_ctx = {
   global_types : (string, ty) Hashtbl.t;
 }
 
+(* Every function counts temps/blocks from 0 so I'll rather keep them *)
+let cached_name cache spell n =
+  let names = !cache in
+  let have = Array.length names in
+  if n < have then names.(n)
+  else begin
+    let want = max (n + 1) (2 * have) in
+    let grown = Array.make want "" in
+    Array.blit names 0 grown 0 have;
+    for i = have to want - 1 do
+      grown.(i) <- spell i
+    done;
+    cache := grown;
+    grown.(n)
+  end
+
 (* Fresh temps use names like %t0 and %t1 *)
 let fresh ctx =
   let n = !(ctx.tmp) in
   incr ctx.tmp;
-  "%t" ^ string_of_int n
+  cached_name ctx.temp_names (fun i -> "%t" ^ string_of_int i) n
+
+let mir_block_label ctx id =
+  cached_name ctx.block_labels
+    (fun i -> if i = 0 then "@start" else "@block" ^ string_of_int i)
+    id
 
 (* This is to handle collisions because t0 or t1 would collide with the temps *)
 let spelled_like_temp name =
@@ -133,23 +144,21 @@ let put ctx s = Buffer.add_string !(ctx.buf) s
 
 let put_char ctx c = Buffer.add_char !(ctx.buf) c
 
-let emit_op1 ctx dest ty op arg =
+let emit_op ctx dest ty op =
   put ctx dest;
   put ctx " =";
   put ctx ty;
   put_char ctx ' ';
   put ctx op;
-  put_char ctx ' ';
+  put_char ctx ' '
+
+let emit_op1 ctx dest ty op arg =
+  emit_op ctx dest ty op;
   put ctx arg;
   put_char ctx '\n'
 
 let emit_op2 ctx dest ty op lhs rhs =
-  put ctx dest;
-  put ctx " =";
-  put ctx ty;
-  put_char ctx ' ';
-  put ctx op;
-  put_char ctx ' ';
+  emit_op ctx dest ty op;
   put ctx lhs;
   put ctx ", ";
   put ctx rhs;
@@ -200,21 +209,6 @@ let emit_jnz ctx v then_lbl else_lbl =
   put ctx ", ";
   put ctx else_lbl;
   put_char ctx '\n'
-
-let field_offset structs fields field_id =
-  let rec go index off = function
-    | [] -> Diagnostic.ice (Printf.sprintf "unknown field index %d" field_id)
-    | ft :: rest ->
-        let a = ty_align structs ft in
-        let off = align_to off a in
-        if index = field_id then off
-        else go (index + 1) (off + ty_size structs ft) rest
-  in
-  go 0 0 fields
-
-(* The number of bytes from one element to the next after rounding to its alignment *)
-let stride structs elem =
-  align_to (ty_size structs elem) (ty_align structs elem)
 
 let offset_addr ctx base off =
   if off = 0 then base
@@ -424,15 +418,6 @@ let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
 
 let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
   match resolve_ty t with
-  | TInt (I8 | U8) | TBool -> "b"
-  | TInt (I16 | U16) -> "h"
-  | TInt (I32 | U32) | TChar | TEnum _ -> "w"
-  (* Null is a pointer no type but all pointers are 64-bit *)
-  | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
-      "l"
-  | TFloat F32 -> "s"
-  | TFloat F64 -> "d"
   | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
   | TArray (e, n) ->
@@ -447,10 +432,7 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
       Printf.sprintf "%s %d" unit_ty reps
   (* Fat pointer stored inline as two longs *)
   | TSlice _ | TStr -> "l 2"
-  | TAlias _ -> assert false (* resolve_ty strips these *)
-  | TNever -> Diagnostic.ice "TNever has no extended type"
-  | TError -> Diagnostic.ice "TError has no extended type"
-  | TUnit -> Diagnostic.ice "TUnit has no extended type"
+  | scalar -> scalar_letter (qbe_scalar scalar)
 
 (* A field that takes up no bytes changes nothing here, and leaving one in makes QBE think the whole struct is empty *)
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
@@ -570,20 +552,15 @@ and emit_mir_place mctx (place : Mir.place) =
         in
         project addr field_ty rest
     | Mir.Index index_operand :: rest ->
-        let element =
+        let element, storage =
           match resolve_ty ty with
-          | TArray (element, _) | TSlice element | TPointer element -> element
-          | _ -> Diagnostic.ice "MIR index on non indexed place"
-        in
-        let storage =
-          match resolve_ty ty with
-          | TArray _ -> addr
-          | TSlice _ -> load_slice_ptr ctx addr
-          | TPointer _ ->
+          | TArray (element, _) -> (element, addr)
+          | TSlice element -> (element, load_slice_ptr ctx addr)
+          | TPointer element ->
               let pointer = fresh ctx in
               emit_op1 ctx pointer "l" "loadl" addr;
-              pointer
-          | _ -> assert false
+              (element, pointer)
+          | _ -> Diagnostic.ice "MIR index on non indexed place"
         in
         let addr = emit_mir_index_addr mctx storage element index_operand in
         project addr element rest
@@ -812,21 +789,18 @@ let emit_mir_statement mctx (statement : Mir.statement) =
   | Mir.Slice (destination, source, lo, hi) ->
       emit_mir_slice mctx destination source lo hi
 
-let mir_block_label id =
-  if id = 0 then "@start" else "@block" ^ string_of_int id
-
 let emit_mir_terminator mctx (terminator : Mir.terminator) =
   let ctx = mctx.qbe in
   match terminator.Mir.desc with
-  | Mir.Jump target -> emit_jmp ctx (mir_block_label target)
+  | Mir.Jump target -> emit_jmp ctx (mir_block_label ctx target)
   | Mir.Branch (condition, yes, no) ->
       emit_jnz ctx
         (emit_mir_operand mctx condition)
-        (mir_block_label yes) (mir_block_label no)
+        (mir_block_label ctx yes) (mir_block_label ctx no)
   | Mir.Assert (check, ok, fail) ->
       emit_jnz ctx
         (emit_mir_check_condition mctx check)
-        (mir_block_label fail) (mir_block_label ok)
+        (mir_block_label ctx fail) (mir_block_label ctx ok)
   | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
   | Mir.ReturnValue None -> put ctx "ret\n"
   | Mir.ReturnValue (Some returned) ->
@@ -868,8 +842,7 @@ let can_bind_value (local : Mir.local) : bool =
   match resolve_ty local.Mir.ty with
   | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> true
-  | TStruct _ | TArray _ | TSlice _ | TStr -> false
-  | TNever | TAlias _ | TError | TUnit -> false
+  | _ -> false
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_mir_locals (ctx : ctx) (func : Mir.func) : local_binding array =
@@ -956,7 +929,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   let mctx = { qbe = ctx; func; bindings; global_types } in
   Array.iteri
     (fun id (block : Mir.block) ->
-      if id > 0 then emit_label ctx (mir_block_label id);
+      if id > 0 then emit_label ctx (mir_block_label ctx id);
       List.iter (emit_mir_statement mctx) block.Mir.statements;
       match block.Mir.terminator with
       | Some terminator -> emit_mir_terminator mctx terminator
@@ -1049,6 +1022,8 @@ let emit_mir ~source_of (program : Mir.program) =
       abi_types = Hashtbl.create 8;
       next_abi_type = ref 0;
       tmp = ref 0;
+      temp_names = ref [||];
+      block_labels = ref [||];
       str_ctr = ref 0;
     }
   in
