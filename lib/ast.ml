@@ -36,17 +36,6 @@ type binop =
   | BitXor
   | Lshift
   | Rshift
-  | Assign
-  | AddAssign
-  | SubAssign
-  | MulAssign
-  | DivAssign
-  | ModAssign
-  | BitAndAssign
-  | BitOrAssign
-  | BitXorAssign
-  | LshiftAssign
-  | RshiftAssign
 [@@deriving show { with_path = false }]
 
 let show_binop_sym = function
@@ -68,24 +57,6 @@ let show_binop_sym = function
   | BitXor -> "^"
   | Lshift -> "<<"
   | Rshift -> ">>"
-  | Assign -> "="
-  | AddAssign -> "+="
-  | SubAssign -> "-="
-  | MulAssign -> "*="
-  | DivAssign -> "/="
-  | ModAssign -> "%="
-  | BitAndAssign -> "&="
-  | BitOrAssign -> "|="
-  | BitXorAssign -> "^="
-  | LshiftAssign -> "<<="
-  | RshiftAssign -> ">>="
-
-let is_assignment_op (op : binop) : bool =
-  match op with
-  | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
-  | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
-      true
-  | _ -> false
 
 type unop = Pos | Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
@@ -112,6 +83,7 @@ type expr_desc =
   | Ident of name
   | Call of expr * expr list
   | BinOp of binop * expr * expr
+  | Assign of binop option * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr
@@ -120,7 +92,7 @@ type expr_desc =
   | RangeToInclusive of expr
   | RangeFull
   | FieldAccess of expr * name * span
-  | Cast of expr * typ
+  | BitCast of expr * typ
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
