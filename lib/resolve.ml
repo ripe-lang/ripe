@@ -523,8 +523,7 @@ and resolve_typ (st : state) (t : typ) : unit =
 and declare_block_item (st : state) (d : local_decl) : unit =
   (match d with
   | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
-  | LocalTypeAlias td | LocalNewtype td ->
-      declare_local_type st td.alias_name td.alias_span
+  | LocalTypeAlias td -> declare_local_type st td.alias_name td.alias_span
   | LocalFunc fd -> declare_local_func st fd.func_name fd.func_span
   | LocalEnum ed -> declare_local_type st ed.enum_name ed.enum_span);
   st.out.local_decls <- decl_of_local d :: st.out.local_decls
@@ -532,7 +531,7 @@ and declare_block_item (st : state) (d : local_decl) : unit =
 and resolve_local_decl (st : state) (d : local_decl) : unit =
   match d with
   | LocalFunc fd -> resolve_local_func st fd
-  | LocalStruct _ | LocalTypeAlias _ | LocalNewtype _ | LocalEnum _ ->
+  | LocalStruct _ | LocalTypeAlias _ | LocalEnum _ ->
       resolve_decl st (decl_of_local d)
 
 and resolve_block_item (st : state) = function
@@ -573,7 +572,7 @@ and resolve_decl (st : state) : decl -> unit = function
       Option.iter (resolve_expr st) gd.init
   | Struct sd ->
       List.iter (fun (f : field) -> resolve_typ st f.field_typ) sd.fields
-  | TypeAlias td | Newtype td -> resolve_typ st td.alias_typ
+  | TypeAlias td -> resolve_typ st td.alias_typ
   (* TODO: nothing to walk until a variant can hold a type *)
   | Enum _ -> ()
 
@@ -615,7 +614,7 @@ let declare_decls (st : state) (decls : decl list) : unit =
           declare_type ~name_span:sd.struct_name_span st
             (visibility sd.struct_modifiers)
             sd.struct_name sd.struct_span
-      | TypeAlias td | Newtype td ->
+      | TypeAlias td ->
           declare_type ~name_span:td.alias_name_span st
             (visibility td.alias_modifiers)
             td.alias_name td.alias_span

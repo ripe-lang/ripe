@@ -7,7 +7,7 @@ module T = Typed_ast
 (* Types need exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 let rec compatible (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
+  match (resolve_ty want, resolve_ty got) with
   | TError, _ | _, TError -> true
   | _, TNever -> true
   | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
@@ -25,12 +25,10 @@ let rec compatible (want : ty) (got : ty) : bool =
   (* A struct matches nominally by name and its type arguments must match exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
-  (* A newtype is its own type and never matches its base *)
-  | TNewtype (n1, _), TNewtype (n2, _) -> n1 = n2
   | s_want, s_got -> ty_equal s_want s_got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
-  match (strip_alias want, strip_alias got) with
+  match (resolve_ty want, resolve_ty got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
@@ -69,7 +67,7 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through (base : T.texpr) : T.texpr option =
-  match strip_alias base.T.ty with
+  match resolve_ty base.T.ty with
   | TPointer _ | TSlice _ -> None
   | _ -> root_lvalue base
 
@@ -79,24 +77,21 @@ let root_binding (te : T.texpr) : Symbol.t option =
   | Some _ | None -> None
 
 let is_numeric t =
-  match strip_alias t with TInt _ | TFloat _ | TError -> true | _ -> false
+  match resolve_ty t with TInt _ | TFloat _ | TError -> true | _ -> false
 
 (* A pointer is just an address so p < q asks which one sits earlier in memory *)
 let is_ordered t =
-  match strip_alias t with TPointer _ | TChar -> true | _ -> is_numeric t
+  match resolve_ty t with TPointer _ | TChar -> true | _ -> is_numeric t
 
 let is_integer t =
-  match strip_alias t with TInt _ | TError -> true | _ -> false
+  match resolve_ty t with TInt _ | TError -> true | _ -> false
 
-(* A newtype hides every operation of its base *)
 let rec is_comparable = function
   | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
   | TError | TEnum _ ->
       true
   | TAlias (_, base) -> is_comparable base
-  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TNewtype _
-  | TUnit ->
-      false
+  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit -> false
 
 let rec is_num_literal (e : expr) =
   match e.desc with
@@ -105,7 +100,7 @@ let rec is_num_literal (e : expr) =
   | _ -> false
 
 let widens_to (src : ty) (tgt : ty) : bool =
-  match (strip_alias src, strip_alias tgt) with
+  match (resolve_ty src, resolve_ty tgt) with
   | TInt src_kind, TInt tgt_kind ->
       int_kind_size src_kind < int_kind_size tgt_kind
       && (is_unsigned src || not (is_unsigned tgt))
@@ -125,7 +120,7 @@ let common_numeric_ty (left : ty) (right : ty) : ty option =
   else if widens_to left right then Some right
   else if widens_to right left then Some left
   else
-    match (strip_alias left, strip_alias right) with
+    match (resolve_ty left, resolve_ty right) with
     | TInt left_kind, TInt right_kind when is_unsigned left <> is_unsigned right
       ->
         let unsigned_kind =
@@ -149,7 +144,7 @@ let cast_class t =
   | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
-  | TNewtype _ | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> assert false (* resolve_ty strips these *)
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =

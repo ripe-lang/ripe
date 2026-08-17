@@ -30,8 +30,7 @@ module Mir_const = struct
               { init = global.S.init; value = None; busy = false };
             if global.S.kind = Ast.Comptime then
               Symbol.Table.add comptime_globals global.S.key ()
-        | S.TFunc _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ | S.TEnum _ ->
-            ())
+        | S.TFunc _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
       declarations;
     { structs; globals; comptime_globals }
 
@@ -1223,8 +1222,7 @@ let build (declarations : S.tdecl list) : Mir.program =
             }
             :: !globals_rev
       | S.TFunc func -> functions_rev := func :: !functions_rev
-      | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TNewtype _ | S.TEnum _ ->
-          ())
+      | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
     declarations;
   let structs = List.rev !structs_rev in
   let globals = List.rev !globals_rev in

@@ -127,8 +127,7 @@ let is_stmt_start (tok : token) : bool =
 
 let is_item_start (tok : token) : bool =
   match tok with
-  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | NEWTYPE | IMPORT | COMPTIME | VAR
-  | ENUM ->
+  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | COMPTIME | VAR | ENUM ->
       true
   | _ -> false
 
@@ -453,12 +452,11 @@ and parse_enum_def st mods =
     enum_span = make_span st lo hi;
   }
 
-(* type binop = (i32, i32) i32 / newtype Celsius = f32 *)
+(* type binop = (i32, i32) i32 *)
 and parse_alias_def st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
-  (* TYPE or NEWTYPE *)
   let name, name_span = expect_ident_span st in
   let typ =
     recover_typ_to st depth [] (fun () ->
@@ -911,7 +909,7 @@ and parse_stmt ?(no_pair = false) st =
   | LBRACE ->
       let body = parse_block st in
       Expr (mk lo st (Block body))
-  | PUBLIC | FUNC | STRUCT | TYPE | NEWTYPE | ENUM -> parse_local_decl st
+  | PUBLIC | FUNC | STRUCT | TYPE | ENUM -> parse_local_decl st
   | _ -> Expr (parse_simple_stmt ~no_pair st)
 
 and parse_local_decl st =
@@ -920,7 +918,6 @@ and parse_local_decl st =
     match st.tok with
     | STRUCT -> LocalStruct (parse_struct_def st modifiers)
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
-    | NEWTYPE -> LocalNewtype (parse_alias_def st modifiers)
     | FUNC -> LocalFunc (parse_func_def st modifiers)
     | ENUM -> LocalEnum (parse_enum_def st modifiers)
     | _ -> fail_found st "expected local declaration"
@@ -1103,7 +1100,6 @@ let parse_decl st =
   | [], EXTERN -> parse_extern st
   | _, (COMPTIME | VAR) -> parse_global st mods
   | _, TYPE -> TypeAlias (parse_alias_def st mods)
-  | _, NEWTYPE -> Newtype (parse_alias_def st mods)
   | _, ENUM -> Enum (parse_enum_def st mods)
   | _ -> err ()
 
