@@ -338,7 +338,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     let uses = resolved.Resolve.uses in
     let decls = resolved.Resolve.decls in
     stop_at Resolve (fun () -> output_text (Resolve.dump uses));
-    let tdecls = Typechecker.typecheck ~diags uses decls in
+    let tdecls = Sema.analyze ~diags uses decls in
     let emit_check_result () =
       if not (Diagnostic.has_errors diags) then output_text "typecheck: ok\n"
     in

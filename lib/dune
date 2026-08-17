@@ -21,13 +21,13 @@
   resolve
   ty_pred
   reachability
-  typechecker
+  sema
   typed_ast
   mir
   mir_verify
   mir_dump
   mir_build
-  const_eval
+  constant
   codegen_qbe
   x86_ir
   x86_encode
