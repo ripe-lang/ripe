@@ -3,10 +3,10 @@
 {
 open Tokens
 
-(* Per lex session state so multiple lexbufs can be live at once *)
+(* The state stays local to each lex session *)
 type state = {
   base : int;
-  buf : Buffer.t; (* auto buffer resize *)
+  buf : Buffer.t;
   token_queue : (Tokens.token * Span.t * int) Queue.t;
   mutable last_token : Tokens.token;
   mutable line : int;
@@ -24,8 +24,7 @@ let make_state base = {
 
 let next_line st = st.line <- st.line + 1
 
-(* Lines get tracked here so the lexbuf can skip its per token position record.
-   Setting a filename on the lexbuf puts that record back *)
+(* The line tracker avoids per token positions *)
 let lexbuf_of_string src =
   let lexbuf = Lexing.from_string src in
   lexbuf.Lexing.lex_curr_p <- Lexing.dummy_pos;
@@ -40,13 +39,13 @@ let int_token st lexbuf ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
   | None ->
-      (* the zero keeps the parser from raising a second error *)
+      (* The 0 prevents a 2 parser errors *)
       Queue.push (INT (0L, suf), lexbuf_span st lexbuf, st.line) st.token_queue;
       ERROR "integer literal out of range"
 
 let longest_int_suffix = String.length "isize"
 
-(* Splitting here instead of in the rule keeps ocamllex off its slower engine *)
+(* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
   let len = String.length text in
   let rec find i =
@@ -76,7 +75,6 @@ let float_token text =
     FLOAT (float_of_string body, Some (String.sub text start float_suffix_len))
   else FLOAT (float_of_string text, None)
 
-(* The replacement char keeps the parser from raising a second error *)
 let bad_char st lexbuf msg =
   Queue.push (CHAR 0, lexbuf_span st lexbuf, st.line) st.token_queue;
   ERROR msg
@@ -116,25 +114,27 @@ let newline = '\r' | '\n' | "\r\n"
 rule read_main st = parse
   | "\xEF\xBB\xBF" {
       if start_pos lexbuf = 0 then read_main st lexbuf
-      else ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf)
+      else ERROR "unexpected character"
     }
-  | white              { read_main st lexbuf }
+  | white { read_main st lexbuf }
   | "//" [^ '\n' '\r']* { read_main st lexbuf }
-  | "/*"               { read_block_comment st 0 false lexbuf }
-  | newline            { next_line st;
-                         if can_end_stmt st.last_token then AUTOSEMI
-                         else read_main st lexbuf }
-  | ('0' ['x' 'X'] hexdigs intsuf?) as n  { radix_int_token st lexbuf n }
-  | ('0' ['b' 'B'] bindigs intsuf?) as n  { radix_int_token st lexbuf n }
-  | ('0' ['o' 'O'] octdigs intsuf?) as n  { radix_int_token st lexbuf n }
-  | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum* as n
-      { ERROR ("invalid number literal: " ^ n) }
+  | "/*" { read_block_comment st 0 false lexbuf }
+  | newline {
+      next_line st;
+      if can_end_stmt st.last_token then AUTOSEMI
+      else read_main st lexbuf
+    }
+  | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token st lexbuf n }
+  | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token st lexbuf n }
+  | ('0' ['o' 'O'] octdigs intsuf?) as n { radix_int_token st lexbuf n }
+  | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum*
+      { ERROR "invalid number literal" }
   | decimals '.' decimals exp? floatsuf? as f { float_token f }
-  | decimals exp floatsuf? as f  { float_token f }
-  | decimals floatsuf as f       { float_token f }
-  | (decimals intsuf?) as n      { decimal_int_token st lexbuf n }
-  | '_'                { UNDERSCORE }
-  | alpha alnum* as s  {
+  | decimals exp floatsuf? as f { float_token f }
+  | decimals floatsuf as f { float_token f }
+  | (decimals intsuf?) as n { decimal_int_token st lexbuf n }
+  | '_' { UNDERSCORE }
+  | alpha alnum* as s {
       match lookup_keyword s with
       | Some t -> t
       | None -> IDENT s
@@ -148,8 +148,8 @@ rule read_main st = parse
   | ">>=" { RSHIFT_ASSIGN }
   | "<<" { LSHIFT }
   | ">>" { RSHIFT }
-  | '<'  { LT }
-  | '>'  { GT }
+  | '<' { LT }
+  | '>' { GT }
   | "&&" { AND }
   | "||" { OR }
   | "+=" { PLUS_ASSIGN }
@@ -160,35 +160,35 @@ rule read_main st = parse
   | "&=" { AMP_ASSIGN }
   | "|=" { PIPE_ASSIGN }
   | "^=" { CARET_ASSIGN }
-  | '!'  { BANG }
-  | '+'  { PLUS }
-  | '-'  { MINUS }
-  | '*'  { STAR }
-  | '/'  { SLASH }
-  | '%'  { PERCENT }
-  | '&'  { AMP }
-  | '|'  { PIPE }
-  | '~'  { TILDE }
+  | '!' { BANG }
+  | '+' { PLUS }
+  | '-' { MINUS }
+  | '*' { STAR }
+  | '/' { SLASH }
+  | '%' { PERCENT }
+  | '&' { AMP }
+  | '|' { PIPE }
+  | '~' { TILDE }
   | "..." { ELLIPSIS }
   | "..=" { DOTDOTEQ }
   | ".." { DOTDOT }
-  | '.'  { DOT }
-  | ';'  { SEMI }
-  | '='  { ASSIGN }
-  | '('  { LPAREN }
-  | ')'  { RPAREN }
-  | '['  { LBRACKET }
-  | ']'  { RBRACKET }
-  | '{'  { LBRACE }
-  | '}'  { RBRACE }
-  | ':'  { COLON }
-  | ','  { COMMA }
-  | '^'  { CARET }
-  | "'\\0'"  { CHAR 0 }
-  | "'\\n'"  { CHAR (Char.code '\n') }
-  | "'\\t'"  { CHAR (Char.code '\t') }
+  | '.' { DOT }
+  | ';' { SEMI }
+  | '=' { ASSIGN }
+  | '(' { LPAREN }
+  | ')' { RPAREN }
+  | '[' { LBRACKET }
+  | ']' { RBRACKET }
+  | '{' { LBRACE }
+  | '}' { RBRACE }
+  | ':' { COLON }
+  | ',' { COMMA }
+  | '^' { CARET }
+  | "'\\0'" { CHAR 0 }
+  | "'\\n'" { CHAR (Char.code '\n') }
+  | "'\\t'" { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
-  | "'\\''"  { CHAR (Char.code '\'') }
+  | "'\\''" { CHAR (Char.code '\'') }
   | '\'' '\\' newline '\''  {
       next_line st;
       bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
@@ -204,41 +204,45 @@ rule read_main st = parse
       in
       char_token st lexbuf inner
     }
-  | "''"  { bad_char st lexbuf "empty character literal" }
-  | '\''  { bad_char st lexbuf "unterminated character literal" }
-  | '"'  { let str_start = lexbuf.Lexing.lex_start_pos in
-           let str_line = st.line in
-           Buffer.clear st.buf;
-           let tok = read_string st lexbuf in
-           (* The string token spans the whole literal with quotes included *)
-           lexbuf.Lexing.lex_start_pos <- str_start;
-           st.token_line <- str_line;
-           tok }
-  | eof  {
+  | "''" { bad_char st lexbuf "empty character literal" }
+  | '\'' { bad_char st lexbuf "unterminated character literal" }
+  | '"' {
+      let str_start = lexbuf.Lexing.lex_start_pos in
+      let str_line = st.line in
+      Buffer.clear st.buf;
+      let tok = read_string st lexbuf in
+      (* The span includes quotes *)
+      lexbuf.Lexing.lex_start_pos <- str_start;
+      st.token_line <- str_line;
+      tok
+    }
+  | eof {
       if can_end_stmt st.last_token then AUTOSEMI else EOF
     }
-  | _    { ERROR ("unexpected character: " ^ Lexing.lexeme lexbuf) }
+  | _ { ERROR "unexpected character" }
 
 
 and read_string st = parse
-  | '"'  { let s = Buffer.contents st.buf in
-           Buffer.clear st.buf;
-           STRING s }
-  | '\\' 'n'      { Buffer.add_char st.buf '\n'; read_string st lexbuf }
-  | '\\' 't'      { Buffer.add_char st.buf '\t'; read_string st lexbuf }
-  | '\\' '\\'     { Buffer.add_char st.buf '\\'; read_string st lexbuf }
-  | '\\' '"'      { Buffer.add_char st.buf '"';  read_string st lexbuf }
-  (* skip the bad escape and keep lexing so the string still closes *)
+  | '"' {
+      let s = Buffer.contents st.buf in
+      Buffer.clear st.buf;
+      STRING s
+    }
+  | '\\' 'n' { Buffer.add_char st.buf '\n'; read_string st lexbuf }
+  | '\\' 't' { Buffer.add_char st.buf '\t'; read_string st lexbuf }
+  | '\\' '\\' { Buffer.add_char st.buf '\\'; read_string st lexbuf }
+  | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
+  (* The lexer continues until the string closes *)
   | '\\' _        {
       let span =
         Span.make (st.base + start_pos lexbuf + 1) (st.base + end_pos lexbuf)
       in
       Queue.push
-        (ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf), span, st.line)
+        (ERROR "unknown escape", span, st.line)
         st.token_queue;
       read_string st lexbuf
     }
-  (* FIXME(2151): allow raw newlines for now, revisit them in the future *)
+  (* FIXME(2151): raw newlines stay for now *)
   | newline {
       next_line st;
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
@@ -248,17 +252,19 @@ and read_string st = parse
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
-  (* Recover so the parser sees a closed string plus an error *)
-  | eof  { let s = Buffer.contents st.buf in
-           Buffer.clear st.buf;
-           let here = st.base + end_pos lexbuf in
-           Queue.push
-             (ERROR "unterminated string", Span.make here here, st.line)
-             st.token_queue;
-           STRING s }
+  (* The parser recovers after an unterm string *)
+  | eof {
+      let s = Buffer.contents st.buf in
+      Buffer.clear st.buf;
+      let here = st.base + end_pos lexbuf in
+      Queue.push
+        (ERROR "unterminated string", Span.make here here, st.line)
+        st.token_queue;
+      STRING s
+    }
 
 and read_block_comment st depth saw_newline = parse
-  | "/*"    { read_block_comment st (depth + 1) saw_newline lexbuf }
+  | "/*" { read_block_comment st (depth + 1) saw_newline lexbuf }
   | "*/"    {
       if depth = 0 then
         if saw_newline && can_end_stmt st.last_token then AUTOSEMI
@@ -269,8 +275,8 @@ and read_block_comment st depth saw_newline = parse
       next_line st;
       read_block_comment st depth true lexbuf
     }
-  | eof     { ERROR "unterminated block comment" }
-  | _       { read_block_comment st depth saw_newline lexbuf }
+  | eof { ERROR "unterminated block comment" }
+  | _ { read_block_comment st depth saw_newline lexbuf }
 
 {
 let read st lexbuf =
@@ -279,7 +285,7 @@ let read st lexbuf =
     else begin
       st.token_line <- 0;
       let t = read_main st lexbuf in
-      (* A rule only sets token_line when the token itself spans lines *)
+      (* A token gets its own line only when it spans lines *)
       let line = if st.token_line = 0 then st.line else st.token_line in
       (t, lexbuf_span st lexbuf, line)
     end

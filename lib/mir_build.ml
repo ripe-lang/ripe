@@ -5,98 +5,21 @@ module Mir_const = struct
   open Mir
   module S = Typed_ast
 
-  type global_state = {
-    init : S.texpr option;
-    mutable value : Const_eval.const_num option;
-    mutable busy : bool;
-  }
+  type context = { structs : ty list Symbol.Table.t }
 
-  type context = {
-    structs : ty list Symbol.Table.t;
-    globals : global_state Symbol.Table.t;
-    comptime_globals : unit Symbol.Table.t;
-  }
-
-  let make_context declarations =
+  let make_context (struct_decls : struct_decl list) =
     let structs = Symbol.Table.create 16 in
-    let globals = Symbol.Table.create 16 in
-    let comptime_globals = Symbol.Table.create 16 in
     List.iter
-      (function
-        | S.TStruct (name, fields, _) | S.TLocalStruct (name, fields) ->
-            Symbol.Table.add structs (Qname.key name) fields
-        | S.TGlobal global ->
-            Symbol.Table.add globals global.S.key
-              { init = global.S.init; value = None; busy = false };
-            if global.S.kind = Ast.Comptime then
-              Symbol.Table.add comptime_globals global.S.key ()
-        | S.TFunc _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
-      declarations;
-    { structs; globals; comptime_globals }
+      (fun (decl : struct_decl) ->
+        Symbol.Table.add structs (Qname.key decl.name) decl.fields)
+      struct_decls;
+    { structs }
 
-  let is_comptime_global context key =
-    Symbol.Table.mem context.comptime_globals key
-
-  (* Global initializers can name each other so evaluation is lazy and cached *)
-  let rec global_num (context : context) span key =
-    let state : global_state =
-      match Symbol.Table.find_opt context.globals key with
-      | Some state -> state
-      | None -> raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
-    in
-    match state.value with
-    | Some value -> value
-    | None ->
-        if state.busy then
-          raise
-            (Diagnostic.Errors [ Diagnostic.error_at span "cyclic constant" ]);
-        let init =
-          match state.init with
-          | Some init -> init
-          | None ->
-              raise (Diagnostic.Errors [ Const_eval.unsupported_const span ])
-        in
-        state.busy <- true;
-        let value =
-          match
-            Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
-              ~resolve:(fun symbol _ span ->
-                global_num context span (Symbol.key symbol))
-              init
-          with
-          | value ->
-              state.busy <- false;
-              value
-          | exception ex ->
-              state.busy <- false;
-              raise ex
-        in
-        state.value <- Some value;
-        value
-
-  let eval (context : context) expr =
-    Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
-      ~resolve:(fun symbol _ span ->
-        global_num context span (Symbol.key symbol))
-      expr
-
-  (* A comptime binding in scope shadows a global of the same name *)
-  let eval_in_scope (context : context) locals expr =
-    Const_eval.fold_const_num ~sizeof:(ty_size context.structs)
-      ~resolve:(fun symbol _ span ->
-        let key = Symbol.key symbol in
-        match Hashtbl.find_opt locals key with
-        | Some value -> value
-        | None -> global_num context span key)
-      expr
-
-  let constant_of_num ty = function
-    | Const_eval.Nf value -> Float value
-    | Const_eval.Ni32 value when resolve_ty ty = TBool -> Bool (value <> 0l)
-    | Const_eval.Ni32 value when resolve_ty ty = TChar ->
-        Char (Int32.to_int value)
-    | Const_eval.Ni32 value -> Int (Int64.of_int32 value)
-    | Const_eval.Ni64 value -> Int value
+  let constant_of_value = function
+    | Constant.VFloat (value, _) -> Float value
+    | Constant.VBool value -> Bool value
+    | Constant.VChar value -> Char value
+    | Constant.VInt _ as value -> Int (Constant.int_of value)
 
   let rec global_init context (expr : S.texpr) =
     match expr.S.desc with
@@ -120,9 +43,12 @@ module Mir_const = struct
           (List.map
              (fun (field, value) -> (field, global_init context value))
              fields)
-    | _ when Const_eval.foldable expr ->
-        GlobalConst (constant_of_num expr.S.ty (eval context expr), expr.S.ty)
-    | _ -> Diagnostic.ice ~span:expr.S.span "unsupported MIR global initializer"
+    | _ -> (
+        match expr.S.const with
+        | Some value -> GlobalConst (constant_of_value value, expr.S.ty)
+        | None ->
+            Diagnostic.ice ~span:expr.S.span
+              "unsupported MIR global initializer")
 end
 
 module Mir_builder = struct
@@ -150,7 +76,6 @@ module Mir_builder = struct
     next_block : int ref;
     current : block_id ref;
     loops : loop list ref;
-    consts : (Symbol.key, Const_eval.const_num) Hashtbl.t;
     const_context : Mir_const.context;
     bare_return_zero : bool;
     mutable result : local_id option;
@@ -175,7 +100,6 @@ module Mir_builder = struct
       next_block = ref 1;
       current = ref 0;
       loops = ref [];
-      consts = Hashtbl.create 16;
       const_context;
       bare_return_zero;
       result = None;
@@ -260,23 +184,19 @@ module Mir_builder = struct
 
   let const_operand span ty desc : operand = { desc = Const desc; ty; span }
 
-  let eval_const (state : state) expr =
-    Mir_const.eval_in_scope state.const_context state.consts expr
-
-  let evaluated_constant (state : state) (expr : S.texpr) =
-    constant expr (Mir_const.constant_of_num expr.S.ty (eval_const state expr))
-
   let assign (state : state) destination (assigned : operand) =
     if is_live state then
       emit state
         (Assign (destination, { desc = Use assigned; ty = assigned.ty }))
         assigned.span
 
-  let temp_value (state : state) ty span desc =
-    let id = add_local state Temp ty span in
-    let destination = local_place span id in
+  let temp_value_into (state : state) destination ty span desc =
     emit state (Assign (destination, { desc; ty })) span;
     copy span ty destination
+
+  let temp_value (state : state) ty span desc =
+    let destination = local_place span (add_local state Temp ty span) in
+    temp_value_into state destination ty span desc
 
   let materialize (state : state) (operand : operand) =
     match operand.desc with
@@ -334,10 +254,6 @@ module Mir_op = struct
     | Ast.Lshift -> Mir.Lshift
     | Ast.Rshift -> Mir.Rshift
     | Ast.And | Ast.Or -> Diagnostic.ice "short circuit reached MIR as a value"
-    | Ast.Assign | Ast.AddAssign | Ast.SubAssign | Ast.MulAssign | Ast.DivAssign
-    | Ast.ModAssign | Ast.BitAndAssign | Ast.BitOrAssign | Ast.BitXorAssign
-    | Ast.LshiftAssign | Ast.RshiftAssign ->
-        Diagnostic.ice "assignment reached MIR as a value"
 end
 
 module Mir_check = struct
@@ -410,11 +326,21 @@ module Mir_control = struct
     B.switch state join_block;
     B.copy expr.S.span TBool (B.local_place expr.S.span result)
 
+  (* A branch expr only needs a slot when it hands a value back *)
+  and branch_result state (expr : S.texpr) =
+    if expr.S.ty = TUnit || expr.S.ty = TNever then None
+    else Some (B.add_local state Temp expr.S.ty expr.S.span)
+
+  and join_result state (expr : S.texpr) result join =
+    B.switch state join;
+    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
+    match result with
+    | Some result ->
+        B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
+    | None -> B.constant expr Undef
+
   and lower_if state (expr : S.texpr) branches else_body =
-    let result =
-      if expr.S.ty = TUnit || expr.S.ty = TNever then None
-      else Some (B.add_local state Temp expr.S.ty expr.S.span)
-    in
+    let result = branch_result state expr in
     let join = B.new_block state in
     let rec lower_branches = function
       | [] -> (
@@ -431,12 +357,7 @@ module Mir_control = struct
           lower_branches rest
     in
     lower_branches branches;
-    B.switch state join;
-    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
-    match result with
-    | Some result ->
-        B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
-    | None -> B.constant expr Undef
+    join_result state expr result join
 
   (* A pattern walks the scrutinee and gathers what to compare and what to name *)
   and pattern_plan (place : place) (ty : ty) (pat : S.tpattern) =
@@ -447,10 +368,7 @@ module Mir_control = struct
 
   (* One test per arm because a jump table only pays off on a dense range *)
   and lower_match state (expr : S.texpr) (scrutinee : S.texpr) arms =
-    let result =
-      if expr.S.ty = TUnit || expr.S.ty = TNever then None
-      else Some (B.add_local state Temp expr.S.ty expr.S.span)
-    in
+    let result = branch_result state expr in
     (* The scrutinee is a place so a field pattern can project into it *)
     let subject = B.materialize state (lower_expr state scrutinee) in
     let join = B.new_block state in
@@ -498,12 +416,7 @@ module Mir_control = struct
           | None -> ())
     in
     lower_arms arms;
-    B.switch state join;
-    if expr.S.ty = TNever then B.terminate state Unreachable expr.S.span;
-    match result with
-    | Some result ->
-        B.copy expr.S.span expr.S.ty (B.local_place expr.S.span result)
-    | None -> B.constant expr Undef
+    join_result state expr result join
 
   and lower_arm state (expr : S.texpr) result join body =
     match result with
@@ -558,6 +471,24 @@ module Mir_control = struct
     if B.is_live state then B.terminate state (Jump condition_block) span;
     B.switch state exit_block
 
+  and lower_counted_loop state span label body ~condition ~enter_body ~step =
+    let condition_block = B.new_block state in
+    let body_block = B.new_block state in
+    let step_block = B.new_block state in
+    let exit_block = B.new_block state in
+    B.terminate state (Jump condition_block) span;
+    B.switch state condition_block;
+    B.terminate state (Branch (condition (), body_block, exit_block)) span;
+    B.switch state body_block;
+    enter_body ();
+    B.with_loop state label ~continue_block:step_block ~break_block:exit_block
+      ~result:None (fun () -> List.iter (lower_statement state) body);
+    if B.is_live state then B.terminate state (Jump step_block) span;
+    B.switch state step_block;
+    step ~exit_block;
+    B.terminate state (Jump condition_block) span;
+    B.switch state exit_block
+
   and lower_for state span label symbol elem_ty (iter : S.texpr) body =
     match iter.S.desc with
     | S.TRange (lo, hi) ->
@@ -577,41 +508,29 @@ module Mir_control = struct
     B.assign state (B.local_place span loop_id) lo;
     let high_id = B.add_local state ~name:"for.hi" Temp elem_ty hi.span in
     B.assign state (B.local_place span high_id) hi;
-    let condition_block = B.new_block state in
-    let body_block = B.new_block state in
-    let step_block = B.new_block state in
-    let exit_block = B.new_block state in
-    B.terminate state (Jump condition_block) span;
-    B.switch state condition_block;
-    let current = B.copy span elem_ty (B.local_place span loop_id) in
-    let high = B.copy span elem_ty (B.local_place span high_id) in
-    let op = if inclusive then Mir.Lte else Mir.Lt in
-    let condition =
-      B.temp_value state TBool span (Binary (op, current, high))
-    in
-    B.terminate state (Branch (condition, body_block, exit_block)) span;
-    B.switch state body_block;
-    B.with_loop state label ~continue_block:step_block ~break_block:exit_block
-      ~result:None (fun () -> List.iter (lower_statement state) body);
-    if B.is_live state then B.terminate state (Jump step_block) span;
-    B.switch state step_block;
-    let current = B.copy span elem_ty (B.local_place span loop_id) in
-    let high = B.copy span elem_ty (B.local_place span high_id) in
-    if inclusive then begin
-      let increment_block = B.new_block state in
-      let done_ =
-        B.temp_value state TBool span (Binary (Mir.Eq, current, high))
-      in
-      B.terminate state (Branch (done_, exit_block, increment_block)) span;
-      B.switch state increment_block
-    end;
-    let one = B.const_operand span elem_ty (Int 1L) in
-    let next =
-      B.temp_value state elem_ty span (Binary (Mir.Add, current, one))
-    in
-    B.assign state (B.local_place span loop_id) next;
-    B.terminate state (Jump condition_block) span;
-    B.switch state exit_block
+    let counter () = B.copy span elem_ty (B.local_place span loop_id) in
+    let limit () = B.copy span elem_ty (B.local_place span high_id) in
+    (* TODO: not th cleanest I'm going to rewrite this again in the future *)
+    lower_counted_loop state span label body
+      ~condition:(fun () ->
+        let op = if inclusive then Mir.Lte else Mir.Lt in
+        B.temp_value state TBool span (Binary (op, counter (), limit ())))
+      ~enter_body:(fun () -> ())
+      ~step:(fun ~exit_block ->
+        let current = counter () in
+        if inclusive then begin
+          let increment_block = B.new_block state in
+          let done_ =
+            B.temp_value state TBool span (Binary (Mir.Eq, current, limit ()))
+          in
+          B.terminate state (Branch (done_, exit_block, increment_block)) span;
+          B.switch state increment_block
+        end;
+        let one = B.const_operand span elem_ty (Int 1L) in
+        let next =
+          B.temp_value state elem_ty span (Binary (Mir.Add, current, one))
+        in
+        B.assign state (B.local_place span loop_id) next)
 
   and lower_each_for state span label (symbol : Symbol.t) elem_ty
       (iter : S.texpr) body =
@@ -640,39 +559,28 @@ module Mir_control = struct
     B.assign state
       (B.local_place span index_id)
       (B.const_operand span (TInt Usize) (Int 0L));
-    let condition_block = B.new_block state in
-    let body_block = B.new_block state in
-    let step_block = B.new_block state in
-    let exit_block = B.new_block state in
-    B.terminate state (Jump condition_block) span;
-    B.switch state condition_block;
-    let index = B.copy span (TInt Usize) (B.local_place span index_id) in
-    let length = B.copy span (TInt Usize) (B.local_place span length_id) in
-    let condition =
-      B.temp_value state TBool span (Binary (Mir.Lt, index, length))
-    in
-    B.terminate state (Branch (condition, body_block, exit_block)) span;
-    B.switch state body_block;
-    let element =
-      {
-        base = Local pointer_id;
-        projections = [ Index index ];
-        place_span = span;
-      }
-    in
-    B.assign state (B.local_place span loop_id) (B.copy span elem_ty element);
-    B.with_loop state label ~continue_block:step_block ~break_block:exit_block
-      ~result:None (fun () -> List.iter (lower_statement state) body);
-    if B.is_live state then B.terminate state (Jump step_block) span;
-    B.switch state step_block;
-    let current = B.copy span (TInt Usize) (B.local_place span index_id) in
-    let one = B.const_operand span (TInt Usize) (Int 1L) in
-    let next =
-      B.temp_value state (TInt Usize) span (Binary (Mir.Add, current, one))
-    in
-    B.assign state (B.local_place span index_id) next;
-    B.terminate state (Jump condition_block) span;
-    B.switch state exit_block
+    let index () = B.copy span (TInt Usize) (B.local_place span index_id) in
+    lower_counted_loop state span label body
+      ~condition:(fun () ->
+        let length = B.copy span (TInt Usize) (B.local_place span length_id) in
+        B.temp_value state TBool span (Binary (Mir.Lt, index (), length)))
+      ~enter_body:(fun () ->
+        let element =
+          {
+            base = Local pointer_id;
+            projections = [ Index (index ()) ];
+            place_span = span;
+          }
+        in
+        B.assign state
+          (B.local_place span loop_id)
+          (B.copy span elem_ty element))
+      ~step:(fun ~exit_block:_ ->
+        let one = B.const_operand span (TInt Usize) (Int 1L) in
+        let next =
+          B.temp_value state (TInt Usize) span (Binary (Mir.Add, index (), one))
+        in
+        B.assign state (B.local_place span index_id) next)
 
   and lower_loop state span label ty body =
     let body_block = B.new_block state in
@@ -703,9 +611,8 @@ module Mir_expr = struct
   module B = Mir_builder
 
   (* INT_MIN / -1 wraps back to INT_MIN and INT_MIN % -1 is 0 so a -1 divisor skips the divide *)
-  let lower_guarded_div state span ty op (left : operand) (right : operand) =
-    let result = B.add_local state Temp ty span in
-    let destination = B.local_place span result in
+  let lower_guarded_div_into state destination span ty op (left : operand)
+      (right : operand) =
     let negative_one = B.const_operand span right.ty (Int (-1L)) in
     let divisor_is_negative_one =
       B.temp_value state TBool span (Binary (Mir.Eq, right, negative_one))
@@ -730,10 +637,13 @@ module Mir_expr = struct
     B.switch state join_block;
     B.copy span ty destination
 
+  let lower_guarded_div state span ty op (left : operand) (right : operand) =
+    let destination = B.local_place span (B.add_local state Temp ty span) in
+    lower_guarded_div_into state destination span ty op left right
+
   (* A count at or past the type width shifts every bit out so the shift itself never runs *)
-  let lower_guarded_shift state span ty op (left : operand) (right : operand) =
-    let result = B.add_local state Temp ty span in
-    let destination = B.local_place span result in
+  let lower_guarded_shift_into state destination span ty op (left : operand)
+      (right : operand) =
     let bits = 8 * int_kind_size (int_kind_of ty) in
     let width = B.const_operand span right.ty (Int (Int64.of_int bits)) in
     let count_in_range =
@@ -762,6 +672,10 @@ module Mir_expr = struct
     B.switch state join_block;
     B.copy span ty destination
 
+  let lower_guarded_shift state span ty op (left : operand) (right : operand) =
+    let destination = B.local_place span (B.add_local state Temp ty span) in
+    lower_guarded_shift_into state destination span ty op left right
+
   let lower_binary state span ty (op : Ast.binop) (left : operand)
       (right : operand) =
     let lowered = Mir_op.binop op in
@@ -771,6 +685,18 @@ module Mir_expr = struct
     | Ast.Lshift | Ast.Rshift ->
         lower_guarded_shift state span ty lowered left right
     | _ -> B.temp_value state ty span (Binary (lowered, left, right))
+
+  let lower_binary_into state destination span ty (op : Ast.binop)
+      (left : operand) (right : operand) =
+    let lowered = Mir_op.binop op in
+    match op with
+    | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
+        lower_guarded_div_into state destination span ty lowered left right
+    | Ast.Lshift | Ast.Rshift ->
+        lower_guarded_shift_into state destination span ty lowered left right
+    | _ ->
+        B.temp_value_into state destination ty span
+          (Binary (lowered, left, right))
 
   let rec map_operands state = function
     | [] -> []
@@ -786,6 +712,11 @@ module Mir_expr = struct
           value :: map_operands state rest
 
   and lower_expr state (expr : S.texpr) =
+    match expr.S.const with
+    | Some value -> B.constant expr (Mir_const.constant_of_value value)
+    | None -> lower_runtime_expr state expr
+
+  and lower_runtime_expr state (expr : S.texpr) =
     match expr.S.desc with
     | S.TErrorExpr ->
         Diagnostic.ice ~span:expr.S.span "error expression reached MIR"
@@ -802,11 +733,6 @@ module Mir_expr = struct
     | S.TIdent _ when expr.S.ty = TUnit -> B.constant expr Undef
     | S.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
         B.constant expr (Function symbol.Symbol.link_name)
-    | S.TIdent symbol
-      when Symbol.is_comptime symbol.Symbol.kind
-           || Mir_const.is_comptime_global state.B.const_context
-                (Symbol.key symbol) ->
-        B.evaluated_constant state expr
     | S.TIdent symbol ->
         B.copy expr.S.span expr.S.ty (B.symbol_place state expr.S.span symbol)
     | S.TCall (callee, args, variadic_start) ->
@@ -815,19 +741,23 @@ module Mir_expr = struct
         Mir_control.lower_short_circuit state expr left right false
     | S.TBinOp (Ast.Or, left, right) ->
         Mir_control.lower_short_circuit state expr left right true
-    | S.TBinOp (Ast.Assign, left, right) ->
+    (* Bare names do not have an address so the value can go straight in *)
+    | S.TAssign (None, ({ S.desc = S.TIdent _; _ } as left), right)
+      when left.S.ty <> TUnit ->
+        let destination = lower_place state left in
+        lower_expr_into state destination right;
+        B.copy expr.S.span left.S.ty destination
+    | S.TAssign (None, left, right) ->
         let assigned = lower_expr state right in
         if left.S.ty <> TUnit then begin
           let destination = lower_place state left in
           B.assign state destination assigned
         end;
         assigned
-    | S.TBinOp (op, left, right) when base_binop op <> None ->
+    | S.TAssign (Some op, left, right) ->
         lower_compound_assign state expr op left right
     | S.TBinOp (op, left, right) ->
-        let left = lower_expr state left in
-        let right = lower_expr state right in
-        Mir_check.arith state op ~operand_ty:left.ty right expr.S.span;
+        let left, right = lower_binop_operands state expr op left right in
         lower_binary state expr.S.span expr.S.ty op left right
     | S.TUnOp (Ast.Pos, inner) -> lower_expr state inner
     | S.TUnOp (Ast.AddressOf, { S.desc = S.TUnOp (Ast.Deref, inner); _ }) ->
@@ -924,6 +854,24 @@ module Mir_expr = struct
     | Some destination -> B.copy expr.S.span expr.S.ty destination
     | None -> B.constant expr Undef
 
+  and lower_binop_operands state (expr : S.texpr) op left right =
+    let left = lower_expr state left in
+    let right = lower_expr state right in
+    Mir_check.arith state op ~operand_ty:left.ty right expr.S.span;
+    (left, right)
+
+  and lower_expr_into state destination (expr : S.texpr) =
+    match expr.S.desc with
+    | S.TBinOp (op, left, right)
+      when Option.is_none expr.S.const && op <> Ast.And && op <> Ast.Or ->
+        let left, right = lower_binop_operands state expr op left right in
+        ignore
+          (lower_binary_into state destination expr.S.span expr.S.ty op left
+             right)
+    | _ ->
+        let assigned = lower_expr state expr in
+        if B.is_live state then B.assign state destination assigned
+
   and lower_place state (expr : S.texpr) =
     match expr.S.desc with
     | S.TIdent symbol -> B.symbol_place state expr.S.span symbol
@@ -1019,24 +967,10 @@ module Mir_expr = struct
         List.iter (lower_statement state) (List.rev reversed);
         if B.is_live state then lower_expr state last else B.constant expr Undef
 
-  and base_binop = function
-    | Ast.AddAssign -> Some Ast.Add
-    | Ast.SubAssign -> Some Ast.Sub
-    | Ast.MulAssign -> Some Ast.Mul
-    | Ast.DivAssign -> Some Ast.Div
-    | Ast.ModAssign -> Some Ast.Mod
-    | Ast.BitAndAssign -> Some Ast.BitAnd
-    | Ast.BitOrAssign -> Some Ast.BitOr
-    | Ast.BitXorAssign -> Some Ast.BitXor
-    | Ast.LshiftAssign -> Some Ast.Lshift
-    | Ast.RshiftAssign -> Some Ast.Rshift
-    | _ -> None
-
   and lower_compound_assign state (expr : S.texpr) op (left : S.texpr) right =
     let target = lower_place state left in
     let old = B.copy left.S.span left.S.ty target in
     let right = lower_expr state right in
-    let op = Option.get (base_binop op) in
     Mir_check.arith state op ~operand_ty:old.ty right expr.S.span;
     let updated = lower_binary state expr.S.span left.S.ty op old right in
     B.assign state target updated;
@@ -1064,18 +998,14 @@ module Mir_expr = struct
           in
           B.bind_symbol state symbol id;
           ignore (lower_expr state init)
-      | S.TBinding (Ast.Comptime, symbol, _, init) ->
-          Hashtbl.replace state.B.consts (Symbol.key symbol)
-            (B.eval_const state init)
+      | S.TBinding (Ast.Comptime, _, _, _) -> ()
       | S.TBinding (_, symbol, ty, init) ->
           let id =
             B.add_local state ~name:symbol.Symbol.name User ty
               symbol.Symbol.span
           in
           B.bind_symbol state symbol id;
-          let init = lower_expr state init in
-          if B.is_live state then
-            B.assign state (B.local_place expr.S.span id) init
+          lower_expr_into state (B.local_place expr.S.span id) init
       | S.TReturn (Some value) when state.B.result <> None ->
           let returned = lower_expr state value in
           let result = Option.get state.B.result in
@@ -1198,7 +1128,6 @@ let build_func const_context globals (func : S.tfunc_def) : Mir.func =
   }
 
 let build (declarations : S.tdecl list) : Mir.program =
-  let const_context = Mir_const.make_context declarations in
   let globals_by_id = Hashtbl.create 16 in
   let structs_rev = ref [] in
   let globals_rev = ref [] in
@@ -1212,20 +1141,22 @@ let build (declarations : S.tdecl list) : Mir.program =
       | S.TGlobal global when global.S.ty = Types.TUnit -> ()
       | S.TGlobal global when global.S.kind <> Ast.Comptime ->
           Hashtbl.add globals_by_id global.S.key global.S.name;
-          globals_rev :=
-            {
-              Mir.name = global.S.name;
-              ty = global.S.ty;
-              init =
-                Option.map (Mir_const.global_init const_context) global.S.init;
-              public = List.mem Ast.Pub global.S.modifiers;
-            }
-            :: !globals_rev
+          globals_rev := global :: !globals_rev
       | S.TFunc func -> functions_rev := func :: !functions_rev
       | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
     declarations;
   let structs = List.rev !structs_rev in
-  let globals = List.rev !globals_rev in
+  let const_context = Mir_const.make_context structs in
+  let globals =
+    List.rev !globals_rev
+    |> List.map (fun (global : S.tglobal_def) ->
+        {
+          Mir.name = global.S.name;
+          ty = global.S.ty;
+          init = Option.map (Mir_const.global_init const_context) global.S.init;
+          public = List.mem Ast.Pub global.S.modifiers;
+        })
+  in
   let functions =
     List.rev !functions_rev |> List.map (build_func const_context globals_by_id)
   in
