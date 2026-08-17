@@ -56,32 +56,17 @@ end)
 let prelude_module_id : module_id = -2
 
 let is_func (kind : kind) : bool =
-  match kind with
-  | Func | LocalFunc | Extern -> true
-  | Error | Global _ | Type | LocalType | Local _ | Param | ForVar | Module
-  | MatchBind ->
-      false
+  match kind with Func | LocalFunc | Extern -> true | _ -> false
 
 let is_global (kind : kind) : bool =
-  match kind with
-  | Global _ -> true
-  | Error | Func | LocalFunc | Extern | Type | LocalType | Local _ | Param
-  | ForVar | Module | MatchBind ->
-      false
+  match kind with Global _ -> true | _ -> false
 
 let is_immutable (kind : kind) : bool =
   match kind with
   | Local Ast.Comptime | ForVar | Module | MatchBind -> true
-  | Error | Func | LocalFunc | Extern | Global _ | Type | LocalType
-  | Local Ast.Var
-  | Param ->
-      false
+  | _ -> false
 
 let is_comptime (kind : kind) : bool =
   match kind with
   | Local Ast.Comptime | Global Ast.Comptime -> true
-  | Error | Func | LocalFunc | Extern | Type | LocalType
-  | Global Ast.Var
-  | Local Ast.Var
-  | Param | ForVar | Module | MatchBind ->
-      false
+  | _ -> false
