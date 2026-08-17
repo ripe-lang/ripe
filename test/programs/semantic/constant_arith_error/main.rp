@@ -1,0 +1,9 @@
+comptime OVERFLOW_MUL: i64 = 9223372036854775807 * 2
+comptime OVERFLOW_ADD: i64 = 9223372036854775807 + 1
+comptime DIVIDE: i32 = 1 / 0
+comptime REMAINDER: i32 = 1 % 0
+comptime SHIFTED: i64 = 1 << 200
+
+func main() i32 {
+  return 0
+}

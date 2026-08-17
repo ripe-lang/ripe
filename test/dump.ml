@@ -48,6 +48,13 @@ and dump_expr (e : Ripe.Ast.expr) =
   | BinOp (op, l, r) ->
       "(" ^ Ripe.Ast.show_binop_sym op ^ " " ^ dump_expr l ^ " " ^ dump_expr r
       ^ ")"
+  | Assign (base, l, r) ->
+      let sym =
+        match base with
+        | None -> "="
+        | Some op -> Ripe.Ast.show_binop_sym op ^ "="
+      in
+      "(" ^ sym ^ " " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | UnOp (op, e) -> "(" ^ Ripe.Ast.show_unop_sym op ^ " " ^ dump_expr e ^ ")"
   | Range (l, r) -> "(.. " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | RangeInclusive (l, r) -> "(..= " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
@@ -57,7 +64,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | RangeFull -> "(..)"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
-  | Cast (e, t) -> "(as " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
+  | BitCast (e, t) -> "(bitcast " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
       "(array"

@@ -1,0 +1,24 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+comptime K: i8 = 100
+comptime FOLDED: i8 = 100 * 3 - 250
+
+func main() i32 {
+  var narrowed: u8 = 300 - 200
+  var divided: i8 = 300 / 3
+  var chained: u8 = 100 + 100 + 100 - 200
+  var negated: i8 = -128
+  var wrapped: i8 = i8(100 + 100)
+  var masked: u8 = 1 & 3 | 4
+  var flipped: i32 = ~0
+  var shifted: u64 = 1 << 63
+  var widest: u64 = 18446744073709551615
+  var smallest: i64 = -9223372036854775808
+  var named: i8 = K - 1
+
+  printf("%d %d %d %d %d %d %d %d %llu %llu %lld %d\n", i32(FOLDED),
+         i32(narrowed), i32(divided), i32(chained), i32(negated),
+         i32(wrapped), i32(masked), flipped, shifted, widest, smallest,
+         i32(named))
+  return 0
+}

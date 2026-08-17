@@ -1,0 +1,19 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+comptime LETTER: char = 'Z'
+comptime NEWLINE: char = '\n'
+
+func classify(c: char) i32 {
+  match c {
+    LETTER => return 1,
+    NEWLINE => return 2,
+    _ => return 0,
+  }
+}
+
+func main() i32 {
+  var runtime: char = 'Z'
+  printf("%d %d %d %d %d\n", i32(LETTER), i32(NEWLINE),
+         classify(runtime), classify('\n'), classify('a'))
+  return 0
+}

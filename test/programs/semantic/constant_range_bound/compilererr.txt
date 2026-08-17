@@ -1,0 +1,8 @@
+error: integer literal out of range
+  at main.rp:7:20
+      for _i in START..300 {
+                       ^~~ does not fit in u8
+error: integer literal out of range
+  at main.rp:10:38
+      var _slice: []i32 = backing[START..300]
+                                         ^~~ does not fit in u8

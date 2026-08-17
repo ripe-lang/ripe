@@ -22,8 +22,8 @@ func addressable() i32 {
   var value: () = ()
   var p: *() = &value
   var q: *() = &value
-  if p as usize == 0 { return 0 }
-  if p as usize != q as usize { return 0 }
+  if p == null { return 0 }
+  if p != q { return 0 }
   return 1
 }
 
@@ -33,6 +33,6 @@ func main() i32 {
   explicit_return()
   assign()
   indirect(pass)
-  return sizeof(()) as i32 + sizeof((())) as i32 + sizeof(((((()))))) as i32 +
-    sizeof((i32)) as i32 + number() + block_value() + addressable()
+  return i32(sizeof(())) + i32(sizeof((()))) + i32(sizeof(((((())))))) +
+    i32(sizeof((i32))) + number() + block_value() + addressable()
 }

@@ -4,12 +4,12 @@ func main() i32 {
   var a: [3]i32 = [1, 2, 3]
 
   // Every form can produce an empty slice at either end
-  printf("%d %d %d %d\n", a[..0].len as i32, a[3..].len as i32,
-    a[1..1].len as i32, a[0..0].len as i32)
+  printf("%d %d %d %d\n", i32(a[..0].len), i32(a[3..].len),
+    i32(a[1..1].len), i32(a[0..0].len))
 
   // A zero length array only has the empty slice
   var e: [0]i32 = undefined
-  printf("%d %d %d\n", e[..].len as i32, e[0..].len as i32, e[..0].len as i32)
+  printf("%d %d %d\n", i32(e[..].len), i32(e[0..].len), i32(e[..0].len))
 
-  return (a[..0].len + a[3..].len + e[..].len) as i32
+  return i32(a[..0].len + a[3..].len + e[..].len)
 }
