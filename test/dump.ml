@@ -62,6 +62,10 @@ and dump_expr (e : Ripe.Ast.expr) =
   | RangeTo r -> "(.. " ^ dump_expr r ^ ")"
   | RangeToInclusive r -> "(..= " ^ dump_expr r ^ ")"
   | RangeFull -> "(..)"
+  | Path segs ->
+      "(. "
+      ^ String.concat " " (List.map (fun (n, _) -> Ripe.Interner.text n) segs)
+      ^ ")"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
   | BitCast (e, t) -> "(bitcast " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"

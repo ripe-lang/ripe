@@ -1140,7 +1140,7 @@ let%expect_test "parse: call result indexed then field accessed" =
 
 let%expect_test "parse: deep field access chain" =
   parse_expr "a.b.c.d";
-  [%expect {| (. (. (. a b) c) d) |}]
+  [%expect {| (. a b c d) |}]
 
 let%expect_test "parse: slice bounds are expressions" =
   parse_expr "a[i + 1..n]";
@@ -1411,7 +1411,7 @@ let%expect_test "parse: a dotted struct literal" =
 
 let%expect_test "parse: a dotted field read stays a field read" =
   parse_expr "math.origin.x";
-  [%expect {| (. (. math origin) x) |}]
+  [%expect {| (. math origin x) |}]
 
 let%expect_test "parse: an if condition still reads a field access" =
   (match parse "func f(p: point) { if p.flag { } }" with

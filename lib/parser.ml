@@ -285,14 +285,6 @@ let assign_of = function
   | RSHIFT_ASSIGN -> Some (Some Rshift)
   | _ -> None
 
-(* math.Point, math.vector.Point *)
-let rec dotted_name (e : expr) : Ast.name list option =
-  match e.desc with
-  | Ident name -> Some [ name ]
-  | FieldAccess (inner, name, _) ->
-      Option.map (fun path -> path @ [ name ]) (dotted_name inner)
-  | _ -> None
-
 (* i32, *i32, func (i32, i32) i32 *)
 let rec parse_typ st =
   let lo = cur_pos st in
@@ -618,22 +610,29 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
   | DOT -> (
       advance st;
       let name, name_span = expect_ident_span st in
-      let access = mk lo st (FieldAccess (lhs, name, name_span)) in
-      (* The brace means this path names a type from another module *)
-      match dotted_name access with
-      | Some path when at st LBRACE && not no_struct_lit ->
-          advance st;
-          let fields = parse_struct_lit_fields st in
-          expect st RBRACE;
-          let path = List.rev path in
-          let name, module_path =
-            match path with
-            | name :: module_path -> (name, List.rev module_path)
-            | [] -> assert false
-          in
-          continue_with
-            (mk lo st (StructLit (module_path, name, access.span, fields)))
-      | Some _ | None -> continue_with access)
+      match lhs.desc with
+      | Ident head ->
+          let rev = ref [ (name, name_span); (head, lhs.span) ] in
+          while at st DOT do
+            advance st;
+            rev := expect_ident_span st :: !rev
+          done;
+          let segs = List.rev !rev in
+          if at st LBRACE && not no_struct_lit then begin
+            advance st;
+            let fields = parse_struct_lit_fields st in
+            expect st RBRACE;
+            let base, module_path =
+              match !rev with
+              | (base, _) :: rest -> (base, List.rev_map fst rest)
+              | [] -> assert false
+            in
+            let path_span = (path_expr segs).span in
+            continue_with
+              (mk lo st (StructLit (module_path, base, path_span, fields)))
+          end
+          else continue_with (path_expr segs)
+      | _ -> continue_with (mk lo st (FieldAccess (lhs, name, name_span))))
   | LBRACKET ->
       advance st;
       let idx = parse_index_arg st in

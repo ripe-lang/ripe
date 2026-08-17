@@ -212,6 +212,12 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) : Qname.t =
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
 
+let path_owner (segs : (Ast.name * Ast.span) list) : expr * Ast.name * Ast.span
+    =
+  match List.rev segs with
+  | (fname, fspan) :: rest -> (Ast.path_expr (List.rev rest), fname, fspan)
+  | [] -> assert false
+
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at (env : env) (span : Ast.span) (fallback : string) : string =
   match Resolve.sym_at_opt env.uses span with
@@ -264,35 +270,36 @@ let resolve_abi (env : env) (a : Ast.abi) : Types.func_abi =
           emit env (Diagnostic.unsupported_abi span);
           Types.AbiError)
 
+let named_ty (env : env) (span : Ast.span) (shown : string) : ty =
+  match Symbol.Table.find_opt env.types (key_at env span) with
+  (* Never is the return type of a function that can't return so no value ever has it *)
+  | Some (DBuiltin (BTy TNever)) ->
+      emit env
+        Diagnostic.(
+          error "never is only valid as a function return type"
+          |> at span
+          |> help "a value of type never cannot exist");
+      TError
+  | Some (DBuiltin BOpaque) ->
+      emit env
+        Diagnostic.(
+          error "opaque is only valid as a pointee"
+          |> at span
+          |> help "use *opaque for an untyped pointer");
+      TError
+  | Some (DBuiltin (BTy ty)) -> ty
+  | Some (DStruct _) -> TStruct (qname_at env span shown, [])
+  | Some (DAlias aliased) -> TAlias (qname_at env span shown, aliased)
+  | Some (DEnum _) -> TEnum (qname_at env span shown)
+  | None -> (
+      match Resolve.sym_at_opt env.uses span with
+      | Some { Symbol.kind = Symbol.Error; _ } -> TError
+      | _ -> Diagnostic.ice ~span "type name escaped the resolver")
+
 let rec ty_of_ast (env : env) (t : typ) : ty =
   match t.tdesc with
   | ErrorType -> TError
-  | Named (path, name) -> (
-      let shown = Ast.show_named path name in
-      match Symbol.Table.find_opt env.types (key_at env t.tspan) with
-      (* Never is the return type of a function that can't return so no value ever has it *)
-      | Some (DBuiltin (BTy TNever)) ->
-          emit env
-            Diagnostic.(
-              error "never is only valid as a function return type"
-              |> at t.tspan
-              |> help "a value of type never cannot exist");
-          TError
-      | Some (DBuiltin BOpaque) ->
-          emit env
-            Diagnostic.(
-              error "opaque is only valid as a pointee"
-              |> at t.tspan
-              |> help "use *opaque for an untyped pointer");
-          TError
-      | Some (DBuiltin (BTy ty)) -> ty
-      | Some (DStruct _) -> TStruct (qname_at env t.tspan shown, [])
-      | Some (DAlias aliased) -> TAlias (qname_at env t.tspan shown, aliased)
-      | Some (DEnum _) -> TEnum (qname_at env t.tspan shown)
-      | None -> (
-          match Resolve.sym_at_opt env.uses t.tspan with
-          | Some { Symbol.kind = Symbol.Error; _ } -> TError
-          | _ -> Diagnostic.ice ~span:t.tspan "type name escaped the resolver"))
+  | Named (path, name) -> named_ty env t.tspan (Ast.show_named path name)
   | Pointer inner when builtin_at env inner.tspan = Some BOpaque -> TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> (
@@ -448,8 +455,8 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | BinOp (op, l, r) -> synth_binop env op l r
   | Assign (base, l, r) -> synth_assign env base l r
   | UnOp (op, e) -> synth_unop env op e
-  (* A qualified name is one symbol so the module in front of it isn't a value *)
-  | FieldAccess (inner_e, fname, fspan) -> (
+  | Path segs -> (
+      let inner_e, fname, fspan = path_owner segs in
       match Resolve.sym_at_opt env.uses e.span with
       | Some s when s.Symbol.kind = Symbol.Error -> dummy_texpr
       | Some s
@@ -458,13 +465,14 @@ and synth_desc (env : env) (e : expr) : T.texpr =
       | _ -> (
           match Symbol.Table.find_opt env.types (key_at env inner_e.span) with
           | Some (DEnum info) -> synth_variant env inner_e info fname fspan
-          (* Only an enum has members to name so any other type is a mistake *)
           | Some (DStruct _ | DAlias _ | DBuiltin _) ->
               emit env
                 (Diagnostic.error_at inner_e.span "expected a value"
                 |> Diagnostic.label "this names a type");
               dummy_texpr
           | None -> synth_field env e.span inner_e fname fspan))
+  | FieldAccess (inner_e, fname, fspan) ->
+      synth_field env e.span inner_e fname fspan
   | BitCast (operand, t) ->
       let te = synth_operand env operand in
       let ty = ty_of_ast env t in
@@ -1573,10 +1581,8 @@ and synth_conversion (env : env) (span : Ast.span) (te : T.texpr) (ty : ty) :
 (* A type in call position converts its one argument *)
 and synth_type_call (env : env) (span : Ast.span) (callee : expr)
     (args : expr list) : T.texpr =
-  let named =
-    match callee.desc with Ident name -> Named ([], name) | _ -> ErrorType
-  in
-  let ty = ty_of_ast env { tdesc = named; tspan = callee.span } in
+  let sym = Resolve.sym_at env.uses callee.span in
+  let ty = named_ty env callee.span sym.Symbol.name in
   match args with
   | [ arg ] -> synth_conversion env span (synth_operand env arg) ty
   | _ ->
@@ -1591,7 +1597,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
   (* A qualified callee is one symbol so it still calls direct *)
   let direct_callee =
     match callee.desc with
-    | Ident _ | FieldAccess _ -> (
+    | Ident _ | Path _ -> (
         match Resolve.sym_at_opt env.uses callee.span with
         | Some s when Symbol.is_func s.Symbol.kind -> Some s
         | _ -> None)
