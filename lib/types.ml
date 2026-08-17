@@ -255,8 +255,6 @@ let is_wide_ty t =
   | TAlias _ | TError | TEnum _ | TUnit ->
       false
 
-let rec strip_alias = function TAlias (_, base) -> strip_alias base | t -> t
-
 (* An alias is just another name for its base type so it doesn't make two types *)
 let rec erase_aliases = function
   | TAlias (_, base) -> erase_aliases base

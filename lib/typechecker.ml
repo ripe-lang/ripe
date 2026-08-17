@@ -639,7 +639,7 @@ and warn_discarded_operation (env : env) (e : expr) (te : T.texpr) : unit =
 
 and check_unit_result (env : env) (span : Ast.span) : result_use -> unit =
   function
-  | Expect want when strip_alias want <> TUnit ->
+  | Expect want when resolve_ty want <> TUnit ->
       emit env
         (Diagnostic.type_mismatch span ~expected:(show_ty env want)
            ~found:(show_ty env TUnit))
@@ -722,7 +722,7 @@ and check_binding (env : env) (kind : Ast.binding_kind) (name : Ast.name)
     match (ann, init) with
     | Some a, Some e ->
         let want = ty_of_ast env a in
-        let te = check ~adopt:true env e want in
+        let te = check env e want in
         (want, te)
     | None, Some e ->
         let te = synth env e in
@@ -907,7 +907,7 @@ and synth_for (env : env) (span : Ast.span) (label : Ast.loop_label option)
         (node, t)
     | _ -> (
         let ti = synth env iter in
-        match strip_alias ti.T.ty with
+        match resolve_ty ti.T.ty with
         | TError -> (ti, TError)
         | TArray (elem, _) | TSlice elem -> (ti, elem)
         | t ->
@@ -975,7 +975,7 @@ and check_if (env : env) (span : Ast.span)
         | Some { Ast.value = body; span = bspan } ->
             Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
-            if strip_alias w <> TUnit then
+            if resolve_ty w <> TUnit then
               emit env
                 (Diagnostic.type_mismatch span ~expected:(show_ty env w)
                    ~found:(show_ty env TUnit));
@@ -1111,11 +1111,11 @@ and adopt_int_literal (env : env) (span : Ast.span) (want : ty) (target : ty)
   | _ -> None
 
 (* This has to be this type *)
-and check ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
-  { (check_desc ~adopt env e want) with T.span = e.span }
+and check (env : env) (e : expr) (want : ty) : T.texpr =
+  { (check_desc env e want) with T.span = e.span }
 
-and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
-  let target = if adopt then resolve_ty want else strip_alias want in
+and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
+  let target = resolve_ty want in
   (* Synthesize then check the result matches want *)
   let check_by_synth () =
     let te = synth env e in
@@ -1171,20 +1171,20 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
   | UnOp (Neg, { desc = Int (n, None); _ }) -> (
       match adopt_int_literal env e.span want target ~neg:true n with
       | Some te -> te
-      | None -> check ~adopt env { e with desc = Int (Int64.neg n, None) } want)
+      | None -> check env { e with desc = Int (Int64.neg n, None) } want)
   | UnOp (Neg, { desc = Float (f, suf); _ }) ->
       check env { e with desc = Float (-.f, suf) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth ()
   | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
-      check ~adopt env { operand with span = e.span } want
-  | UnOp (Neg, operand) when is_numeric (strip_alias want) ->
+      check env { operand with span = e.span } want
+  | UnOp (Neg, operand) when is_numeric (resolve_ty want) ->
       T.mk want (T.TUnOp (Neg, check env operand want))
-  | UnOp (Pos, operand) when is_numeric (strip_alias want) ->
+  | UnOp (Pos, operand) when is_numeric (resolve_ty want) ->
       T.mk want (T.TUnOp (Pos, check env operand want))
-  | UnOp (BitNot, operand) when is_integer (strip_alias want) ->
+  | UnOp (BitNot, operand) when is_integer (resolve_ty want) ->
       T.mk want (T.TUnOp (BitNot, check env operand want))
   | ArrayLit elems -> (
-      match strip_alias want with
+      match resolve_ty want with
       | TArray (elem, n) ->
           if List.length elems <> n then
             emit env
@@ -1198,10 +1198,9 @@ and check_desc ?(adopt = false) (env : env) (e : expr) (want : ty) : T.texpr =
     when (match op with
          | Mod | BitAnd | BitOr | BitXor -> is_integer
          | _ -> is_numeric)
-           (strip_alias want) ->
+           (resolve_ty want) ->
       T.mk want (T.TBinOp (op, check env l want, check env r want))
-  | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (strip_alias want)
-    ->
+  | BinOp (((Lshift | Rshift) as op), l, r) when is_integer (resolve_ty want) ->
       T.mk want (T.TBinOp (op, check env l want, synth env r))
   | Block body ->
       let tb, ty = check_scoped_block env e.span body (Expect want) in
@@ -1223,7 +1222,7 @@ and coerce_expr (env : env) (e : expr) (want : ty) (te : T.texpr) : T.texpr =
         ~found:(show_ty env got)
     in
     let mismatch =
-      match (e.desc, strip_alias want) with
+      match (e.desc, resolve_ty want) with
       | BinOp (Assign, _, _), TBool ->
           Diagnostic.help "did you mean `==` to compare?" mismatch
       | _ -> mismatch
@@ -1234,7 +1233,7 @@ and coerce_expr (env : env) (e : expr) (want : ty) (te : T.texpr) : T.texpr =
 
 (* A slice is an address and a length so the array already holds what the view needs *)
 and adopt_slice (want : ty) (te : T.texpr) : T.texpr =
-  match (strip_alias want, strip_alias te.T.ty) with
+  match (resolve_ty want, resolve_ty te.T.ty) with
   | TSlice _, TArray _ ->
       let zero = T.mk (TInt Usize) (T.TInt 0L) in
       let len = T.mk (TInt Usize) (T.TLen te) in
@@ -1293,7 +1292,7 @@ and synth_binop (env : env) (op : binop) (l : expr) (r : expr) : T.texpr =
           (Diagnostic.bad_operand l.span ~op:(show_binop_sym op)
              ~ty:(show_ty env t));
       (* QBE has no float remainder instruction *)
-      if op = Mod && match strip_alias t with TFloat _ -> true | _ -> false
+      if op = Mod && match resolve_ty t with TFloat _ -> true | _ -> false
       then emit env (Diagnostic.bad_operand l.span ~op:"%" ~ty:(show_ty env t));
       T.mk t (T.TBinOp (op, tl, tr))
   | Eq | Neq ->
@@ -1381,7 +1380,7 @@ and check_assign_operands (env : env) (op : binop) (l : expr) (r : expr) :
     (* QBE has no float remainder instruction *)
     | ModAssign ->
         is_numeric t
-        && not (match strip_alias t with TFloat _ -> true | _ -> false)
+        && not (match resolve_ty t with TFloat _ -> true | _ -> false)
     | BitAndAssign | BitOrAssign | BitXorAssign | LshiftAssign | RshiftAssign ->
         is_integer t
     | _ -> false
@@ -1449,7 +1448,7 @@ and synth_unop (env : env) (op : unop) (e : expr) : T.texpr =
       T.mk t (T.TUnOp (op, te))
   | Deref -> (
       let te = synth env e in
-      match strip_alias te.T.ty with
+      match resolve_ty te.T.ty with
       | TPointer inner -> T.mk inner (T.TUnOp (op, te))
       | TError -> dummy_texpr
       | TOpaquePtr ->
@@ -1479,7 +1478,7 @@ and synth_field (env : env) (span : Ast.span) (e : expr) (fname : Ast.name)
     (fspan : Ast.span) : T.texpr =
   let te = synth env e in
   let ty = te.T.ty in
-  match strip_alias ty with
+  match resolve_ty ty with
   | TStr -> (
       match fname with
       | n when n = len_name -> T.mk (TInt Usize) (T.TLen te)
@@ -1525,7 +1524,7 @@ and synth_struct_field (env : env) (span : Ast.span) (te : T.texpr) (ty : ty)
     | _ -> None
   in
   match peel 0 ty with
-  | None when strip_alias ty = TError -> dummy_texpr
+  | None when resolve_ty ty = TError -> dummy_texpr
   | None ->
       emit env
         (Diagnostic.error_at span "type has no fields"
@@ -1598,7 +1597,7 @@ and synth_call (env : env) (span : Ast.span) (callee : expr) (args : expr list)
 and synth_index (env : env) (span : Ast.span) (base : expr) (idx : expr) :
     T.texpr =
   let tbase = synth env base in
-  match strip_alias tbase.T.ty with
+  match resolve_ty tbase.T.ty with
   | TArray (elem, _) | TSlice elem -> (
       (* A missing low end reads as zero and a missing high end reads as the length *)
       let zero = T.mk (TInt Usize) (T.TInt 0L) in
