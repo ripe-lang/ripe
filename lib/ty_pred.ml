@@ -14,7 +14,6 @@ let rec compatible (want : ty) (got : ty) : bool =
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
-  (* A fixed array coerces to a slice of the same element type *)
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
@@ -22,7 +21,6 @@ let rec compatible (want : ty) (got : ty) : bool =
       && List.length p1 = List.length p2
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
-  (* A struct matches nominally by name and its type arguments must match exactly *)
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
   | s_want, s_got -> ty_equal s_want s_got
@@ -38,16 +36,7 @@ let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
   | T.TUnOp (Deref, _) -> true
-  | T.TUnOp _ -> false
-  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
-  | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TCast _ | T.TSizeOf _
-  | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _ | T.TSliceExpr _
-  | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _ | T.TBlock _ | T.TIf _
-  | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _ | T.TBreak _
-  | T.TContinue _ | T.TUnit ->
-      false
-  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TMatch _ | T.TVariant _ ->
-      false
+  | _ -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_lvalue (te : T.texpr) : T.texpr option =
@@ -55,15 +44,7 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | T.TIdent _ -> Some te
   | T.TFieldAccess (base, _) -> root_through base
   | T.TIndex (base, _) -> root_through base
-  | T.TErrorExpr | T.TInt _ | T.TFloat _ | T.TBool _ | T.TNull | T.TCStr _
-  | T.TStr _ | T.TChar _ | T.TCall _ | T.TBinOp _ | T.TUnOp _ | T.TCast _
-  | T.TSizeOf _ | T.TRange _ | T.TRangeInclusive _ | T.TArrayLit _ | T.TLen _
-  | T.TSliceExpr _ | T.TDataPtr _ | T.TZero | T.TUndef | T.TStructLit _
-  | T.TBlock _ | T.TIf _ | T.TWhile _ | T.TFor _ | T.TBinding _ | T.TReturn _
-  | T.TBreak _ | T.TContinue _ | T.TUnit ->
-      None
-  | T.TPairAssign _ | T.TLocalDecl | T.TLoop _ | T.TMatch _ | T.TVariant _ ->
-      None
+  | _ -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through (base : T.texpr) : T.texpr option =
@@ -92,6 +73,20 @@ let rec is_comparable = function
       true
   | TAlias (_, base) -> is_comparable base
   | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit -> false
+
+let binop_accepts (op : binop) : ty -> bool =
+  match op with
+  | Add | Sub | Mul | Div -> is_numeric
+  | Mod | BitAnd | BitOr | BitXor | Lshift | Rshift -> is_integer
+  | Eq | Neq -> is_comparable
+  | Lt | Gt | Lte | Gte -> is_ordered
+  | And | Or -> fun _ -> true
+
+let unop_accepts (op : unop) : ty -> bool =
+  match op with
+  | Pos | Neg -> is_numeric
+  | BitNot -> is_integer
+  | Not | Deref | AddressOf -> fun _ -> true
 
 let rec is_num_literal (e : expr) =
   match e.desc with
@@ -140,18 +135,27 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
-  (* TODO: no enum to integer cast until the boundary is settled *)
   | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
   | TAlias _ -> assert false (* resolve_ty strips these *)
+
+(* Both sides need the same width so not floats *)
+let bitcast_ok src tgt =
+  match (cast_class src, cast_class tgt) with
+  | Aggregate, _ | _, Aggregate -> false
+  | _ ->
+      (not (is_float src))
+      && (not (is_float tgt))
+      && resolve_ty src <> TBool
+      && resolve_ty tgt <> TBool
+      && is_wide_ty src = is_wide_ty tgt
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
   match (resolve_ty src, resolve_ty tgt) with
   | TError, _ | _, TError -> true
   | s, TBool -> s = TBool
-  (* Char is a distinct scalar so it only converts to and from integers *)
   | TChar, TChar -> true
   | TChar, TInt _ | TInt _, TChar -> true
   | TChar, _ | _, TChar -> false
@@ -159,6 +163,6 @@ let cast_ok src tgt =
       match (cast_class src, cast_class tgt) with
       | Aggregate, _ | _, Aggregate ->
           ty_equal (resolve_ty src) (resolve_ty tgt)
-      | Numeric, Numeric | Ptr, Ptr -> true
-      | (Numeric | Ptr), (Numeric | Ptr) ->
-          (not (is_float src)) && not (is_float tgt))
+      | Numeric, Numeric -> true
+      | Ptr, Ptr -> false
+      | (Numeric | Ptr), (Numeric | Ptr) -> false)

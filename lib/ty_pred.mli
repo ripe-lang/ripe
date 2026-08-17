@@ -16,3 +16,6 @@ val float_suffix_kind : string -> float_kind
 val cast_ok : ty -> ty -> bool
 val widens_to : ty -> ty -> bool
 val common_numeric_ty : ty -> ty -> ty option
+val binop_accepts : Ast.binop -> ty -> bool
+val unop_accepts : Ast.unop -> ty -> bool
+val bitcast_ok : ty -> ty -> bool
