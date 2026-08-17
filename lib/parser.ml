@@ -331,10 +331,24 @@ let rec parse_typ st =
         { inner with tspan = Span.make lo st.prev_end }
   | _ -> fail_found st "expected type"
 
+(* I have to wrap it in a fun so it doesn't run before the catch is ready *)
+and recover_typ st depth stops =
+  recover st depth stops (fun () -> parse_typ st) error_typ
+
+and recover_typ_after st depth stops tok =
+  recover st depth stops
+    (fun () ->
+      expect st tok;
+      parse_typ st)
+    error_typ
+
+and recover_expr st depth stops =
+  recover st depth stops (fun () -> parse_expr st 1) error_expr
+
 and optional_annotation st depth =
   if at st COLON then (
     advance st;
-    Some (recover st depth [ ASSIGN ] (fun () -> parse_typ st) error_typ))
+    Some (recover_typ st depth [ ASSIGN ]))
   else None
 
 (* func (i32, i32) i32, extern "C" func (i32) i32 *)
@@ -377,13 +391,7 @@ and parse_fields st =
   let depth = st.tok_depth in
   while st.tok <> RBRACE do
     let name, nspan = expect_ident_span st in
-    let t =
-      recover st depth [ COMMA ]
-        (fun () ->
-          expect st COLON;
-          parse_typ st)
-        error_typ
-    in
+    let t = recover_typ_after st depth [ COMMA ] COLON in
     fields :=
       ({ field_name = name; field_typ = t; field_span = nspan } : field)
       :: !fields;
@@ -438,13 +446,7 @@ and parse_alias_def st mods =
   let depth = st.tok_depth in
   advance st;
   let name, name_span = expect_ident_span st in
-  let typ =
-    recover st depth []
-      (fun () ->
-        expect st ASSIGN;
-        parse_typ st)
-      error_typ
-  in
+  let typ = recover_typ_after st depth [] ASSIGN in
   let hi = st.prev_end in
   ({
      alias_name = name;
@@ -464,13 +466,7 @@ and parse_params st =
   let parse_one () =
     let lo = cur_pos st in
     let name = expect_ident st in
-    let t =
-      recover st depth [ COMMA; RPAREN ]
-        (fun () ->
-          expect st COLON;
-          parse_typ st)
-        error_typ
-    in
+    let t = recover_typ_after st depth [ COMMA; RPAREN ] COLON in
     let hi = st.prev_end in
     ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
       : param)
@@ -496,8 +492,7 @@ and parse_ret_type st =
   | LBRACE | AUTOSEMI | SEMI | EOF | ASSIGN -> None
   | _ ->
       let depth = st.tok_depth in
-      Some
-        (recover st depth [ LBRACE; ASSIGN ] (fun () -> parse_typ st) error_typ)
+      Some (recover_typ st depth [ LBRACE; ASSIGN ])
 
 (* func NAME(params) ret *)
 and parse_signature st =
@@ -791,10 +786,10 @@ and parse_simple_stmt ?(no_pair = false) st =
       let e =
         if kind <> Ast.Var then (
           expect st ASSIGN;
-          Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
+          Some (recover_expr st depth []))
         else if at st ASSIGN then (
           advance st;
-          Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
+          Some (recover_expr st depth []))
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
@@ -1033,7 +1028,7 @@ let parse_global st mods =
   let init =
     if at st ASSIGN then (
       advance st;
-      Some (recover st depth [] (fun () -> parse_expr st 1) error_expr))
+      Some (recover_expr st depth []))
     else None
   in
   let hi = st.prev_end in
