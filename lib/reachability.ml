@@ -29,7 +29,6 @@ and expr_has_break ~own (target : Ast.name option) (e : expr) : bool =
       || List.exists
            (fun (_, { Ast.value = b; _ }) -> block_has_break ~own target b)
            branches
-  (* A break can hide in a value if that a binding or return holds *)
   | Binding (_, _, _, _, init) ->
       Option.fold ~none:false ~some:(expr_has_break ~own target) init
   | Return e -> Option.fold ~none:false ~some:(expr_has_break ~own target) e

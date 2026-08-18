@@ -79,7 +79,7 @@ let is_help arg = arg = "-h" || arg = "--help"
 
 let () =
   let args = match Array.to_list Sys.argv with _ :: rest -> rest | [] -> [] in
-  if args = [] || List.exists is_help args then (
+  if List.is_empty args || List.exists is_help args then (
     print_endline usage_msg;
     exit 0)
   else

@@ -377,17 +377,13 @@ and emit_cast ctx v src_ty target_ty =
       tmp
   | _ ->
       (match (qbe_base src_ty, qbe_base target_ty) with
-      (* The same base type is a plain bit copy *)
       | W, W | L, L | S, S | D, D -> emit_op1 ctx tmp tgt "copy" v
-      (* Word widens to long, long truncates to word *)
       | W, L ->
           let instr = if is_unsigned src_ty then "extuw" else "extsw" in
           emit_op1 ctx tmp "l" instr v
       | L, W -> emit_op1 ctx tmp "w" "copy" v
-      (* Single and double swap precision *)
       | S, D -> emit ctx "%s =d exts %s\n" tmp v
       | D, S -> emit ctx "%s =s truncd %s\n" tmp v
-      (* An integer turns into a float *)
       | (W | L), (S | D) ->
           let instr =
             match (qbe_base src_ty, is_unsigned src_ty) with
@@ -399,7 +395,6 @@ and emit_cast ctx v src_ty target_ty =
                 Diagnostic.ice "float to float conversion in integer path"
           in
           emit ctx "%s =%s %s %s\n" tmp tgt instr v
-      (* A float turns into an integer *)
       | (S | D), (W | L) ->
           let instr =
             match (qbe_base src_ty, is_unsigned target_ty) with
@@ -430,7 +425,6 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
-  (* Fat pointer stored inline as two longs *)
   | TSlice _ | TStr -> "l 2"
   | scalar -> scalar_letter (qbe_scalar scalar)
 
@@ -1031,9 +1025,9 @@ let emit_mir ~source_of (program : Mir.program) =
     (fun (decl : Mir.struct_decl) ->
       emit_struct_type ctx decl.Mir.name decl.Mir.fields)
     program.Mir.structs;
-  if program.Mir.structs <> [] then emit ctx "\n";
+  if not (List.is_empty program.Mir.structs) then emit ctx "\n";
   List.iter (emit_mir_global ctx) program.Mir.globals;
-  if program.Mir.globals <> [] then emit ctx "\n";
+  if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
   (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
   (match Panic_table.sites ctx.panics with

@@ -16,7 +16,7 @@ let return_constant (func : Mir.func) : int64 =
     unsupported "the x86 backend cannot compile more than one block yet";
 
   let block = func.blocks.(0) in
-  if block.statements <> [] then
+  if not (List.is_empty block.statements) then
     unsupported "the x86 backend cannot compile statements yet";
 
   match block.terminator with
@@ -52,9 +52,9 @@ let find_main (program : Mir.program) : Mir.func =
 
 let emit_mir ~source_of:_ (program : Mir.program) : string =
   let open Mir in
-  if program.globals <> [] then
+  if not (List.is_empty program.globals) then
     unsupported "the x86 backend cannot compile globals yet";
-  if List.length program.functions <> 1 then
+  if List.compare_length_with program.functions 1 <> 0 then
     unsupported "the x86 backend cannot compile more than one function yet";
 
   let main = find_main program in

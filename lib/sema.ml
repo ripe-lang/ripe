@@ -1236,7 +1236,7 @@ and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   | ArrayLit elems -> (
       match resolve_ty want with
       | TArray (elem, n) ->
-          if List.length elems <> n then
+          if List.compare_length_with elems n <> 0 then
             emit env
               (Diagnostic.arity e.span
                  ~expected:(Printf.sprintf "expected %d elements" n)
@@ -2012,7 +2012,7 @@ let check_func ?(is_extern = false) (env : env) (fd : func_def) : T.tfunc_def =
   let collected = Symbol.Table.find_opt env.funcs (key_at env fd.func_span) in
   let param_tys =
     match collected with
-    | Some s when List.length s.param_tys = List.length fd.params -> s.param_tys
+    | Some s when List.compare_lengths s.param_tys fd.params = 0 -> s.param_tys
     | _ -> List.map (fun (p : param) -> ty_of_ast env p.param_typ) fd.params
   in
   let params_typed =

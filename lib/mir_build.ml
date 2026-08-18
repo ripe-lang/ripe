@@ -401,11 +401,12 @@ module Mir_control = struct
           lower_tests fail rest
     in
     let rec lower_arms = function
-      (* Nothing checks coverage so falling out of the last test is undefined *)
       | [] -> B.terminate state Unreachable expr.S.span
       | { S.tpat; tbody } :: rest -> (
           let tests, binds = pattern_plan subject scrutinee.S.ty tpat in
-          let no = if tests = [] then None else Some (B.new_block state) in
+          let no =
+            if List.is_empty tests then None else Some (B.new_block state)
+          in
           Option.iter (fun no -> lower_tests no tests) no;
           List.iter bind binds;
           lower_arm state expr result join tbody;
@@ -741,7 +742,6 @@ module Mir_expr = struct
         Mir_control.lower_short_circuit state expr left right false
     | S.TBinOp (Ast.Or, left, right) ->
         Mir_control.lower_short_circuit state expr left right true
-    (* Bare names do not have an address so the value can go straight in *)
     | S.TAssign (None, ({ S.desc = S.TIdent _; _ } as left), right)
       when left.S.ty <> TUnit ->
         let destination = lower_place state left in
@@ -990,7 +990,6 @@ module Mir_expr = struct
       match expr.S.desc with
       | S.TBinding (_, _, ty, init) when ty = TNever || init.S.ty = TNever ->
           ignore (lower_expr state init)
-      (* A unit local still gets a slot so you can take its address, it just has no bytes to store *)
       | S.TBinding (_, symbol, TUnit, init) ->
           let id =
             B.add_local state ~name:symbol.Symbol.name User TUnit
