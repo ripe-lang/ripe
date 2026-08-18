@@ -8,5 +8,4 @@ val src : t -> string
 val line_count : t -> int
 val rel : t -> int -> int
 val lookup : t -> int -> int * int
-val span_to_locs : t -> Ast.span -> int * int * int * int
 val line_bounds : t -> int -> int * int
