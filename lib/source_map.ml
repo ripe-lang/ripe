@@ -40,12 +40,6 @@ let lookup (t : t) (pos : int) : int * int =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
 
-(* Both ends of a span in one call so a caller can print `file.rp:1:5` *)
-let span_to_locs (t : t) (span : Ast.span) : int * int * int * int =
-  let start_line, start_col = lookup t (Span.lo span) in
-  let end_line, end_col = lookup t (Span.hi span) in
-  (start_line, start_col, end_line, end_col)
-
 (* Byte offsets of the line containing pos with newline excluded *)
 (* Takes a global offset and gives back indices into `src` *)
 let line_bounds (t : t) (pos : int) : int * int =
