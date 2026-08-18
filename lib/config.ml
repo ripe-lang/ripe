@@ -4,15 +4,20 @@ let executable_dir () =
   try Filename.dirname (Unix.realpath Sys.executable_name)
   with _ -> Filename.dirname Sys.executable_name
 
+let nonempty_environment name =
+  match Sys.getenv_opt name with
+  | Some path when not (String.is_empty (String.trim path)) -> Some path
+  | _ -> None
+
 let toolchain_roots () =
   let exe_dir = executable_dir () in
   let source_root = Filename.concat exe_dir "../../../" in
   let installed_root = Filename.concat exe_dir "../lib/ripe/" in
   let shared_root = Filename.concat exe_dir "../share/ripe/" in
   let toolchain = Filename.concat "toolchain" (Platform.host ()) in
-  match Sys.getenv_opt "RIPE_TOOLCHAIN" with
-  | Some root when not (String.is_empty (String.trim root)) -> [ root ]
-  | _ ->
+  match nonempty_environment "RIPE_TOOLCHAIN" with
+  | Some root -> [ root ]
+  | None ->
       [
         Filename.concat (Sys.getcwd ()) (Filename.concat "vendor" toolchain);
         Filename.concat source_root (Filename.concat "vendor" toolchain);
@@ -42,11 +47,6 @@ let find_on_path name =
       |> List.find_map (fun dir ->
           let candidate = Filename.concat dir name in
           if is_executable_file candidate then Some candidate else None)
-
-let nonempty_environment name =
-  match Sys.getenv_opt name with
-  | Some path when not (String.is_empty (String.trim path)) -> Some path
-  | _ -> None
 
 let configured_tool name =
   Option.map (fun path -> (name, path)) (nonempty_environment name)
@@ -98,11 +98,7 @@ let runtime_near_exe () : string list =
 
 let runtime_object () : string =
   (* An explicit RIPE_RUNTIME wins so a user can force a path *)
-  let override =
-    match Sys.getenv_opt "RIPE_RUNTIME" with
-    | Some p when not (String.is_empty (String.trim p)) -> [ p ]
-    | _ -> []
-  in
+  let override = Option.to_list (nonempty_environment "RIPE_RUNTIME") in
   let candidates = override @ runtime_in_sites () @ runtime_near_exe () in
   match List.find_opt Sys.file_exists candidates with
   | Some path -> path

@@ -119,7 +119,7 @@ let render_location ctx buf (span : Ast.span) =
   let lo = Source_map.rel ctx.sm (Span.lo span) in
   let line_start, _ = Source_map.line_bounds ctx.sm (Span.lo span) in
   let col = visual_col src line_start lo + 1 in
-  Buffer.add_string buf (Printf.sprintf "  at %s:%d:%d\n" ctx.filename line col)
+  Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line col
 
 (* One entry per visual column so a window can be cut without splitting a character *)
 let cells_of_line src line_start line_end : string Dynarray.t =
