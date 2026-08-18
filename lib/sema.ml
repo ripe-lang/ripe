@@ -1434,8 +1434,8 @@ and check_args (env : env) (span : Ast.span) (sig_ : func_sig)
            ~found:n_args);
       [])
     else
-      let fixed = List.filteri (fun i _ -> i < n_params) args in
-      let rest = List.filteri (fun i _ -> i >= n_params) args in
+      let fixed = List.take n_params args in
+      let rest = List.drop n_params args in
       (* C reads a float vararg as a double so widen it first *)
       let promote_vararg e =
         let te = synth env e in
