@@ -69,7 +69,7 @@ module Strtab = struct
     { buffer; offsets = Hashtbl.create 8 }
 
   let add (table : t) (name : string) : int =
-    if name = "" then 0
+    if String.is_empty name then 0
     else
       match Hashtbl.find_opt table.offsets name with
       | Some at -> at
@@ -82,7 +82,7 @@ module Strtab = struct
 
   (* Lookup stays read only after the table has been copied out [4] *)
   let find (table : t) (name : string) : int =
-    if name = "" then 0
+    if String.is_empty name then 0
     else
       match Hashtbl.find_opt table.offsets name with
       | Some at -> at
