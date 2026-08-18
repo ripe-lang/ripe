@@ -1,6 +1,6 @@
 (library
  (name test_ripe)
- (libraries ripe str)
+ (libraries ripe)
  (inline_tests)
  (preprocess
   (pps ppx_expect ppx_inline_test))

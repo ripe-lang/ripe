@@ -1,8 +1,9 @@
 (* SPDX-License-Identifier: GPL-2.0-only *)
 
 let substring_offset src sub =
-  try Str.search_forward (Str.regexp_string sub) src 0
-  with Not_found -> failwith (Printf.sprintf "substring not found: %S" sub)
+  match String.find_first ~sub src with
+  | Some offset -> offset
+  | None -> failwith (Printf.sprintf "substring not found: %S" sub)
 
 let span src sub =
   let lo = substring_offset src sub in
@@ -12,4 +13,4 @@ let point src sub =
   let offset = substring_offset src sub in
   Ripe.Span.make offset offset
 
-let replace s old rep = Str.global_replace (Str.regexp_string old) rep s
+let replace s old rep = String.replace_all ~sub:old ~by:rep s
