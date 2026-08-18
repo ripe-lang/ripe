@@ -31,8 +31,7 @@
   ppx_deriving
   ocamlformat
   ppx_expect
-  ppx_inline_test
-  dead_code_analyzer)
+  ppx_inline_test)
  (tags
   ("compiler" "language" "systems" "qbe")))
 
