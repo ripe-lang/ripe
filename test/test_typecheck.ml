@@ -910,10 +910,10 @@ func f() { var s: S; var y: f64 = f64(s) }
         func f() { var s: S; var y: f64 = f64(s) }
                                  ^
     help: prefix with an underscore: _y
-    error: invalid cast
+    error: invalid conversion
       at <test>:3:35
         func f() { var s: S; var y: f64 = f64(s) }
-                                          ^~~~~~ cannot cast S to f64
+                                          ^~~~~~ cannot convert S to f64
     |}]
 
 let%expect_test "typecheck: cast int to bool rejected" =
@@ -925,10 +925,10 @@ let%expect_test "typecheck: cast int to bool rejected" =
         func f() { var b: bool = bool(256) }
                        ^
     help: prefix with an underscore: _b
-    error: invalid cast
+    error: invalid conversion
       at <test>:1:26
         func f() { var b: bool = bool(256) }
-                                 ^~~~~~~~~ cannot cast i32 to bool
+                                 ^~~~~~~~~ cannot convert i32 to bool
     help: compare with zero instead e.g. `x != 0`
     |}]
 
@@ -3934,10 +3934,10 @@ let%expect_test "typecheck: enum does not cast to an integer" =
 func f() { var _c = i32(Color.Red) }|};
   [%expect
     {|
-    error: invalid cast
+    error: invalid conversion
       at <test>:2:21
         func f() { var _c = i32(Color.Red) }
-                            ^~~~~~~~~~~~~~ cannot cast Color to i32
+                            ^~~~~~~~~~~~~~ cannot convert Color to i32
     |}]
 
 let%expect_test "typecheck: two enums are two types" =
