@@ -47,15 +47,13 @@ let longest_int_suffix = String.length "isize"
 
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
-  let len = String.length text in
-  let rec find i =
-    if i >= len then (text, None)
-    else
-      match text.[i] with
-      | 'i' | 'u' -> (String.sub text 0 i, Some (String.sub text i (len - i)))
-      | _ -> find (i + 1)
-  in
-  find (max 0 (len - longest_int_suffix))
+  let start = max 0 (String.length text - longest_int_suffix) in
+  let is_suffix_start = function 'i' | 'u' -> true | _ -> false in
+  match String.find_first_index is_suffix_start ~start text with
+  | None -> (text, None)
+  | Some i ->
+      let body, suffix = String.cut_first i text in
+      (body, Some suffix)
 
 let radix_int_token st lexbuf text =
   let body, suf = split_int_suffix text in
@@ -71,8 +69,8 @@ let float_token text =
   let len = String.length text in
   let start = len - float_suffix_len in
   if start > 0 && text.[start] = 'f' then
-    let body = String.sub text 0 start in
-    FLOAT (float_of_string body, Some (String.sub text start float_suffix_len))
+    let body, suffix = String.cut_first start text in
+    FLOAT (float_of_string body, Some suffix)
   else FLOAT (float_of_string text, None)
 
 let bad_char st lexbuf msg =
