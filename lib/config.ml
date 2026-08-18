@@ -123,7 +123,7 @@ let standard_library_roots ?root_filename () =
        || String.starts_with ~prefix:(source_root ^ Filename.dir_sep) filename)
   in
   let source_root_is_parent =
-    Option.value (Option.map is_source_root_parent root_filename) ~default:false
+    Option.exists is_source_root_parent root_filename
   in
   let source_roots =
     if source_root = Filename.dir_sep || source_root_is_parent then []
