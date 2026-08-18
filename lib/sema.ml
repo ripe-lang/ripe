@@ -543,10 +543,10 @@ let synth_conversion (env : env) (span : Ast.span) (te : T.texpr) (ty : ty) :
     T.texpr =
   if not (cast_ok te.T.ty ty) then begin
     let d =
-      Diagnostic.error "invalid cast"
+      Diagnostic.error "invalid conversion"
       |> Diagnostic.at span
       |> Diagnostic.label
-           (Printf.sprintf "cannot cast %s to %s" (show_ty env te.T.ty)
+           (Printf.sprintf "cannot convert %s to %s" (show_ty env te.T.ty)
               (show_ty env ty))
     in
     let d =
