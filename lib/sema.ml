@@ -326,8 +326,8 @@ let rec arm_is_flexible (e : expr) : bool =
       && List.for_all
            (fun (_, { Ast.value = body; _ }) -> block_is_flexible body)
            branches
-      && Option.fold ~none:false
-           ~some:(fun { Ast.value = body; _ } -> block_is_flexible body)
+      && Option.exists
+           (fun { Ast.value = body; _ } -> block_is_flexible body)
            else_body
   | _ -> false
 
@@ -2137,8 +2137,8 @@ let typed_struct_decl (env : env) (sd : struct_def) (fields : ty list) : T.tdecl
     =
   let name = qname_at env sd.struct_span (Interner.text sd.struct_name) in
   let is_local =
-    Option.fold ~none:false
-      ~some:(fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
+    Option.exists
+      (fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
       (Resolve.sym_at_opt env.uses sd.struct_span)
   in
   if is_local then T.TLocalStruct (name, fields)

@@ -23,15 +23,15 @@ and expr_has_break ~own (target : Ast.name option) (e : expr) : bool =
   | Break (Some l, _) -> target <> None && target = Some l.Ast.value
   | Block body -> block_has_break ~own target body
   | If (branches, else_body) ->
-      Option.fold ~none:false
-        ~some:(fun { Ast.value = b; _ } -> block_has_break ~own target b)
+      Option.exists
+        (fun { Ast.value = b; _ } -> block_has_break ~own target b)
         else_body
       || List.exists
            (fun (_, { Ast.value = b; _ }) -> block_has_break ~own target b)
            branches
   | Binding (_, _, _, _, init) ->
-      Option.fold ~none:false ~some:(expr_has_break ~own target) init
-  | Return e -> Option.fold ~none:false ~some:(expr_has_break ~own target) e
+      Option.exists (expr_has_break ~own target) init
+  | Return e -> Option.exists (expr_has_break ~own target) e
   | While (label, _, body) | Loop (label, body) ->
       nested_has_break target label body
   | For (label, _, _, _, body) -> nested_has_break target label body
