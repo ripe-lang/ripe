@@ -55,7 +55,7 @@ jobs:
         env:
           QBE: ${{ github.workspace }}/vendor/qbe/qbe
 
-  build:
+  all:
     runs-on: ubuntu-latest
     needs: [image, compile]
     if: always()
