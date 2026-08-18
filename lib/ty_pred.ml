@@ -18,11 +18,11 @@ let rec compatible (want : ty) (got : ty) : bool =
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
       (abi1 = abi2 || abi1 = Types.AbiError || abi2 = Types.AbiError)
-      && List.length p1 = List.length p2
+      && List.compare_lengths p1 p2 = 0
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
   | TStruct (n1, a1), TStruct (n2, a2) ->
-      n1 = n2 && List.length a1 = List.length a2 && List.for_all2 ty_equal a1 a2
+      n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
   | s_want, s_got -> ty_equal s_want s_got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
