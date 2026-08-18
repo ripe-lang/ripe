@@ -133,9 +133,7 @@ let mir_block_label ctx id =
 let spelled_like_temp name =
   String.length name > 1
   && name.[0] = 't'
-  && String.for_all
-       (function '0' .. '9' -> true | _ -> false)
-       (String.sub name 1 (String.length name - 1))
+  && String.for_all Char.Ascii.is_digit (String.drop_first 1 name)
 
 let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
 
