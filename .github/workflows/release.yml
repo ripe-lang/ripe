@@ -9,10 +9,17 @@ permissions:
   contents: write
 
 jobs:
+  image:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+
   release:
     runs-on: ubuntu-latest
+    needs: [image]
     container:
-      image: ghcr.io/${{ github.repository }}/ci:latest
+      image: ghcr.io/${{ github.repository }}/ci:${{ needs.image.outputs.tag }}
       options: --user root
       credentials:
         username: ${{ github.actor }}

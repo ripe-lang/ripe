@@ -137,7 +137,9 @@ let standard_library_roots ?root_filename () =
 let path_separator = if Sys.win32 then ';' else ':'
 
 let split_paths ?(sep = path_separator) (v : string) : string list =
-  String.split_on_char sep v |> List.filter (fun p -> String.trim p <> "")
+  String.split_all ~sep:(String.of_char sep)
+    ~drop:(fun p -> String.is_empty (String.trim p))
+    v
 
 let search_roots ?root_filename () : string list =
   let standard = standard_library_roots ?root_filename () in
