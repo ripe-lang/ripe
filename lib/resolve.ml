@@ -513,7 +513,6 @@ and resolve_pattern (st : state) (p : pattern) : unit =
   match p.pdesc with
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
-  (* A name already standing for a constant compares against it so only a name that means nothing yet becomes a binding *)
   | PatBind name -> (
       match lookup st name with
       | Some sym when Symbol.is_comptime sym.Symbol.kind ->

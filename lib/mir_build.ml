@@ -742,7 +742,6 @@ module Mir_expr = struct
         Mir_control.lower_short_circuit state expr left right false
     | S.TBinOp (Ast.Or, left, right) ->
         Mir_control.lower_short_circuit state expr left right true
-    (* Bare names do not have an address so the value can go straight in *)
     | S.TAssign (None, ({ S.desc = S.TIdent _; _ } as left), right)
       when left.S.ty <> TUnit ->
         let destination = lower_place state left in
@@ -991,7 +990,6 @@ module Mir_expr = struct
       match expr.S.desc with
       | S.TBinding (_, _, ty, init) when ty = TNever || init.S.ty = TNever ->
           ignore (lower_expr state init)
-      (* A unit local still gets a slot so you can take its address, it just has no bytes to store *)
       | S.TBinding (_, symbol, TUnit, init) ->
           let id =
             B.add_local state ~name:symbol.Symbol.name User TUnit

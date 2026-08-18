@@ -111,7 +111,6 @@ let probe_header (src : string) : string option =
 let ripe_files (list_dir : string -> string list) (dir : string) : string list =
   match list_dir dir with
   | exception Sys_error _ -> []
-  (* A module's units shouldn't ride on filesystem order *)
   | entries ->
       entries
       |> List.filter (fun entry -> Filename.extension entry = ".rp")
