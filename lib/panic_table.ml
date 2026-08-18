@@ -46,7 +46,8 @@ let enter_func (t : t) (name : string) : unit = t.cur_func <- name
 
 let record (t : t) (span : Ast.span) : int =
   if Span.lo span < 0 then Diagnostic.ice "runtime check has no source location";
-  if t.cur_func = "" then Diagnostic.ice "runtime check outside a function";
+  if String.is_empty t.cur_func then
+    Diagnostic.ice "runtime check outside a function";
   let filename, sm = t.source_of (Span.lo span) in
   let line, col = Source_map.lookup sm (Span.lo span) in
   let site =

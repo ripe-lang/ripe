@@ -40,7 +40,7 @@ let list_dir dir = Array.to_list (Sys.readdir dir)
 
 let use_color () =
   match Sys.getenv_opt "NO_COLOR" with
-  | Some value when value <> "" -> false
+  | Some value when not (String.is_empty value) -> false
   | _ -> Unix.isatty Unix.stderr
 
 let die msg =
@@ -286,18 +286,19 @@ let load ~diags ~search_roots ~filename =
 let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
   (* Write to -o if set or stdout *)
   let output_text s =
-    if out = "" then print_string s
+    if String.is_empty out then print_string s
     else Out_channel.with_open_text out (fun oc -> output_string oc s)
   in
   (* An object holds bytes that stdout would otherwise be free to translate *)
   let output_bytes s =
-    if out = "" then (
+    if String.is_empty out then (
       set_binary_mode_out stdout true;
       print_string s)
     else Out_channel.with_open_bin out (fun oc -> output_string oc s)
   in
   let output_base () =
-    if out = "" then Filename.remove_extension (Filename.basename filename)
+    if String.is_empty out then
+      Filename.remove_extension (Filename.basename filename)
     else out
   in
   let output_binary il =

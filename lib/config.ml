@@ -11,7 +11,7 @@ let toolchain_roots () =
   let shared_root = Filename.concat exe_dir "../share/ripe/" in
   let toolchain = Filename.concat "toolchain" (Platform.host ()) in
   match Sys.getenv_opt "RIPE_TOOLCHAIN" with
-  | Some root when String.trim root <> "" -> [ root ]
+  | Some root when not (String.is_empty (String.trim root)) -> [ root ]
   | _ ->
       [
         Filename.concat (Sys.getcwd ()) (Filename.concat "vendor" toolchain);
@@ -45,7 +45,7 @@ let find_on_path name =
 
 let nonempty_environment name =
   match Sys.getenv_opt name with
-  | Some path when String.trim path <> "" -> Some path
+  | Some path when not (String.is_empty (String.trim path)) -> Some path
   | _ -> None
 
 let configured_tool name =
@@ -100,7 +100,7 @@ let runtime_object () : string =
   (* An explicit RIPE_RUNTIME wins so a user can force a path *)
   let override =
     match Sys.getenv_opt "RIPE_RUNTIME" with
-    | Some p when String.trim p <> "" -> [ p ]
+    | Some p when not (String.is_empty (String.trim p)) -> [ p ]
     | _ -> []
   in
   let candidates = override @ runtime_in_sites () @ runtime_near_exe () in
