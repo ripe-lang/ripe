@@ -1031,9 +1031,9 @@ let emit_mir ~source_of (program : Mir.program) =
     (fun (decl : Mir.struct_decl) ->
       emit_struct_type ctx decl.Mir.name decl.Mir.fields)
     program.Mir.structs;
-  if program.Mir.structs <> [] then emit ctx "\n";
+  if not (List.is_empty program.Mir.structs) then emit ctx "\n";
   List.iter (emit_mir_global ctx) program.Mir.globals;
-  if program.Mir.globals <> [] then emit ctx "\n";
+  if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
   (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
   (match Panic_table.sites ctx.panics with

@@ -332,7 +332,7 @@ let failed_import (st : state) (path : Ast.name list) : bool =
 (* math.Vec goes through the import and Vec walks out to the builtins *)
 let find_type (st : state) (path : Ast.name list) (name : Ast.name) :
     Symbol.t option =
-  if path = [] then find_type_in_chain st.scope name
+  if List.is_empty path then find_type_in_chain st.scope name
   else
     let member (scope : scope) = Names.find_opt scope.types name in
     Option.bind (find_module st path) member
@@ -404,7 +404,7 @@ let use_qualified (st : state) ~(what : string) segs (span : Ast.span) : bool =
 let use_type_name (st : state) segs (span : Ast.span) : bool =
   let path, name = split_path segs in
   (* A nearer value wins so a local named str isn't the builtin type *)
-  if path = [] && lookup st name <> None then false
+  if List.is_empty path && lookup st name <> None then false
   else
     match find_type st path name with
     | None -> false
@@ -463,7 +463,7 @@ and resolve_expr (st : state) (e : expr) : unit =
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit (path, name, name_span, fields) ->
-      if path = [] then use_type_if_found st name name_span
+      if List.is_empty path then use_type_if_found st name name_span
       else use_type st path name name_span;
       List.iter (fun (_, _, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body

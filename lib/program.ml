@@ -151,7 +151,7 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
       let parent = parent_path path in
       Diagnostic.emit diags
         (if
-           parent <> []
+           (not (List.is_empty parent))
            && Interner.text header.Ast.name = module_name_of_path parent
          then
            Diagnostic.help

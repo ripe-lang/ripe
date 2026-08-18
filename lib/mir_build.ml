@@ -401,11 +401,12 @@ module Mir_control = struct
           lower_tests fail rest
     in
     let rec lower_arms = function
-      (* Nothing checks coverage so falling out of the last test is undefined *)
       | [] -> B.terminate state Unreachable expr.S.span
       | { S.tpat; tbody } :: rest -> (
           let tests, binds = pattern_plan subject scrutinee.S.ty tpat in
-          let no = if tests = [] then None else Some (B.new_block state) in
+          let no =
+            if List.is_empty tests then None else Some (B.new_block state)
+          in
           Option.iter (fun no -> lower_tests no tests) no;
           List.iter bind binds;
           lower_arm state expr result join tbody;

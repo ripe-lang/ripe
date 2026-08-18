@@ -173,7 +173,7 @@ let global (global : Mir.global) : string =
 let program (program : Mir.program) : string =
   String.concat ""
     (List.map global program.Mir.globals
-    @ (if program.Mir.globals = [] then [] else [ "\n" ])
+    @ (if List.is_empty program.Mir.globals then [] else [ "\n" ])
     @ List.mapi
         (fun index function_ ->
           (if index = 0 then "" else "\n") ^ func function_)

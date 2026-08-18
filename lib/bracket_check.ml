@@ -61,7 +61,7 @@ let step (diags : Diagnostic.sink) (stack : opened list) (tok : token)
         report_stray diags span;
         Stray)
   else if tok = EOF then
-    if stack <> [] then begin
+    if not (List.is_empty stack) then begin
       (* The stack is reversed so errors show up in source order *)
       List.iter (report_unclosed diags) (List.rev stack);
       raise (Diagnostic.Errors (Diagnostic.drain diags))
