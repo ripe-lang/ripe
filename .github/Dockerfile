@@ -1,4 +1,4 @@
-FROM ocaml/opam:ubuntu-24.04-ocaml-5.3
+FROM ocaml/opam:ubuntu-24.04-ocaml-5.5
 
 LABEL org.opencontainers.image.title="ripe CI"
 LABEL org.opencontainers.image.description="Pre-built OCaml/opam environment for CI"
