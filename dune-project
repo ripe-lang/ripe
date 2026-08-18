@@ -25,7 +25,8 @@
  (description
   "Ripe is a systems programming language with an OCaml compiler and QBE backend.")
  (depends
-  ocaml
+  (ocaml
+   (>= 5.5.0))
   climate
   dune-site
   ppx_deriving
