@@ -760,9 +760,7 @@ let emit_mir_call mctx (call : Mir.call) =
   let args =
     match call.Mir.variadic_start with
     | None -> args
-    | Some count ->
-        List.filteri (fun index _ -> index < count) args
-        @ ("..." :: List.filteri (fun index _ -> index >= count) args)
+    | Some count -> List.take count args @ ("..." :: List.drop count args)
   in
   let callee = mir_callee mctx call.Mir.callee in
   match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
