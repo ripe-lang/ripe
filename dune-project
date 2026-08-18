@@ -13,7 +13,7 @@
 
 (maintainers "Ripe contributors")
 
-(license "GPL-2.0-only")
+(license "Apache-2.0")
 
 (documentation https://github.com/ripe-lang/ripe#readme)
 

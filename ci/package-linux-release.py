@@ -47,7 +47,7 @@ shutil.copy2(RUNTIME, RELEASE_ROOT / "lib/ripe/runtime")
 shutil.copy2(QBE, TOOLCHAIN / "bin")
 
 shutil.copy2(ROOT / "COPYRIGHT.md", RELEASE_ROOT)
-shutil.copy2(ROOT / "LICENSE-GPL", RELEASE_ROOT / "LICENSE_GPL")
+shutil.copy2(ROOT / "LICENSE-APACHE", RELEASE_ROOT / "LICENSE_APACHE")
 shutil.copy2(ROOT / "LICENSE-MIT", RELEASE_ROOT / "LICENSE_MIT")
 shutil.copy2(ROOT / "vendor/qbe/LICENSE", RELEASE_ROOT / "licenses/QBE.txt")
 shutil.copytree(ROOT / "std", RELEASE_ROOT / "share/ripe/std")

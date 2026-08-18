@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 (* The key is what gets compared and the path is only for printing *)
 type t = { key : Symbol.key; path : string list; base : string }

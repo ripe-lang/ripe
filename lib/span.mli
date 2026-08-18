@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 (* Offsets run across every source file at once so a file gets found by
    searching the bases instead of riding along in the span *)

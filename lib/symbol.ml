@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 type id = int [@@deriving show { with_path = false }]
 type module_id = int [@@deriving show { with_path = false }]

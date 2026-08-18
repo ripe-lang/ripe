@@ -23,4 +23,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Ripe is licensed under GPL-2.0-only. See [COPYRIGHT.md](COPYRIGHT.md) for details.
+Ripe is licensed under Apache-2.0. See [COPYRIGHT.md](COPYRIGHT.md) for details.

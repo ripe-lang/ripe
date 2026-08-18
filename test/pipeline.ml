@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 let parse_module ?(file = 0) src =
   let st = Ripe.Lexer.make_state file in
