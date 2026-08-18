@@ -19,7 +19,6 @@ depends: [
   "ocamlformat"
   "ppx_expect"
   "ppx_inline_test"
-  "dead_code_analyzer"
   "odoc" {with-doc}
 ]
 build: [
