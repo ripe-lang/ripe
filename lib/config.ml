@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 let executable_dir () =
   try Filename.dirname (Unix.realpath Sys.executable_name)

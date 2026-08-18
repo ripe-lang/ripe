@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 (* Names become ints so a syntax node holds no pointer and two names compare
    without touching the bytes *)

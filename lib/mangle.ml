@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 let encode_component (component : string) : string =
   string_of_int (String.length component) ^ component

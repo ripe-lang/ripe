@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 exception Invalid_utf8 of string
 exception Source_too_large of string

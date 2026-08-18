@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 (* Reference *)
 (* 1. System V AMD64 psABI https://gitlab.com/x86-psABIs/x86-64-ABI *)

@@ -1,4 +1,4 @@
-(* SPDX-License-Identifier: GPL-2.0-only *)
+(* SPDX-License-Identifier: Apache-2.0 *)
 
 (* "hello" offset 0 = (1,1) *)
 let%expect_test "single line" =
