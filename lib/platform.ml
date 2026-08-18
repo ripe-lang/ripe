@@ -24,10 +24,7 @@ let host () =
         in
         ("windows", architecture)
     | _ -> (
-        match
-          String.split_on_char ' ' (uname ())
-          |> List.filter (fun part -> part <> "")
-        with
+        match String.split_all ~sep:" " ~drop:String.is_empty (uname ()) with
         | [ system; architecture ] ->
             (String.lowercase_ascii system, architecture)
         | _ -> failwith "cannot determine host platform")
