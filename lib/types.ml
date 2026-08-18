@@ -187,7 +187,7 @@ let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
   | TUnit -> 1
 
 (* `n` and `a` MUST be non-negative *)
-let align_to n a = (n + a - 1) / a * a
+let align_to n a = Int.cdiv n a * a
 
 let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
   match resolve_ty t with
