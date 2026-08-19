@@ -82,7 +82,9 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ String.concat ""
           (List.map
              (fun (f, _, e) ->
-               " (" ^ Ripe.Interner.text f ^ " " ^ dump_expr e ^ ")")
+               match f with
+               | Some f -> " (" ^ Ripe.Interner.text f ^ " " ^ dump_expr e ^ ")"
+               | None -> " " ^ dump_expr e)
              fields)
       ^ ")"
   | Block body -> dump_block body

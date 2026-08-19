@@ -98,7 +98,7 @@ type expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of name list * name * span * (name * span * expr) list
+  | StructLit of name list * name * span * (name option * span * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block

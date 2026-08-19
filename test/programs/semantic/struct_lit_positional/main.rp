@@ -1,0 +1,42 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+struct pair {
+  x: i32
+  y: i32
+}
+
+struct nest {
+  head: pair
+  tail: [3]i32
+  count: i32
+}
+
+var origin: pair = pair { 7, 8 }
+
+func take(p: pair) i32 {
+  return p.x * 10 + p.y
+}
+
+func make() pair {
+  return pair { 1, 2 }
+}
+
+func main() i32 {
+  var p = pair { 4, 5 }
+  var named = pair { y: 5, x: 4 }
+  var n = nest { pair { 3, 4 }, [5, 6, 7], 9 }
+  var m = make()
+  var a = 1
+  var b = 2
+  var from_vars = pair { a, b }
+  printf("bound %d %d\n", p.x, p.y)
+  printf("named %d %d\n", named.x, named.y)
+  printf("nested %d %d %d %d %d\n", n.head.x, n.head.y, n.tail[0], n.tail[2], n.count)
+  printf("call %d\n", take(pair { 9, 1 }))
+  printf("returned %d %d\n", m.x, m.y)
+  printf("global %d %d\n", origin.x, origin.y)
+  printf("vars %d %d\n", from_vars.x, from_vars.y)
+  p = pair { p.y, p.x }
+  printf("reassigned %d %d\n", p.x, p.y)
+  return 0
+}

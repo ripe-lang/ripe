@@ -1,0 +1,8 @@
+error: mixed struct fields
+  at main.rp:7:20
+      return pair { 1, y: 2 }
+                       ^ expected a positional field
+error: mixed struct fields
+  at main.rp:11:23
+      return pair { x: 1, 2 }
+                          ^ expected a named field

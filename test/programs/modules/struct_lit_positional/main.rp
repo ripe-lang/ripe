@@ -1,0 +1,10 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+import geo
+
+func main() i32 {
+  var p = geo.point { 6, 7 }
+  var o = geo.origin()
+  printf("%d %d %d %d\n", p.x, p.y, o.x, o.y)
+  return 0
+}

@@ -753,27 +753,10 @@ and synth_desc (env : env) (e : expr) : T.texpr =
   | StructLit (path, name, name_span, inits) -> (
       match Symbol.Table.find_opt env.types (key_at env name_span) with
       | Some (DStruct info) ->
-          let seen = Hashtbl.create 4 in
-          List.iter
-            (fun (fname, fspan, _) ->
-              if not (List.mem_assoc fname info.field_tys) then
-                emit env (Diagnostic.error_at fspan "no field")
-              else if Hashtbl.mem seen fname then
-                emit env (Diagnostic.error_at fspan "duplicate field")
-              else Hashtbl.replace seen fname ())
-            inits;
-          (* Omitted fields are zero-initialized *)
           let tfields =
-            List.mapi
-              (fun field_id (fname, ft) ->
-                match
-                  List.find_map
-                    (fun (n, _, e) -> if n = fname then Some e else None)
-                    inits
-                with
-                | Some e -> (field_id, check env e ft)
-                | None -> (field_id, T.mk ft T.TZero))
-              info.field_tys
+            match inits with
+            | (None, _, _) :: _ -> positional_fields env e.span info inits
+            | _ -> named_fields env info inits
           in
           let qname = qname_at env name_span (Ast.show_named path name) in
           T.mk (TStruct (qname, [])) (T.TStructLit (qname, tfields))
@@ -871,6 +854,50 @@ and synth_array_lit (env : env) (first : expr) (rest : expr list) : T.texpr =
     | t -> t
   in
   T.mk (TArray (elem, List.length tes)) (T.TArrayLit tes)
+
+and named_fields (env : env) (info : struct_info)
+    (inits : (Ast.name option * Ast.span * expr) list) : (int * T.texpr) list =
+  let seen = Hashtbl.create 4 in
+  let check_name (fname, fspan, _) =
+    match fname with
+    | None -> ()
+    | Some fname ->
+        if not (List.mem_assoc fname info.field_tys) then
+          emit env (Diagnostic.error_at fspan "no field")
+        else if Hashtbl.mem seen fname then
+          emit env (Diagnostic.error_at fspan "duplicate field")
+        else Hashtbl.replace seen fname ()
+  in
+  List.iter check_name inits;
+  (* When you omit a fields they're 0 init *)
+  let field field_id (fname, ft) =
+    match
+      List.find_map
+        (fun (n, _, e) -> if n = Some fname then Some e else None)
+        inits
+    with
+    | Some e -> (field_id, check env e ft)
+    | None -> (field_id, T.mk ft T.TZero)
+  in
+  List.mapi field info.field_tys
+
+(* Every field in a positional argument has to be defined because of the order *)
+and positional_fields (env : env) (span : Ast.span) (info : struct_info)
+    (inits : (Ast.name option * Ast.span * expr) list) : (int * T.texpr) list =
+  let expected = List.length info.field_tys in
+  let found = List.length inits in
+  if found <> expected then
+    emit env
+      (Diagnostic.error "wrong number of fields"
+      |> Diagnostic.at span
+      |> Diagnostic.label
+           (Printf.sprintf "expected %d, found %d" expected found));
+  let field field_id (_, ft) =
+    match List.nth_opt inits field_id with
+    | Some (_, _, init) -> (field_id, check env init ft)
+    | None -> (field_id, T.mk ft T.TZero)
+  in
+  List.mapi field info.field_tys
 
 and reconcile_if_result (env : env) (branches : (expr * block Ast.spanned) list)
     (else_b : block) : ty =

@@ -1,0 +1,8 @@
+pub struct point {
+  x: i32
+  y: i32
+}
+
+pub func origin() point {
+  return point { 0, 0 }
+}
