@@ -84,6 +84,7 @@ type ctx = {
   buf : Buffer.t ref;
   strings : (string * string) list ref;
   abi_types : (ty, string) Hashtbl.t;
+  abi_defs : Buffer.t;
   next_abi_type : int ref;
   tmp : int ref;
   temp_names : string array ref;
@@ -724,7 +725,7 @@ let qbe_abi_ty ctx ty =
           incr ctx.next_abi_type;
           let name = Printf.sprintf "RipeAbi%d" id in
           Hashtbl.add ctx.abi_types aggregate name;
-          emit ctx "type :%s = { %s }\n" name
+          Printf.bprintf ctx.abi_defs "type :%s = { %s }\n" name
             (qbe_ext_ty (qbe_struct_name ctx) aggregate);
           ":" ^ name)
   | _ -> qbe_ty ty
@@ -1010,6 +1011,7 @@ let emit_mir ~source_of (program : Mir.program) =
       buf = ref (Buffer.create 1024);
       strings = ref [];
       abi_types = Hashtbl.create 8;
+      abi_defs = Buffer.create 128;
       next_abi_type = ref 0;
       tmp = ref 0;
       temp_names = ref [||];
@@ -1022,6 +1024,7 @@ let emit_mir ~source_of (program : Mir.program) =
       emit_struct_type ctx decl.Mir.name decl.Mir.fields)
     program.Mir.structs;
   if not (List.is_empty program.Mir.structs) then emit ctx "\n";
+  let types_end = Buffer.length !(ctx.buf) in
   List.iter (emit_mir_global ctx) program.Mir.globals;
   if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
@@ -1041,4 +1044,9 @@ let emit_mir ~source_of (program : Mir.program) =
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
     (List.rev !(ctx.strings));
-  Buffer.contents !(ctx.buf)
+  let out = !(ctx.buf) in
+  if Buffer.length ctx.abi_defs = 0 then Buffer.contents out
+  else
+    Buffer.sub out 0 types_end
+    ^ Buffer.contents ctx.abi_defs
+    ^ Buffer.sub out types_end (Buffer.length out - types_end)
