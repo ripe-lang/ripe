@@ -137,3 +137,16 @@ func main() i32 {
 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "qbe accepts extern aggregate arguments" =
+  run_codegen_ok
+    {|
+extern "C" func takes_slice(s: []i32) i32
+extern "C" func takes_str(s: str) i32
+func main() i32 {
+  var xs: [4]i32 = [1, 2, 3, 4]
+  var view: []i32 = xs[0..4]
+  return takes_slice(view) + takes_str("hi")
+}
+|};
+  [%expect {| ok |}]
