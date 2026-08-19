@@ -2068,6 +2068,128 @@ var p: pt = pt { x: g(), y: 2 }
                     ^~~~~~~~~~~~~~~~~~~
     |}]
 
+let%expect_test "typecheck: positional struct literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() i32 {
+  var p = pt { 3, 4 }
+  return p.x + p.y
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: positional struct literal of one field" =
+  run_src
+    {|
+struct box { v: i32 }
+func f() i32 {
+  var b = box { 3 }
+  return b.v
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: positional struct literal too few fields" =
+  run_src {|
+struct pt { x: i32, y: i32 }
+func f() {
+  var p = pt { 1 }
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:4:7
+          var p = pt { 1 }
+              ^
+    help: prefix with an underscore: _p
+    error: wrong number of fields
+      at <test>:4:11
+          var p = pt { 1 }
+                  ^~~~~~~~ expected 2, found 1
+    |}]
+
+let%expect_test "typecheck: positional struct literal too many fields" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  var p = pt { 1, 2, 3 }
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:4:7
+          var p = pt { 1, 2, 3 }
+              ^
+    help: prefix with an underscore: _p
+    error: wrong number of fields
+      at <test>:4:11
+          var p = pt { 1, 2, 3 }
+                  ^~~~~~~~~~~~~~ expected 2, found 3
+    |}]
+
+let%expect_test "typecheck: positional struct literal wrong field type" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+func f() {
+  var p = pt { 1, true }
+}
+|};
+  [%expect
+    {|
+    warning: unused variable: p
+      at <test>:4:7
+          var p = pt { 1, true }
+              ^
+    help: prefix with an underscore: _p
+    error: type mismatch
+      at <test>:4:19
+          var p = pt { 1, true }
+                          ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: positional struct literal nested" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+struct wrap { p: pt, tag: i32 }
+func f() i32 {
+  var w = wrap { pt { 1, 2 }, 3 }
+  return w.p.x + w.tag
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: positional global struct literal" =
+  run_src
+    {|
+struct pt { x: i32, y: i32 }
+var origin: pt = pt { 1, 2 }
+func f() i32 { return origin.x }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: positional literal of a fieldless struct" =
+  run_src {|
+struct e {
+}
+func f() {
+  var _a = e { }
+  var _b = e { 1 }
+}
+|};
+  [%expect
+    {|
+    error: wrong number of fields
+      at <test>:6:12
+          var _b = e { 1 }
+                   ^~~~~~~ expected 0, found 1
+    |}]
+
 let%expect_test "typecheck: duplicate struct field" =
   run_src {|
 struct pt { x: i32, x: i64 }

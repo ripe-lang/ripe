@@ -1,0 +1,12 @@
+error: wrong number of fields
+  at main.rp:7:10
+      return pair { 1 }
+             ^~~~~~~~~~ expected 2, found 1
+error: wrong number of fields
+  at main.rp:11:10
+      return pair { 1, 2, 3 }
+             ^~~~~~~~~~~~~~~~ expected 2, found 3
+error: type mismatch
+  at main.rp:15:20
+      return pair { 1, true }
+                       ^~~~ expected i32, found bool

@@ -1,0 +1,9 @@
+bound 4 5
+named 4 5
+nested 3 4 5 7 9
+call 91
+returned 1 2
+global 7 8
+vars 1 2
+reassigned 5 4
+exit: 0

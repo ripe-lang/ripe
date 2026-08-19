@@ -21,6 +21,7 @@ type state = {
 type chain = Comparison | Range
 type assoc = Left | Right
 type infix = { prec : int; assoc : assoc; chain : chain option }
+type field_form = NamedField | PositionalField
 
 (* Span of the current lookahead token so the caret lands under it *)
 let cur_span st = st.tok_span
@@ -756,15 +757,38 @@ and parse_primary ?(no_struct_lit = false) st =
 
 and parse_comma_list st stop = comma_sep st stop (fun () -> parse_expr st 1)
 
-(* x: 3, y: 4 *)
+(* x: 3, y: 4 or 3, 4 *)
 and parse_struct_lit_fields st =
   skip_semi st;
+  let field_form () =
+    match st.tok with
+    | IDENT _ when (peek st).token = COLON -> NamedField
+    | _ -> PositionalField
+  in
+  let form = field_form () in
+  let wanted =
+    match form with NamedField -> "named" | PositionalField -> "positional"
+  in
+  let parse_field () =
+    (* A token that starts no field at all gets the normal parse error *)
+    if is_expr_start st.tok && field_form () <> form then
+      raise
+        (ParseError
+           (Diagnostic.error "mixed struct fields"
+           |> Diagnostic.at (cur_span st)
+           |> Diagnostic.label ("expected a " ^ wanted ^ " field")));
+    match form with
+    | NamedField ->
+        let name, nspan = expect_ident_span st in
+        expect st COLON;
+        (Some name, nspan, parse_expr st 1)
+    | PositionalField ->
+        let e = parse_expr st 1 in
+        (None, e.span, e)
+  in
   let fields = ref [] in
   while st.tok <> RBRACE do
-    let name, nspan = expect_ident_span st in
-    expect st COLON;
-    let e = parse_expr st 1 in
-    fields := (name, nspan, e) :: !fields;
+    fields := parse_field () :: !fields;
     expect_literal_field_sep st
   done;
   List.rev !fields

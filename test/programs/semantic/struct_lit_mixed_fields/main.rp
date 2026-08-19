@@ -1,0 +1,16 @@
+struct pair {
+  x: i32
+  y: i32
+}
+
+func named_after_positional() pair {
+  return pair { 1, y: 2 }
+}
+
+func positional_after_named() pair {
+  return pair { x: 1, 2 }
+}
+
+func main() i32 {
+  return named_after_positional().x + positional_after_named().x
+}

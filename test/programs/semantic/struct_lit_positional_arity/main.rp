@@ -1,0 +1,20 @@
+struct pair {
+  x: i32
+  y: i32
+}
+
+func few() pair {
+  return pair { 1 }
+}
+
+func many() pair {
+  return pair { 1, 2, 3 }
+}
+
+func wrong_type() pair {
+  return pair { 1, true }
+}
+
+func main() i32 {
+  return few().x + many().x + wrong_type().x
+}

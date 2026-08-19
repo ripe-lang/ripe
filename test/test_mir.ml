@@ -425,3 +425,35 @@ func f(runtime: i32) i32 {
         return copy %3
     }
     |}]
+
+let%expect_test "mir: a positional struct literal lowers like a named one" =
+  Pipeline.run_mir
+    {|
+struct pair { x: i32, y: i32 }
+
+func f(a: i32, b: i32) i32 {
+  var positional = pair { a, b }
+  var named = pair { y: b, x: a }
+  return positional.x + named.y
+}
+|};
+  [%expect
+    {|
+    func f(%0: i32, %1: i32) i32 {
+      local %0 a: i32 param
+      local %1 b: i32 param
+      local %2 positional: pair user
+      local %3 named: pair user
+      local %4: i32 temp
+
+      block0:
+        %2 = zero
+        %2.field0 = copy %0
+        %2.field1 = copy %1
+        %3 = zero
+        %3.field0 = copy %0
+        %3.field1 = copy %1
+        %4 = copy %2.field0 + copy %3.field1
+        return copy %4
+    }
+    |}]
