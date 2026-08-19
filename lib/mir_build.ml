@@ -176,6 +176,9 @@ module Mir_builder = struct
     (loop_target state label span).continue_block
 
   let place place_span base = { base; projections = []; place_span }
+  let add_projection place projection =
+    { place with projections = projection :: place.projections }
+
   let local_place span id = place span (Local id)
   let copy span ty place : operand = { desc = Copy place; ty; span }
 
@@ -879,7 +882,7 @@ module Mir_expr = struct
         let pointer = lower_expr state inner in
         Mir_check.null state expr.S.ty pointer expr.S.span;
         let source = B.materialize state pointer in
-        { source with projections = source.projections @ [ Deref ] }
+        B.add_projection source Deref
     | S.TFieldAccess (base, field) ->
         let source =
           match resolve_ty base.S.ty with
@@ -887,10 +890,10 @@ module Mir_expr = struct
               let pointer = lower_expr state base in
               Mir_check.null state pointee pointer base.S.span;
               let source = B.materialize state pointer in
-              { source with projections = source.projections @ [ Deref ] }
+              B.add_projection source Deref
           | _ -> lower_expr state base |> B.materialize state
         in
-        { source with projections = source.projections @ [ Field field ] }
+        B.add_projection source (Field field)
     | S.TIndex (base, index) ->
         let base_value = lower_expr state base in
         let source = B.materialize state base_value in
@@ -905,7 +908,7 @@ module Mir_expr = struct
         | _ ->
             let message = "index on non indexed MIR place" in
             Diagnostic.ice ~span:base.S.span message);
-        { source with projections = source.projections @ [ Index index ] }
+        B.add_projection source (Index index)
     | _ -> lower_expr state expr |> B.materialize state
 
   and lower_array_literal state (expr : S.texpr) elements =

@@ -59,7 +59,7 @@ let rec place (value : Mir.place) : string =
     | Global name -> "@" ^ name
   in
   Printf.sprintf "%s%s" base
-    (String.concat "" (List.map projection value.projections))
+    (String.concat "" (List.map projection (List.rev value.projections)))
 
 and operand (value : Mir.operand) : string =
   let open Mir in
