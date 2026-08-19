@@ -631,16 +631,17 @@ and synth (env : env) (e : expr) : T.texpr =
 
 (* An operand folds into its parent so the parent reports the range *)
 and synth_operand (env : env) (e : expr) : T.texpr =
-  fill_const env { (synth_desc env e) with T.span = e.span }
+  stamp env e.span (synth_desc env e)
 
-(* A node that already carries its value knows better than the shape does *)
-and fill_const (env : env) (te : T.texpr) : T.texpr =
-  if Option.is_none te.T.const then { te with T.const = const_of env te }
-  else te
+and stamp (env : env) (span : Ast.span) (te : T.texpr) : T.texpr =
+  if Option.is_none te.T.const then
+    { te with T.span; T.const = const_of env ~span te }
+  else { te with T.span }
 
 (* A node takes its value from children that already carry theirs so no
    expression gets walked twice *)
-and const_of (env : env) (te : T.texpr) : Constant.value option =
+and const_of (env : env) ~(span : Ast.span) (te : T.texpr) :
+    Constant.value option =
   match te.T.desc with
   | T.TInt n -> Some (Constant.of_literal te.T.ty n)
   | T.TBool b -> Some (Constant.VBool b)
@@ -652,20 +653,18 @@ and const_of (env : env) (te : T.texpr) : Constant.value option =
            (Int64.of_int (ty_size env.struct_fields t)))
   | T.TIdent s -> (
       match resolve_ty te.T.ty with
-      | TInt _ | TFloat _ | TBool | TChar -> const_of_symbol env s te.T.span
+      | TInt _ | TFloat _ | TBool | TChar -> const_of_symbol env s span
       | _ -> None)
   | T.TCast operand -> Option.map (Constant.cast te.T.ty) operand.T.const
   | T.TUnOp (op, operand) -> (
-      try
-        Option.bind operand.T.const
-          (Constant.unop te.T.span op ~result_ty:te.T.ty)
+      try Option.bind operand.T.const (Constant.unop span op ~result_ty:te.T.ty)
       with Diagnostic.Errors ds ->
         List.iter (emit env) ds;
         None)
   | T.TBinOp (op, l, r) -> (
       match (l.T.const, r.T.const) with
       | Some a, Some b -> (
-          try Constant.binop te.T.span op ~result_ty:te.T.ty a b
+          try Constant.binop span op ~result_ty:te.T.ty a b
           with Diagnostic.Errors ds ->
             List.iter (emit env) ds;
             None)
@@ -1295,7 +1294,7 @@ and check (env : env) (e : expr) (want : ty) : T.texpr =
   typed
 
 and check_operand (env : env) (e : expr) (want : ty) : T.texpr =
-  fill_const env { (check_desc env e want) with T.span = e.span }
+  stamp env e.span (check_desc env e want)
 
 and check_desc (env : env) (e : expr) (want : ty) : T.texpr =
   let target = resolve_ty want in
@@ -1390,7 +1389,7 @@ and coerce_expr (env : env) (e : expr) (want : ty) (te : T.texpr) : T.texpr =
   if compatible want got then adopt_slice want te
   else if widens_to got want then
     let widened = T.mk ~span:e.span want (T.TCast te) in
-    { widened with T.const = const_of env widened }
+    { widened with T.const = const_of env ~span:e.span widened }
   else begin
     let mismatch =
       Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
