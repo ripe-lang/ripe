@@ -559,14 +559,15 @@ and emit_mir_place mctx (place : Mir.place) =
         project addr element rest
   in
   let base_ty = mir_base_ty mctx place.Mir.base in
+  let projections = List.rev place.Mir.projections in
   match place.Mir.base with
-  | Mir.Global name -> project ("$" ^ name) base_ty place.Mir.projections
+  | Mir.Global name -> project ("$" ^ name) base_ty projections
   | Mir.Local id -> (
-      match (mctx.bindings.(id), place.Mir.projections) with
+      match (mctx.bindings.(id), projections) with
       | Memory addr, projections -> project addr base_ty projections
       | Value pointer, Mir.Deref :: rest -> (
           match resolve_ty base_ty with
-          | TPointer inner -> project pointer inner rest
+          | TPointer element -> project pointer element rest
           | _ -> Diagnostic.ice "MIR deref on non pointer")
       | Value pointer, Mir.Index index :: rest -> (
           match resolve_ty base_ty with

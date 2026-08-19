@@ -61,25 +61,22 @@ let verify (program : Mir.program) : unit =
     (* %0 / @global / %0.deref.field0[copy %1] *)
     and place (place : place) =
       let span = place.place_span in
-      let rec project ty = function
-        | [] -> Some ty
-        | Deref :: rest -> (
+      let projection_ty ty = function
+        | Deref -> (
             match resolve_ty ty with
-            | TPointer inner -> project inner rest
+            | TPointer inner -> Some inner
             | _ ->
                 add span "deref projection requires a pointer";
                 None)
-        | Field field :: rest -> (
+        | Field field -> (
             match resolve_ty ty with
             | TStruct (name, _) -> (
                 match Hashtbl.find_opt structs (Qname.key name) with
                 | Some fields when field >= 0 && field < Array.length fields ->
-                    project fields.(field) rest
+                    Some fields.(field)
                 | Some _ ->
-                    let message =
-                      Printf.sprintf "field projection %d does not exist" field
-                    in
-                    add span message;
+                    add span
+                      (Printf.sprintf "field projection %d does not exist" field);
                     None
                 | None ->
                     add span
@@ -89,16 +86,23 @@ let verify (program : Mir.program) : unit =
             | _ ->
                 add span "field projection requires a struct";
                 None)
-        | Index index :: rest -> (
+        | Index index -> (
             ignore (operand index);
-            if match resolve_ty index.ty with TInt _ -> false | _ -> true then
-              add index.span "index projection requires an integer";
+            if
+              not (match resolve_ty index.ty with TInt _ -> true | _ -> false)
+            then add index.span "index projection requires an integer";
             match resolve_ty ty with
-            | TArray (inner, _) | TSlice inner | TPointer inner ->
-                project inner rest
+            | TArray (inner, _) | TSlice inner | TPointer inner -> Some inner
             | _ ->
                 add span "index projection requires indexed storage";
                 None)
+      in
+      let rec project ty = function
+        | [] -> Some ty
+        | projection :: rest -> (
+            match project ty rest with
+            | None -> None
+            | Some ty -> projection_ty ty projection)
       in
       let base_ty =
         match place.base with
