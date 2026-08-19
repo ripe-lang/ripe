@@ -875,6 +875,14 @@ module Mir_expr = struct
         let assigned = lower_expr state expr in
         if B.is_live state then B.assign state destination assigned
 
+  and lower_fresh_into state destination (expr : S.texpr) =
+    match (expr.S.const, expr.S.desc) with
+    | None, S.TArrayLit elements ->
+        fill_array_literal state destination expr elements
+    | None, S.TStructLit (_, fields) ->
+        fill_struct_literal state destination expr fields
+    | _ -> lower_expr_into state destination expr
+
   and lower_place state (expr : S.texpr) =
     match expr.S.desc with
     | S.TIdent symbol -> B.symbol_place state expr.S.span symbol
@@ -911,14 +919,12 @@ module Mir_expr = struct
         B.add_projection source (Index index)
     | _ -> lower_expr state expr |> B.materialize state
 
-  and lower_array_literal state (expr : S.texpr) elements =
+  and fill_array_literal state destination (expr : S.texpr) elements =
     let element_ty =
       match resolve_ty expr.S.ty with
       | TArray (element, _) -> element
       | _ -> Diagnostic.ice ~span:expr.S.span "array literal has non array type"
     in
-    let id = B.add_local state Temp expr.S.ty expr.S.span in
-    let destination = B.local_place expr.S.span id in
     B.emit state
       (Assign
          (destination, { desc = Use (B.constant expr Undef); ty = expr.S.ty }))
@@ -929,17 +935,18 @@ module Mir_expr = struct
         let index_operand =
           B.const_operand element.S.span (TInt Usize) (Int (Int64.of_int index))
         in
-        let target =
-          { destination with projections = [ Index index_operand ] }
-        in
+        let target = B.add_projection destination (Index index_operand) in
         let assigned = { assigned with ty = element_ty } in
         B.assign state target assigned)
-      elements;
-    B.copy expr.S.span expr.S.ty destination
+      elements
 
-  and lower_struct_literal state (expr : S.texpr) fields =
+  and lower_array_literal state (expr : S.texpr) elements =
     let id = B.add_local state Temp expr.S.ty expr.S.span in
     let destination = B.local_place expr.S.span id in
+    fill_array_literal state destination expr elements;
+    B.copy expr.S.span expr.S.ty destination
+
+  and fill_struct_literal state destination (expr : S.texpr) fields =
     B.emit state
       (Assign
          (destination, { desc = Use (B.constant expr Zero); ty = expr.S.ty }))
@@ -947,9 +954,14 @@ module Mir_expr = struct
     List.iter
       (fun (field, value) ->
         let assigned = lower_expr state value in
-        let target = { destination with projections = [ Field field ] } in
+        let target = B.add_projection destination (Field field) in
         B.assign state target assigned)
-      fields;
+      fields
+
+  and lower_struct_literal state (expr : S.texpr) fields =
+    let id = B.add_local state Temp expr.S.ty expr.S.span in
+    let destination = B.local_place expr.S.span id in
+    fill_struct_literal state destination expr fields;
     B.copy expr.S.span expr.S.ty destination
 
   and lower_slice state (expr : S.texpr) base lo hi =
@@ -1007,14 +1019,12 @@ module Mir_expr = struct
               symbol.Symbol.span
           in
           B.bind_symbol state symbol id;
-          lower_expr_into state (B.local_place expr.S.span id) init
+          lower_fresh_into state (B.local_place expr.S.span id) init
       | S.TReturn (Some value) when state.B.result <> None ->
-          let returned = lower_expr state value in
           let result = Option.get state.B.result in
-          if B.is_live state then begin
-            B.assign state (B.local_place expr.S.span result) returned;
+          lower_fresh_into state (B.local_place expr.S.span result) value;
+          if B.is_live state then
             B.terminate state (ReturnValue None) expr.S.span
-          end
       | S.TReturn (Some value) when value.S.ty = TUnit ->
           ignore (lower_expr state value);
           if B.is_live state then
