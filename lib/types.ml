@@ -122,8 +122,9 @@ let show_ty (t : ty) : string = show_ty_with Qname.show t
 let show_ty_in (current : string list) (t : ty) : string =
   show_ty_with (Qname.show_in current) t
 
-(* Sees through an alias to a representation tat the codegen can use *)
-let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
+let rec resolve_ty : ty -> ty = function
+  | TAlias (_, base) -> resolve_ty base
+  | t -> t
 
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 

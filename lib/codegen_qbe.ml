@@ -437,8 +437,7 @@ let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
 let escape_data_string content =
   let buf = Buffer.create (String.length content) in
   String.iter
-    (fun c ->
-      match c with
+    (function
       | '"' -> Buffer.add_string buf "\\\""
       | '\\' -> Buffer.add_string buf "\\\\"
       | '\n' -> Buffer.add_string buf "\\n"

@@ -8,8 +8,7 @@ type step = End | Closed of opened list | Stray | Open of opener | Other
 
 let opener_repr = function Paren -> "`(`" | Bracket -> "`[`" | Brace -> "`{`"
 
-let opener_of (tok : token) : opener option =
-  match tok with
+let opener_of : token -> opener option = function
   | LPAREN -> Some Paren
   | LBRACKET -> Some Bracket
   | LBRACE -> Some Brace
@@ -20,15 +19,15 @@ let closer_of = function
   | Bracket -> RBRACKET
   | Brace -> RBRACE
 
-let closer_repr (tok : token) : string =
-  match tok with
+let closer_repr : token -> string = function
   | RPAREN -> "`)`"
   | RBRACKET -> "`]`"
   | RBRACE -> "`}`"
   | _ -> ""
 
-let is_closer (tok : token) : bool =
-  match tok with RPAREN | RBRACKET | RBRACE -> true | _ -> false
+let is_closer : token -> bool = function
+  | RPAREN | RBRACKET | RBRACE -> true
+  | _ -> false
 
 let report_mismatch (diags : Diagnostic.sink) (span : Ast.span)
     (open_span : Ast.span) (opener : opener) : unit =
