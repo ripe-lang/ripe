@@ -66,8 +66,7 @@ let fail_found st headline =
     (ParseError
        (Diagnostic.with_found (cur_span st) headline (show_found_token st.tok)))
 
-let is_expr_start (tok : token) : bool =
-  match tok with
+let is_expr_start : token -> bool = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACKET
   | UNDEFINED | IF | LBRACE | LOOP | MATCH ->
@@ -78,21 +77,20 @@ let require_expr_start st span =
   if not (is_expr_start st.tok) then
     raise (ParseError (Diagnostic.expected_expression span))
 
-let is_type_start (tok : token) : bool =
-  match tok with
+let is_type_start : token -> bool = function
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
 
-let is_semi (token : token) : bool =
-  match token with AUTOSEMI | SEMI -> true | _ -> false
+let is_semi : token -> bool = function AUTOSEMI | SEMI -> true | _ -> false
 
 let skip_semi st =
   while is_semi st.tok do
     advance st
   done
 
-let is_ambiguous_continuation (token : token) : bool =
-  match token with PLUS | MINUS | STAR | AMP -> true | _ -> false
+let is_ambiguous_continuation : token -> bool = function
+  | PLUS | MINUS | STAR | AMP -> true
+  | _ -> false
 
 let is_dereference_assignment (token : token) (e : expr) : bool =
   match e.desc with Assign _ -> token = STAR | _ -> false
@@ -108,8 +106,7 @@ let diagnose_dropped_continuation (st : state) (token : token) (span : span)
       |> Diagnostic.at span
       |> Diagnostic.help "move the operator to the previous line")
 
-let is_stmt_start (tok : token) : bool =
-  match tok with
+let is_stmt_start : token -> bool = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
   | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
@@ -117,8 +114,7 @@ let is_stmt_start (tok : token) : bool =
       true
   | _ -> false
 
-let is_item_start (tok : token) : bool =
-  match tok with
+let is_item_start : token -> bool = function
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | COMPTIME | VAR | ENUM ->
       true
   | _ -> false
