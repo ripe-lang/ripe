@@ -300,6 +300,12 @@ let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
   let unsigned = is_unsigned lty in
 
   let tmp = fresh ctx in
+  (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
+  let compare name =
+    let prefix = if is_float lty then "c" else "c" ^ sign in
+    emit_op2 ctx tmp "w" (prefix ^ name ^ op_qt) lv rv
+  in
+
   (match op with
   | Mir.Add -> emit_op2 ctx tmp qt "add" lv rv
   | Mir.Sub -> emit_op2 ctx tmp qt "sub" lv rv
@@ -309,29 +315,19 @@ let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
   (* Floats: ceqs, ceqd / ints: ceqw, ceql *)
   | Mir.Eq -> emit_op2 ctx tmp "w" ("ceq" ^ op_qt) lv rv
   | Mir.Neq -> emit_op2 ctx tmp "w" ("cne" ^ op_qt) lv rv
-  (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
-  | Mir.Lt ->
-      if is_float lty then emit_op2 ctx tmp "w" ("clt" ^ op_qt) lv rv
-      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "lt" ^ op_qt) lv rv
-  | Mir.Gt ->
-      if is_float lty then emit_op2 ctx tmp "w" ("cgt" ^ op_qt) lv rv
-      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "gt" ^ op_qt) lv rv
-  | Mir.Lte ->
-      if is_float lty then emit_op2 ctx tmp "w" ("cle" ^ op_qt) lv rv
-      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "le" ^ op_qt) lv rv
-  | Mir.Gte ->
-      if is_float lty then emit_op2 ctx tmp "w" ("cge" ^ op_qt) lv rv
-      else emit_op2 ctx tmp "w" ("c" ^ sign ^ "ge" ^ op_qt) lv rv
+  | Mir.Lt -> compare "lt"
+  | Mir.Gt -> compare "gt"
+  | Mir.Lte -> compare "le"
+  | Mir.Gte -> compare "ge"
   | Mir.BitAnd -> emit_op2 ctx tmp qt "and" lv rv
   | Mir.BitOr -> emit_op2 ctx tmp qt "or" lv rv
   | Mir.BitXor -> emit_op2 ctx tmp qt "xor" lv rv
-  | Mir.Lshift | Mir.Rshift ->
-      let instr =
-        match op with
-        | Mir.Lshift -> "shl"
-        | _ -> if unsigned then "shr" else "sar"
-      in
-      emit_op2 ctx tmp qt instr lv (word_count ctx count_ty rv));
+  | Mir.Lshift -> emit_op2 ctx tmp qt "shl" lv (word_count ctx count_ty rv)
+  | Mir.Rshift ->
+      emit_op2 ctx tmp qt
+        (if unsigned then "shr" else "sar")
+        lv
+        (word_count ctx count_ty rv));
   match op with
   | Mir.Add | Mir.Sub | Mir.Mul | Mir.Div | Mir.Lshift ->
       narrow_int_to ctx tmp t
@@ -418,12 +414,12 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)
         | TSlice _ -> ("l", reps * 2)
-        | base -> (qbe_ext_ty struct_name base, reps)
+        | _ -> (qbe_ext_ty struct_name t, reps)
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
   | TSlice _ | TStr -> "l 2"
-  | scalar -> scalar_letter (qbe_scalar scalar)
+  | _ -> scalar_letter (qbe_scalar t)
 
 (* A field that takes up no bytes changes nothing here, and leaving one in makes QBE think the whole struct is empty *)
 let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
