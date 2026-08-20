@@ -168,13 +168,21 @@ let first = function
   | [] -> ""
 ```
 
-- Make pattern matches exhaustive and name the constructors you expect instead of using `_` (I still have a long way to go on this one)
+- Make pattern matches exhaustive and use `_` only when all unmatched
+  constructors do the same thing
 
 ```ocaml
 let label = function
   | Identifier -> "identifier"
   | Keyword -> "keyword"
   | Punctuation -> "punctuation"
+```
+
+```ocaml
+let int_kind_of (t : ty) : int_kind =
+  match resolve_ty t with
+  | TInt kind -> kind
+  | _ -> Diagnostic.ice "expected an integer type"
 ```
 
 - Match related values together to avoid nesting
