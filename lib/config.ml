@@ -2,7 +2,7 @@
 
 let executable_dir () =
   try Filename.dirname (Unix.realpath Sys.executable_name)
-  with _ -> Filename.dirname Sys.executable_name
+  with Unix.Unix_error _ -> Filename.dirname Sys.executable_name
 
 let nonempty_environment name =
   match Sys.getenv_opt name with
@@ -59,7 +59,8 @@ let resolve_configured_tool (name, path) =
   | Some path -> path
   | None -> failwith (name ^ " points to a missing tool: " ^ path)
 
-let realpath_or_original path = try Unix.realpath path with _ -> path
+let realpath_or_original path =
+  try Unix.realpath path with Unix.Unix_error _ -> path
 
 let default_tool bundled fallback =
   match bundled_tool bundled with
@@ -87,7 +88,8 @@ let runtime_in_sites () : string list =
 (* A fresh build has no install site so look beside the binary *)
 let runtime_near_exe () : string list =
   let exe =
-    try Unix.realpath Sys.executable_name with _ -> Sys.executable_name
+    try Unix.realpath Sys.executable_name
+    with Unix.Unix_error _ -> Sys.executable_name
   in
   let bin_dir = Filename.dirname exe in
   [
