@@ -90,7 +90,7 @@ let is_valid_identifier (name : string) : bool =
   name <> ""
 ```
 
-- You should use `function` for direct matches and an explicit argument with `match` when the name or type could use some clarification
+- You should use `function` for matches instead of an explicit argument with `match`
 
 ```ocaml
 let describe value =
