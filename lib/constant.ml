@@ -202,15 +202,6 @@ let int_binop (span : Ast.span) (op : Ast.binop) (a : exact) (b : exact) :
     | _ -> None
   with Overflow -> overflowed span
 
-let int_unop (span : Ast.span) (op : Ast.unop) (a : exact) : exact option =
-  try
-    match op with
-    | Ast.Pos -> Some a
-    | Ast.Neg -> Some (negate a)
-    | Ast.BitNot -> Some (lognot a)
-    | Ast.Not | Ast.Deref | Ast.AddressOf -> None
-  with Overflow -> overflowed span
-
 let cast (target : ty) (v : value) : value =
   match (resolve_ty target, v) with
   | TFloat kind, VFloat (f, _) -> of_float kind f
