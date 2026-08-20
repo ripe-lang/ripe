@@ -98,14 +98,23 @@ let make_output ~(source_bytes : int) (modules : int) : t =
 
 (* This is the `--emit resolve` output *)
 let dump (r : t) : string =
-  Span.Table.to_seq r.syms |> List.of_seq
-  |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) -> compare a b)
-  |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
-      Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
-        s.Symbol.module_id s.Symbol.id
-        (Symbol.show_kind s.Symbol.kind)
-        s.Symbol.name)
-  |> String.concat ""
+  let entries =
+    Span.Table.to_seq r.syms |> List.of_seq
+    |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) -> compare a b)
+    |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
+        Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
+          (s.Symbol.module_id :> int)
+          (s.Symbol.id :> int)
+          (Symbol.show_kind s.Symbol.kind)
+          s.Symbol.name)
+    |> String.concat ""
+  in
+  "Resolver output\n\n\
+   Each line maps a source byte range to its definition.\n\
+   * (start,end): source byte range\n\
+   * #module.id: declaration ID\n\
+   * #-module.id: built in declaration\n\
+   * kind name: resolved definition\n\n" ^ entries
 
 let sym_at (r : t) (span : Ast.span) : Symbol.t =
   match Span.Table.find_opt r.syms span with
