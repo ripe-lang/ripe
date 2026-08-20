@@ -1,4 +1,4 @@
-struct P { a: i32, b: i32 }
+struct P { a: i32; b: i32 }
 
 func f() P { return undefined }
 

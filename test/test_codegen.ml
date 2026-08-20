@@ -9,7 +9,7 @@ let%expect_test "qbe accepts scalar MIR" =
 let%expect_test "qbe accepts padded structs" =
   run_codegen_ok
     {|
-struct P { a: i8, b: i64, c: i8 }
+struct P { a: i8; b: i64; c: i8 }
 func main() i32 { return sizeof(P) as i32 }
 |};
   [%expect
@@ -23,7 +23,7 @@ func main() i32 { return sizeof(P) as i32 }
 let%expect_test "qbe accepts string aggregates" =
   run_codegen_ok
     {|
-struct Box { text: str, value: i32 }
+struct Box { text: str; value: i32 }
 func make() str { return "hello" }
 func main() i32 {
   var box: Box = Box { text: "field", value: 1 }
@@ -69,7 +69,7 @@ func main() i32 { return value() }
 let%expect_test "qbe accepts main allocation" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+struct Pair { left: i32; right: i32 }
 func main() i32 {
   var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
@@ -81,7 +81,7 @@ let%expect_test "qbe accepts local structs" =
   run_codegen_ok
     {|
 func main() i32 {
-  struct Pair { left: i32, right: i32 }
+struct Pair { left: i32; right: i32 }
   var pair = Pair { left: 1, right: 2 }
   return pair.left + pair.right
 }
@@ -91,7 +91,7 @@ func main() i32 {
 let%expect_test "qbe accepts external struct calls" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+struct Pair { left: i32; right: i32 }
 extern "C" func consume(pair: Pair) i32
 func main() i32 {
   var pair = Pair { left: 1, right: 2 }
@@ -103,7 +103,7 @@ func main() i32 {
 let%expect_test "qbe accepts external struct returns" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+struct Pair { left: i32; right: i32 }
 extern "C" func produce() Pair
 func main() i32 {
   var pair = produce()
@@ -115,7 +115,7 @@ func main() i32 {
 let%expect_test "qbe accepts Ripe struct returns" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+struct Pair { left: i32; right: i32 }
 extern "Ripe" func produce() Pair
 func main() i32 {
   var pair = produce()

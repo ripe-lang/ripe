@@ -3,8 +3,9 @@ extern "C" func printf(fmt: cstr, ...) i32
 // Naming both values covers a bool so no else arm is needed
 func pick(flag: bool) i32 {
   return match flag {
-    true => 1,
-    false => 0,
+    true => 1
+    false => 0
+
   }
 }
 

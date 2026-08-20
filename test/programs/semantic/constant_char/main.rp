@@ -5,9 +5,10 @@ comptime NEWLINE: char = '\n'
 
 func classify(c: char) i32 {
   match c {
-    LETTER => return 1,
-    NEWLINE => return 2,
-    _ => return 0,
+    LETTER => return 1
+    NEWLINE => return 2
+    _ => return 0
+
   }
 }
 

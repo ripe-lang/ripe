@@ -6,7 +6,7 @@ func main() {
   while i < 8 {
     i += 1
     match i % 3 {
-      0 => continue,
+      0 => continue
       1 => { total += 10 }
       _ => { total += 1 }
     }
@@ -17,7 +17,7 @@ func main() {
   loop {
     j += 1
     match j % 4 {
-      0 => break,
+      0 => break
       _ => { last = j }
     }
   }

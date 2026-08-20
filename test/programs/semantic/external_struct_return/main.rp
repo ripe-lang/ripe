@@ -1,4 +1,4 @@
-struct Pair { quot: i32, rem: i32 }
+struct Pair { quot: i32; rem: i32 }
 
 extern "C" func div(numer: i32, denom: i32) Pair
 

@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-struct pair { a: i32, b: i32 }
+struct pair { a: i32; b: i32 }
 
 comptime SIZE: i32 = 3
 comptime SCALE: i32 = 4

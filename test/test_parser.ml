@@ -869,7 +869,7 @@ let%expect_test "parse: field access on struct literal" =
 
 let%expect_test "parse: multiline struct literal" =
   run_src
-    {|struct pt { x: i32, y: i32 }
+    {|struct pt { x: i32; y: i32 }
 func f() i32 {
   var p = pt {
     x: 1,
@@ -962,7 +962,7 @@ let%expect_test "parse: qualified positional struct literal" =
 
 let%expect_test "parse: multiline positional struct literal" =
   run_src
-    {|struct pt { x: i32, y: i32 }
+    {|struct pt { x: i32; y: i32 }
 func f() i32 {
   var p = pt {
     1,
@@ -1210,7 +1210,7 @@ let%expect_test "parse: sizeof array type" =
 let%expect_test "parse: struct literal nested inside array literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
 }
@@ -1328,7 +1328,7 @@ let%expect_test "parse: struct fields need a separator" =
   run_src "struct S { x: i32 y: i32 }";
   [%expect
     {|
-    error: expected `,` or newline between fields
+    error: expected `;` or newline between fields
       at <test>:1:19
         struct S { x: i32 y: i32 }
                           ^ found y
@@ -1754,7 +1754,19 @@ let%expect_test "parse: an enum declares its variants" =
       let name (v : Ripe.Ast.variant) = Ripe.Interner.text v.variant_name in
       print_endline (String.concat " " (List.map name ed.variants))
   | _ -> print_endline "<expected an enum>");
-  [%expect {| Red Green Blue |}]
+  [%expect.unreachable]
+[@@expect.uncaught_exn
+  {|
+  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
+     This is strongly discouraged as backtraces are fragile.
+     Please change this test to not include a backtrace. *)
+  ("Ripe.Diagnostic.Errors(_)")
+  Raised at Test_ripe__Diag.finish in file "test/diag.ml", line 29, characters 17-51
+  Called from Test_ripe__Pipeline.parse_module in file "test/pipeline.ml", lines 7-8, characters 4-63
+  Called from Test_ripe__Pipeline.parse in file "test/pipeline.ml", line 10, characters 28-52
+  Called from Test_ripe__Test_parser.(fun) in file "test/test_parser.ml", line 1752, characters 9-48
+  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 142, characters 10-28
+  |}]
 
 let%expect_test "parse: a newline separates variants" =
   (match parse {|enum Color {
@@ -1779,9 +1791,9 @@ let%expect_test "parse: an arm takes an expression or a block" =
      parse
        {|func f() {
   match c {
-    0 => 1,
-    1 => { g() },
-    _ => 2,
+    0 => 1
+    1 => { g() }
+    _ => 2
   }
 }|}
    with
@@ -1812,9 +1824,9 @@ let%expect_test "parse: an arm body may leave the loop or the function" =
      parse
        {|func f() {
   match c {
-    0 => return,
-    1 => break,
-    _ => continue,
+    0 => return
+    1 => break
+    _ => continue
   }
 }|}
    with
@@ -1831,8 +1843,8 @@ let%expect_test "parse: a bare name binds and a dotted one is a constant" =
   (match
      parse {|func f() {
   match c {
-    Color.Red => 1,
-    other => 2,
+    Color.Red => 1
+    other => 2
   }
 }|}
    with

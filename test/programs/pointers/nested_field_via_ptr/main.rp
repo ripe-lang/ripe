@@ -1,6 +1,6 @@
 struct inner { a: i32 }
 
-struct outer { i: inner, b: i32 }
+struct outer { i: inner; b: i32 }
 
 func main() i32 {
   var o: outer = outer { i: inner { a: 1 }, b: 2 }

@@ -1,19 +1,22 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Size { Small, Large }
+enum Size { Small; Large }
 
 func main() {
   var width = match Size.Large {
-    Size.Small => 10,
-    Size.Large => 20,
+    Size.Small => 10
+    Size.Large => 20
+
   }
   var height = match Size.Small {
-    Size.Small => 1,
-    Size.Large => 2,
+    Size.Small => 1
+    Size.Large => 2
+
   }
   height += match Size.Large {
-    Size.Small => 0,
-    Size.Large => 5,
+    Size.Small => 0
+    Size.Large => 5
+
   }
   printf("%d %d\n", width, height)
   return

@@ -429,7 +429,7 @@ func f(runtime: i32) i32 {
 let%expect_test "mir: a positional struct literal lowers like a named one" =
   Pipeline.run_mir
     {|
-struct pair { x: i32, y: i32 }
+struct pair { x: i32; y: i32 }
 
 func f(a: i32, b: i32) i32 {
   var positional = pair { a, b }

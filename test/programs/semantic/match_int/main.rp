@@ -2,10 +2,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 func classify(n: i32) i32 {
   return match n {
-    0 => 100,
-    1 => 200,
-    2 => 300,
-    _ => 999,
+    0 => 100
+    1 => 200
+    2 => 300
+    _ => 999
+
   }
 }
 

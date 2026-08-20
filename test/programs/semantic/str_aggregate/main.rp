@@ -1,4 +1,4 @@
-struct named { s: str, n: i32 }
+struct named { s: str; n: i32 }
 
 func give() str {
   return "returned"

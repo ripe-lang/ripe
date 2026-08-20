@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Dir { North, East, South, West }
+enum Dir { North; East; South; West }
 
 func main() {
   var route: [3]Dir = [Dir.North, Dir.West, Dir.East]

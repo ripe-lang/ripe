@@ -1,4 +1,4 @@
-struct point { x: i32, y: i32 }
+struct point { x: i32; y: i32 }
 
 func main() i32 {
   var p: point = point { x: 3, y: 0 }

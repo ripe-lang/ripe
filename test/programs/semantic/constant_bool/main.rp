@@ -7,8 +7,9 @@ comptime EITHER: bool = NO || YES
 
 func pick(b: bool) i32 {
   match b {
-    YES => return 10,
-    _ => return 20,
+    YES => return 10
+    _ => return 20
+
   }
 }
 

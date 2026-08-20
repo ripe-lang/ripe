@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Color { Red, Green, Blue }
+enum Color { Red; Green; Blue }
 
 func main() {
   var red = Color.Red

@@ -385,7 +385,7 @@ func f() { X = 2 }
 let%expect_test "typecheck: write to a var struct field" =
   run_src
     {|
-struct P { x: i32, y: i32 }
+struct P { x: i32; y: i32 }
 func f() {
   var p: P = P { x: 1, y: 2 }
   p.x = 5
@@ -1133,14 +1133,14 @@ func f() i32 {
 
 let%expect_test "typecheck: struct field read" =
   run_src {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f(p: pt) i32 { return p.x }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: unknown struct field" =
   run_src {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f(p: pt) i32 { return p.z }
 |};
   [%expect
@@ -1944,7 +1944,7 @@ let%expect_test "typecheck: break under if still needs a return" =
 let%expect_test "typecheck: struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() i32 {
   var p = pt { x: 3, y: 4 }
   return p.x + p.y
@@ -1955,7 +1955,7 @@ func f() i32 {
 let%expect_test "typecheck: empty struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() i32 {
   var p = pt { }
   return p.x
@@ -1965,7 +1965,7 @@ func f() i32 {
 
 let%expect_test "typecheck: struct literal unknown field" =
   run_src {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { z: 1 }
 }
@@ -1986,7 +1986,7 @@ func f() {
 let%expect_test "typecheck: struct literal duplicate field" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { x: 1, x: 2 }
 }
@@ -2007,7 +2007,7 @@ func f() {
 let%expect_test "typecheck: struct literal wrong field type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { x: true }
 }
@@ -2047,7 +2047,7 @@ func f() {
 let%expect_test "typecheck: var global struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 var origin: pt = pt { x: 1, y: 2 }
 func f() i32 { return origin.x }
 |};
@@ -2056,7 +2056,7 @@ func f() i32 { return origin.x }
 let%expect_test "typecheck: global struct literal must be constant" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func g() i32 { return 1 }
 var p: pt = pt { x: g(), y: 2 }
 |};
@@ -2071,7 +2071,7 @@ var p: pt = pt { x: g(), y: 2 }
 let%expect_test "typecheck: positional struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() i32 {
   var p = pt { 3, 4 }
   return p.x + p.y
@@ -2092,7 +2092,7 @@ func f() i32 {
 
 let%expect_test "typecheck: positional struct literal too few fields" =
   run_src {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { 1 }
 }
@@ -2113,7 +2113,7 @@ func f() {
 let%expect_test "typecheck: positional struct literal too many fields" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { 1, 2, 3 }
 }
@@ -2134,7 +2134,7 @@ func f() {
 let%expect_test "typecheck: positional struct literal wrong field type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() {
   var p = pt { 1, true }
 }
@@ -2155,8 +2155,8 @@ func f() {
 let%expect_test "typecheck: positional struct literal nested" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
-struct wrap { p: pt, tag: i32 }
+struct pt { x: i32; y: i32 }
+struct wrap { p: pt; tag: i32 }
 func f() i32 {
   var w = wrap { pt { 1, 2 }, 3 }
   return w.p.x + w.tag
@@ -2167,7 +2167,7 @@ func f() i32 {
 let%expect_test "typecheck: positional global struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 var origin: pt = pt { 1, 2 }
 func f() i32 { return origin.x }
 |};
@@ -2192,29 +2192,29 @@ func f() {
 
 let%expect_test "typecheck: duplicate struct field" =
   run_src {|
-struct pt { x: i32, x: i64 }
+struct pt { x: i32; x: i64 }
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:2:21
-        struct pt { x: i32, x: i64 }
+        struct pt { x: i32; x: i64 }
                             ^
     |}]
 
 let%expect_test "typecheck: three duplicate struct fields" =
   run_src {|
-struct pt { x: i32, x: i64, x: bool }
+struct pt { x: i32; x: i64; x: bool }
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:2:21
-        struct pt { x: i32, x: i64, x: bool }
+        struct pt { x: i32; x: i64; x: bool }
                             ^
     error: duplicate field
       at <test>:2:29
-        struct pt { x: i32, x: i64, x: bool }
+        struct pt { x: i32; x: i64; x: bool }
                                     ^
     |}]
 
@@ -2281,7 +2281,7 @@ func f() {
 let%expect_test "typecheck: struct with array field initializes ok" =
   run_src
     {|
-struct buf { data: [4]i32, n: i32 }
+struct buf { data: [4]i32; n: i32 }
 func f() i32 {
   var b: buf = buf { data: [1, 2, 3, 4], n: 4 }
   return b.n
@@ -2292,7 +2292,7 @@ func f() i32 {
 let%expect_test "typecheck: function returning struct ok" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func origin() pt { return pt { x: 0, y: 0 } }
 func f() i32 { return origin().x }
 |};
@@ -2331,7 +2331,7 @@ func f() i32 {
 let%expect_test "typecheck: array of structs iterates element type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 func f() i32 {
   var pts: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }]
   var s: i32 = 0
@@ -2660,7 +2660,7 @@ func f() i32 { var d: Meters = 5; return d + 1 }
 let%expect_test "typecheck: type alias of a struct allows field access" =
   run_src
     {|
-struct Point { x: i32, y: i32 }
+struct Point { x: i32; y: i32 }
 type Pt = Point
 func f() i32 { var p: Pt = Point { x: 1, y: 2 }; return p.x }
 |};
@@ -2858,7 +2858,7 @@ func f(x: i32) i64 { return x }
 let%expect_test "typecheck: sizeof of a struct type" =
   run_src
     {|
-struct S { a: i32, b: i32 }
+struct S { a: i32; b: i32 }
 func f() i64 { return sizeof(S) as i64 }
 |};
   [%expect
@@ -2881,7 +2881,7 @@ struct B { n: i32 }
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a struct points at itself" =
-  run_src "struct Node { val: i32, next: *Node }";
+  run_src "struct Node { val: i32; next: *Node }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a struct that holds itself by value has no size" =
@@ -4030,18 +4030,18 @@ func f() { var _c = Color.Green }|};
     |}]
 
 let%expect_test "typecheck: duplicate variant" =
-  run_src "enum Color { Red, Green, Red }";
+  run_src "enum Color { Red; Green; Red }";
   [%expect
     {|
     error: duplicate variant
       at <test>:1:26
-        enum Color { Red, Green, Red }
+        enum Color { Red; Green; Red }
                                  ^~~
     |}]
 
 let%expect_test "typecheck: enum has no arithmetic" =
   run_src
-    {|enum Color { Red, Green }
+    {|enum Color { Red; Green }
 func f() { var _c = Color.Red + Color.Green }|};
   [%expect
     {|
@@ -4099,7 +4099,7 @@ func f() { var _p = Point.x }|};
 
 let%expect_test "typecheck: an enum match may name only some variants" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|enum Color { Red; Green; Blue }
 func f(c: Color) i32 { match c { Color.Red => 1 } }|};
   [%expect {| ok |}]
 
@@ -4109,74 +4109,74 @@ let%expect_test "typecheck: an integer match needs no catch all" =
 
 let%expect_test "typecheck: duplicate arm" =
   run_src
-    {|enum Color { Red, Green }
-func f(c: Color) i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } }|};
+    {|enum Color { Red; Green }
+func f(c: Color) i32 { match c { Color.Red => 1; Color.Red => 2; _ => 3 } }|};
   [%expect
     {|
     error: duplicate pattern
       at <test>:2:50
-        func f(c: Color) i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } }
+        func f(c: Color) i32 { match c { Color.Red => 1; Color.Red => 2; _ => 3 } }
                                                          ^~~~~~~~~
     |}]
 
 let%expect_test "typecheck: an arm after the catch all never runs" =
   run_src
-    {|enum Color { Red, Green }
-func f(c: Color) i32 { match c { _ => 1, Color.Red => 2 } }|};
+    {|enum Color { Red; Green }
+func f(c: Color) i32 { match c { _ => 1; Color.Red => 2 } }|};
   [%expect
     {|
     error: arm never runs
       at <test>:2:42
-        func f(c: Color) i32 { match c { _ => 1, Color.Red => 2 } }
+        func f(c: Color) i32 { match c { _ => 1; Color.Red => 2 } }
                                                  ^~~~~~~~~
     |}]
 
 let%expect_test "typecheck: two catch all arms" =
-  run_src "func f(n: i32) i32 { match n { _ => 1, _ => 2 } }";
+  run_src "func f(n: i32) i32 { match n { _ => 1; _ => 2 } }";
   [%expect
     {|
     error: arm never runs
       at <test>:1:40
-        func f(n: i32) i32 { match n { _ => 1, _ => 2 } }
+        func f(n: i32) i32 { match n { _ => 1; _ => 2 } }
                                                ^
     |}]
 
 let%expect_test "typecheck: arms disagree in value position" =
   run_src
-    {|enum Color { Red, Green }
-func f(c: Color) i32 { return match c { Color.Red => 1, _ => true } }|};
+    {|enum Color { Red; Green }
+func f(c: Color) i32 { return match c { Color.Red => 1; _ => true } }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:62
-        func f(c: Color) i32 { return match c { Color.Red => 1, _ => true } }
+        func f(c: Color) i32 { return match c { Color.Red => 1; _ => true } }
                                                                      ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: a pattern has the scrutinee type" =
   run_src
-    {|enum Color { Red, Green }
-func f(c: Color) i32 { match c { 3 => 1, _ => 2 } }|};
+    {|enum Color { Red; Green }
+func f(c: Color) i32 { match c { 3 => 1; _ => 2 } }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:34
-        func f(c: Color) i32 { match c { 3 => 1, _ => 2 } }
+        func f(c: Color) i32 { match c { 3 => 1; _ => 2 } }
                                          ^ expected Color, found i32
     |}]
 
 let%expect_test "typecheck: a bare name binds and catches everything" =
-  run_src "func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }";
+  run_src "func f(n: i32, m: i32) i32 { match n { m => 1; _ => 2 } }";
   [%expect
     {|
     warning: unused variable: m
       at <test>:1:16
-        func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
+        func f(n: i32, m: i32) i32 { match n { m => 1; _ => 2 } }
                        ^~~~~~
     help: prefix with an underscore: _m
     error: arm never runs
       at <test>:1:48
-        func f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
+        func f(n: i32, m: i32) i32 { match n { m => 1; _ => 2 } }
                                                        ^
     |}]
 
@@ -4186,30 +4186,30 @@ func f(p: P) i32 { return match p { _ => 1 } }|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a float cannot be matched" =
-  run_src "func f(x: f32) i32 { return match x { 1.5 => 1, _ => 2 } }";
+  run_src "func f(x: f32) i32 { return match x { 1.5 => 1; _ => 2 } }";
   [%expect
     {|
     error: pattern is not comparable
       at <test>:1:39
-        func f(x: f32) i32 { return match x { 1.5 => 1, _ => 2 } }
+        func f(x: f32) i32 { return match x { 1.5 => 1; _ => 2 } }
                                               ^~~ cannot test f32
     |}]
 
 let%expect_test "typecheck: a comptime name in a pattern compares" =
   run_src
     {|comptime LIMIT: i32 = 42
-func f(x: i32) i32 { return match x { LIMIT => 1, other => other } }|};
+func f(x: i32) i32 { return match x { LIMIT => 1; other => other } }|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a comptime pattern still checks its type" =
   run_src
     {|comptime LIMIT: i32 = 42
-func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }|};
+func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:40
-        func f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }
+        func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }
                                                ^~~~~ expected bool, found i32
     |}]
 
@@ -4333,8 +4333,8 @@ func f(small: i8, wide: i64, single: f32, double: f64) i64 {
   var j = [wide, small]
   var k = if true { small } else { wide }
   var l = if true { wide } else { small }
-  var m = match true { true => small, false => wide }
-  var n = match true { true => wide, false => small }
+  var m = match true { true => small; false => wide }
+  var n = match true { true => wide; false => small }
   var o = loop { if false { break small }; break wide }
   var p = loop { if false { break wide }; break small }
   for _index in small..wide {}
@@ -4462,7 +4462,7 @@ func f(signed: i32, unsigned: u32) i64 {
   var _b = signed < unsigned
   var _c = [signed, unsigned]
   var d = if true { signed } else { unsigned }
-  var e = match true { true => signed, false => unsigned }
+  var e = match true { true => signed; false => unsigned }
   var g = loop { if false { break signed }; break unsigned }
   for _index in signed..unsigned {}
   return a + d + e + g
@@ -4551,7 +4551,7 @@ func f(small: i8, index: u8) i64 {
   var _element = values[index]
   var _from = values[index..]
   var _to = values[..index]
-  var pattern = match 1i64 { SMALL => small, _ => 0i64 }
+  var pattern = match 1i64 { SMALL => small; _ => 0i64 }
   return left + right + nested + negative + positive + pattern +
       tail(small) + apply(take, small)
 }
@@ -4611,12 +4611,12 @@ let%expect_test "typecheck: size does not fit" =
     |}]
 
 let%expect_test "typecheck: pattern is not a literal" =
-  run_src "func f(a: [2]i32) i32 { return match a { [1, 2] => 1, _ => 0 } }";
+  run_src "func f(a: [2]i32) i32 { return match a { [1, 2] => 1; _ => 0 } }";
   [%expect
     {|
     error: pattern is not a literal
       at <test>:1:42
-        func f(a: [2]i32) i32 { return match a { [1, 2] => 1, _ => 0 } }
+        func f(a: [2]i32) i32 { return match a { [1, 2] => 1; _ => 0 } }
                                                  ^~~~~~
     help: an arm names a literal or an enum variant
     |}]
