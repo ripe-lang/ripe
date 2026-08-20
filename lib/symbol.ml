@@ -37,8 +37,7 @@ type key = int [@@deriving show { with_path = false }]
 let id_bits = 32
 let id_mask = 0xFFFF_FFFF
 
-let make_key (module_id : module_id) (id : id) : key =
-  (module_id lsl id_bits) lor (id land id_mask)
+let make_key module_id id = (module_id lsl id_bits) lor (id land id_mask)
 
 let key (symbol : t) : key = make_key symbol.module_id symbol.id
 let module_id_of_key (key : key) : module_id = key asr id_bits
@@ -47,24 +46,22 @@ let id_of_key (key : key) : id = key land id_mask
 module Table = Hashtbl.Make (struct
   type t = key
 
-  let equal (a : t) (b : t) : bool = a = b
+  let equal a b = a = b
 
   (* Buckets index off the low bits so the module has to be folded in *)
-  let hash (key : t) : int = key lxor (key asr id_bits)
+  let hash key = key lxor (key asr id_bits)
 end)
 
 let prelude_module_id : module_id = -2
 
-let is_func : kind -> bool = function
-  | Func | LocalFunc | Extern -> true
-  | _ -> false
+let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 
-let is_global : kind -> bool = function Global _ -> true | _ -> false
+let is_global = function Global _ -> true | _ -> false
 
-let is_immutable : kind -> bool = function
+let is_immutable = function
   | Local Ast.Comptime | ForVar | Module | MatchBind -> true
   | _ -> false
 
-let is_comptime : kind -> bool = function
+let is_comptime = function
   | Local Ast.Comptime | Global Ast.Comptime -> true
   | _ -> false

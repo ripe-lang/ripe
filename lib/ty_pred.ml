@@ -6,7 +6,7 @@ module T = Typed_ast
 
 (* Types need exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
-let rec compatible (want : ty) (got : ty) : bool =
+let rec compatible want got =
   match (resolve_ty want, resolve_ty got) with
   | TError, _ | _, TError -> true
   | _, TNever -> true
@@ -25,21 +25,21 @@ let rec compatible (want : ty) (got : ty) : bool =
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
   | _, _ -> ty_equal want got
 
-and compatible_under_pointer (want : ty) (got : ty) : bool =
+and compatible_under_pointer want got =
   match (resolve_ty want, resolve_ty got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | _, _ -> ty_equal want got
 
-let is_lvalue (te : T.texpr) : bool =
+let is_lvalue te =
   match te.T.desc with
   | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
   | T.TUnOp (Deref, _) -> true
   | _ -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
-let rec root_lvalue (te : T.texpr) : T.texpr option =
+let rec root_lvalue te =
   match te.T.desc with
   | T.TIdent _ -> Some te
   | T.TFieldAccess (base, _) -> root_through base
@@ -47,12 +47,12 @@ let rec root_lvalue (te : T.texpr) : T.texpr option =
   | _ -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
-and root_through (base : T.texpr) : T.texpr option =
+and root_through base =
   match resolve_ty base.T.ty with
   | TPointer _ | TSlice _ -> None
   | _ -> root_lvalue base
 
-let root_binding (te : T.texpr) : Symbol.t option =
+let root_binding te =
   match root_lvalue te with
   | Some { T.desc = T.TIdent s; _ } -> Some s
   | Some _ | None -> None
@@ -74,7 +74,7 @@ let rec is_comparable = function
   | TAlias (_, base) -> is_comparable base
   | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit -> false
 
-let binop_accepts (op : binop) : ty -> bool =
+let binop_accepts op =
   match op with
   | Add | Sub | Mul | Div -> is_numeric
   | Mod | BitAnd | BitOr | BitXor | Lshift | Rshift -> is_integer
@@ -82,19 +82,19 @@ let binop_accepts (op : binop) : ty -> bool =
   | Lt | Gt | Lte | Gte -> is_ordered
   | And | Or -> fun _ -> true
 
-let unop_accepts (op : unop) : ty -> bool =
+let unop_accepts op =
   match op with
   | Pos | Neg -> is_numeric
   | BitNot -> is_integer
   | Not | Deref | AddressOf -> fun _ -> true
 
-let rec is_num_literal (e : expr) =
+let rec is_num_literal e =
   match e.desc with
   | Int _ | Float _ -> true
   | UnOp ((Pos | Neg), operand) -> is_num_literal operand
   | _ -> false
 
-let widens_to (src : ty) (tgt : ty) : bool =
+let widens_to src tgt =
   match (resolve_ty src, resolve_ty tgt) with
   | TInt src_kind, TInt tgt_kind ->
       int_kind_size src_kind < int_kind_size tgt_kind
@@ -102,13 +102,13 @@ let widens_to (src : ty) (tgt : ty) : bool =
   | TFloat F32, TFloat F64 -> true
   | _ -> false
 
-let signed_ty_above : int_kind -> ty option = function
+let signed_ty_above = function
   | I8 | U8 -> Some (TInt I16)
   | I16 | U16 -> Some (TInt I32)
   | I32 | U32 -> Some (TInt I64)
   | I64 | U64 | Isize | Usize -> None
 
-let common_numeric_ty (left : ty) (right : ty) : ty option =
+let common_numeric_ty left right =
   if ty_equal left right then Some left
   else if widens_to left right then Some right
   else if widens_to right left then Some left

@@ -62,8 +62,7 @@ and tarm = { tpat : tpattern; tbody : tblock }
 and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
-  { desc; ty; span; const = None }
+let mk ?(span = Ast.dummy_span) ty desc = { desc; ty; span; const = None }
 
 type tfunc_def = {
   key : Symbol.key;
@@ -95,6 +94,7 @@ type tdecl =
   | TLocalStruct of Qname.t * ty list
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
+  (* The alias has already been replaced in every runtime type *)
   | TTypeAlias of Qname.t * ty
   (* An enum is an integer at runtime so nothing past here needs its variants *)
   | TEnum of Qname.t

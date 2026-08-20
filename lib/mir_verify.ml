@@ -4,11 +4,11 @@ type error = { function_name : string; error_span : Ast.span; message : string }
 
 exception Invalid of error list
 
-let show_error (error : error) : string =
+let show_error (error : error) =
   Printf.sprintf "%s: %s" error.function_name error.message
 
 (* TODO: Add a ctx record go group structs, globals, errors, and func *)
-let verify (program : Mir.program) : unit =
+let verify (program : Mir.program) =
   let open Types in
   let open Mir in
   let structs = Hashtbl.create 8 in

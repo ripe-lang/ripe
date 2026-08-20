@@ -15,5 +15,4 @@ let show (q : t) : string = String.concat "." (q.path @ [ q.base ])
 let key (q : t) : Symbol.key = q.key
 
 (* Reading your own module's path back in every message is noise *)
-let show_in (current : string list) (q : t) : string =
-  if q.path = current then q.base else show q
+let show_in current q = if q.path = current then q.base else show q

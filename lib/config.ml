@@ -72,21 +72,19 @@ let resolve_tool ~environment ~bundled ~fallback () =
   | Some configured -> realpath_or_original (resolve_configured_tool configured)
   | None -> default_tool bundled fallback
 
-let qbe : string =
-  resolve_tool ~environment:"QBE" ~bundled:"qbe" ~fallback:"qbe" ()
+let qbe = resolve_tool ~environment:"QBE" ~bundled:"qbe" ~fallback:"qbe" ()
 
-let assembler : string =
+let assembler =
   resolve_tool ~environment:"RIPE_AS" ~bundled:"as" ~fallback:"as" ()
 
-let linker : string =
-  resolve_tool ~environment:"RIPE_CC" ~bundled:"cc" ~fallback:"cc" ()
+let linker = resolve_tool ~environment:"RIPE_CC" ~bundled:"cc" ~fallback:"cc" ()
 
 (* An installed compiler finds the object through its dune install site *)
-let runtime_in_sites () : string list =
+let runtime_in_sites () =
   List.map (fun dir -> Filename.concat dir "panic.o") Ripe_sites.Sites.runtime
 
 (* A fresh build has no install site so look beside the binary *)
-let runtime_near_exe () : string list =
+let runtime_near_exe () =
   let exe =
     try Unix.realpath Sys.executable_name
     with Unix.Unix_error _ -> Sys.executable_name
@@ -98,7 +96,7 @@ let runtime_near_exe () : string list =
     Filename.concat bin_dir "../lib/ripe/runtime/panic.o";
   ]
 
-let runtime_object () : string =
+let runtime_object () =
   (* An explicit RIPE_RUNTIME wins so a user can force a path *)
   let override = Option.to_list (nonempty_environment "RIPE_RUNTIME") in
   let candidates = override @ runtime_in_sites () @ runtime_near_exe () in
@@ -134,12 +132,12 @@ let standard_library_roots ?root_filename () =
 
 let path_separator = if Sys.win32 then ';' else ':'
 
-let split_paths ?(sep = path_separator) (v : string) : string list =
+let split_paths ?(sep = path_separator) v =
   String.split_all ~sep:(String.of_char sep)
     ~drop:(fun p -> String.is_empty (String.trim p))
     v
 
-let search_roots ?root_filename () : string list =
+let search_roots ?root_filename () =
   let standard = standard_library_roots ?root_filename () in
   match Sys.getenv_opt "RIPE_PATH" with
   | Some v -> split_paths v @ standard

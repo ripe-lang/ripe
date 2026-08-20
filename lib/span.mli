@@ -8,7 +8,6 @@ val make : int -> int -> t
 val lo : t -> int
 val hi : t -> int
 val pp : Format.formatter -> t -> unit
-val show : t -> string
 val dummy : t
 
 (* A span packs into one int so the caller has to stay inside this *)

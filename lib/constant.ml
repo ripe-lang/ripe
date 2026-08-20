@@ -12,69 +12,68 @@ type value =
   | VBool of bool
   | VChar of int
 
-let zero : exact = { magnitude = 0L; neg = false }
+let zero = { magnitude = 0L; neg = false }
 
-let of_magnitude ?(neg = false) (magnitude : int64) : exact =
+let of_magnitude ?(neg = false) magnitude =
   if magnitude = 0L then zero else { magnitude; neg }
 
-let of_bits (n : int64) : exact =
+let of_bits n =
   if Int64.compare n 0L < 0 then of_magnitude ~neg:true (Int64.neg n)
   else of_magnitude n
 
-let bits_of (e : exact) : int64 =
-  if e.neg then Int64.neg e.magnitude else e.magnitude
+let bits_of e = if e.neg then Int64.neg e.magnitude else e.magnitude
 
-let one : exact = of_magnitude 1L
-let negate (e : exact) : exact = of_magnitude ~neg:(not e.neg) e.magnitude
+let one = of_magnitude 1L
+let negate e = of_magnitude ~neg:(not e.neg) e.magnitude
 
 (* A big one top bit set so reading it signed would flip it negative *)
-let is_big (e : exact) : bool = (not e.neg) && Int64.compare e.magnitude 0L < 0
+let is_big e = (not e.neg) && Int64.compare e.magnitude 0L < 0
 
-let compare_exact (a : exact) (b : exact) : int =
+let compare_exact a b =
   match (a.neg, b.neg) with
   | true, false -> -1
   | false, true -> 1
   | false, false -> Int64.unsigned_compare a.magnitude b.magnitude
   | true, true -> Int64.unsigned_compare b.magnitude a.magnitude
 
-let add_magnitude (a : int64) (b : int64) : int64 =
+let add_magnitude a b =
   let sum = Int64.add a b in
   if Int64.unsigned_compare sum a < 0 then raise Overflow else sum
 
-let mul_magnitude (a : int64) (b : int64) : int64 =
+let mul_magnitude a b =
   if a = 0L then 0L
   else
     let product = Int64.mul a b in
     if Int64.unsigned_div product a <> b then raise Overflow else product
 
-let add (a : exact) (b : exact) : exact =
+let add a b =
   if a.neg = b.neg then
     of_magnitude ~neg:a.neg (add_magnitude a.magnitude b.magnitude)
   else if Int64.unsigned_compare a.magnitude b.magnitude >= 0 then
     of_magnitude ~neg:a.neg (Int64.sub a.magnitude b.magnitude)
   else of_magnitude ~neg:b.neg (Int64.sub b.magnitude a.magnitude)
 
-let sub (a : exact) (b : exact) : exact = add a (negate b)
+let sub a b = add a (negate b)
 
-let mul (a : exact) (b : exact) : exact =
+let mul a b =
   of_magnitude ~neg:(a.neg <> b.neg) (mul_magnitude a.magnitude b.magnitude)
 
-let div (a : exact) (b : exact) : exact =
+let div a b =
   of_magnitude ~neg:(a.neg <> b.neg)
     (Int64.unsigned_div a.magnitude b.magnitude)
 
-let rem (a : exact) (b : exact) : exact =
+let rem a b =
   of_magnitude ~neg:a.neg (Int64.unsigned_rem a.magnitude b.magnitude)
 
 (* Two non negatives are already the bit pattern so nothing reads signed *)
-let bitwise (f : int64 -> int64 -> int64) (a : exact) (b : exact) : exact =
+let bitwise f a b =
   if (not a.neg) && not b.neg then of_magnitude (f a.magnitude b.magnitude)
   else if is_big a || is_big b then raise Overflow
   else of_bits (f (bits_of a) (bits_of b))
 
-let lognot (e : exact) : exact = negate (add e one)
+let lognot e = negate (add e one)
 
-let shift_left (a : exact) (count : int64) : exact =
+let shift_left a count =
   if Int64.unsigned_compare count 63L > 0 then
     if a.magnitude = 0L then zero else raise Overflow
   else
@@ -84,7 +83,7 @@ let shift_left (a : exact) (count : int64) : exact =
     else of_magnitude ~neg:a.neg shifted
 
 (* A neg goes toward minus inf so its magnitude rounds up *)
-let shift_right (a : exact) (count : int64) : exact =
+let shift_right a count =
   if Int64.unsigned_compare count 63L > 0 then
     if a.neg then negate one else zero
   else
@@ -94,14 +93,14 @@ let shift_right (a : exact) (count : int64) : exact =
       let dropped = Int64.shift_right_logical (Int64.sub a.magnitude 1L) n in
       of_magnitude ~neg:true (Int64.add dropped 1L)
 
-let representable (kind : int_kind) (e : exact) : bool =
+let representable kind e =
   let limit =
     if e.neg then int_kind_neg_limit kind else int_kind_pos_limit kind
   in
   Int64.unsigned_compare e.magnitude limit <= 0
 
 (* A cast is where the source asked for this so it stays the only wrap *)
-let narrow (kind : int_kind) (n : int64) : exact =
+let narrow kind n =
   let width = int_kind_size kind * 8 in
   if width = 64 then
     if int_kind_unsigned kind then of_magnitude n else of_bits n
@@ -112,28 +111,28 @@ let narrow (kind : int_kind) (n : int64) : exact =
       let shift = 64 - width in
       of_bits (Int64.shift_right (Int64.shift_left masked shift) shift)
 
-let int_of : value -> int64 = function
+let int_of = function
   | VInt (e, _) -> bits_of e
   | VFloat (f, _) -> Int64.of_float f
   | VBool b -> if b then 1L else 0L
   | VChar c -> Int64.of_int c
 
-let float_of : value -> float = function
+let float_of = function
   | VFloat (f, _) -> f
   | (VInt _ | VBool _ | VChar _) as v -> Int64.to_float (int_of v)
 
-let exact_of : value -> exact = function
+let exact_of = function
   | VInt (e, _) -> e
   | VFloat (f, _) -> of_bits (Int64.of_float f)
   | VBool b -> if b then one else zero
   | VChar c -> of_magnitude (Int64.of_int c)
 
-let of_float (kind : float_kind) (f : float) : value =
+let of_float kind f =
   match kind with
   | F32 -> VFloat (Int32.float_of_bits (Int32.bits_of_float f), F32)
   | F64 -> VFloat (f, F64)
 
-let of_int64 (ty : ty) (n : int64) : value =
+let of_int64 ty n =
   match resolve_ty ty with
   | TInt kind -> VInt (narrow kind n, kind)
   | TFloat kind -> of_float kind (Int64.to_float n)
@@ -145,7 +144,7 @@ let of_int64 (ty : ty) (n : int64) : value =
       VInt (narrow kind n, kind)
 
 (* A literal already says what it is so nothing masks here *)
-let of_literal (ty : ty) (n : int64) : value =
+let of_literal ty n =
   match resolve_ty ty with
   | TInt kind ->
       let e = if int_kind_unsigned kind then of_magnitude n else of_bits n in
@@ -154,7 +153,7 @@ let of_literal (ty : ty) (n : int64) : value =
   | _ -> of_int64 ty n
 
 (* An arithmetic result keeps its exact value so an overflow stays visible *)
-let retype (ty : ty) (e : exact) : value =
+let retype ty e =
   match resolve_ty ty with
   | TInt kind -> VInt (e, kind)
   | TFloat kind -> of_float kind (Int64.to_float (bits_of e))
@@ -163,25 +162,24 @@ let retype (ty : ty) (e : exact) : value =
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
   | _ -> VInt (e, if is_wide_ty ty then I64 else I32)
 
-let unsupported_const (span : Ast.span) : Diagnostic.t =
+let unsupported_const span =
   Diagnostic.(
     error "unsupported constant expression"
     |> at span
     |> help "constant initializers must evaluate at compile time")
 
-let overflowed (span : Ast.span) : 'a =
+let overflowed span =
   raise
     (Diagnostic.Errors
        [ Diagnostic.(error "constant expression overflows" |> at span) ])
 
-let zero_divide (span : Ast.span) (what : string) : 'a =
+let zero_divide span what =
   raise
     (Diagnostic.Errors
        [ Diagnostic.(error (what ^ " by zero in constant") |> at span) ])
 
 (* Only the arith lands here since a comp is not an int *)
-let int_binop (span : Ast.span) (op : Ast.binop) (a : exact) (b : exact) :
-    exact option =
+let int_binop span op a b =
   try
     match op with
     | Ast.Add -> Some (add a b)
@@ -199,15 +197,14 @@ let int_binop (span : Ast.span) (op : Ast.binop) (a : exact) (b : exact) :
     | _ -> None
   with Overflow -> overflowed span
 
-let cast (target : ty) (v : value) : value =
+let cast target v =
   match (resolve_ty target, v) with
   | TFloat kind, VFloat (f, _) -> of_float kind f
   | TFloat kind, _ -> of_float kind (float_of v)
   | _, VFloat (f, _) -> of_int64 target (Int64.of_float f)
   | _, _ -> of_int64 target (int_of v)
 
-let unop (span : Ast.span) (op : Ast.unop) ~(result_ty : ty) (v : value) :
-    value option =
+let unop span op ~result_ty v =
   match (op, v) with
   | Ast.Pos, _ -> Some v
   | Ast.Neg, VFloat (f, kind) -> Some (of_float kind (-.f))
@@ -220,8 +217,7 @@ let unop (span : Ast.span) (op : Ast.unop) ~(result_ty : ty) (v : value) :
   | Ast.Not, _ -> Some (VBool (int_of v = 0L))
   | (Ast.Deref | Ast.AddressOf), _ -> None
 
-let binop (span : Ast.span) (op : Ast.binop) ~(result_ty : ty) (a : value)
-    (b : value) : value option =
+let binop span op ~result_ty a b =
   match (a, b) with
   | VFloat _, _ | _, VFloat _ -> (
       let x = float_of a and y = float_of b in

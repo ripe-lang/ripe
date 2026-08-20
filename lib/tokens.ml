@@ -114,14 +114,13 @@ let keywords =
 
 module Keyword_table = Hashtbl.Make (String)
 
-let keyword_table : token Keyword_table.t =
+let keyword_table =
   let table = Keyword_table.create (List.length keywords) in
   let add (name, token) = Keyword_table.replace table name token in
   List.iter add keywords;
   table
 
-let lookup_keyword (name : string) : token option =
-  Keyword_table.find_opt keyword_table name
+let lookup_keyword name = Keyword_table.find_opt keyword_table name
 
 let show_token = function
   | INT (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
@@ -182,7 +181,7 @@ let show_token = function
     | FUNC | TYPE | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
-let show_found_token (token : token) : string =
+let show_found_token token =
   if List.exists (fun (_, keyword) -> keyword = token) keywords then
     "`" ^ show_token token ^ "`"
   else show_token token

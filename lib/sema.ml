@@ -115,35 +115,35 @@ let decl_span : decl -> Ast.span = function
   | Enum ed -> ed.enum_span
 
 (* The path comes off the declaration being checked not off the root module *)
-let reading (env : env) (decl : decl) : env =
+let reading (env : env) (decl : decl) =
   { env with reader_path = Resolve.module_path_at env.uses (decl_span decl) }
 
 (* The two fields every slice and string answers to, interned once *)
-let len_name : Ast.name = Interner.intern "len"
-let ptr_name : Ast.name = Interner.intern "ptr"
+let len_name = Interner.intern "len"
+let ptr_name = Interner.intern "ptr"
 let dummy_value = Constant.VInt (Constant.zero, Types.I32)
-let sym (env : env) (span : Ast.span) : Symbol.t = Resolve.sym_at env.uses span
-let emit (env : env) (d : Diagnostic.t) : unit = Diagnostic.emit env.diags d
+let sym (env : env) (span : Ast.span) = Resolve.sym_at env.uses span
+let emit (env : env) (d : Diagnostic.t) = Diagnostic.emit env.diags d
 let add_error (env : env) span msg = Diagnostic.emit_error_at env.diags span msg
 let dummy_texpr = T.mk TError T.TErrorExpr
 
-let add_warning (env : env) (span : Ast.span) (msg : string) : unit =
+let add_warning (env : env) (span : Ast.span) (msg : string) =
   if not env.suppress_warnings then Diagnostic.emit_warn_at env.diags span msg
 
 (* An unsigned literal past i64 max is stored as a negative bit pattern *)
-let unsigned_to_float (n : int64) : float =
+let unsigned_to_float (n : int64) =
   let two_pow_64 = 18446744073709551616.0 in
   if Int64.compare n 0L >= 0 then Int64.to_float n
   else Int64.to_float n +. two_pow_64
 
-let round_to_float_kind (kind : float_kind) (f : float) : float =
+let round_to_float_kind (kind : float_kind) (f : float) =
   match kind with
   | F32 -> Int32.float_of_bits (Int32.bits_of_float f)
   | F64 -> f
 
 let push_scope (env : env) : env = { env with vars = [] :: env.vars }
 
-let clone_loop (loop : loop_ctx) : loop_ctx =
+let clone_loop (loop : loop_ctx) =
   {
     lbl = loop.lbl;
     valued = loop.valued;
@@ -151,7 +151,7 @@ let clone_loop (loop : loop_ctx) : loop_ctx =
     bare_break = loop.bare_break;
   }
 
-let probing (env : env) : env =
+let probing (env : env) =
   { env with loops = List.map clone_loop env.loops; diags = Diagnostic.sink () }
 
 let warn_unused_in_scope (env : env) : unit =

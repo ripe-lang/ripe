@@ -117,7 +117,6 @@ and expr = { desc : expr_desc; span : span }
 [@@deriving show { with_path = false }]
 
 and block = block_item list [@@deriving show { with_path = false }]
-
 and block_item = Expr of expr | Decl of local_decl
 [@@deriving show { with_path = false }]
 
@@ -205,11 +204,9 @@ and local_decl =
   | LocalEnum of enum_def
 [@@deriving show { with_path = false }]
 
-let show_path (path : name list) : string =
-  String.concat "." (List.map Interner.text path)
+let show_path path = String.concat "." (List.map Interner.text path)
 
-let show_named (path : name list) (name : name) : string =
-  show_path (path @ [ name ])
+let show_named path name = show_path (path @ [ name ])
 
 let path_expr (segs : (name * span) list) : expr =
   let rec last_span = function
@@ -247,7 +244,7 @@ type decl =
 [@@deriving show { with_path = false }]
 
 (* A local declaration carries the same payload so it checks like a global one *)
-let decl_of_local : local_decl -> decl = function
+let decl_of_local = function
   | LocalStruct sd -> Struct sd
   | LocalTypeAlias td -> TypeAlias td
   | LocalFunc fd -> Func fd

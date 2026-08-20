@@ -18,7 +18,7 @@ type t = {
   ids : (site, int) Hashtbl.t;
 }
 
-let create ~(source_of : int -> string * Source_map.t) : t =
+let create ~source_of =
   {
     source_of;
     cur_func = "";
@@ -31,7 +31,7 @@ let create ~(source_of : int -> string * Source_map.t) : t =
   }
 
 (* A site stores offsets rather than pointers so the table needs no relocations *)
-let intern (t : t) (s : string) : int =
+let intern t s =
   match Hashtbl.find_opt t.offsets s with
   | Some off -> off
   | None ->
@@ -42,9 +42,9 @@ let intern (t : t) (s : string) : int =
       Hashtbl.replace t.offsets s off;
       off
 
-let enter_func (t : t) (name : string) : unit = t.cur_func <- name
+let enter_func t name = t.cur_func <- name
 
-let record (t : t) (span : Ast.span) : int =
+let record t span =
   if Span.lo span < 0 then Diagnostic.ice "runtime check has no source location";
   if String.is_empty t.cur_func then
     Diagnostic.ice "runtime check outside a function";
@@ -63,5 +63,5 @@ let record (t : t) (span : Ast.span) : int =
       id
 
 (* Each backend spells a table its own way so the shape of one stays out of here *)
-let strings (t : t) : string list = List.rev t.strings
-let sites (t : t) : site list = List.rev t.sites
+let strings t = List.rev t.strings
+let sites t = List.rev t.sites
