@@ -23,14 +23,14 @@ let rec compatible (want : ty) (got : ty) : bool =
       && compatible r1 r2
   | TStruct (n1, a1), TStruct (n2, a2) ->
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
-  | s_want, s_got -> ty_equal s_want s_got
+  | _, _ -> ty_equal want got
 
 and compatible_under_pointer (want : ty) (got : ty) : bool =
   match (resolve_ty want, resolve_ty got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
-  | s_want, s_got -> ty_equal s_want s_got
+  | _, _ -> ty_equal want got
 
 let is_lvalue (te : T.texpr) : bool =
   match te.T.desc with
@@ -102,13 +102,11 @@ let widens_to (src : ty) (tgt : ty) : bool =
   | TFloat F32, TFloat F64 -> true
   | _ -> false
 
-let signed_ty_above (kind : int_kind) : ty option =
-  match int_kind_size kind with
-  | 1 -> Some (TInt I16)
-  | 2 -> Some (TInt I32)
-  | 4 -> Some (TInt I64)
-  | 8 -> None
-  | _ -> Diagnostic.ice "invalid integer size"
+let signed_ty_above : int_kind -> ty option = function
+  | I8 | U8 -> Some (TInt I16)
+  | I16 | U16 -> Some (TInt I32)
+  | I32 | U32 -> Some (TInt I64)
+  | I64 | U64 | Isize | Usize -> None
 
 let common_numeric_ty (left : ty) (right : ty) : ty option =
   if ty_equal left right then Some left
@@ -124,10 +122,8 @@ let common_numeric_ty (left : ty) (right : ty) : ty option =
         signed_ty_above unsigned_kind
     | _ -> None
 
-let suffix_kind s = match int_kind_of_string s with Some k -> k | None -> I32
-
-let float_suffix_kind s =
-  match float_kind_of_string s with Some k -> k | None -> F64
+let suffix_kind s = Option.value (int_kind_of_string s) ~default:I32
+let float_suffix_kind s = Option.value (float_kind_of_string s) ~default:F64
 
 type cast_class = Numeric | Ptr | Aggregate
 
@@ -138,7 +134,7 @@ let cast_class t =
   | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
-  | TAlias _ -> assert false (* resolve_ty strips these *)
+  | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
 (* Both sides need the same width so not floats *)
 let bitcast_ok src tgt =
@@ -161,8 +157,6 @@ let cast_ok src tgt =
   | TChar, _ | _, TChar -> false
   | _ -> (
       match (cast_class src, cast_class tgt) with
-      | Aggregate, _ | _, Aggregate ->
-          ty_equal (resolve_ty src) (resolve_ty tgt)
+      | Aggregate, _ | _, Aggregate -> ty_equal src tgt
       | Numeric, Numeric -> true
-      | Ptr, Ptr -> false
       | (Numeric | Ptr), (Numeric | Ptr) -> false)

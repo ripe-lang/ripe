@@ -15,10 +15,10 @@ let qbe_scalar (t : ty) : qbe_scalar =
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ | TStruct _ | TArray _
   | TSlice _ | TStr ->
       L
-  | TAlias _ -> assert false (* resolve_ty strips these *)
   | TNever -> Diagnostic.ice "TNever has no QBE type"
   | TError -> Diagnostic.ice "TError has no QBE type"
   | TUnit -> Diagnostic.ice "TUnit has no QBE type"
+  | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
 let scalar_letter = function
   | B -> "b"
@@ -52,10 +52,8 @@ let float_lit (ty : ty) (f : float) : string =
     match resolve_ty ty with
     | TFloat F32 -> ("s_", 9)
     | TFloat F64 -> ("d_", 17)
-    | TInt _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-    | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
-    | TEnum _ | TUnit ->
-        Diagnostic.ice "float literal requires a float type"
+    | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
+    | _ -> Diagnostic.ice "float literal requires a float type"
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 

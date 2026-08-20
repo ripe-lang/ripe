@@ -139,8 +139,8 @@ let of_int64 (ty : ty) (n : int64) : value =
   | TFloat kind -> of_float kind (Int64.to_float n)
   | TBool -> VBool (n <> 0L)
   | TChar -> VChar (Int64.to_int n)
-  | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _
-  | TSlice _ | TAlias _ | TEnum _ | TNever | TNull | TError | TUnit ->
+  | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
+  | _ ->
       let kind = if is_wide_ty ty then I64 else I32 in
       VInt (narrow kind n, kind)
 
@@ -150,10 +150,8 @@ let of_literal (ty : ty) (n : int64) : value =
   | TInt kind ->
       let e = if int_kind_unsigned kind then of_magnitude n else of_bits n in
       VInt (e, kind)
-  | TFloat _ | TBool | TChar | TCStr | TStr | TPointer _ | TOpaquePtr
-  | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TEnum _ | TNever
-  | TNull | TError | TUnit ->
-      of_int64 ty n
+  | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
+  | _ -> of_int64 ty n
 
 (* An arithmetic result keeps its exact value so an overflow stays visible *)
 let retype (ty : ty) (e : exact) : value =
@@ -162,9 +160,8 @@ let retype (ty : ty) (e : exact) : value =
   | TFloat kind -> of_float kind (Int64.to_float (bits_of e))
   | TBool -> VBool (bits_of e <> 0L)
   | TChar -> VChar (Int64.to_int (bits_of e))
-  | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _ | TFunc _ | TArray _
-  | TSlice _ | TAlias _ | TEnum _ | TNever | TNull | TError | TUnit ->
-      VInt (e, if is_wide_ty ty then I64 else I32)
+  | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
+  | _ -> VInt (e, if is_wide_ty ty then I64 else I32)
 
 let unsupported_const (span : Ast.span) : Diagnostic.t =
   Diagnostic.(
