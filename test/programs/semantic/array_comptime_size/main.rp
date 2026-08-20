@@ -4,7 +4,7 @@ var TABLE: [N]i32 = [10, 20, 30]
 comptime N: i32 = 3
 comptime DOUBLED: usize = sizeof([N * 2]i32)
 
-struct box { buf: [N]i32, tail: i32 }
+struct box { buf: [N]i32; tail: i32 }
 
 func main() i32 {
   var wide: [N * 2 + 1]i32 = undefined

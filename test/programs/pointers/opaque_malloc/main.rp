@@ -1,6 +1,6 @@
 extern "C" func malloc(n: usize) *opaque
 
-struct point { x: i32, y: i32 }
+struct point { x: i32; y: i32 }
 
 func main() i32 {
   var p: *point = bitcast(*point) malloc(sizeof(point))

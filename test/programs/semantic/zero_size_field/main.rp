@@ -2,11 +2,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 struct empty {}
 
-struct sep { x: u32, u: (), e: empty, z: [0]u32, y: u32 }
+struct sep { x: u32; u: (); e: empty; z: [0]u32; y: u32 }
 
-struct padding { a: u8, u: (), b: u64 }
+struct padding { a: u8; u: (); b: u64 }
 
-struct divres { quot: i32, u: (), e: empty, rem: i32 }
+struct divres { quot: i32; u: (); e: empty; rem: i32 }
 
 extern "C" func div(num: i32, den: i32) divres
 

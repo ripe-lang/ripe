@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Level { Low, Mid, High }
+enum Level { Low; Mid; High }
 
 func announce(level: Level) {
   match level {

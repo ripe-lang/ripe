@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 
 func main() i32 {
   var p = {

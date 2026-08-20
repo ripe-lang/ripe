@@ -1,8 +1,8 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Kind { Circle, Square }
+enum Kind { Circle; Square }
 
-struct Shape { kind: Kind, size: i32 }
+struct Shape { kind: Kind; size: i32 }
 
 func main() {
   var s = Shape { kind: Kind.Square, size: 3 }

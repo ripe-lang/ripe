@@ -3,8 +3,9 @@ extern "C" func printf(fmt: cstr, ...) i32
 // A bare name in a pattern binds the scrutinee and catches everything
 func describe(n: i32) i32 {
   return match n {
-    0 => 100,
-    other => other * 2,
+    0 => 100
+    other => other * 2
+
   }
 }
 

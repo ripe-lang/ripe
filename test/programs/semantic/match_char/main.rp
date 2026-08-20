@@ -2,10 +2,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 func digit(c: char) i32 {
   return match c {
-    '0' => 0,
-    '1' => 1,
-    'z' => 26,
-    _ => -1,
+    '0' => 0
+    '1' => 1
+    'z' => 26
+    _ => -1
+
   }
 }
 

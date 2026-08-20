@@ -6,7 +6,7 @@ comptime LATER: i32 = LAST - 1
 comptime LAST: i32 = 100
 var STORED: i32 = M + 1
 
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 comptime SIZE: usize = sizeof(pt)
 
 func main() i32 {

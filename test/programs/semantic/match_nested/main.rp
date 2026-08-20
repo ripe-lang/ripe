@@ -1,19 +1,21 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Shape { Dot, Line, Box }
-enum Size { Small, Large }
+enum Shape { Dot; Line; Box }
+enum Size { Small; Large }
 
 func area(shape: Shape, size: Size) i32 {
   return match shape {
-    Shape.Dot => 0,
+    Shape.Dot => 0
     Shape.Line => match size {
-      Size.Small => 1,
-      Size.Large => 2,
-    },
+      Size.Small => 1
+      Size.Large => 2
+
+    }
     Shape.Box => match size {
-      Size.Small => 10,
-      Size.Large => 20,
-    },
+      Size.Small => 10
+      Size.Large => 20
+
+    }
   }
 }
 

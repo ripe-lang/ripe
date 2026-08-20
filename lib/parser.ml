@@ -212,12 +212,11 @@ let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
     sync_to_depth_token st depth line stops;
     on_error st d
 
-let expect_field_sep st =
-  (match st.tok with
-  | COMMA -> advance st
-  | AUTOSEMI | SEMI | RBRACE -> ()
-  | _ -> fail_found st "expected `,` or newline between fields");
-  skip_semi st
+let expect_decl_sep st =
+  match st.tok with
+  | AUTOSEMI | SEMI -> skip_semi st
+  | RBRACE -> ()
+  | _ -> fail_found st "expected `;` or newline between fields"
 
 let expect_literal_field_sep st =
   match st.tok with
@@ -388,11 +387,11 @@ and parse_fields st =
   let depth = st.tok_depth in
   while st.tok <> RBRACE do
     let name, nspan = expect_ident_span st in
-    let t = recover_typ_after st depth [ COMMA ] COLON in
+    let t = recover_typ_after st depth [] COLON in
     fields :=
       ({ field_name = name; field_typ = t; field_span = nspan } : field)
       :: !fields;
-    expect_field_sep st
+    expect_decl_sep st
   done;
   List.rev !fields
 
@@ -425,7 +424,7 @@ and parse_enum_def st mods =
   while st.tok <> RBRACE do
     let vname, vspan = expect_ident_span st in
     variants := { variant_name = vname; variant_span = vspan } :: !variants;
-    expect_field_sep st
+    expect_decl_sep st
   done;
   expect st RBRACE;
   let hi = st.prev_end in
@@ -957,7 +956,7 @@ and parse_match st =
   let arms = ref [] in
   while st.tok <> RBRACE do
     arms := parse_arm st :: !arms;
-    expect_field_sep st
+    expect_decl_sep st
   done;
   expect st RBRACE;
   mk lo st (Match (scrutinee, List.rev !arms))

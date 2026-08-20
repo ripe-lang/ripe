@@ -1,4 +1,4 @@
-struct pair { n: int, f: float }
+struct pair { n: int; f: float }
 
 func take(a: int, b: float) int {
   return a + (int(b))

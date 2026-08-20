@@ -5,10 +5,11 @@ comptime OTHER: i32 = 2 * 4
 
 func lookup(n: i32) i32 {
   match n {
-    KEY => return 100,
-    OTHER => return 200,
-    100 * 3 => return 300,
-    _ => return 0,
+    KEY => return 100
+    OTHER => return 200
+    100 * 3 => return 300
+    _ => return 0
+
   }
 }
 

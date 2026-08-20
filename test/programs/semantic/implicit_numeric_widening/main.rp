@@ -13,7 +13,7 @@ func main() i32 {
   var sum = signed + unsigned_wide
   var values = [signed, unsigned_wide]
   var branch = if true { signed } else { unsigned_wide }
-  var matched = match true { true => unsigned, false => signed_wide }
+  var matched = match true { true => unsigned; false => signed_wide }
   var looped = loop { if false { break signed }; break unsigned_wide }
   var loop_literal = loop { if false { break 1 }; break 255u64 }
   var mixed_signed: i32 = -5

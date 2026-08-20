@@ -1,4 +1,4 @@
-struct Node { val: i32, next: *Node }
+struct Node { val: i32; next: *Node }
 
 func main() i32 {
   var tail: Node = Node { val: 2, next: null }

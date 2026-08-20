@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Suit { Clubs, Diamonds, Hearts, Spades }
+enum Suit { Clubs; Diamonds; Hearts; Spades }
 
 func main() {
   var a = Suit.Diamonds

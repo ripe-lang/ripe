@@ -1,6 +1,6 @@
-struct point { x: i32, y: i32 }
+struct point { x: i32; y: i32 }
 
-struct rect { origin: point, w: i32, h: i32 }
+struct rect { origin: point; w: i32; h: i32 }
 
 func area(r: rect) i32 {
   return r.w * r.h

@@ -2,7 +2,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 extern "C" func malloc(n: u64) *opaque
 extern "C" func free(p: *opaque)
 
-struct pt { x: i32, y: i32 }
+struct pt { x: i32; y: i32 }
 
 func take(n: u8) i32 { return n }
 

@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum State { Idle, Busy }
+enum State { Idle; Busy }
 
 var start: State = State.Idle
 var current: State = State.Idle

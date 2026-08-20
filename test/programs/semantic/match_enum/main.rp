@@ -1,12 +1,13 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-enum Color { Red, Green, Blue }
+enum Color { Red; Green; Blue }
 
 func code(c: Color) i32 {
   return match c {
-    Color.Red => 10,
-    Color.Green => 20,
-    Color.Blue => 30,
+    Color.Red => 10
+    Color.Green => 20
+    Color.Blue => 30
+
   }
 }
 

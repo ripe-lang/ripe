@@ -1,4 +1,4 @@
-struct Box { text: str, value: i32 }
+struct Box { text: str; value: i32 }
 
 var G: str = "global"
 var M: str = "mutable"

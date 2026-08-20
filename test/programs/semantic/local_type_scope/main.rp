@@ -6,7 +6,7 @@ func main() i32 {
   }
 
   var second = {
-    struct Value { number: i32, extra: i32 }
+    struct Value { number: i32; extra: i32 }
     var value = Value { number: 1, extra: 7 }
     value.extra
   }
