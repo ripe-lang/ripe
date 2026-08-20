@@ -7,6 +7,8 @@ type t
 val make : int -> int -> t
 val lo : t -> int
 val hi : t -> int
+val compare : t -> t -> int
+val compare : t -> t -> int
 val pp : Format.formatter -> t -> unit
 val dummy : t
 

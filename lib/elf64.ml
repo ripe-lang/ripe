@@ -32,23 +32,22 @@ let text_index = 1
 let strtab_index = 3
 let shstrtab_index = 4
 
-let u8 (buffer : Buffer.t) (value : int) : unit =
-  Buffer.add_char buffer (Char.chr (value land 0xff))
+let u8 buffer value = Buffer.add_char buffer (Char.chr (value land 0xff))
 
-let u16 (buffer : Buffer.t) (value : int) : unit =
+let u16 buffer value =
   u8 buffer value;
   u8 buffer (value lsr 8)
 
-let u32 (buffer : Buffer.t) (value : int) : unit =
+let u32 buffer value =
   u16 buffer value;
   u16 buffer (value lsr 16)
 
-let u64 (buffer : Buffer.t) (value : int) : unit =
+let u64 buffer value =
   u32 buffer value;
   u32 buffer (value lsr 32)
 
 (* An overrun means the computed layout is wrong before linking [3] *)
-let pad_to (buffer : Buffer.t) (offset : int) : unit =
+let pad_to buffer offset =
   if Buffer.length buffer > offset then
     Diagnostic.ice
       (Printf.sprintf "already %d bytes past offset %d"
@@ -62,13 +61,13 @@ let pad_to (buffer : Buffer.t) (offset : int) : unit =
 module Strtab = struct
   type t = { buffer : Buffer.t; offsets : (string, int) Hashtbl.t }
 
-  let create () : t =
+  let create () =
     let buffer = Buffer.create 32 in
     (* The empty name is the required zero offset entry [4] *)
     Buffer.add_char buffer '\000';
     { buffer; offsets = Hashtbl.create 8 }
 
-  let add (table : t) (name : string) : int =
+  let add table name =
     if String.is_empty name then 0
     else
       match Hashtbl.find_opt table.offsets name with
@@ -81,14 +80,14 @@ module Strtab = struct
           at
 
   (* Lookup stays read only after the table has been copied out [4] *)
-  let find (table : t) (name : string) : int =
+  let find table name =
     if String.is_empty name then 0
     else
       match Hashtbl.find_opt table.offsets name with
       | Some at -> at
       | None -> Diagnostic.ice ("no pooled name for " ^ name)
 
-  let contents (table : t) : string = Buffer.contents table.buffer
+  let contents table = Buffer.contents table.buffer
 end
 
 type section = {
@@ -102,7 +101,7 @@ type section = {
   entsize : int;
 }
 
-let empty_section : section =
+let empty_section =
   {
     name = "";
     kind = 0;
@@ -114,8 +113,7 @@ let empty_section : section =
     entsize = 0;
   }
 
-let ehdr (buffer : Buffer.t) ~(kind : int) ~(shoff : int) ~(shnum : int)
-    ~(shstrndx : int) : unit =
+let ehdr buffer ~kind ~shoff ~shnum ~shstrndx =
   u8 buffer 0x7f;
   Buffer.add_string buffer "ELF";
   u8 buffer 2 (* ELFCLASS64 [2] *);
@@ -139,8 +137,7 @@ let ehdr (buffer : Buffer.t) ~(kind : int) ~(shoff : int) ~(shnum : int)
   u16 buffer shnum;
   u16 buffer shstrndx
 
-let shdr (buffer : Buffer.t) (section : section) ~(name_at : int)
-    ~(offset : int) : unit =
+let shdr buffer section ~name_at ~offset =
   u32 buffer name_at;
   u32 buffer section.kind;
   u64 buffer section.flags;
@@ -153,8 +150,7 @@ let shdr (buffer : Buffer.t) (section : section) ~(name_at : int)
   u64 buffer section.align;
   u64 buffer section.entsize
 
-let symbol (buffer : Buffer.t) ~(name_at : int) ~(info : int) ~(shndx : int)
-    ~(value : int) : unit =
+let symbol buffer ~name_at ~info ~shndx ~value =
   u32 buffer name_at;
   u8 buffer info;
   u8 buffer 0 (* st_other is reserved and must be zero [5] *);
@@ -163,8 +159,7 @@ let symbol (buffer : Buffer.t) ~(name_at : int) ~(info : int) ~(shndx : int)
   u64 buffer 0 (* st_size is zero because this emitter has no size [5] *)
 
 (* The header stores where local symbols end so return that count [5] *)
-let symbol_table (strtab : Strtab.t) (globals : (string * int) list) :
-    string * int =
+let symbol_table strtab globals =
   let buffer = Buffer.create (sym_entry_size * (List.length globals + 1)) in
   symbol buffer ~name_at:0 ~info:0 ~shndx:0 ~value:0;
 
@@ -180,8 +175,7 @@ let symbol_table (strtab : Strtab.t) (globals : (string * int) list) :
   (Buffer.contents buffer, locals)
 
 (* Section types and flags follow the special section table [3] *)
-let object_sections ~(text : string) ~(symbols : string) ~(locals : int)
-    ~(names : string) ~(section_names : string) : section list =
+let object_sections ~text ~symbols ~locals ~names ~section_names =
   [
     empty_section;
     {
@@ -218,8 +212,8 @@ let object_sections ~(text : string) ~(symbols : string) ~(locals : int)
   ]
 
 (* Sections land before the header table here so headers can record each section's offset [3] *)
-let place (sections : section list) : (section * int) list * int =
-  let step (placed, at) (section : section) =
+let place sections =
+  let step (placed, at) section =
     let at =
       (* Alignment zero or one needs no padding [3] *)
       if section.align > 1 then Types.align_to at section.align else at
@@ -229,7 +223,7 @@ let place (sections : section list) : (section * int) list * int =
   let placed, ending = List.fold_left step ([], elf_header_size) sections in
   (List.rev placed, ending)
 
-let object_file ~(text : string) ~(globals : (string * int) list) : string =
+let object_file ~text ~globals =
   let strtab = Strtab.create () in
   let symbols, locals = symbol_table strtab globals in
 
@@ -240,7 +234,7 @@ let object_file ~(text : string) ~(globals : (string * int) list) : string =
       ~section_names
   in
   List.iter
-    (fun (section : section) -> ignore (Strtab.add shstrtab section.name))
+    (fun section -> ignore (Strtab.add shstrtab section.name))
     (build "");
   let sections = build (Strtab.contents shstrtab) in
 
@@ -254,14 +248,14 @@ let object_file ~(text : string) ~(globals : (string * int) list) : string =
   ehdr buffer ~kind:et_rel ~shoff ~shnum:(List.length sections)
     ~shstrndx:shstrtab_index;
   List.iter
-    (fun ((section : section), at) ->
+    (fun (section, at) ->
       pad_to buffer at;
       Buffer.add_string buffer section.data)
     placed;
 
   pad_to buffer shoff;
   List.iter
-    (fun ((section : section), at) ->
+    (fun (section, at) ->
       shdr buffer section
         ~name_at:(Strtab.find shstrtab section.name)
         ~offset:at)

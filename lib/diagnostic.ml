@@ -53,16 +53,15 @@ let emit (s : sink) (d : t) : unit = s := d :: !s
 let emit_error_at (s : sink) span msg = emit s (error_at span msg)
 let emit_warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
-let has_errors (s : sink) : bool =
-  List.exists (fun (d : t) -> d.severity = Error) !s
+let has_errors (s : sink) = List.exists (fun (d : t) -> d.severity = Error) !s
 
 (* Sorted into source order and ties keep emission order *)
-let drain (s : sink) : t list =
+let drain (s : sink) =
   let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
 
 (* The next stage would report these all over again if the sink kept them *)
-let take (s : sink) : t list =
+let take (s : sink) =
   let all = drain s in
   s := [];
   all
@@ -122,7 +121,7 @@ let render_location ctx buf (span : Ast.span) =
   Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line col
 
 (* One entry per visual column so a window can be cut without splitting a character *)
-let cells_of_line src line_start line_end : string Dynarray.t =
+let cells_of_line src line_start line_end =
   let out = Dynarray.create () in
   let i = ref line_start in
   while !i < line_end do
@@ -145,7 +144,7 @@ let cells_of_line src line_start line_end : string Dynarray.t =
   out
 
 (* A long line still has to show its caret so the window slides to it *)
-let window_of (cells : string Dynarray.t) caret_lo : string * int =
+let window_of (cells : string Dynarray.t) caret_lo =
   let total = Dynarray.length cells in
   let budget = snippet_width - snippet_indent in
   let buf = Buffer.create budget in
@@ -203,7 +202,7 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   | None -> ());
   Buffer.add_char buf '\n'
 
-let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) : string =
+let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) =
   let buf = Buffer.create 256 in
   let render_one_with d =
     let ctx =
@@ -241,62 +240,62 @@ let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) : string =
   | None -> ());
   Buffer.contents buf
 
-let render (ctx : ctx) (d : t) : string = render_with (fun _ -> ctx) ctx d
+let render (ctx : ctx) (d : t) = render_with (fun _ -> ctx) ctx d
 
 let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) : t =
   error "type mismatch" |> at span
   |> label (Printf.sprintf "expected %s, found %s" expected found)
 
-let undefined_name (span : Ast.span) (kind : string) : t =
+let undefined_name (span : Ast.span) (kind : string) =
   error ("undefined " ^ kind) |> at span
 
-let with_type (span : Ast.span) (msg : string) (ty : string) : t =
+let with_type (span : Ast.span) (msg : string) (ty : string) =
   error msg |> at span |> label ("on " ^ ty)
 
-let redefinition (span : Ast.span) ~(prev : Ast.span) : t =
+let redefinition (span : Ast.span) ~(prev : Ast.span) =
   error_at span "already defined" |> secondary prev "previous definition here"
 
-let arity (span : Ast.span) ~(expected : string) ~(found : int) : t =
+let arity (span : Ast.span) ~(expected : string) ~(found : int) =
   error "wrong number of arguments"
   |> at span
   |> label (Printf.sprintf "%s, found %d" expected found)
 
-let unsupported_abi (span : Ast.span) : t =
+let unsupported_abi (span : Ast.span) =
   error "unsupported ABI" |> at span |> label "this ABI is not supported here"
 
-let int_out_of_range (span : Ast.span) ~(ty : string) : t =
+let int_out_of_range (span : Ast.span) ~(ty : string) =
   error "integer literal out of range"
   |> at span
   |> label ("does not fit in " ^ ty)
 
-let bad_operand (span : Ast.span) ~(op : string) ~(ty : string) : t =
+let bad_operand (span : Ast.span) ~(op : string) ~(ty : string) =
   error "invalid operand" |> at span
   |> label (Printf.sprintf "cannot apply `%s` to %s" op ty)
 
 let break_disagree (span : Ast.span) (message : string) ~(other : Ast.span)
-    ~(other_message : string) : t =
+    ~(other_message : string) =
   error "`break` values disagree"
   |> at span |> label message
   |> secondary other other_message
 
-let opaque_operation (span : Ast.span) (action : string) : t =
+let opaque_operation (span : Ast.span) (action : string) =
   error (Printf.sprintf "cannot %s *opaque" action)
   |> at span
   |> help "cast to a typed pointer first"
 
-let cannot_infer (span : Ast.span) : t =
+let cannot_infer (span : Ast.span) =
   error "cannot infer type" |> at span
   |> help "write the type or give it a value"
 
-let expected_expression (span : Ast.span) : t =
+let expected_expression (span : Ast.span) =
   error "expected expression" |> at span
 
-let expected_type (span : Ast.span) : t = error "expected type" |> at span
+let expected_type (span : Ast.span) = error "expected type" |> at span
 
-let with_found (span : Ast.span) (msg : string) (found : string) : t =
+let with_found (span : Ast.span) (msg : string) (found : string) =
   error msg |> at span |> label ("found " ^ found)
 
-let internal ?(span : Ast.span option) (msg : string) : t =
+let internal ?(span : Ast.span option) (msg : string) =
   let d =
     error "internal compiler error"
     |> detail (msg ^ "\n")
@@ -306,5 +305,5 @@ let internal ?(span : Ast.span option) (msg : string) : t =
   in
   match span with Some sp -> at sp d | None -> d
 
-let ice ?(span : Ast.span option) (msg : string) : 'a =
+let ice ?(span : Ast.span option) (msg : string) =
   raise (Errors [ internal ?span msg ])

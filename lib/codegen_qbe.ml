@@ -5,7 +5,7 @@ open Types
 
 type qbe_scalar = B | H | W | L | S | D
 
-let qbe_scalar (t : ty) : qbe_scalar =
+let qbe_scalar (t : ty) =
   match resolve_ty t with
   | TBool -> B
   (* The enum name has no separate QBE representation *)
