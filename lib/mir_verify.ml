@@ -242,9 +242,7 @@ let verify (program : Mir.program) : unit =
       | Unreachable -> ()
     in
 
-    List.iter
-      (fun id -> match local func.span id with Some _ -> () | None -> ())
-      func.params;
+    List.iter (fun id -> ignore (local func.span id)) func.params;
 
     Array.iteri
       (fun id block ->
