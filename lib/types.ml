@@ -147,18 +147,12 @@ let float_kind_size = function F32 -> 4 | F64 -> 8
 let int_kind_of (t : ty) : int_kind =
   match resolve_ty t with
   | TInt k -> k
-  | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TNull | TPointer _
-  | TOpaquePtr | TStruct _ | TFunc _ | TArray _ | TSlice _ | TAlias _ | TError
-  | TEnum _ | TUnit ->
-      Diagnostic.ice "expected an integer type"
+  | _ -> Diagnostic.ice "expected an integer type"
 
 let float_kind_of (t : ty) : float_kind =
   match resolve_ty t with
   | TFloat k -> k
-  | TInt _ | TBool | TChar | TCStr | TStr | TPointer _ | TOpaquePtr | TStruct _
-  | TFunc _ | TArray _ | TSlice _ | TAlias _ | TEnum _ | TNever | TNull | TError
-  | TUnit ->
-      Diagnostic.ice "expected a float type"
+  | _ -> Diagnostic.ice "expected a float type"
 
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
 let div_int_needs_check (t : ty) : bool =
