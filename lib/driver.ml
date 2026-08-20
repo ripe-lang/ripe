@@ -144,8 +144,7 @@ let show_module (module_ : Ast.module_) =
   in
   let imports =
     List.map
-      (fun import ->
-        "import " ^ String.concat "." (List.map Interner.text import.Ast.path))
+      (fun import -> "import " ^ Ast.show_path import.Ast.path)
       module_.Ast.imports
   in
   String.concat "\n"
