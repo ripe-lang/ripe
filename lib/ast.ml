@@ -205,8 +205,11 @@ and local_decl =
   | LocalEnum of enum_def
 [@@deriving show { with_path = false }]
 
+let show_path (path : name list) : string =
+  String.concat "." (List.map Interner.text path)
+
 let show_named (path : name list) (name : name) : string =
-  String.concat "." (List.map Interner.text (path @ [ name ]))
+  show_path (path @ [ name ])
 
 let path_expr (segs : (name * span) list) : expr =
   let rec last_span = function
