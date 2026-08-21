@@ -13,6 +13,11 @@ let uname () =
   | Unix.WEXITED 0 -> value
   | _ -> failwith "cannot determine host platform"
 
+let unix_host () =
+  match String.split_all ~sep:" " ~drop:String.is_empty (uname ()) with
+  | [ system; architecture ] -> (String.lowercase_ascii system, architecture)
+  | _ -> failwith "cannot determine host platform"
+
 let host () =
   let system, architecture =
     match Sys.os_type with
@@ -23,10 +28,6 @@ let host () =
             ~default:"x86_64"
         in
         ("windows", architecture)
-    | _ -> (
-        match String.split_all ~sep:" " ~drop:String.is_empty (uname ()) with
-        | [ system; architecture ] ->
-            (String.lowercase_ascii system, architecture)
-        | _ -> failwith "cannot determine host platform")
+    | _ -> unix_host ()
   in
   system ^ "-" ^ normalize_architecture architecture
