@@ -149,14 +149,16 @@ let bitcast_ok src tgt =
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
+  let cast_classes_ok () =
+    match (cast_class src, cast_class tgt) with
+    | Aggregate, _ | _, Aggregate -> ty_equal src tgt
+    | Numeric, Numeric -> true
+    | (Numeric | Ptr), (Numeric | Ptr) -> false
+  in
   match (resolve_ty src, resolve_ty tgt) with
   | TError, _ | _, TError -> true
   | s, TBool -> s = TBool
   | TChar, TChar -> true
   | TChar, TInt _ | TInt _, TChar -> true
   | TChar, _ | _, TChar -> false
-  | _ -> (
-      match (cast_class src, cast_class tgt) with
-      | Aggregate, _ | _, Aggregate -> ty_equal src tgt
-      | Numeric, Numeric -> true
-      | (Numeric | Ptr), (Numeric | Ptr) -> false)
+  | _ -> cast_classes_ok ()
