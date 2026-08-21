@@ -229,7 +229,7 @@ end
 
 module Mir_op = struct
   (* Source operators that survive lowering keep their meaning and the rest are gone by now *)
-  let unop (op : Ast.unop) : Mir.unop =
+  let unop (op : Ast.unop) =
     match op with
     | Ast.Neg -> Mir.Neg
     | Ast.Not -> Mir.Not
@@ -238,7 +238,7 @@ module Mir_op = struct
     | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
     | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
-  let binop (op : Ast.binop) : Mir.binop =
+  let binop (op : Ast.binop) =
     match op with
     | Ast.Add -> Mir.Add
     | Ast.Sub -> Mir.Sub
@@ -1084,7 +1084,7 @@ end
 module S = Typed_ast
 module B = Mir_builder
 
-let build_func const_context globals (func : S.tfunc_def) : Mir.func =
+let build_func const_context globals (func : S.tfunc_def) =
   let state =
     B.make ~const_context ~globals ~recur:Mir_expr.recur
       ~bare_return_zero:
@@ -1139,7 +1139,7 @@ let build_func const_context globals (func : S.tfunc_def) : Mir.func =
     span;
   }
 
-let build (declarations : S.tdecl list) : Mir.program =
+let build (declarations : S.tdecl list) =
   let globals_by_id = Hashtbl.create 16 in
   let structs_rev = ref [] in
   let globals_rev = ref [] in

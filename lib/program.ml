@@ -31,10 +31,10 @@ type load_state = Loading of Symbol.module_id | Loaded of module_
 type hop = { from_path : string list; from_file : string }
 type located = Single of string | Merged of string list | Clash | Not_found
 
-let empty_ast : Ast.module_ = { Ast.header = None; imports = []; decls = [] }
+let empty_ast = { Ast.header = None; imports = []; decls = [] }
 
 let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
-    (src : string) : source * Ast.module_ =
+    (src : string) =
   let source = { base; filename; source_map = Source_map.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state base) in
@@ -44,32 +44,32 @@ let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
   in
   (source, ast)
 
-let file_of_path (source_root : string) (path : string list) : string =
+let file_of_path (source_root : string) (path : string list) =
   List.fold_left Filename.concat source_root path ^ ".rp"
 
-let dir_of_path (source_root : string) (path : string list) : string =
+let dir_of_path (source_root : string) (path : string list) =
   List.fold_left Filename.concat source_root path
 
-let show_module_path (path : string list) : string = String.concat "." path
+let show_module_path (path : string list) = String.concat "." path
 
-let module_name_of_path (path : string list) : string =
+let module_name_of_path (path : string list) =
   match List.rev path with name :: _ -> name | [] -> ""
 
-let parent_path (path : string list) : string list =
+let parent_path (path : string list) =
   match List.rev path with _ :: rest -> List.rev rest | [] -> []
 
 (* Every file of a module shares one namespace *)
-let module_decls (module_ : module_) : Ast.decl list =
+let module_decls (module_ : module_) =
   List.concat_map (fun (unit_ : unit_) -> unit_.ast.Ast.decls) module_.units
 
 let import_error ?(detail : string option) ~(diags : Diagnostic.sink)
-    (import : Ast.import) (headline : string) : unit =
+    (import : Ast.import) (headline : string) =
   let d = Diagnostic.error headline |> Diagnostic.at import.Ast.span in
   Diagnostic.emit diags
     (match detail with Some s -> Diagnostic.detail s d | None -> d)
 
 (* The cycle is the tail of the stack starting where the path shows up again *)
-let import_cycle (stack : hop list) (path : string list) : hop list =
+let import_cycle (stack : hop list) (path : string list) =
   let rec starting_at = function
     | [] -> []
     | hop :: _ as hops when hop.from_path = path -> hops
@@ -77,7 +77,7 @@ let import_cycle (stack : hop list) (path : string list) : hop list =
   in
   starting_at stack
 
-let show_import_cycle (hops : hop list) (back : string list) : string =
+let show_import_cycle (hops : hop list) (back : string list) =
   let line hop target =
     "    imports " ^ show_module_path target ^ " from " ^ hop.from_file ^ "\n"
   in
@@ -95,7 +95,7 @@ let show_import_cycle (hops : hop list) (back : string list) : string =
       ^ String.concat "" (hops_from hops)
 
 (* Only the first item matters so a full parse would double every error *)
-let probe_header (src : string) : string option =
+let probe_header (src : string) =
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
@@ -108,7 +108,7 @@ let probe_header (src : string) : string option =
       match read lexbuf with Tokens.IDENT name, _, _ -> Some name | _ -> None)
   | _ -> None
 
-let ripe_files (list_dir : string -> string list) (dir : string) : string list =
+let ripe_files (list_dir : string -> string list) (dir : string) =
   match list_dir dir with
   | exception Sys_error _ -> []
   | entries ->
@@ -119,7 +119,7 @@ let ripe_files (list_dir : string -> string list) (dir : string) : string list =
 
 let locate_module ~(read_file : string -> string)
     ~(list_dir : string -> string list) (source_root : string)
-    (path : string list) : located =
+    (path : string list) =
   let file = file_of_path source_root path in
   let readable filename =
     match read_file filename with exception Sys_error _ -> false | _ -> true
@@ -138,7 +138,7 @@ let locate_module ~(read_file : string -> string)
 
 (* Every file of a merged module needs the name importers actually write *)
 let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
-    (unit_ : unit_) : unit =
+    (unit_ : unit_) =
   let expected = module_name_of_path path in
   match unit_.ast.Ast.header with
   | Some header when Interner.text header.Ast.name <> expected ->
@@ -168,7 +168,7 @@ let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
   | None -> ()
 
 (* Offsets run across every file so a position picks the source it landed in *)
-let source_at (t : t) : int -> source =
+let source_at (t : t) =
   let sources =
     t.modules |> Array.to_list
     |> List.concat_map (fun (m : module_) -> m.units)
@@ -191,7 +191,7 @@ let source_at (t : t) : int -> source =
 
 let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
     ~(list_dir : string -> string list) ?(search_roots : string list = [])
-    ~(root_filename : string) () : t =
+    ~(root_filename : string) () =
   (* A bare filename has no directory so every import would start with "./" *)
   let source_root =
     match Filename.dirname root_filename with "." -> "" | dir -> dir

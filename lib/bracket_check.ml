@@ -8,7 +8,7 @@ type step = End | Closed of opened list | Stray | Open of opener | Other
 
 let opener_repr = function Paren -> "`(`" | Bracket -> "`[`" | Brace -> "`{`"
 
-let opener_of : token -> opener option = function
+let opener_of = function
   | LPAREN -> Some Paren
   | LBRACKET -> Some Bracket
   | LBRACE -> Some Brace
@@ -19,18 +19,15 @@ let closer_of = function
   | Bracket -> RBRACKET
   | Brace -> RBRACE
 
-let closer_repr : token -> string = function
+let closer_repr = function
   | RPAREN -> "`)`"
   | RBRACKET -> "`]`"
   | RBRACE -> "`}`"
   | _ -> ""
 
-let is_closer : token -> bool = function
-  | RPAREN | RBRACKET | RBRACE -> true
-  | _ -> false
+let is_closer = function RPAREN | RBRACKET | RBRACE -> true | _ -> false
 
-let report_mismatch (diags : Diagnostic.sink) (span : Ast.span)
-    (open_span : Ast.span) (opener : opener) : unit =
+let report_mismatch diags span open_span opener =
   let want = closer_of opener in
   Diagnostic.emit diags
     Diagnostic.(
@@ -39,16 +36,15 @@ let report_mismatch (diags : Diagnostic.sink) (span : Ast.span)
       |> label (Printf.sprintf "expected %s" (closer_repr want))
       |> secondary open_span ("unclosed " ^ opener_repr opener))
 
-let report_stray (diags : Diagnostic.sink) (span : Ast.span) : unit =
+let report_stray diags span =
   Diagnostic.emit diags
     Diagnostic.(error "unexpected closing delimiter" |> at span)
 
-let report_unclosed (diags : Diagnostic.sink) (_, open_span) : unit =
+let report_unclosed diags (_, open_span) =
   Diagnostic.emit diags Diagnostic.(error "unclosed delimiter" |> at open_span)
 
 (* This checks the token against open delimiters from the inside out *)
-let step (diags : Diagnostic.sink) (stack : opened list) (tok : token)
-    (span : Ast.span) : step =
+let step diags stack tok span =
   if is_closer tok then (
     match stack with
     | (opener, _) :: rest when closer_of opener = tok -> Closed rest

@@ -2,21 +2,20 @@
 
 open Ast
 
-let label_name : loop_label option -> Ast.name option =
-  Option.map (fun (l : loop_label) -> l.Ast.value)
+let label_name = Option.map (fun l -> l.Ast.value)
 
 (* A bare break belongs to the nearest loop and a labeled one to the name *)
-let rec loop_has_break ?label (body : block) : bool =
+let rec loop_has_break ?label body =
   block_has_break ~own:true (label_name label) body
 
-and block_has_break ~own (target : Ast.name option) (body : block) : bool =
+and block_has_break ~own target body =
   List.exists (block_item_has_break ~own target) body
 
 and block_item_has_break ~own target = function
   | Expr e -> expr_has_break ~own target e
   | Decl _ -> false
 
-and expr_has_break ~own (target : Ast.name option) (e : expr) : bool =
+and expr_has_break ~own target e =
   match e.desc with
   | ErrorExpr -> false
   | Break (None, _) -> own
@@ -38,8 +37,7 @@ and expr_has_break ~own (target : Ast.name option) (e : expr) : bool =
   | PairAssign _ -> false
   | _ -> false
 
-and nested_has_break (target : Ast.name option) (label : loop_label option)
-    (body : block) : bool =
+and nested_has_break target label body =
   target <> None
   && label_name label <> target
   && block_has_break ~own:false target body

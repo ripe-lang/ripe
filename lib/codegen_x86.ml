@@ -5,12 +5,12 @@
 
 exception Unsupported of string
 
-let unsupported (message : string) : 'a = raise (Unsupported message)
+let unsupported message = raise (Unsupported message)
 
-let fits_in_int32 (value : int64) : bool =
+let fits_in_int32 value =
   Int64.equal value (Int64.of_int32 (Int64.to_int32 value))
 
-let return_constant (func : Mir.func) : int64 =
+let return_constant func =
   let open Mir in
   if Array.length func.blocks <> 1 then
     unsupported "the x86 backend cannot compile more than one block yet";
@@ -27,12 +27,11 @@ let return_constant (func : Mir.func) : int64 =
       value
   | _ -> unsupported "the x86 backend only compiles a returned integer literal"
 
-let lower_main (func : Mir.func) : X86_ir.instr list =
+let lower_main func =
   let open X86_ir in
   [ Mov_imm (W32, Rax, return_constant func); Ret ]
 
-let assemble (blocks : (string * X86_ir.instr list) list) :
-    string * (string * int) list =
+let assemble blocks =
   let encoder = X86_encode.create () in
 
   let place labels (name, instrs) =
@@ -44,13 +43,13 @@ let assemble (blocks : (string * X86_ir.instr list) list) :
   let labels = List.fold_left place [] blocks in
   (X86_encode.finish encoder ~labels, List.rev labels)
 
-let find_main (program : Mir.program) : Mir.func =
+let find_main program =
   let open Mir in
   match List.find_opt (fun func -> func.entry_point) program.functions with
   | Some func -> func
   | None -> unsupported "the x86 backend needs a main function"
 
-let emit_mir ~source_of:_ (program : Mir.program) : string =
+let emit_mir ~source_of:_ program =
   let open Mir in
   if not (List.is_empty program.globals) then
     unsupported "the x86 backend cannot compile globals yet";

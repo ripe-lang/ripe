@@ -14,37 +14,37 @@ let max_rel32 = 0x7fff_ffff
 (* The imm32 encoding accepts signed and unsigned callers [1] *)
 let min_imm32 = -0x8000_0000L
 let max_imm32 = 0xffff_ffffL
-let create ?(size = 64) () : t = { bytes = Buffer.create size; fixups = [] }
-let offset (encoder : t) : int = Buffer.length encoder.bytes
+let create ?(size = 64) () = { bytes = Buffer.create size; fixups = [] }
+let offset encoder = Buffer.length encoder.bytes
 
-let byte (encoder : t) (value : int) : unit =
+let byte encoder value =
   Buffer.add_char encoder.bytes (Char.chr (value land 0xff))
 
-let le32 (encoder : t) (value : int) : unit =
+let le32 encoder value =
   for shift = 0 to 3 do
     byte encoder (value asr (shift * 8))
   done
 
-let le64 (encoder : t) (value : int64) : unit =
+let le64 encoder value =
   le32 encoder (Int64.to_int value);
   le32 encoder (Int64.to_int (Int64.shift_right_logical value 32))
 
 (* REX is only emitted when a width or extended register bit is actually set [1] *)
-let rex (encoder : t) ~(w : bool) ~(r : bool) ~(b : bool) : unit =
+let rex encoder ~w ~r ~b =
   let bits =
     (if w then 8 else 0) lor (if r then 4 else 0) lor if b then 1 else 0
   in
   if bits <> 0 then byte encoder (0x40 lor bits)
 
 (* ModRM packs the addressing mode and two register fields into one byte [1] *)
-let modrm (encoder : t) ~(md : int) ~(reg : int) ~(rm : int) : unit =
+let modrm encoder ~md ~reg ~rm =
   byte encoder ((md lsl 6) lor ((reg land 7) lsl 3) lor (rm land 7))
 
 (* Register direct mode avoids special stack and frame register meanings [1] *)
 let register_direct = 3
 
 (* Instruction encodings follow the SDM instruction pages [1] *)
-let instr (encoder : t) (instruction : X86_ir.instr) : unit =
+let instr encoder instruction =
   let open X86_ir in
   match instruction with
   (* Immediate width follows the operand size [1] *)
@@ -73,11 +73,11 @@ let instr (encoder : t) (instruction : X86_ir.instr) : unit =
       byte encoder 0x0f;
       byte encoder 0x05
 
-let finish (encoder : t) ~(labels : (string * int) list) : string =
+let finish encoder ~labels =
   let image = Buffer.to_bytes encoder.bytes in
   let table = Labels.create (List.length labels) in
   List.iter (fun (name, at) -> Labels.replace table name at) labels;
-  let patch (fixup : fixup) =
+  let patch fixup =
     match Labels.find_opt table fixup.target with
     | None -> Diagnostic.ice ("no label named " ^ fixup.target)
     | Some target ->

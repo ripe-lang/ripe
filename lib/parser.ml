@@ -53,7 +53,7 @@ let at st t = st.tok = t
 (* Start of the current lookahead token *)
 let cur_pos st = Span.lo st.tok_span
 
-let loop_lo st (label : Ast.loop_label option) : int =
+let loop_lo st (label : Ast.loop_label option) =
   match label with
   | Some (l : Ast.loop_label) -> Span.lo l.span
   | None -> cur_pos st
@@ -66,7 +66,7 @@ let fail_found st headline =
     (ParseError
        (Diagnostic.with_found (cur_span st) headline (show_found_token st.tok)))
 
-let is_expr_start : token -> bool = function
+let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACKET
   | UNDEFINED | IF | LBRACE | LOOP | MATCH ->
@@ -77,26 +77,26 @@ let require_expr_start st span =
   if not (is_expr_start st.tok) then
     raise (ParseError (Diagnostic.expected_expression span))
 
-let is_type_start : token -> bool = function
+let is_type_start = function
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
 
-let is_semi : token -> bool = function AUTOSEMI | SEMI -> true | _ -> false
+let is_semi = function AUTOSEMI | SEMI -> true | _ -> false
 
 let skip_semi st =
   while is_semi st.tok do
     advance st
   done
 
-let is_ambiguous_continuation : token -> bool = function
+let is_ambiguous_continuation = function
   | PLUS | MINUS | STAR | AMP -> true
   | _ -> false
 
-let is_dereference_assignment (token : token) (e : expr) : bool =
+let is_dereference_assignment (token : token) (e : expr) =
   match e.desc with Assign _ -> token = STAR | _ -> false
 
 let diagnose_dropped_continuation (st : state) (token : token) (span : span)
-    (expr : expr) : unit =
+    (expr : expr) =
   if
     is_ambiguous_continuation token
     && not (is_dereference_assignment token expr)
@@ -106,7 +106,7 @@ let diagnose_dropped_continuation (st : state) (token : token) (span : span)
       |> Diagnostic.at span
       |> Diagnostic.help "move the operator to the previous line")
 
-let is_stmt_start : token -> bool = function
+let is_stmt_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
   | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
@@ -114,17 +114,16 @@ let is_stmt_start : token -> bool = function
       true
   | _ -> false
 
-let is_item_start : token -> bool = function
+let is_item_start = function
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | COMPTIME | VAR | ENUM ->
       true
   | _ -> false
 
-let is_next_line_start (st : state) (line : int) (is_start : token -> bool) :
-    bool =
+let is_next_line_start (st : state) (line : int) (is_start : token -> bool) =
   st.tok_line > line && is_start st.tok
 
 let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
-    : unit =
+    =
   match st.tok with
   | EOF -> ()
   | RBRACE when st.tok_depth = depth -> ()
@@ -181,17 +180,17 @@ let make_span _st lo hi = Span.make lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
 let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
-let recovery_span (st : state) (d : Diagnostic.t) : span =
+let recovery_span (st : state) (d : Diagnostic.t) =
   Option.value d.Diagnostic.primary ~default:(cur_span st)
 
-let error_expr (st : state) (d : Diagnostic.t) : expr =
+let error_expr (st : state) (d : Diagnostic.t) =
   { desc = ErrorExpr; span = recovery_span st d }
 
-let error_typ (st : state) (d : Diagnostic.t) : typ =
+let error_typ (st : state) (d : Diagnostic.t) =
   { tdesc = ErrorType; tspan = recovery_span st d }
 
 let rec sync_to_depth_token (st : state) (depth : int) (line : int)
-    (stops : token list) : unit =
+    (stops : token list) =
   if
     st.tok = EOF
     || st.tok_depth = depth
@@ -204,7 +203,7 @@ let rec sync_to_depth_token (st : state) (depth : int) (line : int)
     sync_to_depth_token st depth line stops)
 
 let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
-    (on_error : state -> Diagnostic.t -> 'a) : 'a =
+    (on_error : state -> Diagnostic.t -> 'a) =
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
@@ -835,7 +834,7 @@ and parse_simple_stmt ?(no_pair = false) st =
       else first
 
 (* a, b = b, a *)
-and parse_pair_assign (state : state) (lo : int) (ft : expr) : expr =
+and parse_pair_assign (state : state) (lo : int) (ft : expr) =
   expect state COMMA;
   let st = parse_expr state 2 in
   if at state COMMA then
@@ -1109,14 +1108,14 @@ let parse_import st =
   { path = List.rev !path; span = make_span st lo hi }
 
 (* module math *)
-let parse_module_header (st : state) : Ast.module_header =
+let parse_module_header (st : state) =
   let lo = cur_pos st in
   advance st;
   let name = expect_ident st in
   let hi = st.prev_end in
   { Ast.name; span = make_span st lo hi }
 
-let rec sync_to_item (st : state) : unit =
+let rec sync_to_item (st : state) =
   match st.tok with
   | EOF -> ()
   | _ when st.tok_depth = 0 && is_item_start st.tok -> ()
@@ -1179,7 +1178,7 @@ let stream read lexbuf diags =
 
 let parse ~(diags : Diagnostic.sink)
     (read : Lexing.lexbuf -> Tokens.token * Ast.span * int)
-    (lexbuf : Lexing.lexbuf) : Ast.module_ =
+    (lexbuf : Lexing.lexbuf) =
   let parse_diags = Diagnostic.sink () in
   let st =
     {

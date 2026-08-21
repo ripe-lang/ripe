@@ -6,8 +6,8 @@ open Ast
 module Names = Hashtbl.Make (struct
   type t = Ast.name
 
-  let equal (a : t) (b : t) : bool = a = b
-  let hash (t : t) : int = t
+  let equal (a : t) (b : t) = a = b
+  let hash (t : t) = t
 end)
 
 type namespace = Symbol.t Names.t
@@ -50,7 +50,7 @@ type qualified =
   | Found of Symbol.t
   | Missing of Ast.name list * Ast.name
 
-let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
+let prelude_symbol id name =
   {
     Symbol.id;
     module_id = Symbol.prelude_module_id;
@@ -63,7 +63,7 @@ let prelude_symbol (id : Symbol.id) (name : string) : Symbol.t =
     name_span = Ast.dummy_span;
   }
 
-let new_scope (parent : scope option) : scope =
+let new_scope parent =
   {
     values = Names.create 16;
     items = Names.create 16;
@@ -76,7 +76,7 @@ let new_scope (parent : scope option) : scope =
 let bytes_per_symbol = 8
 
 (* A builtin sits in the outermost scope so a module can shadow it like any name *)
-let make_output ~(source_bytes : int) (modules : int) : t =
+let make_output ~source_bytes modules =
   let prelude = new_scope None in
   let seed id (name, _) =
     Names.replace prelude.types (Interner.intern name) (prelude_symbol id name)
@@ -97,11 +97,11 @@ let make_output ~(source_bytes : int) (modules : int) : t =
   out
 
 (* This is the `--emit resolve` output *)
-let dump (r : t) : string =
+let dump r =
   let entries =
     Span.Table.to_seq r.syms |> List.of_seq
-    |> List.sort (fun ((a : Ast.span), _) ((b : Ast.span), _) -> compare a b)
-    |> List.map (fun ((sp : Ast.span), (s : Symbol.t)) ->
+    |> List.sort (fun (a, _) (b, _) -> compare a b)
+    |> List.map (fun (sp, s) ->
         Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
           (s.Symbol.module_id :> int)
           (s.Symbol.id :> int)
@@ -116,29 +116,28 @@ let dump (r : t) : string =
    * #-module.id: built in declaration\n\
    * kind name: resolved definition\n\n" ^ entries
 
-let sym_at (r : t) (span : Ast.span) : Symbol.t =
+let sym_at r span =
   match Span.Table.find_opt r.syms span with
   | Some s -> s
   | None -> Diagnostic.ice ~span "no symbol resolved here"
 
-let sym_at_opt (r : t) (span : Ast.span) : Symbol.t option =
-  Span.Table.find_opt r.syms span
+let sym_at_opt r span = Span.Table.find_opt r.syms span
 
-let qname_of (r : t) (s : Symbol.t) : Qname.t =
+let qname_of r s =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
   Qname.make (Symbol.key s) path s.Symbol.name
 
-let local_decls (r : t) : Ast.decl list = List.rev r.local_decls
+let local_decls r = List.rev r.local_decls
 
-let builtins (r : t) : (Symbol.key * Types.builtin) list =
+let builtins r =
   let entry (name, builtin) =
-    let keyed (sym : Symbol.t) = (Symbol.key sym, builtin) in
+    let keyed sym = (Symbol.key sym, builtin) in
     Option.map keyed (Names.find_opt r.prelude.types (Interner.intern name))
   in
   List.filter_map entry Types.builtins
 
 (* A message inside math says add where one outside says math.add *)
-let module_at (r : t) (pos : int) : Symbol.module_id option =
+let module_at r pos =
   let bases = r.file_modules in
   let rec search lo hi =
     if lo > hi then None
@@ -153,7 +152,7 @@ let module_at (r : t) (pos : int) : Symbol.module_id option =
   if Array.length bases = 0 || pos < 0 then None
   else search 0 (Array.length bases - 1)
 
-let module_path_at (r : t) (span : Ast.span) : string list =
+let module_path_at r span =
   match module_at r (Span.lo span) with
   | None -> []
   | Some module_id -> (
@@ -161,14 +160,12 @@ let module_path_at (r : t) (span : Ast.span) : string list =
       | Some path -> path
       | None -> [])
 
-let main_name : Ast.name = Interner.intern "main"
+let main_name = Interner.intern "main"
 
-let is_entry (st : state) (kind : Symbol.kind) (name : Ast.name) : bool =
-  kind = Symbol.Func && st.is_root && name = main_name
+let is_entry st kind name = kind = Symbol.Func && st.is_root && name = main_name
 
 (* An extern and the entry point are named by something outside the compiler *)
-let declaration_link_name (st : state) (kind : Symbol.kind) (name : Ast.name) :
-    string =
+let declaration_link_name st kind name =
   let text = Interner.text name in
   if not st.qualify then text
   else if is_entry st kind name then text
@@ -178,7 +175,7 @@ let declaration_link_name (st : state) (kind : Symbol.kind) (name : Ast.name) :
     | _ -> Mangle.declaration st.module_path text
 
 let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
-    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) : Symbol.t =
+    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) =
   let id = st.next_id in
   st.next_id <- id + 1;
   let link_name = Option.value ~default:(Interner.text name) link_name in
@@ -210,7 +207,7 @@ let declare_local (st : state) kind name span : unit =
 
 let declare_in ?link_name ?name_span (table : namespace) (st : state)
     (kind : Symbol.kind) (visibility : Symbol.visibility) (name : Ast.name)
-    (span : Ast.span) : unit =
+    (span : Ast.span) =
   match Names.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
@@ -224,16 +221,16 @@ let declare_in ?link_name ?name_span (table : namespace) (st : state)
       Names.replace table name
         (mint ~visibility ~link_name ?name_span st kind name span)
 
-let declare_global ?name_span (st : state) kind visibility name span : unit =
+let declare_global ?name_span st kind visibility name span =
   declare_in ?name_span st.top.values st kind visibility name span
 
-let declare_type ?name_span (st : state) visibility name span : unit =
+let declare_type ?name_span st visibility name span =
   declare_in ?name_span st.top.types st Symbol.Type visibility name span
 
-let declare_local_type (st : state) name span : unit =
+let declare_local_type st name span =
   declare_in st.scope.types st Symbol.LocalType Symbol.Private name span
 
-let declare_local_func (st : state) (name : Ast.name) span : unit =
+let declare_local_func st name span =
   let link_name =
     Printf.sprintf "_Rlocal%d_%d_%s" st.module_id st.next_id
       (Interner.text name)
@@ -241,23 +238,23 @@ let declare_local_func (st : state) (name : Ast.name) span : unit =
   declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private name
     span
 
-let rec find_type_in_chain (scope : scope) (name : Ast.name) : Symbol.t option =
+let rec find_type_in_chain (scope : scope) (name : Ast.name) =
   match Names.find_opt scope.types name with
   | Some sym -> Some sym
   | None ->
       Option.bind scope.parent (fun parent -> find_type_in_chain parent name)
 
-let value_or_item (scope : scope) (name : Ast.name) : Symbol.t option =
+let value_or_item (scope : scope) (name : Ast.name) =
   match Names.find_opt scope.values name with
   | Some sym -> Some sym
   | None -> Names.find_opt scope.items name
 
-let rec find_value (scope : scope) (name : Ast.name) : Symbol.t option =
+let rec find_value (scope : scope) (name : Ast.name) =
   match value_or_item scope name with
   | Some sym -> Some sym
   | None -> Option.bind scope.parent (fun parent -> find_value parent name)
 
-let is_item_value (sym : Symbol.t) : bool =
+let is_item_value (sym : Symbol.t) =
   match sym.Symbol.kind with
   | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
   | Symbol.Module ->
@@ -266,7 +263,7 @@ let is_item_value (sym : Symbol.t) : bool =
   | Symbol.Param | Symbol.ForVar | Symbol.MatchBind ->
       false
 
-let rec find_item_value (scope : scope) (name : Ast.name) : Symbol.t option =
+let rec find_item_value scope name =
   match Names.find_opt scope.items name with
   | Some sym -> Some sym
   | None -> (
@@ -276,8 +273,7 @@ let rec find_item_value (scope : scope) (name : Ast.name) : Symbol.t option =
       | None ->
           Option.bind scope.parent (fun parent -> find_item_value parent name))
 
-let rec find_before_boundary (boundary : scope) (scope : scope)
-    (name : Ast.name) : Symbol.t option =
+let rec find_before_boundary boundary scope name =
   if scope == boundary then find_item_value boundary name
   else
     match value_or_item scope name with
@@ -286,24 +282,24 @@ let rec find_before_boundary (boundary : scope) (scope : scope)
         Option.bind scope.parent (fun parent ->
             find_before_boundary boundary parent name)
 
-let lookup (st : state) (name : Ast.name) : Symbol.t option =
+let lookup st name =
   match st.value_boundary with
   | Some boundary -> find_before_boundary boundary st.scope name
   | None -> find_value st.scope name
 
-let captured_value (st : state) (name : Ast.name) : Symbol.t option =
+let captured_value st name =
   Option.bind st.value_boundary (fun boundary ->
       match find_value boundary name with
       | Some sym when not (is_item_value sym) -> Some sym
       | Some _ | None -> None)
 
-let missing_value (st : state) ~(what : string) name span : Diagnostic.t =
+let missing_value st ~what name span =
   match captured_value st name with
   | Some _ -> Diagnostic.error_at span "local function cannot capture variable"
   | None -> Diagnostic.undefined_name span what
 
 (* The name comes off the symbol not off the spelling at the use site *)
-let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
+let check_visibility st span sym =
   if
     sym.Symbol.module_id <> st.module_id
     && sym.Symbol.visibility = Symbol.Private
@@ -312,21 +308,20 @@ let check_visibility (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
       (Diagnostic.error_at span "private declaration"
       |> Diagnostic.secondary sym.Symbol.span "declared private here")
 
-let use_symbol (st : state) (span : Ast.span) (sym : Symbol.t) : unit =
+let use_symbol st span sym =
   check_visibility st span sym;
   Span.Table.replace st.out.syms span sym
 
-let split_path (segs : (Ast.name * Ast.span) list) : Ast.name list * Ast.name =
+let split_path (segs : (Ast.name * Ast.span) list) =
   match List.rev segs with
   | (member, _) :: rest -> (List.rev_map fst rest, member)
   | [] -> assert false
 
-let drop_member (segs : (Ast.name * Ast.span) list) : (Ast.name * Ast.span) list
-    =
+let drop_member (segs : (Ast.name * Ast.span) list) =
   match List.rev segs with _ :: rest -> List.rev rest | [] -> []
 
 (* A nearer value binding wins so a local named math is not a module *)
-let find_module (st : state) (path : Ast.name list) : scope option =
+let find_module st path =
   match path with
   | [] -> None
   | root :: _ -> (
@@ -335,19 +330,17 @@ let find_module (st : state) (path : Ast.name list) : scope option =
           Hashtbl.find_opt st.out.imports (st.module_id, path)
       | Some _ | None -> None)
 
-let failed_import (st : state) (path : Ast.name list) : bool =
+let failed_import st path =
   Hashtbl.mem st.out.failed_imports (st.module_id, path)
 
 (* math.Vec goes through the import and Vec walks out to the builtins *)
-let find_type (st : state) (path : Ast.name list) (name : Ast.name) :
-    Symbol.t option =
+let find_type st path name =
   if List.is_empty path then find_type_in_chain st.scope name
   else
-    let member (scope : scope) = Names.find_opt scope.types name in
+    let member scope = Names.find_opt scope.types name in
     Option.bind (find_module st path) member
 
-let use_type (st : state) (path : Ast.name list) (name : Ast.name)
-    (span : Ast.span) : unit =
+let use_type st path name span =
   match find_type st path name with
   | Some sym -> use_symbol st span sym
   | None ->
@@ -357,25 +350,25 @@ let use_type (st : state) (path : Ast.name list) (name : Ast.name)
       ignore (mint st Symbol.Error (Interner.intern shown) span)
 
 (* Semantic analysis already reports an unknown struct literal *)
-let use_type_if_found (st : state) (name : Ast.name) (span : Ast.span) : unit =
+let use_type_if_found st name span =
   match find_type st [] name with
   | Some sym -> use_symbol st span sym
   | None -> ()
 
-let use (st : state) ~(what : string) name span : unit =
+let use st ~what name span =
   match lookup st name with
   | Some sym -> Span.Table.replace st.out.syms span sym
   | None ->
       Diagnostic.emit st.diags (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
 
-let use_callee (st : state) name span : unit =
+let use_callee st name span =
   match (lookup st name, find_type st [] name) with
   | None, Some sym -> use_symbol st span sym
   | _ -> use st ~what:"function" name span
 
 (* Body binders can redeclare but params can't repeat *)
-let declare_param (st : state) (p : param) : unit =
+let declare_param st p =
   match Names.find_opt st.scope.values p.param_name with
   | Some prev ->
       Diagnostic.emit st.diags
@@ -383,7 +376,7 @@ let declare_param (st : state) (p : param) : unit =
       Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
-let qualified_use (st : state) (segs : (Ast.name * Ast.span) list) : qualified =
+let qualified_use st segs =
   let module_path, member = split_path segs in
   match find_module st module_path with
   | None -> Local
@@ -392,7 +385,7 @@ let qualified_use (st : state) (segs : (Ast.name * Ast.span) list) : qualified =
       | Some sym -> Found sym
       | None -> Missing (module_path, member))
 
-let use_qualified (st : state) ~(what : string) segs (span : Ast.span) : bool =
+let use_qualified st ~what segs span =
   match qualified_use st segs with
   | Local -> false
   | Found sym ->
@@ -410,7 +403,7 @@ let use_qualified (st : state) ~(what : string) segs (span : Ast.span) : bool =
       true
 
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name (st : state) segs (span : Ast.span) : bool =
+let use_type_name st segs span =
   let path, name = split_path segs in
   (* A nearer value wins so a local named str isn't the builtin type *)
   if List.is_empty path && lookup st name <> None then false
@@ -421,7 +414,7 @@ let use_type_name (st : state) segs (span : Ast.span) : bool =
         use_symbol st span sym;
         true
 
-let use_qualified_callee (st : state) segs (span : Ast.span) : bool =
+let use_qualified_callee st segs span =
   match qualified_use st segs with
   | Local -> false
   | Found sym ->
@@ -431,14 +424,14 @@ let use_qualified_callee (st : state) segs (span : Ast.span) : bool =
       use_type_name st segs span || use_qualified st ~what:"function" segs span
 
 let rec resolve_path (st : state) (segs : (Ast.name * Ast.span) list)
-    (span : Ast.span) : unit =
+    (span : Ast.span) =
   if not (use_qualified st ~what:"variable" segs span) then begin
     let owner = drop_member segs in
     let prefix = Ast.path_expr owner in
     if not (use_type_name st owner prefix.span) then resolve_expr st prefix
   end
 
-and resolve_expr (st : state) (e : expr) : unit =
+and resolve_expr st e =
   match e.desc with
   | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
@@ -512,13 +505,13 @@ and resolve_expr (st : state) (e : expr) : unit =
   | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
-and resolve_arm (st : state) (a : arm) : unit =
+and resolve_arm (st : state) (a : arm) =
   push_scope st;
   resolve_pattern st a.pat;
   resolve_block_contents st a.arm_body.value;
   pop_scope st
 
-and resolve_pattern (st : state) (p : pattern) : unit =
+and resolve_pattern st p =
   match p.pdesc with
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
@@ -529,7 +522,7 @@ and resolve_pattern (st : state) (p : pattern) : unit =
       | Some _ | None -> declare_local st Symbol.MatchBind name p.pspan)
 
 (* An array size expression may name constants *)
-and resolve_typ (st : state) (t : typ) : unit =
+and resolve_typ st t =
   match t.tdesc with
   | ErrorType -> ()
   | Named (path, name) -> use_type st path name t.tspan
@@ -542,7 +535,7 @@ and resolve_typ (st : state) (t : typ) : unit =
       Option.iter (resolve_typ st) ret
   | UnitType -> ()
 
-and declare_block_item (st : state) (d : local_decl) : unit =
+and declare_block_item st d =
   (match d with
   | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
   | LocalTypeAlias td -> declare_local_type st td.alias_name td.alias_span
@@ -550,26 +543,26 @@ and declare_block_item (st : state) (d : local_decl) : unit =
   | LocalEnum ed -> declare_local_type st ed.enum_name ed.enum_span);
   st.out.local_decls <- decl_of_local d :: st.out.local_decls
 
-and resolve_local_decl (st : state) (d : local_decl) : unit =
+and resolve_local_decl st d =
   match d with
   | LocalFunc fd -> resolve_local_func st fd
   | LocalStruct _ | LocalTypeAlias _ | LocalEnum _ ->
       resolve_decl st (decl_of_local d)
 
-and resolve_block_item (st : state) = function
+and resolve_block_item st = function
   | Expr e -> resolve_expr st e
   | Decl d -> resolve_local_decl st d
 
-and resolve_block_contents (st : state) (body : block) : unit =
+and resolve_block_contents st body =
   List.iter (function Expr _ -> () | Decl d -> declare_block_item st d) body;
   List.iter (resolve_block_item st) body
 
-and resolve_block (st : state) (body : block) : unit =
+and resolve_block (st : state) (body : block) =
   push_scope st;
   resolve_block_contents st body;
   pop_scope st
 
-and resolve_func (st : state) (fd : func_def) : unit =
+and resolve_func (st : state) (fd : func_def) =
   push_scope st;
   List.iter
     (fun (p : param) ->
@@ -580,20 +573,19 @@ and resolve_func (st : state) (fd : func_def) : unit =
   resolve_block_contents st fd.body;
   pop_scope st
 
-and resolve_local_func (st : state) (fd : func_def) : unit =
+and resolve_local_func (st : state) (fd : func_def) =
   let outer = st.scope in
   let saved_boundary = st.value_boundary in
   st.value_boundary <- Some outer;
   resolve_func st fd;
   st.value_boundary <- saved_boundary
 
-and resolve_decl (st : state) : decl -> unit = function
+and resolve_decl (st : state) = function
   | Func fd | Extern fd -> resolve_func st fd
   | Global gd ->
       Option.iter (resolve_typ st) gd.typ;
       Option.iter (resolve_expr st) gd.init
-  | Struct sd ->
-      List.iter (fun (f : field) -> resolve_typ st f.field_typ) sd.fields
+  | Struct sd -> List.iter (fun f -> resolve_typ st f.field_typ) sd.fields
   | TypeAlias td -> resolve_typ st td.alias_typ
   (* TODO: nothing to walk until a variant can hold a type *)
   | Enum _ -> ()
@@ -601,9 +593,7 @@ and resolve_decl (st : state) : decl -> unit = function
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
 
-let make_state ~(out : t) ~(diags : Diagnostic.sink)
-    ~(module_id : Symbol.module_id) ~(module_path : string list)
-    ~(qualify : bool) ~(is_root : bool) : state =
+let make_state ~out ~diags ~module_id ~module_path ~qualify ~is_root =
   let top = new_scope (Some out.prelude) in
   {
     out;
@@ -619,7 +609,7 @@ let make_state ~(out : t) ~(diags : Diagnostic.sink)
   }
 
 (* A top level name lands first so a body can forward reference *)
-let declare_decls (st : state) (decls : decl list) : unit =
+let declare_decls st decls =
   List.iter
     (function
       | Func fd ->
@@ -646,8 +636,7 @@ let declare_decls (st : state) (decls : decl list) : unit =
             ed.enum_name ed.enum_span)
     decls
 
-let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
-    (decls : decl list) : t =
+let resolve ~diags ~module_id decls =
   let out = make_output ~source_bytes:0 1 in
   Hashtbl.add out.module_paths module_id [];
   let st =
@@ -658,14 +647,13 @@ let resolve ~(diags : Diagnostic.sink) ~(module_id : Symbol.module_id)
   List.iter (resolve_decl st) decls;
   out
 
-let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
-    resolved_program =
+let resolve_program ~diags program =
   let count = Array.length program.Program.modules in
   let source_bytes =
     Array.fold_left
-      (fun total (m : Program.module_) ->
+      (fun total m ->
         List.fold_left
-          (fun total (u : Program.unit_) ->
+          (fun total u ->
             total
             + String.length (Source_map.src u.Program.source.Program.source_map))
           total m.Program.units)
@@ -673,14 +661,12 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
   in
   let out = make_output ~source_bytes count in
   let states = Hashtbl.create count in
-  let state_of (module_ : Program.module_) =
-    Hashtbl.find states module_.Program.module_id
-  in
+  let state_of module_ = Hashtbl.find states module_.Program.module_id in
   let bases = ref [] in
-  let start (module_ : Program.module_) =
+  let start module_ =
     Hashtbl.add out.module_paths module_.Program.module_id module_.Program.path;
     List.iter
-      (fun (unit_ : Program.unit_) ->
+      (fun unit_ ->
         bases :=
           (unit_.Program.source.Program.base, module_.Program.module_id)
           :: !bases)
@@ -695,13 +681,13 @@ let resolve_program ~(diags : Diagnostic.sink) (program : Program.t) :
   (* The scope is shared so an import sees names declared after this *)
   let failed_ids = Hashtbl.create count in
   Array.iter
-    (fun (module_ : Program.module_) ->
+    (fun module_ ->
       if module_.Program.failed then
         Hashtbl.replace failed_ids module_.Program.module_id ())
     program.Program.modules;
-  let link_imports (module_ : Program.module_) =
+  let link_imports module_ =
     let st = state_of module_ in
-    let bind (dependency : Program.dependency) =
+    let bind dependency =
       let target = Hashtbl.find states dependency.Program.target in
       let import = dependency.Program.import in
       match List.rev import.Ast.path with

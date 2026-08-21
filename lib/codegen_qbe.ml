@@ -5,7 +5,7 @@ open Types
 
 type qbe_scalar = B | H | W | L | S | D
 
-let qbe_scalar (t : ty) : qbe_scalar =
+let qbe_scalar (t : ty) =
   match resolve_ty t with
   | TBool -> B
   | TChar | TEnum _ -> W
@@ -34,11 +34,11 @@ type qbe_base = W | L | S | D
 let qbe_base (t : ty) : qbe_base =
   match qbe_scalar t with B | H | W -> W | L -> L | S -> S | D -> D
 
-let qbe_ty (t : ty) : string =
+let qbe_ty (t : ty) =
   match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
 (* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
-let signedness (t : ty) : string =
+let signedness (t : ty) =
   match resolve_ty t with
   | TPointer _ | TOpaquePtr | TNull | TCStr | TChar | TBool -> "u"
   | t -> if is_unsigned t then "u" else "s"
@@ -47,7 +47,7 @@ let signedness (t : ty) : string =
 let bulk_mem_threshold = 64
 
 (* s_ for single, d_ for double *)
-let float_lit (ty : ty) (f : float) : string =
+let float_lit (ty : ty) (f : float) =
   let prefix, digits =
     match resolve_ty ty with
     | TFloat F32 -> ("s_", 9)
@@ -57,7 +57,7 @@ let float_lit (ty : ty) (f : float) : string =
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
-let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
+let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) =
   match ty_align structs t with
   | 1 | 2 | 4 -> "alloc4"
   | 8 -> "alloc8"
@@ -67,12 +67,12 @@ let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
         (Printf.sprintf "no alloc instruction for %d byte alignment" a)
 
 (* A narrow load says how to fill the rest of the register but a wide one can't *)
-let qbe_load (t : ty) : string =
+let qbe_load (t : ty) =
   match qbe_scalar t with
   | (B | H | W) as s -> "load" ^ signedness t ^ scalar_letter s
   | (L | S | D) as s -> "load" ^ scalar_letter s
 
-let qbe_store (t : ty) : string = "store" ^ scalar_letter (qbe_scalar t)
+let qbe_store (t : ty) = "store" ^ scalar_letter (qbe_scalar t)
 
 type ctx = {
   structs : ty list Symbol.Table.t;
@@ -223,13 +223,13 @@ let widen_to_l ctx v ty =
     emit_op1 ctx t "l" ins v;
     t
 
-let bounds_condition (ctx : ctx) (idx : string) (len : string) : string =
+let bounds_condition (ctx : ctx) (idx : string) (len : string) =
   let cond = fresh ctx in
   emit_op2 ctx cond "w" "cugel" idx len;
   cond
 
 let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
-    (len : string) : string =
+    (len : string) =
   let hi_bad = fresh ctx in
   emit ctx "%s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
@@ -238,19 +238,17 @@ let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
   emit ctx "%s =w or %s, %s\n" bad hi_bad lo_bad;
   bad
 
-let null_condition (ctx : ctx) (ptr : string) : string =
+let null_condition (ctx : ctx) (ptr : string) =
   let isnull = fresh ctx in
   emit ctx "%s =w ceql %s, 0\n" isnull ptr;
   isnull
 
-let div_zero_condition (ctx : ctx) (divisor : string) (op_qt : string) : string
-    =
+let div_zero_condition (ctx : ctx) (divisor : string) (op_qt : string) =
   let zero = fresh ctx in
   emit ctx "%s =w ceq%s %s, 0\n" zero op_qt divisor;
   zero
 
-let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) :
-    string =
+let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) =
   let neg = fresh ctx in
   emit ctx "%s =w cslt%s %s, 0\n" neg count_qt count;
   neg
@@ -401,10 +399,10 @@ and emit_cast ctx v src_ty target_ty =
           emit ctx "%s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-let qbe_struct_name (ctx : ctx) (name : Qname.t) : string =
+let qbe_struct_name (ctx : ctx) (name : Qname.t) =
   Symbol.Table.find ctx.struct_names (Qname.key name)
 
-let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) : string =
+let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) =
   match resolve_ty t with
   | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
@@ -449,7 +447,7 @@ let emit_string_into ctx destination content =
   emit ctx "storel %d, %s\n" (String.length content)
     (offset_addr ctx destination 8)
 
-let direct_value_binding (mctx : mir_ctx) (place : Mir.place) : string option =
+let direct_value_binding (mctx : mir_ctx) (place : Mir.place) =
   match (place.Mir.base, place.Mir.projections) with
   | Mir.Local id, [] -> (
       match mctx.bindings.(id) with Value name -> Some name | Memory _ -> None)
@@ -484,7 +482,7 @@ and emit_mir_constant ctx ty = function
   | Mir.Function name -> "$" ^ name
   | Mir.Str _ -> Diagnostic.ice "str constant requires a destination"
 
-and widened_operand (mctx : mir_ctx) (operand : Mir.operand) : string =
+and widened_operand (mctx : mir_ctx) (operand : Mir.operand) =
   match operand.Mir.desc with
   | Mir.Const (Mir.Int value) -> Int64.to_string value
   | Mir.Const (Mir.Bool value) -> if value then "1" else "0"
@@ -492,7 +490,7 @@ and widened_operand (mctx : mir_ctx) (operand : Mir.operand) : string =
   | _ -> widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.ty
 
 and emit_mir_index_addr (mctx : mir_ctx) storage element
-    (index_operand : Mir.operand) : string =
+    (index_operand : Mir.operand) =
   let ctx = mctx.qbe in
   let element_stride = stride ctx.structs element in
   match index_operand.Mir.desc with
@@ -615,7 +613,7 @@ let emit_mir_value mctx (value : Mir.value) =
   | Mir.SizeOf ty -> string_of_int (ty_size ctx.structs ty)
 
 let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
-    (destination_ty : ty) (value : string) : unit =
+    (destination_ty : ty) (value : string) =
   match direct_value_binding mctx destination with
   | Some binding ->
       emit_op1 mctx.qbe binding (qbe_ty destination_ty) "copy" value
@@ -795,7 +793,7 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
       put_char ctx '\n'
   | Mir.Unreachable -> put ctx "hlt\n"
 
-let analyze_local_usage (func : Mir.func) : local_usage =
+let analyze_local_usage (func : Mir.func) =
   let address_taken = Array.make (Array.length func.Mir.locals) false in
   let defined = Array.make (Array.length func.Mir.locals) false in
   let mark_defined (place : Mir.place) =
@@ -823,14 +821,14 @@ let analyze_local_usage (func : Mir.func) : local_usage =
   List.iter (fun id -> defined.(id) <- true) func.Mir.params;
   { address_taken; defined }
 
-let can_bind_value (local : Mir.local) : bool =
+let can_bind_value (local : Mir.local) =
   match resolve_ty local.Mir.ty with
   | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> true
   | _ -> false
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
-let bind_mir_locals (ctx : ctx) (func : Mir.func) : local_binding array =
+let bind_mir_locals (ctx : ctx) (func : Mir.func) =
   let usage = analyze_local_usage func in
   Array.mapi
     (fun id (local : Mir.local) ->

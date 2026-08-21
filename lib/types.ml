@@ -60,7 +60,7 @@ let int_kind_neg_limit = function
 
 type builtin = BTy of ty | BOpaque
 
-let builtins : (string * builtin) list =
+let builtins =
   List.map
     (fun k -> (String.lowercase_ascii (show_int_kind k), BTy (TInt k)))
     int_kinds
@@ -88,7 +88,7 @@ let float_kind_of_string s =
     (fun k -> String.lowercase_ascii (show_float_kind k) = s)
     float_kinds
 
-let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
+let rec show_ty_with show_name t =
   let show_ty = show_ty_with show_name in
   match t with
   | TInt k -> String.lowercase_ascii (show_int_kind k)
@@ -116,15 +116,12 @@ let rec show_ty_with (show_name : Qname.t -> string) (t : ty) : string =
   | TError -> "<error>"
   | TUnit -> "()"
 
-let show_ty (t : ty) : string = show_ty_with Qname.show t
+let show_ty t = show_ty_with Qname.show t
 
 (* A reader inside the module a name belongs to doesn't need its path *)
-let show_ty_in (current : string list) (t : ty) : string =
-  show_ty_with (Qname.show_in current) t
+let show_ty_in current t = show_ty_with (Qname.show_in current) t
 
-let rec resolve_ty : ty -> ty = function
-  | TAlias (_, base) -> resolve_ty base
-  | t -> t
+let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
@@ -144,21 +141,21 @@ let int_kind_size = function
 
 let float_kind_size = function F32 -> 4 | F64 -> 8
 
-let int_kind_of (t : ty) : int_kind =
+let int_kind_of t =
   match resolve_ty t with
   | TInt k -> k
   | _ -> Diagnostic.ice "expected an integer type"
 
-let float_kind_of (t : ty) : float_kind =
+let float_kind_of t =
   match resolve_ty t with
   | TFloat k -> k
   | _ -> Diagnostic.ice "expected a float type"
 
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
-let div_int_needs_check (t : ty) : bool =
+let div_int_needs_check t =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
 
-let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
+let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -184,7 +181,7 @@ let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
 (* `n` and `a` MUST be non-negative *)
 let align_to n a = Int.cdiv n a * a
 
-let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
+let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -211,7 +208,7 @@ let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
 
 (* Walking one past the last index gives where the whole thing ends *)
 and field_offset (structs : ty list Symbol.Table.t) (fields : ty list)
-    (index : int) : int =
+    (index : int) =
   let rec go i off = function
     | [] ->
         if i = index then off
@@ -223,7 +220,7 @@ and field_offset (structs : ty list Symbol.Table.t) (fields : ty list)
   go 0 0 fields
 
 (* The number of bytes from one element to the next after round the alignment *)
-and stride (structs : ty list Symbol.Table.t) (elem : ty) : int =
+and stride (structs : ty list Symbol.Table.t) (elem : ty) =
   align_to (ty_size structs elem) (ty_align structs elem)
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)

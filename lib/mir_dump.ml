@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let storage_name (storage : Mir.storage_kind) : string =
+let storage_name (storage : Mir.storage_kind) =
   let open Mir in
   match storage with
   | Param -> "param"
@@ -8,7 +8,7 @@ let storage_name (storage : Mir.storage_kind) : string =
   | Temp -> "temp"
   | Result -> "result"
 
-let constant (constant : Mir.constant) : string =
+let constant (constant : Mir.constant) =
   let open Mir in
   match constant with
   | Int value -> Int64.to_string value
@@ -22,11 +22,11 @@ let constant (constant : Mir.constant) : string =
   | Function name -> "@" ^ name
   | Str value -> Printf.sprintf "str %S" value
 
-let unop_sym (op : Mir.unop) : string =
+let unop_sym (op : Mir.unop) =
   let open Mir in
   match op with Neg -> "-" | Not -> "!" | BitNot -> "~"
 
-let binop_sym (op : Mir.binop) : string =
+let binop_sym (op : Mir.binop) =
   let open Mir in
   match op with
   | Add -> "+"
@@ -46,7 +46,7 @@ let binop_sym (op : Mir.binop) : string =
   | Lshift -> "<<"
   | Rshift -> ">>"
 
-let rec place (value : Mir.place) : string =
+let rec place (value : Mir.place) =
   let open Mir in
   let projection = function
     | Deref -> ".deref"
@@ -61,13 +61,13 @@ let rec place (value : Mir.place) : string =
   Printf.sprintf "%s%s" base
     (String.concat "" (List.map projection (List.rev value.projections)))
 
-and operand (value : Mir.operand) : string =
+and operand (value : Mir.operand) =
   let open Mir in
   match value.desc with
   | Copy source -> "copy " ^ place source
   | Const value -> constant value
 
-let value (value : Mir.value) : string =
+let value (value : Mir.value) =
   let open Mir in
   match value.desc with
   | Use operand_value -> operand operand_value
@@ -83,13 +83,13 @@ let value (value : Mir.value) : string =
   | DataPtr source -> "data_ptr " ^ place source
   | SizeOf ty -> "sizeof " ^ Types.show_ty ty
 
-let callee (callee : Mir.callee) : string =
+let callee (callee : Mir.callee) =
   let open Mir in
   match callee with
   | Direct name -> "@" ^ name
   | Indirect value -> operand value
 
-let statement (statement : Mir.statement) : string =
+let statement (statement : Mir.statement) =
   let open Mir in
   match statement.desc with
   | Assign (destination, assigned) ->
@@ -106,7 +106,7 @@ let statement (statement : Mir.statement) : string =
       Printf.sprintf "%s = slice %s %s %s" (place destination) (place source)
         (operand lo) (operand hi)
 
-let check (check : Mir.check) : string =
+let check (check : Mir.check) =
   let open Mir in
   match check with
   | Bounds (index, length) ->
@@ -118,7 +118,7 @@ let check (check : Mir.check) : string =
   | DivZero divisor -> Printf.sprintf "div_zero %s" (operand divisor)
   | NegativeShift count -> Printf.sprintf "negative_shift %s" (operand count)
 
-let terminator (value : Mir.terminator option) : string =
+let terminator (value : Mir.terminator option) =
   let open Mir in
   match value with
   | None -> "<missing terminator>"
@@ -134,7 +134,7 @@ let terminator (value : Mir.terminator option) : string =
       | ReturnValue (Some value) -> "return " ^ operand value
       | Unreachable -> "unreachable")
 
-let func (func : Mir.func) : string =
+let func (func : Mir.func) =
   let open Mir in
   let buffer = Buffer.create 256 in
   let params =
@@ -167,10 +167,10 @@ let func (func : Mir.func) : string =
   Buffer.add_string buffer "}\n";
   Buffer.contents buffer
 
-let global (global : Mir.global) : string =
+let global (global : Mir.global) =
   Printf.sprintf "global %s: %s\n" global.Mir.name (Types.show_ty global.Mir.ty)
 
-let program (program : Mir.program) : string =
+let program (program : Mir.program) =
   String.concat ""
     (List.map global program.Mir.globals
     @ (if List.is_empty program.Mir.globals then [] else [ "\n" ])

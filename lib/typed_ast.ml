@@ -62,8 +62,7 @@ and tarm = { tpat : tpattern; tbody : tblock }
 and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) (ty : ty) (desc : texpr_desc) : texpr =
-  { desc; ty; span; const = None }
+let mk ?(span = Ast.dummy_span) ty desc = { desc; ty; span; const = None }
 
 type tfunc_def = {
   key : Symbol.key;

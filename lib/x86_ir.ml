@@ -30,7 +30,7 @@ type instr =
   | Ret
   | Syscall
 
-let reg_index : reg -> int = function
+let reg_index = function
   | Rax -> 0
   | Rcx -> 1
   | Rdx -> 2
@@ -49,4 +49,4 @@ let reg_index : reg -> int = function
   | R15 -> 15
 
 (* Extended registers carry their fourth index bit in REX [1] *)
-let is_extended (register : reg) : bool = reg_index register > 7
+let is_extended register = reg_index register > 7
