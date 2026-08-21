@@ -291,14 +291,10 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           | Some import -> unreadable ?detail import headline
         in
         let missing headline = missing_with headline in
-        let load_units merged filenames =
-          match loaded merged filenames with
-          | module_id -> module_id
-          | exception Invalid_utf8 filename -> (
-              match imported_by with
-              | None -> raise (Invalid_utf8 filename)
-              | Some import -> unreadable import ("not valid UTF-8: " ^ filename)
-              )
+        let invalid_utf8 imported_by filename =
+          match imported_by with
+          | None -> raise (Invalid_utf8 filename)
+          | exception Invalid_utf8 filename -> invalid_utf8 imported_by filename
         in
         (* The root came off the command line so nothing beside it competes *)
         let located =
