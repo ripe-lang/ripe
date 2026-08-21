@@ -212,10 +212,6 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) =
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
 
-let path_owner (segs : (Ast.name * Ast.span) list) =
-  match List.rev segs with
-  | (fname, fspan) :: rest -> (Ast.path_expr (List.rev rest), fname, fspan)
-  | [] -> assert false
 
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at (env : env) (span : Ast.span) (fallback : string) =
@@ -695,8 +691,9 @@ and synth_desc (env : env) (e : expr) =
   | BinOp (op, l, r) -> synth_binop env op l r
   | Assign (base, l, r) -> synth_assign env base l r
   | UnOp (op, e) -> synth_unop env op e
-  | Path segs -> (
-      let inner_e, fname, fspan = path_owner segs in
+  | Path p -> (
+      let inner_e = Ast.owner_expr p in
+      let fname, fspan = p.member in
       match Resolve.sym_at_opt env.uses e.span with
       | Some s when s.Symbol.kind = Symbol.Error -> dummy_texpr
       | Some s

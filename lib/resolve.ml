@@ -312,14 +312,6 @@ let use_symbol st span sym =
   check_visibility st span sym;
   Span.Table.replace st.out.syms span sym
 
-let split_path (segs : (Ast.name * Ast.span) list) =
-  match List.rev segs with
-  | (member, _) :: rest -> (List.rev_map fst rest, member)
-  | [] -> assert false
-
-let drop_member (segs : (Ast.name * Ast.span) list) =
-  match List.rev segs with _ :: rest -> List.rev rest | [] -> []
-
 (* A nearer value binding wins so a local named math is not a module *)
 let find_module st path =
   match path with
@@ -376,8 +368,8 @@ let declare_param st p =
       Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
-let qualified_use st segs =
-  let module_path, member = split_path segs in
+let qualified_use st p =
+  let module_path, member = Ast.path_split p in
   match find_module st module_path with
   | None -> Local
   | Some scope -> (
@@ -385,8 +377,8 @@ let qualified_use st segs =
       | Some sym -> Found sym
       | None -> Missing (module_path, member))
 
-let use_qualified st ~what segs span =
-  match qualified_use st segs with
+let use_qualified st ~what p span =
+  match qualified_use st p with
   | Local -> false
   | Found sym ->
       use_symbol st span sym;
@@ -403,8 +395,7 @@ let use_qualified st ~what segs span =
       true
 
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name st segs span =
-  let path, name = split_path segs in
+let use_type_name st ~path ~name span =
   (* A nearer value wins so a local named str isn't the builtin type *)
   if List.is_empty path && lookup st name <> None then false
   else
@@ -414,21 +405,42 @@ let use_type_name st segs span =
         use_symbol st span sym;
         true
 
-let use_qualified_callee st segs span =
-  match qualified_use st segs with
+let use_qualified_callee st p span =
+  match qualified_use st p with
   | Local -> false
   | Found sym ->
       use_symbol st span sym;
       true
   | Missing _ ->
-      use_type_name st segs span || use_qualified st ~what:"function" segs span
+      let path, name = Ast.path_split p in
+      use_type_name st ~path ~name span
+      || use_qualified st ~what:"function" p span
 
-let rec resolve_path (st : state) (segs : (Ast.name * Ast.span) list)
-    (span : Ast.span) =
-  if not (use_qualified st ~what:"variable" segs span) then begin
-    let owner = drop_member segs in
-    let prefix = Ast.path_expr owner in
-    if not (use_type_name st owner prefix.span) then resolve_expr st prefix
+let resolve_missing_value_root st name span =
+  match find_type_in_chain st.scope name with
+  | Some _ -> false
+  | None ->
+      use st ~what:"variable" name span;
+      true
+
+let resolve_value_root st p =
+  let name, span = Nonempty.hd p.Ast.owner in
+  match lookup st name with
+  | Some { Symbol.kind = Symbol.Module; _ } -> false
+  | Some sym ->
+      use_symbol st span sym;
+      true
+  | None -> resolve_missing_value_root st name span
+
+let rec resolve_path st p span =
+  if
+    (not (use_qualified st ~what:"variable" p span))
+    && not (resolve_value_root st p)
+  then begin
+    let prefix = Ast.owner_expr p in
+    let init, (name, _) = Nonempty.destruct_last p.Ast.owner in
+    if not (use_type_name st ~path:(List.map fst init) ~name prefix.Ast.span)
+    then resolve_expr st prefix
   end
 
 and resolve_expr st e =
