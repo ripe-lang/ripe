@@ -111,10 +111,8 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(return"
       ^ (match e with Some e -> " " ^ dump_expr e | None -> "")
       ^ ")"
-  | Break (_, value) -> (
-      match value with
-      | Some e -> "(break " ^ dump_expr e ^ ")"
-      | None -> "(break)")
+  | Break (_, Some e) -> "(break " ^ dump_expr e ^ ")"
+  | Break (_, None) -> "(break)"
   | Continue _ -> "(continue)"
   | Match (scrutinee, arms) ->
       let arm (a : Ripe.Ast.arm) =

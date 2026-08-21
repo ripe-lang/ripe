@@ -240,16 +240,14 @@ let binop span op ~result_ty a b =
       let x = exact_of a and y = exact_of b in
       let test b = Some (VBool b) in
       let cmp = compare_exact x y in
-      match int_binop span op x y with
-      | Some e -> Some (retype result_ty e)
-      | None -> (
-          match op with
-          | Ast.Eq -> test (cmp = 0)
-          | Ast.Neq -> test (cmp <> 0)
-          | Ast.Lt -> test (cmp < 0)
-          | Ast.Gt -> test (cmp > 0)
-          | Ast.Lte -> test (cmp <= 0)
-          | Ast.Gte -> test (cmp >= 0)
-          | Ast.And -> test (x.magnitude <> 0L && y.magnitude <> 0L)
-          | Ast.Or -> test (x.magnitude <> 0L || y.magnitude <> 0L)
-          | _ -> None))
+      match (int_binop span op x y, op) with
+      | Some e, _ -> Some (retype result_ty e)
+      | None, Ast.Eq -> test (cmp = 0)
+      | None, Ast.Neq -> test (cmp <> 0)
+      | None, Ast.Lt -> test (cmp < 0)
+      | None, Ast.Gt -> test (cmp > 0)
+      | None, Ast.Lte -> test (cmp <= 0)
+      | None, Ast.Gte -> test (cmp >= 0)
+      | None, Ast.And -> test (x.magnitude <> 0L && y.magnitude <> 0L)
+      | None, Ast.Or -> test (x.magnitude <> 0L || y.magnitude <> 0L)
+      | None, _ -> None)
