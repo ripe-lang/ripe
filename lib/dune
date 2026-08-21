@@ -6,6 +6,7 @@
   target
   span
   interner
+  nonempty
   ast
   source_map
   diagnostic

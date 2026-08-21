@@ -91,7 +91,7 @@ type expr_desc =
   | RangeTo of expr
   | RangeToInclusive of expr
   | RangeFull
-  | Path of (name * span) list
+  | Path of path
   | FieldAccess of expr * name * span
   | BitCast of expr * typ
   | SizeOf of typ
@@ -114,6 +114,9 @@ type expr_desc =
 [@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
+
+(* This carries roots like math.Vec and value.field through every phase *)
+and path = { owner : (name * span) Nonempty.t; member : name * span }
 [@@deriving show { with_path = false }]
 
 and block = block_item list [@@deriving show { with_path = false }]
@@ -208,20 +211,22 @@ let show_path path = String.concat "." (List.map Interner.text path)
 
 let show_named path name = show_path (path @ [ name ])
 
-let path_expr (segs : (name * span) list) =
-  let rec last_span = function
-    | [ (_, span) ] -> span
-    | _ :: rest -> last_span rest
-    | [] -> assert false
-  in
-  match segs with
-  | [ (name, span) ] -> { desc = Ident name; span }
-  | (_, first) :: _ ->
-      {
-        desc = Path segs;
-        span = Span.make (Span.lo first) (Span.hi (last_span segs));
-      }
-  | [] -> assert false
+let path_expr p =
+  let _, first = Nonempty.hd p.owner in
+  let _, last = p.member in
+  { desc = Path p; span = Span.make (Span.lo first) (Span.hi last) }
+
+let owner_expr p =
+  match Nonempty.destruct_last p.owner with
+  | [], (name, span) -> { desc = Ident name; span }
+  | first :: rest, last ->
+      path_expr { owner = Nonempty.make first rest; member = last }
+
+let path_names p = List.map fst (Nonempty.to_list p.owner)
+
+let path_split p = (path_names p, fst p.member)
+
+let path_segments p = Nonempty.to_list p.owner @ [ p.member ]
 
 type global_def = {
   name : name;

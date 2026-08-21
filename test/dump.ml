@@ -62,7 +62,8 @@ and dump_expr (e : Ripe.Ast.expr) =
   | RangeTo r -> "(.. " ^ dump_expr r ^ ")"
   | RangeToInclusive r -> "(..= " ^ dump_expr r ^ ")"
   | RangeFull -> "(..)"
-  | Path segs ->
+  | Path p ->
+      let segs = Ripe.Ast.path_segments p in
       "(. "
       ^ String.concat " " (List.map (fun (n, _) -> Ripe.Interner.text n) segs)
       ^ ")"

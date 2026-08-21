@@ -20,5 +20,6 @@
   test_error
   test_mangle
   test_config
+  test_nonempty
   test_mir
   test_x86))

@@ -602,26 +602,30 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
       let name, name_span = expect_ident_span st in
       match lhs.desc with
       | Ident head ->
-          let rev = ref [ (name, name_span); (head, lhs.span) ] in
+          (* The member keeps sliding along so whatever is left owns it *)
+          let member = ref (name, name_span) in
+          let owner_rest = ref [] in
           while at st DOT do
             advance st;
-            rev := expect_ident_span st :: !rev
+            owner_rest := !member :: !owner_rest;
+            member := expect_ident_span st
           done;
-          let segs = List.rev !rev in
+          let path =
+            {
+              owner = Nonempty.make (head, lhs.span) (List.rev !owner_rest);
+              member = !member;
+            }
+          in
           if at st LBRACE && not no_struct_lit then begin
             advance st;
             let fields = parse_struct_lit_fields st in
             expect st RBRACE;
-            let base, module_path =
-              match !rev with
-              | (base, _) :: rest -> (base, List.rev_map fst rest)
-              | [] -> assert false
-            in
-            let path_span = (path_expr segs).span in
+            let base, _ = path.member in
+            let path_span = (path_expr path).span in
             continue_with
-              (mk lo st (StructLit (module_path, base, path_span, fields)))
+              (mk lo st (StructLit (path_names path, base, path_span, fields)))
           end
-          else continue_with (path_expr segs)
+          else continue_with (path_expr path)
       | _ -> continue_with (mk lo st (FieldAccess (lhs, name, name_span))))
   | LBRACKET ->
       advance st;
