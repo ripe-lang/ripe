@@ -451,8 +451,8 @@ func f(a: i32, b: i32) i32 {
         %2.field0 = copy %0
         %2.field1 = copy %1
         %3 = zero
-        %3.field0 = copy %0
         %3.field1 = copy %1
+        %3.field0 = copy %0
         %4 = copy %2.field0 + copy %3.field1
         return copy %4
     }
