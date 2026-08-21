@@ -1,0 +1,5 @@
+order 12
+written 2 1
+global 1 2
+partial 1 0 3
+exit: 0

@@ -1,0 +1,31 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+struct pair {
+  x: i32
+  y: i32
+}
+
+struct triple {
+  a: i32
+  b: i32
+  c: i32
+}
+
+var log: i32 = 0
+
+var reordered: pair = pair { y: 2, x: 1 }
+var partial: triple = triple { c: 3, a: 1 }
+
+func mark(v: i32) i32 {
+  log = log * 10 + v
+  return v
+}
+
+func main() i32 {
+  var written = pair { y: mark(1), x: mark(2) }
+  printf("order %d\n", log)
+  printf("written %d %d\n", written.x, written.y)
+  printf("global %d %d\n", reordered.x, reordered.y)
+  printf("partial %d %d %d\n", partial.a, partial.b, partial.c)
+  return 0
+}
