@@ -39,10 +39,11 @@ module Mir_const = struct
         GlobalAddress symbol.Symbol.link_name
     | S.TArrayLit values -> GlobalArray (List.map (global_init context) values)
     | S.TStructLit (_, fields) ->
+        let compare_field_ids (left, _) (right, _) = Int.compare left right in
         GlobalStruct
           (List.map
              (fun (field, value) -> (field, global_init context value))
-             fields)
+             (List.sort compare_field_ids fields))
     | _ -> (
         match expr.S.const with
         | Some value -> GlobalConst (constant_of_value value, expr.S.ty)

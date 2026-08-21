@@ -847,28 +847,37 @@ and synth_array_lit (env : env) (first : expr) (rest : expr list) =
 and named_fields (env : env) (info : struct_info)
     (inits : (Ast.name option * Ast.span * expr) list) =
   let seen = Hashtbl.create 4 in
-  let check_name (fname, fspan, _) =
+  let find_field fname =
+    List.find_mapi
+      (fun field_id (name, ft) ->
+        if name = fname then Some (field_id, ft) else None)
+      info.field_tys
+  in
+  let check_named_field (fname, fspan, e) =
     match fname with
-    | None -> ()
-    | Some fname ->
-        if not (List.mem_assoc fname info.field_tys) then
-          emit env (Diagnostic.error_at fspan "no field")
-        else if Hashtbl.mem seen fname then
-          emit env (Diagnostic.error_at fspan "duplicate field")
-        else Hashtbl.replace seen fname ()
+    | None -> None
+    | Some fname -> (
+        match find_field fname with
+        | None ->
+            emit env (Diagnostic.error_at fspan "no field");
+            None
+        | Some _ when Hashtbl.mem seen fname ->
+            emit env (Diagnostic.error_at fspan "duplicate field");
+            None
+        | Some (field_id, ft) ->
+            Hashtbl.replace seen fname ();
+            Some (field_id, check env e ft))
   in
-  List.iter check_name inits;
+  let written_fields = List.filter_map check_named_field inits in
   (* When you omit a fields they're 0 init *)
-  let field field_id (fname, ft) =
-    match
-      List.find_map
-        (fun (n, _, e) -> if n = Some fname then Some e else None)
-        inits
-    with
-    | Some e -> (field_id, check env e ft)
-    | None -> (field_id, T.mk ft T.TZero)
+  let default_field field_id (fname, ft) =
+    if Hashtbl.mem seen fname then None else Some (field_id, T.mk ft T.TZero)
   in
-  List.mapi field info.field_tys
+  (* This keeps field values in the order they appear meaning pair { y: mark(1), x: mark(2) } runs mark(1) first *)
+  written_fields
+  @ List.filter_map
+      (fun (field_id, field) -> default_field field_id field)
+      (List.mapi (fun field_id field -> (field_id, field)) info.field_tys)
 
 (* Every field in a positional argument has to be defined because of the order *)
 and positional_fields (env : env) (span : Ast.span) (info : struct_info)

@@ -1011,9 +1011,24 @@ let emit_mir ~source_of (program : Mir.program) =
       str_ctr = ref 0;
     }
   in
+  (* The QBE format requires member structs before containing structs *)
+  let emitted = Symbol.Table.create (List.length program.Mir.structs) in
+  let rec emit_struct (name : Qname.t) =
+    let key = Qname.key name in
+    if not (Symbol.Table.mem emitted key) then begin
+      Symbol.Table.add emitted key ();
+      let fields = Symbol.Table.find ctx.structs key in
+      List.iter emit_dependencies fields;
+      emit_struct_type ctx name fields
+    end
+  and emit_dependencies field_ty =
+    match resolve_ty field_ty with
+    | TStruct (name, _) -> emit_struct name
+    | TArray (element, _) -> emit_dependencies element
+    | _ -> ()
+  in
   List.iter
-    (fun (decl : Mir.struct_decl) ->
-      emit_struct_type ctx decl.Mir.name decl.Mir.fields)
+    (fun (decl : Mir.struct_decl) -> emit_struct decl.Mir.name)
     program.Mir.structs;
   if not (List.is_empty program.Mir.structs) then emit ctx "\n";
   let types_end = Buffer.length !(ctx.buf) in
