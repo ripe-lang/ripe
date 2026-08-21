@@ -43,13 +43,13 @@ let secondary span message d =
 let add_note n d = { d with notes = d.notes @ [ n ] }
 let detail s d = { d with detail = Some s }
 let help s d = { d with suggestion = Some s }
-let error_at (span : Ast.span) (msg : string) : t = error msg |> at span
+let error_at (span : Ast.span) (msg : string) = error msg |> at span
 
 (* Where a pass dumps diagnostics and the edge drains it to render *)
 type sink = t list ref
 
-let sink () : sink = ref []
-let emit (s : sink) (d : t) : unit = s := d :: !s
+let sink () = ref []
+let emit (s : sink) (d : t) = s := d :: !s
 let emit_error_at (s : sink) span msg = emit s (error_at span msg)
 let emit_warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
@@ -242,7 +242,7 @@ let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) =
 
 let render (ctx : ctx) (d : t) = render_with (fun _ -> ctx) ctx d
 
-let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) : t =
+let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) =
   error "type mismatch" |> at span
   |> label (Printf.sprintf "expected %s, found %s" expected found)
 

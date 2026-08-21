@@ -155,7 +155,7 @@ let float_kind_of t =
 let div_int_needs_check t =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
 
-let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
+let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -181,7 +181,7 @@ let rec ty_align (structs : ty list Symbol.Table.t) (t : ty) : int =
 (* `n` and `a` MUST be non-negative *)
 let align_to n a = Int.cdiv n a * a
 
-let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
+let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) =
   match resolve_ty t with
   | TInt k -> int_kind_size k
   | TFloat k -> float_kind_size k
@@ -208,7 +208,7 @@ let rec ty_size (structs : ty list Symbol.Table.t) (t : ty) : int =
 
 (* Walking one past the last index gives where the whole thing ends *)
 and field_offset (structs : ty list Symbol.Table.t) (fields : ty list)
-    (index : int) : int =
+    (index : int) =
   let rec go i off = function
     | [] ->
         if i = index then off
@@ -220,7 +220,7 @@ and field_offset (structs : ty list Symbol.Table.t) (fields : ty list)
   go 0 0 fields
 
 (* The number of bytes from one element to the next after round the alignment *)
-and stride (structs : ty list Symbol.Table.t) (elem : ty) : int =
+and stride (structs : ty list Symbol.Table.t) (elem : ty) =
   align_to (ty_size structs elem) (ty_align structs elem)
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)

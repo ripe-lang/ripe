@@ -208,7 +208,7 @@ let show_path path = String.concat "." (List.map Interner.text path)
 
 let show_named path name = show_path (path @ [ name ])
 
-let path_expr (segs : (name * span) list) : expr =
+let path_expr (segs : (name * span) list) =
   let rec last_span = function
     | [ (_, span) ] -> span
     | _ :: rest -> last_span rest

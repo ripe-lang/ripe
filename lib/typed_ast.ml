@@ -94,7 +94,6 @@ type tdecl =
   | TLocalStruct of Qname.t * ty list
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
-  (* The alias has already been replaced in every runtime type *)
   | TTypeAlias of Qname.t * ty
   (* An enum is an integer at runtime so nothing past here needs its variants *)
   | TEnum of Qname.t

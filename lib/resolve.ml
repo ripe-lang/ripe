@@ -6,8 +6,8 @@ open Ast
 module Names = Hashtbl.Make (struct
   type t = Ast.name
 
-  let equal (a : t) (b : t) : bool = a = b
-  let hash (t : t) : int = t
+  let equal (a : t) (b : t) = a = b
+  let hash (t : t) = t
 end)
 
 type namespace = Symbol.t Names.t
@@ -100,7 +100,7 @@ let make_output ~source_bytes modules =
 let dump r =
   let entries =
     Span.Table.to_seq r.syms |> List.of_seq
-    |> List.sort (fun (a, _) (b, _) -> Span.compare a b)
+    |> List.sort (fun (a, _) (b, _) -> compare a b)
     |> List.map (fun (sp, s) ->
         Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
           (s.Symbol.module_id :> int)
@@ -175,7 +175,7 @@ let declaration_link_name st kind name =
     | _ -> Mangle.declaration st.module_path text
 
 let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
-    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) : Symbol.t =
+    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) =
   let id = st.next_id in
   st.next_id <- id + 1;
   let link_name = Option.value ~default:(Interner.text name) link_name in
@@ -207,7 +207,7 @@ let declare_local (st : state) kind name span : unit =
 
 let declare_in ?link_name ?name_span (table : namespace) (st : state)
     (kind : Symbol.kind) (visibility : Symbol.visibility) (name : Ast.name)
-    (span : Ast.span) : unit =
+    (span : Ast.span) =
   match Names.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
@@ -238,23 +238,23 @@ let declare_local_func st name span =
   declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private name
     span
 
-let rec find_type_in_chain (scope : scope) (name : Ast.name) : Symbol.t option =
+let rec find_type_in_chain (scope : scope) (name : Ast.name) =
   match Names.find_opt scope.types name with
   | Some sym -> Some sym
   | None ->
       Option.bind scope.parent (fun parent -> find_type_in_chain parent name)
 
-let value_or_item (scope : scope) (name : Ast.name) : Symbol.t option =
+let value_or_item (scope : scope) (name : Ast.name) =
   match Names.find_opt scope.values name with
   | Some sym -> Some sym
   | None -> Names.find_opt scope.items name
 
-let rec find_value (scope : scope) (name : Ast.name) : Symbol.t option =
+let rec find_value (scope : scope) (name : Ast.name) =
   match value_or_item scope name with
   | Some sym -> Some sym
   | None -> Option.bind scope.parent (fun parent -> find_value parent name)
 
-let is_item_value (sym : Symbol.t) : bool =
+let is_item_value (sym : Symbol.t) =
   match sym.Symbol.kind with
   | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
   | Symbol.Module ->
@@ -273,7 +273,7 @@ let rec find_item_value scope name =
       | None ->
           Option.bind scope.parent (fun parent -> find_item_value parent name))
 
-let boundary_value boundary scope name =
+let rec find_before_boundary boundary scope name =
   if scope == boundary then find_item_value boundary name
   else
     match value_or_item scope name with
@@ -312,13 +312,12 @@ let use_symbol st span sym =
   check_visibility st span sym;
   Span.Table.replace st.out.syms span sym
 
-let split_path (segs : (Ast.name * Ast.span) list) : Ast.name list * Ast.name =
+let split_path (segs : (Ast.name * Ast.span) list) =
   match List.rev segs with
   | (member, _) :: rest -> (List.rev_map fst rest, member)
   | [] -> assert false
 
-let drop_member (segs : (Ast.name * Ast.span) list) : (Ast.name * Ast.span) list
-    =
+let drop_member (segs : (Ast.name * Ast.span) list) =
   match List.rev segs with _ :: rest -> List.rev rest | [] -> []
 
 (* A nearer value binding wins so a local named math is not a module *)
@@ -377,8 +376,8 @@ let declare_param st p =
       Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param p.param_name p.param_span
 
-let qualified_use st p =
-  let module_path, member = split_path p in
+let qualified_use st segs =
+  let module_path, member = split_path segs in
   match find_module st module_path with
   | None -> Local
   | Some scope -> (
@@ -386,8 +385,8 @@ let qualified_use st p =
       | Some sym -> Found sym
       | None -> Missing (module_path, member))
 
-let use_qualified st ~what p span =
-  match qualified_use st p with
+let use_qualified st ~what segs span =
+  match qualified_use st segs with
   | Local -> false
   | Found sym ->
       use_symbol st span sym;
@@ -404,7 +403,8 @@ let use_qualified st ~what p span =
       true
 
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name st ~path ~name span =
+let use_type_name st segs span =
+  let path, name = split_path segs in
   (* A nearer value wins so a local named str isn't the builtin type *)
   if List.is_empty path && lookup st name <> None then false
   else
@@ -414,8 +414,8 @@ let use_type_name st ~path ~name span =
         use_symbol st span sym;
         true
 
-let use_qualified_callee st p span =
-  match qualified_use st p with
+let use_qualified_callee st segs span =
+  match qualified_use st segs with
   | Local -> false
   | Found sym ->
       use_symbol st span sym;
@@ -424,7 +424,7 @@ let use_qualified_callee st p span =
       use_type_name st segs span || use_qualified st ~what:"function" segs span
 
 let rec resolve_path (st : state) (segs : (Ast.name * Ast.span) list)
-    (span : Ast.span) : unit =
+    (span : Ast.span) =
   if not (use_qualified st ~what:"variable" segs span) then begin
     let owner = drop_member segs in
     let prefix = Ast.path_expr owner in
@@ -505,7 +505,7 @@ and resolve_expr st e =
   | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
-and resolve_arm (st : state) (a : arm) : unit =
+and resolve_arm (st : state) (a : arm) =
   push_scope st;
   resolve_pattern st a.pat;
   resolve_block_contents st a.arm_body.value;
@@ -557,12 +557,12 @@ and resolve_block_contents st body =
   List.iter (function Expr _ -> () | Decl d -> declare_block_item st d) body;
   List.iter (resolve_block_item st) body
 
-and resolve_block (st : state) (body : block) : unit =
+and resolve_block (st : state) (body : block) =
   push_scope st;
   resolve_block_contents st body;
   pop_scope st
 
-and resolve_func (st : state) (fd : func_def) : unit =
+and resolve_func (st : state) (fd : func_def) =
   push_scope st;
   List.iter
     (fun (p : param) ->
@@ -573,14 +573,14 @@ and resolve_func (st : state) (fd : func_def) : unit =
   resolve_block_contents st fd.body;
   pop_scope st
 
-and resolve_local_func (st : state) (fd : func_def) : unit =
+and resolve_local_func (st : state) (fd : func_def) =
   let outer = st.scope in
   let saved_boundary = st.value_boundary in
   st.value_boundary <- Some outer;
   resolve_func st fd;
   st.value_boundary <- saved_boundary
 
-and resolve_decl (st : state) : decl -> unit = function
+and resolve_decl (st : state) = function
   | Func fd | Extern fd -> resolve_func st fd
   | Global gd ->
       Option.iter (resolve_typ st) gd.typ;

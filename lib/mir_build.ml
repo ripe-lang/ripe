@@ -229,7 +229,7 @@ end
 
 module Mir_op = struct
   (* Source operators that survive lowering keep their meaning and the rest are gone by now *)
-  let unop (op : Ast.unop) : Mir.unop =
+  let unop (op : Ast.unop) =
     match op with
     | Ast.Neg -> Mir.Neg
     | Ast.Not -> Mir.Not
@@ -238,7 +238,7 @@ module Mir_op = struct
     | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
     | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
-  let binop (op : Ast.binop) : Mir.binop =
+  let binop (op : Ast.binop) =
     match op with
     | Ast.Add -> Mir.Add
     | Ast.Sub -> Mir.Sub
@@ -1155,7 +1155,6 @@ let build (declarations : S.tdecl list) =
           Hashtbl.add globals_by_id global.S.key global.S.name;
           globals_rev := global :: !globals_rev
       | S.TFunc func -> functions_rev := func :: !functions_rev
-      (* The MIR keeps only declarations needed to execute code *)
       | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
     declarations;
   let structs = List.rev !structs_rev in

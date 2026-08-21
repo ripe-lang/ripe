@@ -39,9 +39,9 @@ let id_mask = 0xFFFF_FFFF
 
 let make_key module_id id = (module_id lsl id_bits) lor (id land id_mask)
 
-let key (symbol : t) : key = make_key symbol.module_id symbol.id
-let module_id_of_key (key : key) : module_id = key asr id_bits
-let id_of_key (key : key) : id = key land id_mask
+let key (symbol : t) = make_key symbol.module_id symbol.id
+let module_id_of_key (key : key) = key asr id_bits
+let id_of_key (key : key) = key land id_mask
 
 module Table = Hashtbl.Make (struct
   type t = key
@@ -52,7 +52,7 @@ module Table = Hashtbl.Make (struct
   let hash key = key lxor (key asr id_bits)
 end)
 
-let prelude_module_id : module_id = -2
+let prelude_module_id = -2
 
 let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 

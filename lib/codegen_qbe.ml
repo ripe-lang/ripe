@@ -8,7 +8,6 @@ type qbe_scalar = B | H | W | L | S | D
 let qbe_scalar (t : ty) =
   match resolve_ty t with
   | TBool -> B
-  (* The enum name has no separate QBE representation *)
   | TChar | TEnum _ -> W
   | TInt k -> ( match int_kind_size k with 1 -> B | 2 -> H | 4 -> W | _ -> L)
   | TFloat F32 -> S
@@ -42,8 +41,7 @@ let qbe_ty (t : ty) =
 let signedness (t : ty) =
   match resolve_ty t with
   | TPointer _ | TOpaquePtr | TNull | TCStr | TChar | TBool -> "u"
-  | TInt k -> if int_kind_unsigned k then "u" else "s"
-  | _ -> "s"
+  | t -> if is_unsigned t then "u" else "s"
 
 (* This is the hard limit where libc call stops emitting one instruction per word *)
 let bulk_mem_threshold = 64
@@ -59,7 +57,7 @@ let float_lit (ty : ty) (f : float) =
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
-let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) : string =
+let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) =
   match ty_align structs t with
   | 1 | 2 | 4 -> "alloc4"
   | 8 -> "alloc8"
