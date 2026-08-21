@@ -1084,7 +1084,7 @@ end
 module S = Typed_ast
 module B = Mir_builder
 
-let build_func const_context globals (func : S.tfunc_def) : Mir.func =
+let build_func const_context globals (func : S.tfunc_def) =
   let state =
     B.make ~const_context ~globals ~recur:Mir_expr.recur
       ~bare_return_zero:
@@ -1139,7 +1139,7 @@ let build_func const_context globals (func : S.tfunc_def) : Mir.func =
     span;
   }
 
-let build (declarations : S.tdecl list) : Mir.program =
+let build (declarations : S.tdecl list) =
   let globals_by_id = Hashtbl.create 16 in
   let structs_rev = ref [] in
   let globals_rev = ref [] in
@@ -1155,6 +1155,7 @@ let build (declarations : S.tdecl list) : Mir.program =
           Hashtbl.add globals_by_id global.S.key global.S.name;
           globals_rev := global :: !globals_rev
       | S.TFunc func -> functions_rev := func :: !functions_rev
+      (* The MIR keeps only declarations needed to execute code *)
       | S.TGlobal _ | S.TExtern _ | S.TTypeAlias _ | S.TEnum _ -> ())
     declarations;
   let structs = List.rev !structs_rev in
