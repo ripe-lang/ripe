@@ -309,6 +309,15 @@ let rec report_const_range (env : env) (te : T.texpr) =
 let tblock_ty (tb : T.tblock) =
   match List.rev tb with te :: _ -> te.T.ty | [] -> TUnit
 
+let if_result_ty (tbranches : (T.texpr * T.tblock) list)
+    (telse : T.tblock option) ~(fallback_ty : ty) =
+  let diverges tb = tblock_ty tb = TNever in
+  match telse with
+  | Some tb
+    when diverges tb && List.for_all (fun (_, tb) -> diverges tb) tbranches ->
+      TNever
+  | _ -> fallback_ty
+
 (* A literal or diverging tail bends to a sibling so it can't anchor the type *)
 let rec arm_is_flexible (e : expr) =
   match e.desc with
@@ -1156,16 +1165,7 @@ and check_if_discarded (env : env) (span : Ast.span)
       branches
   in
   let telse = Option.map (fun { Ast.value = body; _ } -> arm body) else_body in
-  let arm_tys =
-    (match telse with Some tb -> [ tblock_ty tb ] | None -> [])
-    @ List.map (fun (_, tb) -> tblock_ty tb) tbranches
-  in
-  (* Every arm diverges so whatever follows is unreachable *)
-  let ty =
-    if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys then
-      TNever
-    else TUnit
-  in
+  let ty = if_result_ty tbranches telse ~fallback_ty:TUnit in
   T.mk ty (T.TIf (tbranches, telse))
 
 (* One if handles both a value and a plain statement and want None means synthesize *)
@@ -1204,16 +1204,7 @@ and check_if (env : env) (span : Ast.span)
                    ~found:(show_ty env TUnit));
             None
       in
-      let arm_tys =
-        (match telse with Some tb -> [ tblock_ty tb ] | None -> [])
-        @ List.map (fun (_, tb) -> tblock_ty tb) tbranches
-      in
-      (* Every arm diverges so the whole if yields no value *)
-      let ty =
-        if Option.is_some telse && List.for_all (fun t -> t = TNever) arm_tys
-        then TNever
-        else w
-      in
+      let ty = if_result_ty tbranches telse ~fallback_ty:w in
       T.mk ty (T.TIf (tbranches, telse))
 
 (* A binding lands in the scope of the arm so the env comes back out *)
