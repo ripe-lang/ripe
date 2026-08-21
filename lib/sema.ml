@@ -212,7 +212,6 @@ let qname_at (env : env) (span : Ast.span) (fallback : string) =
   | Some symbol -> Resolve.qname_of env.uses symbol
   | None -> Qname.unresolved fallback
 
-
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at (env : env) (span : Ast.span) (fallback : string) =
   match Resolve.sym_at_opt env.uses span with
