@@ -17,7 +17,7 @@ type t = {
 exception Errors of t list
 
 type sink = t list ref
-type ctx = { sm : Source_map.t; filename : string; color : bool }
+type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
 val error : string -> t
 val warning : string -> t

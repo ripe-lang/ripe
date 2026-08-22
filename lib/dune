@@ -8,11 +8,11 @@
   interner
   nonempty
   ast
-  source_map
+  sourcemap
   diagnostic
   tokens
   lexer
-  bracket_check
+  bracketcheck
   parser
   symbol
   program
@@ -20,22 +20,22 @@
   mangle
   types
   resolve
-  ty_pred
+  typred
   reachability
   sema
-  typed_ast
+  typedast
   mir
   mir_verify
   mir_dump
   mir_build
   constant
-  codegen_qbe
+  codegenqbe
   x86_ir
   x86_encode
   elf64
-  codegen_x86
-  ripe_sites
-  panic_table
+  codegenx86
+  ripesites
+  panictable
   driver)
  (libraries unix dune-site)
  (preprocess
@@ -47,7 +47,7 @@
    (:standard -w +a-4-42-70 -warn-error +a-4-30-42-70))))
 
 (generate_sites_module
- (module ripe_sites)
+ (module ripesites)
  (sites ripe))
 
 (ocamllex

@@ -1166,14 +1166,14 @@ let stream read lexbuf diags =
         next ()
     | t, sp, line -> (
         let info = { token = t; span = sp; line; depth = !depth } in
-        match Bracket_check.step diags !stack t sp with
-        | Bracket_check.End -> info
-        | Bracket_check.Closed rest ->
+        match Bracketcheck.step diags !stack t sp with
+        | Bracketcheck.End -> info
+        | Bracketcheck.Closed rest ->
             stack := rest;
             decr depth;
             info
-        | Bracket_check.Stray | Bracket_check.Other -> info
-        | Bracket_check.Open opener ->
+        | Bracketcheck.Stray | Bracketcheck.Other -> info
+        | Bracketcheck.Open opener ->
             stack := (opener, sp) :: !stack;
             incr depth;
             info)

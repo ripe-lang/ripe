@@ -77,7 +77,7 @@ let qbe_store (t : ty) = "store" ^ scalar_letter (qbe_scalar t)
 type ctx = {
   structs : ty list Symbol.Table.t;
   struct_names : string Symbol.Table.t;
-  panics : Panic_table.t;
+  panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
   buf : Buffer.t ref;
   strings : (string * string) list ref;
@@ -687,7 +687,7 @@ let emit_mir_check_condition mctx = function
 
 let emit_mir_panic mctx span check =
   let ctx = mctx.qbe in
-  let site = Panic_table.record ctx.panics span in
+  let site = Panictable.record ctx.panics span in
   (match check with
   | Mir.Bounds (index, length) ->
       emit ctx "call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
@@ -850,7 +850,7 @@ let bind_mir_locals (ctx : ctx) (func : Mir.func) =
     func.Mir.locals
 
 let emit_mir_func ctx global_types (func : Mir.func) =
-  Panic_table.enter_func ctx.panics func.Mir.source_name;
+  Panictable.enter_func ctx.panics func.Mir.source_name;
   ctx.tmp := 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
@@ -998,7 +998,7 @@ let emit_mir ~source_of (program : Mir.program) =
     {
       structs;
       struct_names;
-      panics = Panic_table.create ~source_of;
+      panics = Panictable.create ~source_of;
       used_slots = Hashtbl.create 16;
       buf = ref (Buffer.create 1024);
       strings = ref [];
@@ -1036,16 +1036,16 @@ let emit_mir ~source_of (program : Mir.program) =
   if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
   (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
-  (match Panic_table.sites ctx.panics with
+  (match Panictable.sites ctx.panics with
   | [] -> ()
   | sites ->
       let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
-      let entry (site : Panic_table.site) =
-        Printf.sprintf "w %d, w %d, w %d, w %d" site.Panic_table.file
-          site.Panic_table.line site.Panic_table.col site.Panic_table.func
+      let entry (site : Panictable.site) =
+        Printf.sprintf "w %d, w %d, w %d, w %d" site.Panictable.file
+          site.Panictable.line site.Panictable.col site.Panictable.func
       in
       emit ctx "export data $ripe_panic_strtab = { %s }\n"
-        (String.concat ", " (List.map chunk (Panic_table.strings ctx.panics)));
+        (String.concat ", " (List.map chunk (Panictable.strings ctx.panics)));
       emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
         (String.concat ", " (List.map entry sites)));
   List.iter

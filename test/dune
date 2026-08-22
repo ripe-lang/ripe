@@ -5,7 +5,7 @@
  (preprocess
   (pps ppx_expect ppx_inline_test))
  (modules
-  span_utils
+  spanutils
   diag
   dump
   pipeline

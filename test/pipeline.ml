@@ -62,7 +62,7 @@ let mir_src src =
   Ripe.Mir_verify.verify program;
   program
 
-let source_of_src src _ = ("<test>", Ripe.Source_map.create ~base:0 src)
+let source_of_src src _ = ("<test>", Ripe.Sourcemap.create ~base:0 src)
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
@@ -81,7 +81,7 @@ let check_qbe il =
     let ic = open_in err in
     (try
        while true do
-         print_endline (Span_utils.replace (input_line ic) ssa "<il>")
+         print_endline (Spanutils.replace (input_line ic) ssa "<il>")
        done
      with End_of_file -> ());
     close_in ic;
@@ -118,7 +118,7 @@ let run_src src =
 let run_codegen src =
   try
     let il =
-      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+      Ripe.Codegenqbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
     in
     print_string il;
     check_qbe il
@@ -127,7 +127,7 @@ let run_codegen src =
 let run_codegen_ok src =
   try
     let il =
-      Ripe.Codegen_qbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+      Ripe.Codegenqbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
     in
     check_qbe il;
     print_endline "ok"

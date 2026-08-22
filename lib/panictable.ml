@@ -6,7 +6,7 @@ type site = { file : int; line : int; col : int; func : int }
 
 type t = {
   (* Offsets are global so a check inside an import lands on that file *)
-  source_of : int -> string * Source_map.t;
+  source_of : int -> string * Sourcemap.t;
   mutable cur_func : string;
   (* Both lists stay reversed until they're emitted *)
   mutable strings : string list;
@@ -49,7 +49,7 @@ let record t span =
   if String.is_empty t.cur_func then
     Diagnostic.ice "runtime check outside a function";
   let filename, sm = t.source_of (Span.lo span) in
-  let line, col = Source_map.lookup sm (Span.lo span) in
+  let line, col = Sourcemap.lookup sm (Span.lo span) in
   let site =
     { file = intern t filename; line; col; func = intern t t.cur_func }
   in
