@@ -158,7 +158,7 @@ let show_program (program : Program.t) =
   |> String.concat ""
 
 let show_tdecls tdecls =
-  String.concat "\n" (List.map Typed_ast.show_tdecl tdecls) ^ "\n"
+  String.concat "\n" (List.map Typedast.show_tdecl tdecls) ^ "\n"
 
 let line_counts program =
   let count_processed_lines text =
@@ -185,9 +185,9 @@ let line_counts program =
       List.iter
         (fun (unit_ : Program.unit_) ->
           let source_map = unit_.Program.source.Program.source_map in
-          let source = Source_map.src source_map in
+          let source = Sourcemap.src source_map in
           let source_processed = count_processed_lines source in
-          let source_all = Source_map.line_count source_map in
+          let source_all = Sourcemap.line_count source_map in
           processed := !processed + source_processed;
           all := !all + source_all)
         module_.Program.units)
@@ -242,7 +242,7 @@ let render_program program diags =
 let check_has_main diags tdecls =
   let is_main decl =
     match decl with
-    | Typed_ast.TFunc fd -> fd.Typed_ast.entry_point
+    | Typedast.TFunc fd -> fd.Typedast.entry_point
     | _ -> false
   in
   if not (List.exists is_main tdecls) then
@@ -362,7 +362,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
 
     match backend with
     | Backend.X86 ->
-        let object_bytes = Codegen_x86.emit_mir ~source_of mir in
+        let object_bytes = Codegenx86.emit_mir ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
         stop_at Obj (fun () -> output_bytes object_bytes);
 
@@ -373,7 +373,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
           ~compiler_time:(frontend_time +. codegen_time)
           ~link_time
     | Backend.Qbe ->
-        let il = Codegen_qbe.emit_mir ~source_of mir in
+        let il = Codegenqbe.emit_mir ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
 
         stop_at Qbe (fun () -> output_text il);
@@ -387,7 +387,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
           ~link_time
   with
   | Exit -> ()
-  | Codegen_x86.Unsupported msg -> die msg
+  | Codegenx86.Unsupported msg -> die msg
   | Diagnostic.Errors ds ->
       render_program program ds;
       exit 1

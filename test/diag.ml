@@ -2,7 +2,7 @@
 
 let ctx src =
   {
-    Ripe.Diagnostic.sm = Ripe.Source_map.create ~base:0 src;
+    Ripe.Diagnostic.sm = Ripe.Sourcemap.create ~base:0 src;
     filename = "<test>";
     color = false;
   }

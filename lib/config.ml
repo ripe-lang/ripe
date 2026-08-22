@@ -81,7 +81,7 @@ let linker = resolve_tool ~environment:"RIPE_CC" ~bundled:"cc" ~fallback:"cc" ()
 
 (* An installed compiler finds the object through its dune install site *)
 let runtime_in_sites () =
-  List.map (fun dir -> Filename.concat dir "panic.o") Ripe_sites.Sites.runtime
+  List.map (fun dir -> Filename.concat dir "panic.o") Ripesites.Sites.runtime
 
 (* A fresh build has no install site so look beside the binary *)
 let runtime_near_exe () =

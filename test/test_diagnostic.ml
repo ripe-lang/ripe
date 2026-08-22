@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 open Ripe
-open Span_utils
+open Spanutils
 open Diag
 
 let%expect_test "single caret from a zero-width span" =

@@ -667,7 +667,7 @@ let resolve_program ~diags program =
         List.fold_left
           (fun total u ->
             total
-            + String.length (Source_map.src u.Program.source.Program.source_map))
+            + String.length (Sourcemap.src u.Program.source.Program.source_map))
           total m.Program.units)
       0 program.Program.modules
   in

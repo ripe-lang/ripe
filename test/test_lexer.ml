@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-open Span_utils
+open Spanutils
 open Dump
 
 let%expect_test "lexer: semicolon inserted after expression newline" =

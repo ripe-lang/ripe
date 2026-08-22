@@ -2,8 +2,8 @@
 
 open Ast
 open Types
-open Ty_pred
-module T = Typed_ast
+open Typred
+module T = Typedast
 
 type func_sig = {
   param_tys : ty list;

@@ -160,7 +160,7 @@ let verify (program : Mir.program) =
           let destination_ty = place destination in
           let assigned_ty = value assigned in
           match destination_ty with
-          | Some ty when not (Ty_pred.compatible ty assigned_ty) ->
+          | Some ty when not (Typred.compatible ty assigned_ty) ->
               add span
                 (Printf.sprintf "assignment stores %s in %s"
                    (show_ty assigned_ty) (show_ty ty))
@@ -230,7 +230,7 @@ let verify (program : Mir.program) =
               add span "unit function returns a runtime value"
           | return_ty, Some value ->
               ignore (operand value);
-              if not (Ty_pred.compatible return_ty value.ty) then
+              if not (Typred.compatible return_ty value.ty) then
                 add span
                   (Printf.sprintf "return has type %s but function returns %s"
                      (show_ty value.ty) (show_ty return_ty))

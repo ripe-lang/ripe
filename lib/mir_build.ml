@@ -3,7 +3,7 @@
 module Mir_const = struct
   open Types
   open Mir
-  module S = Typed_ast
+  module S = Typedast
 
   type context = { structs : ty list Symbol.Table.t }
 
@@ -54,7 +54,7 @@ end
 
 module Mir_builder = struct
   open Mir
-  module S = Typed_ast
+  module S = Typedast
 
   type open_block = {
     mutable statements : statement list;
@@ -304,7 +304,7 @@ end
 module Mir_control = struct
   open Types
   open Mir
-  module S = Typed_ast
+  module S = Typedast
   module B = Mir_builder
 
   let lower_expr state expr = state.B.recur.B.expr state expr
@@ -612,7 +612,7 @@ end
 module Mir_expr = struct
   open Types
   open Mir
-  module S = Typed_ast
+  module S = Typedast
   module B = Mir_builder
 
   (* INT_MIN / -1 wraps back to INT_MIN and INT_MIN % -1 is 0 so a -1 divisor skips the divide *)
@@ -1082,7 +1082,7 @@ module Mir_expr = struct
   let recur : B.recur = { B.expr = lower_expr; B.statement = lower_statement }
 end
 
-module S = Typed_ast
+module S = Typedast
 module B = Mir_builder
 
 let build_func const_context globals (func : S.tfunc_def) =

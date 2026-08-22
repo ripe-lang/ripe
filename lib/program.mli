@@ -6,7 +6,7 @@ exception Source_too_large of string
 type source = {
   base : int; (* Where this file starts in the global offset space *)
   filename : string;
-  source_map : Source_map.t;
+  source_map : Sourcemap.t;
 }
 
 type unit_ = { source : source; ast : Ast.module_ }

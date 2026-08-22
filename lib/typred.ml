@@ -2,7 +2,7 @@
 
 open Ast
 open Types
-module T = Typed_ast
+module T = Typedast
 
 (* Types need exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)

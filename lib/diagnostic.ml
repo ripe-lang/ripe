@@ -68,7 +68,7 @@ let take (s : sink) =
 
 (* Rendering *)
 
-type ctx = { sm : Source_map.t; filename : string; color : bool }
+type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
 let tab_width = 8
 
@@ -113,10 +113,10 @@ let visual_col src line_start pos =
   !col
 
 let render_location ctx buf (span : Ast.span) =
-  let line, _ = Source_map.lookup ctx.sm (Span.lo span) in
-  let src = Source_map.src ctx.sm in
-  let lo = Source_map.rel ctx.sm (Span.lo span) in
-  let line_start, _ = Source_map.line_bounds ctx.sm (Span.lo span) in
+  let line, _ = Sourcemap.lookup ctx.sm (Span.lo span) in
+  let src = Sourcemap.src ctx.sm in
+  let lo = Sourcemap.rel ctx.sm (Span.lo span) in
+  let line_start, _ = Sourcemap.line_bounds ctx.sm (Span.lo span) in
   let col = visual_col src line_start lo + 1 in
   Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line col
 
@@ -171,9 +171,9 @@ let window_of (cells : string Dynarray.t) caret_lo =
 
 (* Offsets here index into the raw source so they have to be file relative *)
 let render_snippet ctx buf (span : Ast.span) label severity =
-  let src = Source_map.src ctx.sm in
-  let lo = Source_map.rel ctx.sm (Span.lo span) in
-  let line_start, line_end = Source_map.line_bounds ctx.sm (Span.lo span) in
+  let src = Sourcemap.src ctx.sm in
+  let lo = Sourcemap.rel ctx.sm (Span.lo span) in
+  let line_start, line_end = Sourcemap.line_bounds ctx.sm (Span.lo span) in
   let cells = cells_of_line src line_start line_end in
   let caret_lo = visual_col src line_start lo in
   let shown, offset = window_of cells caret_lo in
@@ -183,7 +183,7 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   Buffer.add_string buf (String.make snippet_indent ' ');
   let pad = caret_lo - offset in
   Buffer.add_string buf (String.make pad ' ');
-  let hi = min (Source_map.rel ctx.sm (Span.hi span)) line_end in
+  let hi = min (Sourcemap.rel ctx.sm (Span.hi span)) line_end in
   let markers =
     if hi <= lo then "^"
     else

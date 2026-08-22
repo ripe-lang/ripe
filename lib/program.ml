@@ -6,7 +6,7 @@ exception Source_too_large of string
 type source = {
   base : int; (* Where this file starts in the global offset space *)
   filename : string;
-  source_map : Source_map.t;
+  source_map : Sourcemap.t;
 }
 
 type unit_ = { source : source; ast : Ast.module_ }
@@ -35,7 +35,7 @@ let empty_ast = { Ast.header = None; imports = []; decls = [] }
 
 let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
     (src : string) =
-  let source = { base; filename; source_map = Source_map.create ~base src } in
+  let source = { base; filename; source_map = Sourcemap.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state base) in
   (* The bracket error is already in the sink so the payload would double it *)
@@ -251,7 +251,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
           let filename = file_of_path source_root path in
           let base = fresh_base filename 0 in
           let source =
-            { base; filename; source_map = Source_map.create ~base "" }
+            { base; filename; source_map = Sourcemap.create ~base "" }
           in
           record ~failed:true [ { source; ast = empty_ast } ] []
         in

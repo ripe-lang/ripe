@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-open Span_utils
+open Spanutils
 open Pipeline
 
 let%expect_test "typecheck: break outside loop" =
