@@ -192,14 +192,11 @@ let lookup_var_opt (env : env) (span : Ast.span) =
   in
   search env.vars
 
-(* Nothing got resolved here so this key never matches a real entry *)
-let unresolved_key = Symbol.make_key (-1) (-1)
-
 (* Two declarations can go by one name so lookups key on which one it is *)
 let key_at (env : env) (span : Ast.span) =
   match Resolve.sym_at_opt env.uses span with
   | Some symbol -> Symbol.key symbol
-  | None -> unresolved_key
+  | None -> Symbol.unresolved_key
 
 let builtin_at (env : env) (span : Ast.span) =
   match Symbol.Table.find_opt env.types (key_at env span) with
@@ -1926,7 +1923,7 @@ let collect_type_bodies (env : env) (decls : decl list) =
         (* Only the first one counts because a repeat name already got turned down *)
         (* An unresolved name shares one key so two broken types would look mutually recursive *)
         let key = key_at env td.alias_span in
-        if key <> unresolved_key && not (Hashtbl.mem defs key) then
+        if key <> Symbol.unresolved_key && not (Hashtbl.mem defs key) then
           Hashtbl.add defs key decl
     | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
   in
