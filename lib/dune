@@ -30,8 +30,6 @@
   mir_build
   constant
   codegenqbe
-  x86_ir
-  x86_encode
   elf64
   codegenx86
   ripesites
