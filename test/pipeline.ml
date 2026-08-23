@@ -58,9 +58,11 @@ let check_src src =
 
 let mir_src src =
   let tdecls = fst (check_src src) in
-  let program = Ripe.Mir_build.build tdecls in
-  Ripe.Mir_verify.verify program;
-  program
+  let program = Ripe.Mir.build tdecls in
+  match Ripe.Mir.verify program with
+  | Ok () -> program
+  | Error errors ->
+      errors |> List.map Ripe.Mir.show_error |> String.concat "\n" |> failwith
 
 let source_of_src src _ = ("<test>", Ripe.Sourcemap.create ~base:0 src)
 
@@ -133,4 +135,4 @@ let run_codegen_ok src =
     print_endline "ok"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
-let run_mir src = print_string (Ripe.Mir_dump.program (mir_src src))
+let run_mir src = print_string (Ripe.Mir.dump (mir_src src))

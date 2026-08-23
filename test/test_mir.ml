@@ -56,13 +56,10 @@ let program ?(structs = []) (function_ : M.func) : M.program =
   { M.structs; globals = []; functions = [ function_ ] }
 
 let verify (program : M.program) : unit =
-  try
-    Ripe.Mir_verify.verify program;
-    print_endline "ok"
-  with Ripe.Mir_verify.Invalid errors ->
-    List.iter
-      (fun error -> print_endline (Ripe.Mir_verify.show_error error))
-      errors
+  match Ripe.Mir.verify program with
+  | Ok () -> print_endline "ok"
+  | Error errors ->
+      List.iter (fun error -> print_endline (Ripe.Mir.show_error error)) errors
 
 let verify_func ?structs function_ = verify (program ?structs function_)
 
@@ -106,7 +103,7 @@ let%expect_test "mir verifier: every referenced local exists" =
   [%expect {| f: local 4 does not exist |}]
 
 let%expect_test "mir verifier: aggregate call storage has the result type" =
-  let struct_name = Ripe.Qname.make 0 [] "pair" in
+  let struct_name = Ripe.Qname.unresolved "pair" in
   let pair = Ripe.Types.TStruct (struct_name, []) in
   let call : M.call =
     {
@@ -284,32 +281,30 @@ func main() i32 {
     func main() i32 {
       local %0 i: i32 user
       local %1 found: i32 user
-      local %2: i32 temp
-      local %3 j: i32 user
-      local %4: i32 temp
-      local %5: bool temp
+      local %2 j: i32 user
+      local %3: i32 temp
+      local %4: bool temp
+      local %5: i32 temp
       local %6: i32 temp
       local %7: i32 temp
-      local %8: i32 temp
 
       block0:
         %0 = 0
         jump block1
 
       block1:
-        %3 = 0
+        %2 = 0
         jump block3
 
       block2:
-        %1 = copy %2
-        %8 = call @printf("found=%d\n", copy %1)
+        %7 = call @printf("found=%d\n", copy %1)
         return copy %1
 
       block3:
-        %4 = copy %3 + 1
-        %3 = copy %4
-        %5 = copy %3 == 4
-        branch copy %5 block6 block7
+        %3 = copy %2 + 1
+        %2 = copy %3
+        %4 = copy %2 == 4
+        branch copy %4 block6 block7
 
       block4:
         jump block1
@@ -318,9 +313,9 @@ func main() i32 {
         jump block3
 
       block6:
-        %6 = copy %0 * 100
-        %7 = copy %6 + copy %3
-        %2 = copy %7
+        %5 = copy %0 * 100
+        %6 = copy %5 + copy %2
+        %1 = copy %6
         jump block2
 
       block7:
@@ -455,5 +450,40 @@ func f(a: i32, b: i32) i32 {
         %3.field0 = copy %0
         %4 = copy %2.field0 + copy %3.field1
         return copy %4
+    }
+    |}]
+
+let%expect_test "mir: struct fields run in the order they are written" =
+  Pipeline.run_mir
+    {|
+struct pair { x: i32; y: i32 }
+
+func side(v: i32) i32 { return v }
+
+func f() pair {
+  return pair { y: side(1), x: side(2) }
+}
+|};
+  [%expect
+    {|
+    func side(%0: i32) i32 {
+      local %0 v: i32 param
+
+      block0:
+        return copy %0
+    }
+
+    func f() pair {
+      local %0 result: pair result
+      local %1: i32 temp
+      local %2: i32 temp
+
+      block0:
+        %0 = zero
+        %1 = call @side(1)
+        %0.field1 = copy %1
+        %2 = call @side(2)
+        %0.field0 = copy %2
+        return
     }
     |}]
