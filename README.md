@@ -14,17 +14,8 @@ A systems programming language.
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
 > [!NOTE]
-> I'm going to pause implementing new features for a bit. I've already built
-> a lot of the core features I wanted, including enums, structs, modules, and
-> pattern matching. I originally started Ripe as a language for
-> [MangoOS](https://github.com/ramonasuncion/mangoOS), but while working on it,
-> I realized I want it to be useful for more than that. I want to use it for
-> audio programming, TUI applications, graphics, and other systems projects.
->
-> I want Ripe to compile quickly, stay low level, and feel easy to write. I
-> want the compiler to handle the bookkeeping it can, without taking away
-> control from me. The best way to figure out what Ripe needs next is to start
-> building things with it, instead of trying to plan everything in advance.
+> I'm pausing new feature work for a while so I can build things with Ripe as
+> it is. I want to figure out what the language needs instead of deciding every feature in advance. My main goals are Ripe should compile quickly, stay low level, and feel easy to write. The compiler should handle routine bookkeeping while leaving control to the programmer. I'll still be doing a bunch of refactoring until then.
 
 ## Documentation
 
