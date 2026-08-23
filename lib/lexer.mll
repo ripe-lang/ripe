@@ -24,6 +24,9 @@ let make_state base = {
 
 let next_line st = st.line <- st.line + 1
 
+let max_intsuf_len = String.length "isize"
+let floatsuf_len = String.length "f32"
+
 (* The line tracker avoids per token positions *)
 let lexbuf_of_string src =
   let lexbuf = Lexing.from_string src in
@@ -43,11 +46,9 @@ let int_token st lexbuf ?suf text =
       Queue.push (INT (0L, suf), lexbuf_span st lexbuf, st.line) st.token_queue;
       ERROR "integer literal out of range"
 
-let longest_int_suffix = String.length "isize"
-
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
-  let start = max 0 (String.length text - longest_int_suffix) in
+  let start = max 0 (String.length text - max_intsuf_len) in
   let is_suffix_start = function 'i' | 'u' -> true | _ -> false in
   match String.find_first_index is_suffix_start ~start text with
   | None -> (text, None)
@@ -63,11 +64,9 @@ let decimal_int_token st lexbuf text =
   let body, suf = split_int_suffix text in
   int_token st lexbuf ?suf ("0u" ^ body)
 
-let float_suffix_len = String.length "f32"
-
 let float_token text =
   let len = String.length text in
-  let start = len - float_suffix_len in
+  let start = len - floatsuf_len in
   if start > 0 && text.[start] = 'f' then
     let body, suffix = String.cut_first start text in
     FLOAT (float_of_string body, Some suffix)
