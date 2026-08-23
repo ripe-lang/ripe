@@ -79,7 +79,7 @@ type ctx = {
   struct_names : string Symbol.Table.t;
   panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
-  buf : Buffer.t ref;
+  buf : Buffer.t;
   strings : (string * string) list ref;
   abi_types : (ty, string) Hashtbl.t;
   abi_defs : Buffer.t;
@@ -134,12 +134,12 @@ let spelled_like_temp name =
   && name.[0] = 't'
   && String.for_all Char.Ascii.is_digit (String.drop_first 1 name)
 
-let emit ctx fmt = Printf.bprintf !(ctx.buf) fmt
+let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
 (* Three shapes basically cover everything so they skip the format interpreter *)
-let put ctx s = Buffer.add_string !(ctx.buf) s
+let put ctx s = Buffer.add_string ctx.buf s
 
-let put_char ctx c = Buffer.add_char !(ctx.buf) c
+let put_char ctx c = Buffer.add_char ctx.buf c
 
 let emit_op ctx dest ty op =
   put ctx dest;
@@ -1005,7 +1005,7 @@ let emit_mir ~source_of (program : Mir.program) =
       struct_names;
       panics = Panictable.create ~source_of;
       used_slots = Hashtbl.create 16;
-      buf = ref (Buffer.create 1024);
+      buf = Buffer.create 1024;
       strings = ref [];
       abi_types = Hashtbl.create 8;
       abi_defs = Buffer.create 128;
@@ -1036,7 +1036,7 @@ let emit_mir ~source_of (program : Mir.program) =
     (fun (decl : Mir.struct_decl) -> emit_struct decl.Mir.name)
     program.Mir.structs;
   if not (List.is_empty program.Mir.structs) then emit ctx "\n";
-  let types_end = Buffer.length !(ctx.buf) in
+  let types_end = Buffer.length ctx.buf in
   List.iter (emit_mir_global ctx) program.Mir.globals;
   if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
@@ -1056,7 +1056,7 @@ let emit_mir ~source_of (program : Mir.program) =
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
     (List.rev !(ctx.strings));
-  let out = !(ctx.buf) in
+  let out = ctx.buf in
   if Buffer.length ctx.abi_defs = 0 then Buffer.contents out
   else
     Buffer.sub out 0 types_end
