@@ -181,7 +181,7 @@ let mk lo st desc = { desc; span = make_span st lo st.prev_end }
 let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
 let recovery_span (st : state) (d : Diagnostic.t) =
-  Option.value d.Diagnostic.primary ~default:(cur_span st)
+  Option.value (Diagnostic.primary d) ~default:(cur_span st)
 
 let error_expr (st : state) (d : Diagnostic.t) =
   { desc = ErrorExpr; span = recovery_span st d }
@@ -1198,5 +1198,5 @@ let parse ~(diags : Diagnostic.sink)
   in
   advance st;
   let module_ = parse_module st in
-  diags := !parse_diags @ !diags;
+  Diagnostic.absorb ~into:diags parse_diags;
   module_
