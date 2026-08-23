@@ -1,22 +1,16 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 type severity = Error | Warning | Note | Help
-type span_label = { span : Ast.span; message : string }
 
-type t = {
-  severity : severity;
-  headline : string;
-  primary : Ast.span option;
-  primary_label : string option;
-  labels : span_label list;
-  notes : t list;
-  detail : string option;
-  suggestion : string option;
-}
+type t
 
 exception Errors of t list
 
-type sink = t list ref
+val headline : t -> string
+val primary : t -> Ast.span option
+val detail_of : t -> string option
+
+type sink
 type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
 val error : string -> t
@@ -31,6 +25,9 @@ val help : string -> t -> t
 val error_at : Ast.span -> string -> t
 val sink : unit -> sink
 val emit : sink -> t -> unit
+
+(* The parser keeps its own sink so the errors go next to the lexer *)
+val absorb : into:sink -> sink -> unit
 val emit_error_at : sink -> Ast.span -> string -> unit
 val emit_warn_at : sink -> Ast.span -> string -> unit
 val has_errors : sink -> bool

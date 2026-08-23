@@ -81,6 +81,6 @@ let%expect_test "a value too wide for an imm32 is refused" =
    with Diagnostic.Errors ds ->
      List.iter
        (fun (d : Diagnostic.t) ->
-         print_string (Option.value d.detail ~default:""))
+         print_string (Option.value (Ripe.Diagnostic.detail_of d) ~default:""))
        ds);
   [%expect {| 4294967296 does not fit in an imm32 |}]

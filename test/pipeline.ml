@@ -38,7 +38,7 @@ let load_program (files : (string * string) list) =
 
 let run_program files =
   let headline (d : Ripe.Diagnostic.t) =
-    print_endline d.Ripe.Diagnostic.headline
+    print_endline (Ripe.Diagnostic.headline d)
   in
   try
     let resolved, diags = load_program files in

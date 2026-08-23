@@ -49,7 +49,11 @@ let error_at (span : Ast.span) (msg : string) = error msg |> at span
 type sink = t list ref
 
 let sink () = ref []
+let headline (d : t) = d.headline
+let primary (d : t) = d.primary
+let detail_of (d : t) = d.detail
 let emit (s : sink) (d : t) = s := d :: !s
+let absorb ~(into : sink) (from : sink) = into := !from @ !into
 let emit_error_at (s : sink) span msg = emit s (error_at span msg)
 let emit_warn_at (s : sink) span msg = emit s (warning msg |> at span)
 
