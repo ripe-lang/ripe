@@ -66,8 +66,8 @@ type env = {
   vars : (Symbol.key * var_info) list list;
   funcs : func_sig Symbol.Table.t;
   types : type_def Symbol.Table.t;
-  (* Struct field layouts mirror the DStruct entries in types so ty_size need not rebuild them *)
-  struct_fields : ty list Symbol.Table.t;
+  (* The layout table mirrors struct definitions for size queries *)
+  layouts : Layout.structs;
   globals : (ty * Ast.binding_kind) Symbol.Table.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   g_state : gstate Symbol.Table.t;
@@ -92,7 +92,7 @@ let make_env (diags : Diagnostic.sink) (uses : Resolve.t) =
     vars = [];
     funcs = Symbol.Table.create 16;
     types;
-    struct_fields = Symbol.Table.create 16;
+    layouts = Layout.make_structs ();
     globals = Symbol.Table.create 16;
     g_state = Symbol.Table.create 16;
     l_vals = Symbol.Table.create 16;
@@ -647,7 +647,7 @@ and const_of (env : env) ~(span : Ast.span) (te : T.texpr) =
   | T.TSizeOf t ->
       Some
         (Constant.of_literal te.T.ty
-           (Int64.of_int (ty_size env.struct_fields t)))
+           (Int64.of_int (Layout.ty_size env.layouts t)))
   | T.TIdent s -> (
       match resolve_ty te.T.ty with
       | TInt _ | TFloat _ | TBool | TChar -> const_of_symbol env s span
@@ -1343,7 +1343,7 @@ and check_desc (env : env) (e : expr) (want : ty) =
       match ty_of_ast env t with
       | TError -> dummy_texpr
       | ty ->
-          let size = Int64.of_int (ty_size env.struct_fields ty) in
+          let size = Int64.of_int (Layout.ty_size env.layouts ty) in
           let kind = int_kind_of target in
           if not (Constant.representable kind (Constant.of_magnitude size)) then
             emit env
@@ -1836,7 +1836,7 @@ let reserve_struct_name (env : env) (sd : struct_def) =
     Symbol.Table.replace env.types
       (key_at env sd.struct_span)
       (DStruct { field_tys = [] });
-    Symbol.Table.replace env.struct_fields (key_at env sd.struct_span) [])
+    Layout.set_struct_fields env.layouts (key_at env sd.struct_span) [])
 
 let fill_struct_fields (env : env) (sd : struct_def) =
   match Symbol.Table.find_opt env.types (key_at env sd.struct_span) with
@@ -1849,7 +1849,7 @@ let fill_struct_fields (env : env) (sd : struct_def) =
       Symbol.Table.replace env.types
         (key_at env sd.struct_span)
         (DStruct { field_tys });
-      Symbol.Table.replace env.struct_fields
+      Layout.set_struct_fields env.layouts
         (key_at env sd.struct_span)
         (List.map snd field_tys)
   | _ -> ()
@@ -1857,7 +1857,7 @@ let fill_struct_fields (env : env) (sd : struct_def) =
 (* A pointer or slice field is just an address so it can't grow the struct *)
 let verify_struct_cycle (env : env) (sd : struct_def) =
   let fields_of name =
-    Option.value ~default:[] (Symbol.Table.find_opt env.struct_fields name)
+    Layout.struct_fields env.layouts name |> Iarray.to_list
   in
   let on_path = Hashtbl.create 8 in
   let rec reaches (target : Symbol.key) (t : ty) =

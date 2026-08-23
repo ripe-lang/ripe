@@ -248,16 +248,6 @@ let check_has_main diags tdecls =
       (Diagnostic.error "no `main` function found"
       |> Diagnostic.help "add a `func main() i32` entry point")
 
-(* Broken MIR is the compiler's own fault so it reports as an ICE *)
-let verify_mir (diags : Diagnostic.sink) (mir : Mir.program) : unit =
-  let report (error : Mir_verify.error) =
-    Diagnostic.emit diags
-      (Diagnostic.internal ~span:error.Mir_verify.error_span
-         (Mir_verify.show_error error))
-  in
-  try Mir_verify.verify mir
-  with Mir_verify.Invalid errors -> List.iter report errors
-
 (* The token dump never follows an import so it reads the root file itself *)
 let root_tokens filename =
   if not (Sys.file_exists filename) then
@@ -348,10 +338,20 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     let frontend_time = Unix.gettimeofday () -. total_start in
     let codegen_start = Unix.gettimeofday () in
 
-    let mir = Mir_build.build tdecls in
-    verify_mir diags mir;
-    render_and_exit_if_failed ();
-    stop_at Mir (fun () -> output_text (Mir_dump.program mir));
+    let mir = Mir.build tdecls in
+    begin match Mir.verify mir with
+    | Ok () -> ()
+    | Error errors ->
+        List.iter
+          (fun (error : Mir.error) ->
+            Diagnostic.emit diags
+              (Diagnostic.internal ~span:error.Mir.error_span
+                 (Mir.show_error error)))
+          errors;
+        render_and_exit_if_failed ();
+        raise Exit
+    end;
+    stop_at Mir (fun () -> output_text (Mir.dump mir));
 
     let source_of pos =
       let source = Program.source_at program pos in

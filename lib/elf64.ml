@@ -216,7 +216,7 @@ let place sections =
   let step (placed, at) section =
     let at =
       (* Alignment zero or one needs no padding [3] *)
-      if section.align > 1 then Types.align_to at section.align else at
+      if section.align > 1 then Layout.align_to at section.align else at
     in
     ((section, at) :: placed, at + String.length section.data)
   in

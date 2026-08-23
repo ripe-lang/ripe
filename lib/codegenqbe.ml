@@ -57,8 +57,8 @@ let float_lit (ty : ty) (f : float) =
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
-let alloc_instr (structs : ty list Symbol.Table.t) (t : ty) =
-  match ty_align structs t with
+let alloc_instr (structs : Layout.structs) (t : ty) =
+  match Layout.ty_align structs t with
   | 1 | 2 | 4 -> "alloc4"
   | 8 -> "alloc8"
   | 16 -> "alloc16"
@@ -75,7 +75,7 @@ let qbe_load (t : ty) =
 let qbe_store (t : ty) = "store" ^ scalar_letter (qbe_scalar t)
 
 type ctx = {
-  structs : ty list Symbol.Table.t;
+  structs : Layout.structs;
   struct_names : string Symbol.Table.t;
   panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
@@ -257,11 +257,11 @@ let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) =
 let emit_zero_into ctx dest t =
   match resolve_ty t with
   | TArray _ | TSlice _ | TStruct _ ->
-      let size = ty_size ctx.structs t in
+      let size = Layout.ty_size ctx.structs t in
       if size > bulk_mem_threshold then
         emit ctx "call $memset(l %s, w 0, l %d)\n" dest size
       else begin
-        let align = ty_align ctx.structs t in
+        let align = Layout.ty_align ctx.structs t in
         let off = ref 0 in
         let step w store =
           while w <= align && !off + w <= size do
@@ -420,9 +420,13 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) =
   | _ -> scalar_letter (qbe_scalar t)
 
 (* A field that takes up no bytes changes nothing here, and leaving one in makes QBE think the whole struct is empty *)
-let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty list) =
-  let fields = List.filter (fun ft -> ty_size ctx.structs ft > 0) fields in
-  let field_strs = List.map (qbe_ext_ty (qbe_struct_name ctx)) fields in
+let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty iarray) =
+  let struct_name = qbe_struct_name ctx in
+  let keep ft rest =
+    if Layout.ty_size ctx.structs ft > 0 then qbe_ext_ty struct_name ft :: rest
+    else rest
+  in
+  let field_strs = Iarray.fold_right keep fields [] in
   emit ctx "type :%s = { %s }\n" (qbe_struct_name ctx name)
     (String.concat ", " field_strs)
 
@@ -492,7 +496,7 @@ and widened_operand (mctx : mir_ctx) (operand : Mir.operand) =
 and emit_mir_index_addr (mctx : mir_ctx) storage element
     (index_operand : Mir.operand) =
   let ctx = mctx.qbe in
-  let element_stride = stride ctx.structs element in
+  let element_stride = Layout.stride ctx.structs element in
   match index_operand.Mir.desc with
   | Mir.Const (Mir.Int value) ->
       let offset = Int64.mul value (Int64.of_int element_stride) in
@@ -529,10 +533,10 @@ and emit_mir_place mctx (place : Mir.place) =
           | TStruct (name, _) -> name
           | _ -> Diagnostic.ice "MIR field on non struct"
         in
-        let fields = Symbol.Table.find ctx.structs (Qname.key struct_name) in
-        let field_ty = List.nth fields field in
+        let field_ty = Layout.struct_field_ty ctx.structs struct_name field in
         let addr =
-          offset_addr ctx addr (field_offset ctx.structs fields field)
+          offset_addr ctx addr
+            (Layout.field_offset ctx.structs struct_name field)
         in
         project addr field_ty rest
     | Mir.Index index_operand :: rest ->
@@ -610,7 +614,7 @@ let emit_mir_value mctx (value : Mir.value) =
       | TArray _ -> addr
       | TSlice _ | TStr -> load_slice_ptr ctx addr
       | _ -> Diagnostic.ice "MIR data pointer on invalid place")
-  | Mir.SizeOf ty -> string_of_int (ty_size ctx.structs ty)
+  | Mir.SizeOf ty -> string_of_int (Layout.ty_size ctx.structs ty)
 
 let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
     (destination_ty : ty) (value : string) =
@@ -621,7 +625,7 @@ let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
       let destination_addr, destination_ty = emit_mir_place mctx destination in
       if is_aggregate destination_ty then
         emit_aggregate_copy mctx.qbe destination_addr value
-          (ty_size mctx.qbe.structs destination_ty)
+          (Layout.ty_size mctx.qbe.structs destination_ty)
       else emit_store mctx.qbe (qbe_store destination_ty) value destination_addr
 
 let emit_mir_assign mctx destination (value : Mir.value) =
@@ -897,7 +901,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
           if Some id <> func.Mir.result then
             emit_op1 ctx slot "l"
               (alloc_instr ctx.structs local.Mir.ty)
-              (string_of_int (ty_size ctx.structs local.Mir.ty)))
+              (string_of_int (Layout.ty_size ctx.structs local.Mir.ty)))
     func.Mir.locals;
   List.iter
     (fun (id, ty, tmp) ->
@@ -906,7 +910,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
           emit_op1 ctx binding (qbe_ty ty) "copy" (narrow_int_to ctx tmp ty)
       | Memory slot ->
           if is_aggregate ty then
-            emit_aggregate_copy ctx slot tmp (ty_size ctx.structs ty)
+            emit_aggregate_copy ctx slot tmp (Layout.ty_size ctx.structs ty)
           else emit_store ctx (qbe_store ty) tmp slot)
     params;
   let mctx = { qbe = ctx; func; bindings; global_types } in
@@ -922,9 +926,9 @@ let emit_mir_func ctx global_types (func : Mir.func) =
 
 let rec emit_mir_global_fields ctx expected = function
   | Mir.GlobalConst (Mir.Zero, ty) ->
-      Printf.sprintf "z %d" (ty_size ctx.structs ty)
+      Printf.sprintf "z %d" (Layout.ty_size ctx.structs ty)
   | Mir.GlobalConst (Mir.Undef, ty) ->
-      Printf.sprintf "z %d" (ty_size ctx.structs ty)
+      Printf.sprintf "z %d" (Layout.ty_size ctx.structs ty)
   | Mir.GlobalConst (Mir.Str content, _) ->
       let label = intern_string ctx content in
       Printf.sprintf "l %s, l %d" label (String.length content)
@@ -941,45 +945,46 @@ let rec emit_mir_global_fields ctx expected = function
       in
       String.concat ", " (List.map (emit_mir_global_fields ctx element) values)
   | Mir.GlobalStruct values ->
-      let fields =
+      let name =
         match resolve_ty expected with
-        | TStruct (name, _) -> Symbol.Table.find ctx.structs (Qname.key name)
+        | TStruct (name, _) -> name
         | _ -> Diagnostic.ice "MIR global struct has invalid type"
       in
       let offset = ref 0 in
       let parts = ref [] in
-      List.iter
-        (fun (field, value) ->
-          let field_ty = List.nth fields field in
-          let aligned = align_to !offset (ty_align ctx.structs field_ty) in
-          if aligned > !offset then
-            parts := Printf.sprintf "z %d" (aligned - !offset) :: !parts;
-          parts := emit_mir_global_fields ctx field_ty value :: !parts;
-          offset := aligned + ty_size ctx.structs field_ty)
-        values;
-      let total = ty_size ctx.structs expected in
-      if total > !offset then
-        parts := Printf.sprintf "z %d" (total - !offset) :: !parts;
+      let pad_to target =
+        if target > !offset then
+          parts := Printf.sprintf "z %d" (target - !offset) :: !parts
+      in
+      let field (field, value) =
+        let field_ty = Layout.struct_field_ty ctx.structs name field in
+        let at = Layout.field_offset ctx.structs name field in
+        pad_to at;
+        parts := emit_mir_global_fields ctx field_ty value :: !parts;
+        offset := at + Layout.ty_size ctx.structs field_ty
+      in
+      List.iter field values;
+      pad_to (Layout.ty_size ctx.structs expected);
       String.concat ", " (List.rev !parts)
 
 let emit_mir_global ctx (global : Mir.global) =
-  let align = ty_align ctx.structs global.Mir.ty in
+  let align = Layout.ty_align ctx.structs global.Mir.ty in
   let export = if global.Mir.public then "export " else "" in
   match global.Mir.init with
   | None ->
       emit ctx "%sdata $%s = align %d { z %d }\n" export global.Mir.name align
-        (ty_size ctx.structs global.Mir.ty)
+        (Layout.ty_size ctx.structs global.Mir.ty)
   | Some value ->
       emit ctx "%sdata $%s = align %d { %s }\n" export global.Mir.name align
         (emit_mir_global_fields ctx global.Mir.ty value)
 
 let emit_mir ~source_of (program : Mir.program) =
-  let structs = Symbol.Table.create 8 in
+  let structs = Layout.make_structs () in
   let struct_names = Symbol.Table.create 8 in
   List.iter
     (fun (decl : Mir.struct_decl) ->
       let key = Qname.key decl.Mir.name in
-      Symbol.Table.add structs key decl.Mir.fields;
+      Layout.set_struct_fields structs key decl.Mir.fields;
       let name =
         if decl.Mir.local then
           Printf.sprintf "_Rlocal%d_%d"
@@ -1017,8 +1022,8 @@ let emit_mir ~source_of (program : Mir.program) =
     let key = Qname.key name in
     if not (Symbol.Table.mem emitted key) then begin
       Symbol.Table.add emitted key ();
-      let fields = Symbol.Table.find ctx.structs key in
-      List.iter emit_dependencies fields;
+      let fields = Layout.struct_fields ctx.structs key in
+      Iarray.iter emit_dependencies fields;
       emit_struct_type ctx name fields
     end
   and emit_dependencies field_ty =

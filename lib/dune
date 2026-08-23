@@ -25,16 +25,14 @@
   sema
   typedast
   mir
-  mir_verify
-  mir_dump
-  mir_build
   constant
   codegenqbe
   elf64
   codegenx86
   ripesites
   panictable
-  driver)
+  driver
+  layout)
  (libraries unix dune-site)
  (preprocess
   (pps ppx_deriving.show)))
