@@ -7,7 +7,7 @@ module Names = Hashtbl.Make (struct
   type t = Ast.name
 
   let equal (a : t) (b : t) = a = b
-  let hash (t : t) = t
+  let hash t = t
 end)
 
 type namespace = Symbol.t Names.t
@@ -37,9 +37,9 @@ type state = {
   qualify : bool;
   is_root : bool;
   top : scope;
-  mutable scope : scope;
-  mutable value_boundary : scope option;
-  mutable next_id : Symbol.id;
+  scope : scope;
+  value_boundary : scope option;
+  next_id : Symbol.id ref;
   diags : Diagnostic.sink;
 }
 
@@ -71,20 +71,17 @@ let new_scope parent =
     parent;
   }
 
-(* Real code averages one symbol per 7 to 11 bytes so sizing up front skips
-   about eight rehashes *)
-let bytes_per_symbol = 8
-
 (* A builtin sits in the outermost scope so a module can shadow it like any name *)
-let make_output ~source_bytes modules =
+let make_output modules =
   let prelude = new_scope None in
   let seed id (name, _) =
-    Names.replace prelude.types (Interner.intern name) (prelude_symbol id name)
+    Names.replace prelude.types (Interner.intern name) (prelude_symbol id name);
+    id + 1
   in
-  List.iteri seed Types.builtins;
+  ignore (List.fold_left seed 0 Types.builtins);
   let out =
     {
-      syms = Span.Table.create (source_bytes / bytes_per_symbol);
+      syms = Span.Table.create 16;
       module_paths = Hashtbl.create modules;
       file_modules = [||];
       imports = Hashtbl.create modules;
@@ -103,8 +100,7 @@ let dump r =
     |> List.sort (fun (a, _) (b, _) -> compare a b)
     |> List.map (fun (sp, s) ->
         Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
-          (s.Symbol.module_id :> int)
-          (s.Symbol.id :> int)
+          s.Symbol.module_id s.Symbol.id
           (Symbol.show_kind s.Symbol.kind)
           s.Symbol.name)
     |> String.concat ""
@@ -153,12 +149,8 @@ let module_at r pos =
   else search 0 (Array.length bases - 1)
 
 let module_path_at r span =
-  match module_at r (Span.lo span) with
-  | None -> []
-  | Some module_id -> (
-      match Hashtbl.find_opt r.module_paths module_id with
-      | Some path -> path
-      | None -> [])
+  Option.bind (module_at r (Span.lo span)) (Hashtbl.find_opt r.module_paths)
+  |> Option.value ~default:[]
 
 let main_name = Interner.intern "main"
 
@@ -174,10 +166,10 @@ let declaration_link_name st kind name =
     | Symbol.Extern -> text
     | _ -> Mangle.declaration st.module_path text
 
-let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
-    (kind : Symbol.kind) (name : Ast.name) (span : Ast.span) =
-  let id = st.next_id in
-  st.next_id <- id + 1;
+let mint ?(visibility = Symbol.Private) ?link_name ?name_span st kind name span
+    =
+  let id = !(st.next_id) in
+  st.next_id := id + 1;
   let link_name = Option.value ~default:(Interner.text name) link_name in
   let sym =
     {
@@ -195,19 +187,14 @@ let mint ?(visibility = Symbol.Private) ?link_name ?name_span (st : state)
   Span.Table.replace st.out.syms span sym;
   sym
 
-let push_scope (st : state) = st.scope <- new_scope (Some st.scope)
-
-let pop_scope (st : state) =
-  st.scope <-
-    (match st.scope.parent with Some parent -> parent | None -> assert false)
+(* The inner state goes out of scope with the block so none can stay open *)
+let enter_scope st = { st with scope = new_scope (Some st.scope) }
 
 (* The innermost scope holds params and top level body binders *)
-let declare_local (st : state) kind name span : unit =
+let declare_local st kind name span =
   Names.replace st.scope.values name (mint st kind name span)
 
-let declare_in ?link_name ?name_span (table : namespace) (st : state)
-    (kind : Symbol.kind) (visibility : Symbol.visibility) (name : Ast.name)
-    (span : Ast.span) =
+let declare_in ?link_name ?name_span table st kind visibility name span =
   match Names.find_opt table name with
   | Some prev ->
       Diagnostic.emit st.diags
@@ -232,29 +219,29 @@ let declare_local_type st name span =
 
 let declare_local_func st name span =
   let link_name =
-    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id st.next_id
+    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id !(st.next_id)
       (Interner.text name)
   in
   declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private name
     span
 
-let rec find_type_in_chain (scope : scope) (name : Ast.name) =
-  match Names.find_opt scope.types name with
-  | Some sym -> Some sym
-  | None ->
-      Option.bind scope.parent (fun parent -> find_type_in_chain parent name)
-
-let value_or_item (scope : scope) (name : Ast.name) =
+let value_or_item scope name =
   match Names.find_opt scope.values name with
   | Some sym -> Some sym
   | None -> Names.find_opt scope.items name
 
-let rec find_value (scope : scope) (name : Ast.name) =
+let rec find_type_in_scope scope name =
+  match Names.find_opt scope.types name with
+  | Some sym -> Some sym
+  | None ->
+      Option.bind scope.parent (fun parent -> find_type_in_scope parent name)
+
+let rec find_value scope name =
   match value_or_item scope name with
   | Some sym -> Some sym
   | None -> Option.bind scope.parent (fun parent -> find_value parent name)
 
-let is_item_value (sym : Symbol.t) =
+let is_item_value sym =
   match sym.Symbol.kind with
   | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
   | Symbol.Module ->
@@ -266,32 +253,37 @@ let is_item_value (sym : Symbol.t) =
 let rec find_item_value scope name =
   match Names.find_opt scope.items name with
   | Some sym -> Some sym
-  | None -> (
-      match Names.find_opt scope.values name with
-      | Some sym when is_item_value sym -> Some sym
-      | Some _ -> None
-      | None ->
-          Option.bind scope.parent (fun parent -> find_item_value parent name))
+  | None -> find_item_value_or_parent scope name
+
+and find_item_value_or_parent scope name =
+  match Names.find_opt scope.values name with
+  | Some sym when is_item_value sym -> Some sym
+  | Some _ -> None
+  | None -> Option.bind scope.parent (fun parent -> find_item_value parent name)
+
+let boundary_value boundary scope name =
+  if scope == boundary then find_item_value boundary name
+  else value_or_item scope name
 
 let rec find_before_boundary boundary scope name =
-  if scope == boundary then find_item_value boundary name
-  else
-    match value_or_item scope name with
-    | Some sym -> Some sym
-    | None ->
-        Option.bind scope.parent (fun parent ->
-            find_before_boundary boundary parent name)
+  match boundary_value boundary scope name with
+  | Some sym -> Some sym
+  | None when scope == boundary -> None
+  | None ->
+      Option.bind scope.parent (fun parent ->
+          find_before_boundary boundary parent name)
 
 let lookup st name =
   match st.value_boundary with
   | Some boundary -> find_before_boundary boundary st.scope name
   | None -> find_value st.scope name
 
-let captured_value st name =
-  Option.bind st.value_boundary (fun boundary ->
-      match find_value boundary name with
-      | Some sym when not (is_item_value sym) -> Some sym
-      | Some _ | None -> None)
+let captured_in name boundary =
+  match find_value boundary name with
+  | Some sym when not (is_item_value sym) -> Some sym
+  | Some _ | None -> None
+
+let captured_value st name = Option.bind st.value_boundary (captured_in name)
 
 let missing_value st ~what name span =
   match captured_value st name with
@@ -316,18 +308,18 @@ let use_symbol st span sym =
 let find_module st path =
   match path with
   | [] -> None
-  | root :: _ -> (
-      match lookup st root with
-      | Some { Symbol.kind = Symbol.Module; _ } ->
-          Hashtbl.find_opt st.out.imports (st.module_id, path)
-      | Some _ | None -> None)
+  | root :: _ ->
+      Option.bind (lookup st root) (function
+        | { Symbol.kind = Symbol.Module; _ } ->
+            Hashtbl.find_opt st.out.imports (st.module_id, path)
+        | _ -> None)
 
 let failed_import st path =
   Hashtbl.mem st.out.failed_imports (st.module_id, path)
 
 (* math.Vec goes through the import and Vec walks out to the builtins *)
 let find_type st path name =
-  if List.is_empty path then find_type_in_chain st.scope name
+  if List.is_empty path then find_type_in_scope st.scope name
   else
     let member scope = Names.find_opt scope.types name in
     Option.bind (find_module st path) member
@@ -417,7 +409,7 @@ let use_qualified_callee st p span =
       || use_qualified st ~what:"function" p span
 
 let resolve_missing_value_root st name span =
-  match find_type_in_chain st.scope name with
+  match find_type_in_scope st.scope name with
   | Some _ -> false
   | None ->
       use st ~what:"variable" name span;
@@ -497,10 +489,9 @@ and resolve_expr st e =
   | Loop (_, body) -> resolve_block st body
   | For (_, name, nspan, iter, body) ->
       resolve_expr st iter;
-      push_scope st;
+      let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
-      resolve_block_contents st body;
-      pop_scope st
+      resolve_block_contents st body
   | Binding (kind, name, nspan, ann, e) ->
       Option.iter (resolve_typ st) ann;
       Option.iter (resolve_expr st) e;
@@ -517,21 +508,21 @@ and resolve_expr st e =
   | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
-and resolve_arm (st : state) (a : arm) =
-  push_scope st;
+and resolve_arm st a =
+  let st = enter_scope st in
   resolve_pattern st a.pat;
-  resolve_block_contents st a.arm_body.value;
-  pop_scope st
+  resolve_block_contents st a.arm_body.value
+
+and resolve_pattern_binding st span name =
+  match lookup st name with
+  | Some sym when Symbol.is_comptime sym.Symbol.kind -> use_symbol st span sym
+  | Some _ | None -> declare_local st Symbol.MatchBind name span
 
 and resolve_pattern st p =
   match p.pdesc with
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
-  | PatBind name -> (
-      match lookup st name with
-      | Some sym when Symbol.is_comptime sym.Symbol.kind ->
-          use_symbol st p.pspan sym
-      | Some _ | None -> declare_local st Symbol.MatchBind name p.pspan)
+  | PatBind name -> resolve_pattern_binding st p.pspan name
 
 (* An array size expression may name constants *)
 and resolve_typ st t =
@@ -569,30 +560,23 @@ and resolve_block_contents st body =
   List.iter (function Expr _ -> () | Decl d -> declare_block_item st d) body;
   List.iter (resolve_block_item st) body
 
-and resolve_block (st : state) (body : block) =
-  push_scope st;
-  resolve_block_contents st body;
-  pop_scope st
+and resolve_block st body = resolve_block_contents (enter_scope st) body
 
-and resolve_func (st : state) (fd : func_def) =
-  push_scope st;
+and resolve_func st fd =
+  let st = enter_scope st in
   List.iter
-    (fun (p : param) ->
+    (fun p ->
       resolve_typ st p.param_typ;
       declare_param st p)
     fd.params;
   Option.iter (resolve_typ st) fd.ret;
-  resolve_block_contents st fd.body;
-  pop_scope st
+  resolve_block_contents st fd.body
 
-and resolve_local_func (st : state) (fd : func_def) =
-  let outer = st.scope in
-  let saved_boundary = st.value_boundary in
-  st.value_boundary <- Some outer;
-  resolve_func st fd;
-  st.value_boundary <- saved_boundary
+(* A local func can't see the enclosing body's variables *)
+and resolve_local_func st fd =
+  resolve_func { st with value_boundary = Some st.scope } fd
 
-and resolve_decl (st : state) = function
+and resolve_decl st = function
   | Func fd | Extern fd -> resolve_func st fd
   | Global gd ->
       Option.iter (resolve_typ st) gd.typ;
@@ -616,7 +600,7 @@ let make_state ~out ~diags ~module_id ~module_path ~qualify ~is_root =
     top;
     scope = top;
     value_boundary = None;
-    next_id = 0;
+    next_id = ref 0;
     diags;
   }
 
@@ -649,7 +633,7 @@ let declare_decls st decls =
     decls
 
 let resolve ~diags ~module_id decls =
-  let out = make_output ~source_bytes:0 1 in
+  let out = make_output 1 in
   Hashtbl.add out.module_paths module_id [];
   let st =
     make_state ~out ~diags ~module_id ~module_path:[] ~qualify:false
@@ -661,17 +645,7 @@ let resolve ~diags ~module_id decls =
 
 let resolve_program ~diags program =
   let count = Array.length program.Program.modules in
-  let source_bytes =
-    Array.fold_left
-      (fun total m ->
-        List.fold_left
-          (fun total u ->
-            total
-            + String.length (Sourcemap.src u.Program.source.Program.source_map))
-          total m.Program.units)
-      0 program.Program.modules
-  in
-  let out = make_output ~source_bytes count in
+  let out = make_output count in
   let states = Hashtbl.create count in
   let state_of module_ = Hashtbl.find states module_.Program.module_id in
   let bases = ref [] in
@@ -699,26 +673,28 @@ let resolve_program ~diags program =
     program.Program.modules;
   let link_imports module_ =
     let st = state_of module_ in
+    let bind_name dependency (import : Ast.import) target name =
+      match Names.find_opt st.top.values name with
+      | Some prev ->
+          Diagnostic.emit st.diags
+            (Diagnostic.redefinition import.Ast.span ~prev:prev.Symbol.span)
+      | None ->
+          Hashtbl.replace out.imports
+            (module_.Program.module_id, [ name ])
+            target.top;
+          if Hashtbl.mem failed_ids dependency.Program.target then
+            Hashtbl.replace out.failed_imports
+              (module_.Program.module_id, [ name ])
+              ();
+          Names.replace st.top.values name
+            (mint st Symbol.Module name import.Ast.span)
+    in
     let bind dependency =
       let target = Hashtbl.find states dependency.Program.target in
       let import = dependency.Program.import in
       match List.rev import.Ast.path with
       | [] -> ()
-      | name :: _ -> (
-          match Names.find_opt st.top.values name with
-          | Some prev ->
-              Diagnostic.emit st.diags
-                (Diagnostic.redefinition import.Ast.span ~prev:prev.Symbol.span)
-          | None ->
-              Hashtbl.replace out.imports
-                (module_.Program.module_id, [ name ])
-                target.top;
-              if Hashtbl.mem failed_ids dependency.Program.target then
-                Hashtbl.replace out.failed_imports
-                  (module_.Program.module_id, [ name ])
-                  ();
-              Names.replace st.top.values name
-                (mint st Symbol.Module name import.Ast.span))
+      | name :: _ -> bind_name dependency import target name
     in
     List.iter bind module_.Program.dependencies
   in

@@ -4,8 +4,7 @@ type id = int
 
 module Ids = Hashtbl.Make (String)
 
-(* One table for the whole run since a process only ever works on one program
-   and threading it through every phase buys nothing *)
+(* One table for the whole run since a process only ever works on one program and threading it through every phase buys nothing *)
 let ids = Ids.create 4096
 let texts = Dynarray.create ()
 
