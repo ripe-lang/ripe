@@ -318,7 +318,7 @@ let is_const_symbol env s =
   Symbol.is_comptime s.Symbol.kind
   || (Symbol.is_global s.Symbol.kind && is_comptime_global env (Symbol.key s))
 
-(* TODO: This needs aggregate constants for global copies *)
+(* TODO(434d): This needs aggregate constants for global copies *)
 let verify_const_scalar env span t =
   if not (is_scalar t) then
     emit env
@@ -1387,14 +1387,14 @@ and check_pattern env sty pat =
         (extend_var env pat.pspan name sty, Some (Tast.TPatBind (symbol, sty)))
   | PatValue e -> (
       let te = check env e sty in
-      (* TODO: comparing these needs more than the integer test an arm emits *)
+      (* TODO(43f6): comparing these needs more than the integer test an arm emits *)
       let not_comparable () =
         emit env
           (Diagnostic.error_at pat.pspan "pattern is not comparable"
           |> Diagnostic.label ("cannot test " ^ show_ty env te.ty));
         (env, None)
       in
-      (* TODO: a named constant and a range should both work as patterns *)
+      (* TODO(766b): a named constant and a range should both work as patterns *)
       let not_a_literal () =
         emit env
           (Diagnostic.error_at pat.pspan "pattern is not a literal"

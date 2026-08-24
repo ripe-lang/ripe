@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-24 02:40:23.205553",
+  "depends": [],
+  "id": "7ea0",
+  "priority": "low",
+  "source": "lib/ast.ml",
+  "status": "open",
+  "tags": [],
+  "title": "no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring",
+  "updated_at": "2026-08-24 02:40:23.205553"
+}

@@ -183,15 +183,15 @@ and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }
 [@@deriving show { with_path = false }]
 
-(* TODO: no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring *)
+(* TODO(7ea0): no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring *)
 and pattern_desc = PatValue of expr | PatWild | PatBind of name
 [@@deriving show { with_path = false }]
 
-(* TODO: a variant carries no explicit value and no payload *)
+(* TODO(d737): a variant carries no explicit value and no payload *)
 and variant = { variant_name : name; variant_span : span }
 [@@deriving show { with_path = false }]
 
-(* TODO: every enum is an i32 and flags don't exist *)
+(* TODO(f1ac): every enum is an i32 and flags don't exist *)
 and enum_def = {
   enum_name : name;
   enum_name_span : span;

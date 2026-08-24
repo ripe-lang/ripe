@@ -8,6 +8,6 @@
   "source": "lib/mir.ml",
   "status": "open",
   "tags": [],
-  "title": "A value for a whole aggregate would avoid separate assignments for every field and element",
-  "updated_at": "2026-08-09 12:25:34.458583"
+  "title": "This needs one value for a whole aggregate",
+  "updated_at": "2026-08-24 02:40:23.204280"
 }

@@ -5,9 +5,9 @@
   "depends": [],
   "id": "b8e1",
   "priority": "low",
-  "source": "lib/ty_pred.ml",
+  "source": "lib/typred.ml",
   "status": "open",
   "tags": [],
   "title": "Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)?",
-  "updated_at": "2026-08-06 23:00:07.864393"
+  "updated_at": "2026-08-24 02:40:23.208380"
 }

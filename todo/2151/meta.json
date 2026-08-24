@@ -8,6 +8,6 @@
   "source": "lib/lexer.mll",
   "status": "open",
   "tags": [],
-  "title": "allow raw newlines for now, revisit them in the future",
-  "updated_at": "2026-08-06 23:00:07.861064"
+  "title": "raw newlines stay for now",
+  "updated_at": "2026-08-24 02:40:23.207048"
 }

@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-24 02:40:23.204957",
+  "depends": [],
+  "id": "73fc",
+  "priority": "low",
+  "source": "lib/mir.ml",
+  "status": "open",
+  "tags": [],
+  "title": "A universal result slot would simplify inlining",
+  "updated_at": "2026-08-24 02:40:23.204957"
+}

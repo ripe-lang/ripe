@@ -1224,7 +1224,7 @@ let build_func struct_layouts globals (func : Tast.tfunc_def) =
     | [], [] -> Ast.dummy_span
   in
   (* A returned aggregate needs somewhere to live that outlives the frame *)
-  (* TODO: A universal result slot would simplify inlining *)
+  (* TODO(73fc): A universal result slot would simplify inlining *)
   if Types.is_aggregate func.ret_ty then
     state.result <-
       Some (add_local state ~name:"result" Result func.ret_ty span);
