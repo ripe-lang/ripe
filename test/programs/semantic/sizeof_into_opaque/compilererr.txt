@@ -1,0 +1,10 @@
+warning: unused variable: v
+  at main.rp:2:7
+      var v: opaque = sizeof(i8)
+          ^
+help: prefix with an underscore: _v
+error: opaque is only valid as a pointee
+  at main.rp:2:10
+      var v: opaque = sizeof(i8)
+             ^~~~~~
+help: use *opaque for an untyped pointer

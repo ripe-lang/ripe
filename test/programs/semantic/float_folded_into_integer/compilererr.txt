@@ -1,0 +1,12 @@
+error: type mismatch
+  at main.rp:5:8
+      x += !N * 2.5
+           ^~ expected i32, found bool
+error: type mismatch
+  at main.rp:5:9
+      x += !N * 2.5
+            ^ expected bool, found i32
+error: type mismatch
+  at main.rp:5:13
+      x += !N * 2.5
+                ^~~ expected i32, found f64

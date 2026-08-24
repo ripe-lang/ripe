@@ -222,7 +222,13 @@ let binop span op ~result_ty a b =
   | VFloat _, _ | _, VFloat _ -> (
       let x = float_of a and y = float_of b in
       (* The kind is read in the arm so a compare never asks a bool for one *)
-      let arith f = Some (of_float (float_kind_of result_ty) (f x y)) in
+      (* FIXME: A mismatch can leave an int here so it doesn't fold this works for now
+         but ill look more into this *)
+      let arith f =
+        match resolve_ty result_ty with
+        | TFloat kind -> Some (of_float kind (f x y))
+        | _ -> None
+      in
       let test b = Some (VBool b) in
       match op with
       | Ast.Add -> arith ( +. )

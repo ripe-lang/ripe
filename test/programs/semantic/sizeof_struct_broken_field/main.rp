@@ -1,0 +1,7 @@
+struct holder {
+  bad -1 i32
+}
+
+func main() i32 {
+  return i32(sizeof(holder))
+}
