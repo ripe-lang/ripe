@@ -986,7 +986,7 @@ let emit_mir_global ctx (global : Mir.global) =
       emit ctx "%sdata $%s = align %d { %s }\n" export global.Mir.name align
         (emit_mir_global_fields ctx global.Mir.ty value)
 
-let emit_mir ~source_of (program : Mir.program) =
+let emit ~source_of program =
   let structs = Layout.make_structs () in
   let struct_names = Symbol.Table.create 8 in
   List.iter
