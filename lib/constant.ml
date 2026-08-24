@@ -22,7 +22,6 @@ let of_bits n =
   else of_magnitude n
 
 let bits_of e = if e.neg then Int64.neg e.magnitude else e.magnitude
-
 let one = of_magnitude 1L
 let negate e = of_magnitude ~neg:(not e.neg) e.magnitude
 

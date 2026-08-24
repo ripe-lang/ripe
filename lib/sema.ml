@@ -18,7 +18,6 @@ type struct_info = {
 }
 
 type enum_info = { variants_by_name : (Ast.name, int64) Hashtbl.t }
-
 type 'a deferred = Unstarted | Running | Completed of 'a
 
 (* Structs aliases and builtins share one namespace of type names *)
@@ -170,16 +169,13 @@ let len_name = Interner.intern "len"
 let ptr_name = Interner.intern "ptr"
 let dummy_value = Constant.VInt (Constant.zero, Types.I32)
 let sym env span = Resolve.sym_at env.ctx.symbols span
-
 let diagnostic_sink env = Option.value env.probe_diags ~default:env.ctx.diags
-
 let emit env d = Diagnostic.emit (diagnostic_sink env) d
 
 let add_error env span msg =
   Diagnostic.emit_error_at (diagnostic_sink env) span msg
 
 let add_error_in ctx span msg = Diagnostic.emit_error_at ctx.diags span msg
-
 let dummy_texpr = Tast.mk Types.TError Tast.TErrorExpr
 
 let add_warning env span msg =

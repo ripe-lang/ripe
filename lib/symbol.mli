@@ -5,7 +5,6 @@ type module_id = int
 
 (* A module and an id packed together so a symbol compares and hashes as one *)
 type key = private int
-
 type visibility = Private | Public
 
 type kind =
@@ -44,9 +43,7 @@ val pp_visibility : Format.formatter -> visibility -> unit
 val show_visibility : visibility -> string
 val prelude_module_id : module_id
 val key : t -> key
-
 val unresolved_key : key
-
 val module_id_of_key : key -> module_id
 val id_of_key : key -> id
 

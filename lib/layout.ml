@@ -16,7 +16,6 @@ type structs = {
 }
 
 let no_fields = Iarray.of_list []
-
 let make_structs () = { entries = Symbol.Table.create 16; generation = 0 }
 
 let set_struct_fields structs key fields =
@@ -85,7 +84,6 @@ and ty_measure structs t =
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
 and ty_size structs t = fst (ty_measure structs t)
-
 and ty_align structs t = snd (ty_measure structs t)
 
 and stride structs elem =

@@ -18,5 +18,4 @@ let intern text =
       id
 
 let text id = Dynarray.get texts id
-
 let pp fmt id = Format.pp_print_string fmt (text id)

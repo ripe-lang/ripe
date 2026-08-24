@@ -153,7 +153,6 @@ let module_path_at r span =
   |> Option.value ~default:[]
 
 let main_name = Interner.intern "main"
-
 let is_entry st kind name = kind = Symbol.Func && st.is_root && name = main_name
 
 (* An extern and the entry point are named by something outside the compiler *)

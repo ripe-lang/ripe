@@ -36,9 +36,7 @@ type key = int [@@deriving show { with_path = false }]
 
 let id_bits = 32
 let id_mask = 0xFFFF_FFFF
-
 let make_key module_id id = (module_id lsl id_bits) lor (id land id_mask)
-
 let unresolved_key = make_key (-1) (-1)
 let key symbol = make_key symbol.module_id symbol.id
 let module_id_of_key key = key asr id_bits
@@ -54,9 +52,7 @@ module Table = Hashtbl.Make (struct
 end)
 
 let prelude_module_id = -2
-
 let is_func = function Func | LocalFunc | Extern -> true | _ -> false
-
 let is_global = function Global _ -> true | _ -> false
 
 let is_immutable = function
