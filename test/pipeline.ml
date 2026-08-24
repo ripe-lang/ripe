@@ -75,7 +75,7 @@ let check_qbe il =
   close_out oc;
   let cmd =
     Printf.sprintf "%s -o /dev/null %s 2> %s"
-      (Filename.quote Ripe.Config.qbe)
+      (Filename.quote (Ripe.Config.qbe ()))
       (Filename.quote ssa) (Filename.quote err)
   in
   let status = Sys.command cmd in

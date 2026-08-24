@@ -72,12 +72,13 @@ let resolve_tool ~environment ~bundled ~fallback () =
   | Some configured -> realpath_or_original (resolve_configured_tool configured)
   | None -> default_tool bundled fallback
 
-let qbe = resolve_tool ~environment:"QBE" ~bundled:"qbe" ~fallback:"qbe" ()
+let qbe () = resolve_tool ~environment:"QBE" ~bundled:"qbe" ~fallback:"qbe" ()
 
-let assembler =
+let assembler () =
   resolve_tool ~environment:"RIPE_AS" ~bundled:"as" ~fallback:"as" ()
 
-let linker = resolve_tool ~environment:"RIPE_CC" ~bundled:"cc" ~fallback:"cc" ()
+let linker () =
+  resolve_tool ~environment:"RIPE_CC" ~bundled:"cc" ~fallback:"cc" ()
 
 (* An installed compiler finds the object through its dune install site *)
 let runtime_in_sites () =

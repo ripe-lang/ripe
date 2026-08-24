@@ -48,8 +48,6 @@ let die msg =
   Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
-let target = lazy (Target.host ())
-
 let run cmd =
   if Sys.command cmd <> 0 then (
     let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
@@ -61,11 +59,11 @@ let shell_command = function
   | command :: args -> Filename.quote_command command args
 
 (* Lower IL through qbe and return the emitted asm path *)
-let run_qbe ?(show_command = false) il =
+let run_qbe ?(show_command = false) qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
   Out_channel.with_open_text tmp_qbe (fun oc -> output_string oc il);
-  let args = [ Config.qbe; "-o"; tmp_asm; tmp_qbe ] in
+  let args = [ qbe; "-o"; tmp_asm; tmp_qbe ] in
   let command = shell_command args in
   let start = Unix.gettimeofday () in
   if show_command then Printf.eprintf "Running QBE:\n%s\n" command;
@@ -82,17 +80,15 @@ let run_linker ~show_commands target ~output ~object_file ~libraries =
   if show_commands then Printf.eprintf "Running linker:\n%s\n" command;
   run command
 
-let link_object ~show_commands base object_bytes libraries =
-  let target = Lazy.force target in
+let link_object ~show_commands target base object_bytes libraries =
   let tmp_obj = Filename.temp_file "ripe" ".o" in
   Out_channel.with_open_bin tmp_obj (fun oc -> output_string oc object_bytes);
   run_linker ~show_commands target ~output:base ~object_file:tmp_obj ~libraries;
   Sys.remove tmp_obj
 
-let compile_binary ~show_commands base il libraries =
-  let target = Lazy.force target in
+let compile_binary ~show_commands ~qbe target base il libraries =
   let backend_start = Unix.gettimeofday () in
-  let tmp_asm, qbe_time = run_qbe ~show_command:show_commands il in
+  let tmp_asm, qbe_time = run_qbe ~show_command:show_commands qbe il in
   let tmp_obj = Filename.temp_file "ripe" ".o" in
   let assemble_args =
     Target.assembler_args target ~output:tmp_obj ~input:tmp_asm
@@ -107,16 +103,15 @@ let compile_binary ~show_commands base il libraries =
   Sys.remove tmp_obj;
   (qbe_time, backend_time, Unix.gettimeofday () -. start)
 
-let emit_asm il =
-  let tmp_asm, _ = run_qbe il in
+let emit_asm qbe il =
+  let tmp_asm, _ = run_qbe qbe il in
   let asm = read_file tmp_asm in
   Sys.remove tmp_asm;
   asm
 
 (* The same object the linker would have consumed, handed back instead *)
-let emit_obj il =
-  let target = Lazy.force target in
-  let tmp_asm, _ = run_qbe il in
+let emit_obj ~qbe target il =
+  let tmp_asm, _ = run_qbe qbe il in
   let tmp_obj = Filename.temp_file "ripe" ".o" in
   let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
   run (shell_command args);
@@ -270,35 +265,55 @@ let load ~diags ~search_roots ~filename =
         (Printf.sprintf "more than %d bytes of source in one program: %s"
            Span.max_offset name)
 
-let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
-  (* Write to -o if set or stdout *)
-  let output_text s =
-    if String.is_empty out then print_string s
-    else Out_channel.with_open_text out (fun oc -> output_string oc s)
-  in
-  (* An object holds bytes that stdout would otherwise be free to translate *)
-  let output_bytes s =
-    if String.is_empty out then (
-      set_binary_mode_out stdout true;
-      print_string s)
-    else Out_channel.with_open_bin out (fun oc -> output_string oc s)
-  in
-  let output_base () =
-    if String.is_empty out then
-      Filename.remove_extension (Filename.basename filename)
-    else out
-  in
-  let output_binary il =
-    compile_binary ~show_commands:stats (output_base ()) il libraries
-  in
+let render_and_exit_if_failed program diags =
+  let failed = Diagnostic.has_errors diags in
+  render_program program (Diagnostic.take diags);
+  if failed then exit 1
 
+module Output = struct
+  type t = Stdout | File of string
+
+  let make = function "" -> Stdout | filename -> File filename
+
+  (* Write to -o if set or stdout *)
+  let text output s =
+    match output with
+    | Stdout -> print_string s
+    | File filename ->
+        Out_channel.with_open_text filename (fun oc -> output_string oc s)
+
+  (* An object holds bytes that stdout would otherwise be free to translate *)
+  let bytes output s =
+    match output with
+    | Stdout ->
+        set_binary_mode_out stdout true;
+        print_string s
+    | File filename ->
+        Out_channel.with_open_bin filename (fun oc -> output_string oc s)
+
+  let base output source =
+    match output with
+    | Stdout -> Filename.remove_extension (Filename.basename source)
+    | File filename -> filename
+end
+
+(* Each stage is a possible stopping point so bail once we hit the target *)
+let stop_at ~stage ~program ~diags target emit =
+  if stage = target then begin
+    emit ();
+    render_and_exit_if_failed program diags;
+    raise Exit
+  end
+
+let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
+  let output = Output.make out in
   if not (Backend.has_stage backend stage) then
     die
       (Printf.sprintf "the %s backend has no %s stage" (Backend.name backend)
          (stage_name stage));
 
   if stage = Tokens then (
-    output_text (root_tokens filename);
+    Output.text output (root_tokens filename);
     exit 0);
 
   let total_start = Unix.gettimeofday () in
@@ -308,32 +323,22 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
   (* A missing main is noise once the program failed to load *)
   let load_had_errors = Diagnostic.has_errors diags in
 
-  let render_and_exit_if_failed () =
-    let failed = Diagnostic.has_errors diags in
-    render_program program (Diagnostic.take diags);
-    if failed then exit 1
-  in
-  (* Each stage is a possible stopping point so bail once we hit the target *)
-  let stop_at target emit =
-    if stage = target then (
-      emit ();
-      render_and_exit_if_failed ();
-      raise Exit)
-  in
+  let stop_at target emit = stop_at ~stage ~program ~diags target emit in
   try
-    stop_at Ast (fun () -> output_text (show_program program));
+    stop_at Ast (fun () -> Output.text output (show_program program));
     let resolved = Resolve.resolve_program ~diags program in
     let uses = resolved.Resolve.uses in
     let decls = resolved.Resolve.decls in
-    stop_at Resolve (fun () -> output_text (Resolve.dump uses));
+    stop_at Resolve (fun () -> Output.text output (Resolve.dump uses));
     let tdecls = Sema.analyze ~diags uses decls in
     let emit_check_result () =
-      if not (Diagnostic.has_errors diags) then output_text "typecheck: ok\n"
+      if not (Diagnostic.has_errors diags) then
+        Output.text output "typecheck: ok\n"
     in
     stop_at Check emit_check_result;
-    stop_at Tast (fun () -> output_text (show_tdecls tdecls));
+    stop_at Tast (fun () -> Output.text output (show_tdecls tdecls));
     if stage = Bin && not load_had_errors then check_has_main diags tdecls;
-    render_and_exit_if_failed ();
+    render_and_exit_if_failed program diags;
 
     let frontend_time = Unix.gettimeofday () -. total_start in
     let codegen_start = Unix.gettimeofday () in
@@ -348,13 +353,14 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
               (Diagnostic.internal ~span:error.Mir.error_span
                  (Mir.show_error error)))
           errors;
-        render_and_exit_if_failed ();
+        render_and_exit_if_failed program diags;
         raise Exit
     end;
-    stop_at Mir (fun () -> output_text (Mir.dump mir));
+    stop_at Mir (fun () -> Output.text output (Mir.dump mir));
 
+    let source_at = Program.source_at program in
     let source_of pos =
-      let source = Program.source_at program pos in
+      let source = source_at pos in
       (source.Program.filename, source.Program.source_map)
     in
 
@@ -362,10 +368,12 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     | Backend.X86 ->
         let object_bytes = Codegenx86.emit ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
-        stop_at Obj (fun () -> output_bytes object_bytes);
+        stop_at Obj (fun () -> Output.bytes output object_bytes);
 
         let link_start = Unix.gettimeofday () in
-        link_object ~show_commands:stats (output_base ()) object_bytes libraries;
+        link_object ~show_commands:stats (Target.host ())
+          (Output.base output filename)
+          object_bytes libraries;
         let link_time = Unix.gettimeofday () -. link_start in
         report_stats stats program ~total_start ~frontend_time ~qbe_time:None
           ~compiler_time:(frontend_time +. codegen_time)
@@ -374,11 +382,17 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
         let il = Codegenqbe.emit ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
 
-        stop_at Qbe (fun () -> output_text il);
-        stop_at Asm (fun () -> output_text (emit_asm il));
-        stop_at Obj (fun () -> output_bytes (emit_obj il));
+        stop_at Qbe (fun () -> Output.text output il);
+        let qbe = Config.qbe () in
+        stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
+        stop_at Obj (fun () ->
+            Output.bytes output (emit_obj ~qbe (Target.host ()) il));
 
-        let qbe_time, backend_time, link_time = output_binary il in
+        let qbe_time, backend_time, link_time =
+          compile_binary ~show_commands:stats ~qbe (Target.host ())
+            (Output.base output filename)
+            il libraries
+        in
         report_stats stats program ~total_start ~frontend_time
           ~qbe_time:(Some qbe_time)
           ~compiler_time:(frontend_time +. codegen_time +. backend_time)
