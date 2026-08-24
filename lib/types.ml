@@ -74,8 +74,6 @@ let builtins =
       ("str", BTy TStr);
       ("never", BTy TNever);
       ("opaque", BOpaque);
-      ("int", BTy (TInt I64));
-      ("float", BTy (TFloat F64));
     ]
 
 let int_kind_of_string s =

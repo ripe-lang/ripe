@@ -1,9 +1,9 @@
 func main() i32 {
-  var max: int = 9223372036854775807
-  var min: int = -9223372036854775808
-  var wide: int = max - 9223372036854775800
+  var max: i64 = 9223372036854775807
+  var min: i64 = -9223372036854775808
+  var wide: i64 = max - 9223372036854775800
   var narrow: i64 = min + 9223372036854775807
-  if narrow == -1 && sizeof(int) == 8 {
+  if narrow == -1 && sizeof(i64) == 8 {
     return i32(wide)
   }
   return 0

@@ -1,5 +1,5 @@
 func main() i32 {
-  var big: float = 16777217.0
+  var big: f64 = 16777217.0
   var narrow: f32 = 16777217.0
   if big != 16777216.0 && (f64(narrow)) == 16777216.0 {
     return 3
