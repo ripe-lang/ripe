@@ -452,9 +452,9 @@ let emit_string_into ctx destination content =
     (offset_addr ctx destination 8)
 
 let direct_value_binding (mctx : mir_ctx) (place : Mir.place) =
+  let value_name = function Value name -> Some name | Memory _ -> None in
   match (place.Mir.base, place.Mir.projections) with
-  | Mir.Local id, [] -> (
-      match mctx.bindings.(id) with Value name -> Some name | Memory _ -> None)
+  | Mir.Local id, [] -> value_name mctx.bindings.(id)
   | Mir.Local _, _ | Mir.Global _, _ -> None
 
 let mir_base_ty mctx (base : Mir.place_base) =
@@ -465,16 +465,18 @@ let mir_base_ty mctx (base : Mir.place_base) =
 let rec emit_mir_operand mctx (operand : Mir.operand) =
   match operand.Mir.desc with
   | Mir.Const constant -> emit_mir_constant mctx.qbe operand.Mir.ty constant
-  | Mir.Copy place -> (
-      match direct_value_binding mctx place with
-      | Some value -> value
-      | None ->
-          let addr, ty = emit_mir_place mctx place in
-          if is_aggregate ty then addr
-          else
-            let value = fresh mctx.qbe in
-            emit_op1 mctx.qbe value (qbe_ty ty) (qbe_load ty) addr;
-            value)
+  | Mir.Copy place -> emit_mir_copy mctx place
+
+and emit_mir_copy mctx place =
+  match direct_value_binding mctx place with
+  | Some value -> value
+  | None ->
+      let addr, ty = emit_mir_place mctx place in
+      if is_aggregate ty then addr
+      else
+        let value = fresh mctx.qbe in
+        emit_op1 mctx.qbe value (qbe_ty ty) (qbe_load ty) addr;
+        value
 
 and emit_mir_constant ctx ty = function
   | Mir.Int value -> Int64.to_string value
@@ -555,24 +557,27 @@ and emit_mir_place mctx (place : Mir.place) =
   in
   let base_ty = mir_base_ty mctx place.Mir.base in
   let projections = List.rev place.Mir.projections in
+  let project_pointer pointer projection rest =
+    match (resolve_ty base_ty, projection) with
+    | TPointer element, Mir.Deref -> project pointer element rest
+    | TPointer element, Mir.Index index ->
+        let addr = emit_mir_index_addr mctx pointer element index in
+        project addr element rest
+    | _, _ -> Diagnostic.ice "MIR pointer projection on non pointer"
+  in
   match place.Mir.base with
   | Mir.Global name -> project ("$" ^ name) base_ty projections
-  | Mir.Local id -> (
-      match (mctx.bindings.(id), projections) with
+  | Mir.Local id ->
+      begin match (mctx.bindings.(id), projections) with
       | Memory addr, projections -> project addr base_ty projections
-      | Value pointer, Mir.Deref :: rest -> (
-          match resolve_ty base_ty with
-          | TPointer element -> project pointer element rest
-          | _ -> Diagnostic.ice "MIR deref on non pointer")
-      | Value pointer, Mir.Index index :: rest -> (
-          match resolve_ty base_ty with
-          | TPointer element ->
-              let addr = emit_mir_index_addr mctx pointer element index in
-              project addr element rest
-          | _ -> Diagnostic.ice "MIR index on non pointer")
+      | Value pointer, Mir.Deref :: rest ->
+          project_pointer pointer Mir.Deref rest
+      | Value pointer, Mir.Index index :: rest ->
+          project_pointer pointer (Mir.Index index) rest
       | Value _, [] -> Diagnostic.ice "value local used as an address"
       | Value _, Mir.Field _ :: _ ->
-          Diagnostic.ice "MIR projection on scalar local")
+          Diagnostic.ice "MIR projection on scalar local"
+      end
 
 let emit_mir_unary ctx (op : Mir.unop) operand ty =
   let qt = qbe_ty ty in
@@ -710,20 +715,23 @@ let mir_callee mctx = function
   | Mir.Direct name -> "$" ^ name
   | Mir.Indirect operand -> emit_mir_operand mctx operand
 
+let qbe_aggregate_abi_ty ctx aggregate =
+  match Hashtbl.find_opt ctx.abi_types aggregate with
+  | Some name -> ":" ^ name
+  | None ->
+      let id = !(ctx.next_abi_type) in
+      incr ctx.next_abi_type;
+      let name = Printf.sprintf "RipeAbi%d" id in
+      Hashtbl.add ctx.abi_types aggregate name;
+      Printf.bprintf ctx.abi_defs "type :%s = { %s }\n" name
+        (qbe_ext_ty (qbe_struct_name ctx) aggregate);
+      ":" ^ name
+
 let qbe_abi_ty ctx ty =
   match resolve_ty ty with
   | TStruct (name, _) -> ":" ^ qbe_struct_name ctx name
-  | (TArray _ | TSlice _ | TStr) as aggregate -> (
-      match Hashtbl.find_opt ctx.abi_types aggregate with
-      | Some name -> ":" ^ name
-      | None ->
-          let id = !(ctx.next_abi_type) in
-          incr ctx.next_abi_type;
-          let name = Printf.sprintf "RipeAbi%d" id in
-          Hashtbl.add ctx.abi_types aggregate name;
-          Printf.bprintf ctx.abi_defs "type :%s = { %s }\n" name
-            (qbe_ext_ty (qbe_struct_name ctx) aggregate);
-          ":" ^ name)
+  | (TArray _ | TSlice _ | TStr) as aggregate ->
+      qbe_aggregate_abi_ty ctx aggregate
   | _ -> qbe_ty ty
 
 let qbe_call_ty ctx kind ty =
