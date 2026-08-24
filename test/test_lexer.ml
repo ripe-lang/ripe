@@ -86,9 +86,9 @@ let%expect_test "lexer: braces are literal in a string" =
     |}]
 
 let%expect_test "lexer: escape sequences" =
-  dump_tokens {|"a\nb\tc"|};
+  dump_tokens {|"a\nb\rc\td\\e\""|};
   [%expect {|
-    STRING a\nb\tc
+    STRING a\nb\rc\td\\e\"
     AUTOSEMI
     EOF
     |}]
@@ -405,11 +405,12 @@ let%expect_test "lexer: char literal is one code point" =
     |}]
 
 let%expect_test "lexer: char escapes" =
-  dump_tokens {|'\0' '\n' '\t' '\\' '\''|};
+  dump_tokens {|'\0' '\n' '\r' '\t' '\\' '\''|};
   [%expect
     {|
     '\u{0}'
     '\u{A}'
+    '\u{D}'
     '\u{9}'
     '\u{5C}'
     '\u{27}'
