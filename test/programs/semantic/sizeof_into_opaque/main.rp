@@ -1,0 +1,4 @@
+func main() i32 {
+  var v: opaque = sizeof(i8)
+  return 0
+}

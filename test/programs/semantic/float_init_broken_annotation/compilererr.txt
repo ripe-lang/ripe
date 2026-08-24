@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:8
+    var G: = 2.5
+           ^ found =

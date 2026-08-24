@@ -800,7 +800,11 @@ and const_of env ~span te =
   | Tast.TInt n -> Some (Constant.of_literal te.ty n)
   | Tast.TBool b -> Some (Constant.VBool b)
   | Tast.TChar cp -> Some (Constant.VChar cp)
-  | Tast.TFloat f -> Some (Constant.of_float (float_kind_of te.ty) f)
+  (* A broken annotation leaves no float kind so it can't fold *)
+  | Tast.TFloat f -> (
+      match resolve_ty te.ty with
+      | Types.TFloat kind -> Some (Constant.of_float kind f)
+      | _ -> None)
   | Tast.TSizeOf t ->
       Some
         (Constant.of_literal te.ty
@@ -1480,14 +1484,17 @@ and check_size_literal env (e : expr) want target typ =
   | Types.TError -> dummy_texpr
   | ty ->
       let size = Int64.of_int (Layout.ty_size env.ctx.layouts ty) in
-      let kind = int_kind_of want in
-      if not (Constant.representable kind (Constant.of_magnitude size)) then
-        emit env
-          (Diagnostic.error "size does not fit"
-          |> Diagnostic.at e.span
-          |> Diagnostic.label
-               (Printf.sprintf "%Ld does not fit in %s" size
-                  (show_ty env target)));
+      (* An error type counts as an integer here so it has no kind to ask for *)
+      (match target with
+      | Types.TInt kind
+        when not (Constant.representable kind (Constant.of_magnitude size)) ->
+          emit env
+            (Diagnostic.error "size does not fit"
+            |> Diagnostic.at e.span
+            |> Diagnostic.label
+                 (Printf.sprintf "%Ld does not fit in %s" size
+                    (show_ty env target)))
+      | _ -> ());
       Tast.mk want (Tast.TSizeOf ty)
 
 and check_neg_int_literal env (e : expr) want target value =
