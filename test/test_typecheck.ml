@@ -3790,16 +3790,16 @@ func f() i32 { var x = if true { printf("x") } else {}; return x }
                                                             ^~ expected i32, found ()
     |}]
 
-let%expect_test "typecheck: int is i64" =
-  run_src "func f() i64 { var a: int = 1\n  return a }";
+let%expect_test "typecheck: i64 is i64" =
+  run_src "func f() i64 { var a: i64 = 1\n  return a }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: float is f64" =
-  run_src "func f() f64 { var a: float = 1.5\n  return a }";
+let%expect_test "typecheck: f64 is f64" =
+  run_src "func f() f64 { var a: f64 = 1.5\n  return a }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: int is not i32" =
-  run_src "func f() i32 { var a: int = 1\n  return a }";
+let%expect_test "typecheck: i64 is not i32" =
+  run_src "func f() i32 { var a: i64 = 1\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -3808,8 +3808,8 @@ let%expect_test "typecheck: int is not i32" =
                  ^ expected i32, found i64
     |}]
 
-let%expect_test "typecheck: float is not f32" =
-  run_src "func f() f32 { var a: float = 1.5\n  return a }";
+let%expect_test "typecheck: f64 is not f32" =
+  run_src "func f() f32 { var a: f64 = 1.5\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -3818,18 +3818,18 @@ let%expect_test "typecheck: float is not f32" =
                  ^ expected f32, found f64
     |}]
 
-let%expect_test "typecheck: literal too big for int" =
-  run_src "func f() { var _a: int = 9223372036854775808 }";
+let%expect_test "typecheck: literal too big for i64" =
+  run_src "func f() { var _a: i64 = 9223372036854775808 }";
   [%expect
     {|
     error: integer literal out of range
       at <test>:1:26
-        func f() { var _a: int = 9223372036854775808 }
+        func f() { var _a: i64 = 9223372036854775808 }
                                  ^~~~~~~~~~~~~~~~~~~ does not fit in i64
     |}]
 
-let%expect_test "typecheck: int shadowed by an alias" =
-  run_src "type int = i32\nfunc f() i32 { var a: int = 1\n  return a }";
+let%expect_test "typecheck: type alias" =
+  run_src "type small = i32\nfunc f() i32 { var a: small = 1\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str literal and len" =

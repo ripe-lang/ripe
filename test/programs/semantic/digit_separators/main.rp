@@ -1,6 +1,6 @@
 func main() i32 {
-  var a: int = 1_000_000
-  var b: int = 1000_000
+  var a: i64 = 1_000_000
+  var b: i64 = 1000_000
   var c: i32 = 0xff_ff
   var d: i32 = 0b1010_1010
   var e: i32 = 0o1_7
