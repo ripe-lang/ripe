@@ -183,6 +183,7 @@ rule read_main st = parse
   | '^' { CARET }
   | "'\\0'" { CHAR 0 }
   | "'\\n'" { CHAR (Char.code '\n') }
+  | "'\\r'" { CHAR (Char.code '\r') }
   | "'\\t'" { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''" { CHAR (Char.code '\'') }
@@ -226,6 +227,7 @@ and read_string st = parse
       STRING s
     }
   | '\\' 'n' { Buffer.add_char st.buf '\n'; read_string st lexbuf }
+  | '\\' 'r' { Buffer.add_char st.buf '\r'; read_string st lexbuf }
   | '\\' 't' { Buffer.add_char st.buf '\t'; read_string st lexbuf }
   | '\\' '\\' { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
