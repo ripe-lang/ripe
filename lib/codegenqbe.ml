@@ -91,7 +91,6 @@ type ctx = {
 }
 
 type local_binding = Value of string | Memory of string
-
 type local_usage = { address_taken : bool array; defined : bool array }
 
 type mir_ctx = {
@@ -138,7 +137,6 @@ let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
 (* Three shapes basically cover everything so they skip the format interpreter *)
 let put ctx s = Buffer.add_string ctx.buf s
-
 let put_char ctx c = Buffer.add_char ctx.buf c
 
 let emit_op ctx dest ty op =

@@ -120,9 +120,7 @@ let show_ty t = show_ty_with Qname.show t
 
 (* A reader inside the module a name belongs to doesn't need its path *)
 let show_ty_in current t = show_ty_with (Qname.show_in current) t
-
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
-
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
 let int_kind_unsigned = function

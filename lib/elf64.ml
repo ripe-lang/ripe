@@ -31,7 +31,6 @@ let stt_func = 2
 let text_index = 1
 let strtab_index = 3
 let shstrtab_index = 4
-
 let u8 buffer value = Buffer.add_char buffer (Char.chr (value land 0xff))
 
 let u16 buffer value =

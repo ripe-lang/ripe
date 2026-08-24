@@ -56,7 +56,6 @@ let emit (s : sink) (d : t) = s := d :: !s
 let absorb ~(into : sink) (from : sink) = into := !from @ !into
 let emit_error_at (s : sink) span msg = emit s (error_at span msg)
 let emit_warn_at (s : sink) span msg = emit s (warning msg |> at span)
-
 let has_errors (s : sink) = List.exists (fun (d : t) -> d.severity = Error) !s
 
 (* Sorted into source order and ties keep emission order *)
@@ -295,7 +294,6 @@ let expected_expression (span : Ast.span) =
   error "expected expression" |> at span
 
 let cyclic_constant (span : Ast.span) = error_at span "cyclic constant"
-
 let expected_type (span : Ast.span) = error "expected type" |> at span
 
 let with_found (span : Ast.span) (msg : string) (found : string) =

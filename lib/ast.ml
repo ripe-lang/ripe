@@ -120,6 +120,7 @@ and path = { owner : (name * span) Nonempty.t; member : name * span }
 [@@deriving show { with_path = false }]
 
 and block = block_item list [@@deriving show { with_path = false }]
+
 and block_item = Expr of expr | Decl of local_decl
 [@@deriving show { with_path = false }]
 
@@ -208,7 +209,6 @@ and local_decl =
 [@@deriving show { with_path = false }]
 
 let show_path path = String.concat "." (List.map Interner.text path)
-
 let show_named path name = show_path (path @ [ name ])
 
 let path_expr p =
@@ -223,9 +223,7 @@ let owner_expr p =
       path_expr { owner = Nonempty.make first rest; member = last }
 
 let path_names p = List.map fst (Nonempty.to_list p.owner)
-
 let path_split p = (path_names p, fst p.member)
-
 let path_segments p = Nonempty.to_list p.owner @ [ p.member ]
 
 type global_def = {

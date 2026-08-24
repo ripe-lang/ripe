@@ -308,6 +308,7 @@ let continue_target state label span =
   (loop_target state label span).continue_block
 
 let place place_span base = { base; projections = []; place_span }
+
 let add_projection place projection =
   { place with projections = projection :: place.projections }
 
