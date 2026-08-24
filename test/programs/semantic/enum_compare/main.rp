@@ -2,11 +2,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 enum Suit { Clubs; Diamonds; Hearts; Spades }
 
-func main() {
+func main() i32 {
   var a = Suit.Diamonds
   var b = Suit.Diamonds
   printf("%d %d\n", a == b, a != Suit.Spades)
   b = Suit.Spades
   printf("%d %d\n", a == b, a != b)
-  return
+  return 0
 }

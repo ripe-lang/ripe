@@ -2,7 +2,7 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 enum Size { Small; Large }
 
-func main() {
+func main() i32 {
   var width = match Size.Large {
     Size.Small => 10
     Size.Large => 20
@@ -19,5 +19,5 @@ func main() {
 
   }
   printf("%d %d\n", width, height)
-  return
+  return 0
 }

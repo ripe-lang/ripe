@@ -19,7 +19,7 @@ func area(shape: Shape, size: Size) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   printf("%d %d %d %d\n", area(Shape.Dot, Size.Small), area(Shape.Line, Size.Large), area(Shape.Box, Size.Small), area(Shape.Box, Size.Large))
-  return
+  return 0
 }

@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-func main() {
+func main() i32 {
   printf("hello %s, you are %d years old\n", "ramon", 22)
   return 0
 }

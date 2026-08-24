@@ -1,6 +1,6 @@
 extern "C" func printf(fmt: cstr, ...) i32
 
-func main() {
+func main() i32 {
   var total = 0
   var i = 0
   while i < 8 {
@@ -22,5 +22,5 @@ func main() {
     }
   }
   printf("%d %d\n", total, last)
-  return
+  return 0
 }

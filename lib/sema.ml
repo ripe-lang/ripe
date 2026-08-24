@@ -1911,12 +1911,8 @@ and eval_array_size env e =
     else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
     else Int64.to_int n
 
-(* The C runtime gives main an implicit i32 result *)
-(* FIXME(80e8): This keeps main working before return inference *)
 let ret_ty_of env fd =
-  match fd.ret with
-  | Some t -> return_ty_of_ast env t
-  | None -> if is_entry env fd.func_span then Types.TInt I32 else Types.TUnit
+  match fd.ret with Some t -> return_ty_of_ast env t | None -> Types.TUnit
 
 (* The signature pass enables forward calls *)
 let collect_func env fd =
@@ -2193,11 +2189,7 @@ let check_func ?(is_extern = false) env fd =
       func_env params_typed
   in
 
-  (* An unwritten i32 on main comes from the runtime and not from the user *)
-  let implicit_return =
-    (not is_extern) && ret_ty <> Types.TUnit
-    && ((not is_entry_point) || fd.ret <> None)
-  in
+  let implicit_return = (not is_extern) && ret_ty <> Types.TUnit in
   let body_use =
     if not implicit_return then Discard
     else if is_entry_point then

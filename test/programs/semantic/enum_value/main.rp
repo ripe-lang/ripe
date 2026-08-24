@@ -2,10 +2,10 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 enum Color { Red; Green; Blue }
 
-func main() {
+func main() i32 {
   var red = Color.Red
   var green = Color.Green
   var blue = Color.Blue
   printf("%d %d %d\n", red == Color.Red, green == Color.Green, blue == Color.Blue)
-  return
+  return 0
 }

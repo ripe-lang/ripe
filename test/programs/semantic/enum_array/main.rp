@@ -2,9 +2,9 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 enum Dir { North; East; South; West }
 
-func main() {
+func main() i32 {
   var route: [3]Dir = [Dir.North, Dir.West, Dir.East]
   route[1] = Dir.South
   printf("%d %d %d\n", route[0] == Dir.North, route[1] == Dir.South, route[2] == Dir.East)
-  return
+  return 0
 }

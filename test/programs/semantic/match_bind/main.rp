@@ -9,7 +9,7 @@ func describe(n: i32) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   printf("%d %d %d\n", describe(0), describe(3), describe(-4))
-  return
+  return 0
 }

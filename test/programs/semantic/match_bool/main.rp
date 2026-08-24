@@ -9,7 +9,7 @@ func pick(flag: bool) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   printf("%d %d\n", pick(true), pick(false))
-  return
+  return 0
 }

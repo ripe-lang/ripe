@@ -1611,7 +1611,7 @@ let%expect_test "parse: a nested if body still reads a struct literal" =
 let%expect_test "parse: operator cannot continue after an automatic semicolon" =
   run_src
     {|func f(x: i32) i32 { return x }
-func main() {
+func main() i32 {
   var x = f(1)
     + f(2)
 }|};
@@ -1627,17 +1627,18 @@ func main() {
 let%expect_test "parse: operator may follow an explicit semicolon" =
   run_src
     {|func f(x: i32) i32 { return x }
-func main() {
-  var _x = f(1); +f(2)
+func main() i32 {
+  var _x = f(1); +f(2); return 0
 }|};
   [%expect
     {|
     warning: discarded operation result
       at <test>:3:18
-          var _x = f(1); +f(2)
+          var _x = f(1); +f(2); return 0
                          ^~~~~
     help: use `var _ = ...` when this is intentional
-    ok |}]
+    ok
+    |}]
 
 let%expect_test
     "parse: dereference assignment may follow an automatic semicolon" =
@@ -1764,7 +1765,7 @@ let%expect_test "parse: an enum declares its variants" =
   Raised at Test_ripe__Diag.finish in file "test/diag.ml", line 29, characters 17-51
   Called from Test_ripe__Pipeline.parse_module in file "test/pipeline.ml", lines 7-8, characters 4-63
   Called from Test_ripe__Pipeline.parse in file "test/pipeline.ml", line 10, characters 28-52
-  Called from Test_ripe__Test_parser.(fun) in file "test/test_parser.ml", line 1752, characters 9-48
+  Called from Test_ripe__Test_parser.(fun) in file "test/test_parser.ml", line 1753, characters 9-48
   Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 142, characters 10-28
   |}]
 

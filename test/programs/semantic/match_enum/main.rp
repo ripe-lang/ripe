@@ -11,7 +11,7 @@ func code(c: Color) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue))
-  return
+  return 0
 }
