@@ -294,6 +294,8 @@ let cannot_infer (span : Ast.span) =
 let expected_expression (span : Ast.span) =
   error "expected expression" |> at span
 
+let cyclic_constant (span : Ast.span) = error_at span "cyclic constant"
+
 let expected_type (span : Ast.span) = error "expected type" |> at span
 
 let with_found (span : Ast.span) (msg : string) (found : string) =

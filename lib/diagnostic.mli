@@ -48,6 +48,7 @@ val break_disagree :
   Ast.span -> string -> other:Ast.span -> other_message:string -> t
 val opaque_operation : Ast.span -> string -> t
 val cannot_infer : Ast.span -> t
+val cyclic_constant : Ast.span -> t
 val expected_expression : Ast.span -> t
 val expected_type : Ast.span -> t
 val with_found : Ast.span -> string -> string -> t
