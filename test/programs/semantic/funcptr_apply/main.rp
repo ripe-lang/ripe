@@ -7,7 +7,7 @@ func apply(f: binop, a: i32, b: i32) i32 {
   return f(a, b)
 }
 
-func main() {
+func main() i32 {
   var op: binop = mul
   return apply(op, 6, 7)
 }

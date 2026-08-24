@@ -3627,10 +3627,11 @@ func f() {
 let%expect_test "typecheck: a qualified struct literal" =
   run_program
     [
-      ("main.rp", {|
+      ( "main.rp",
+        {|
 import math
-func main() { var _p = math.Point { x: 1 } }
-|});
+func main() i32 { var _p = math.Point { x: 1 } }
+|} );
       ("math.rp", {|
 pub struct Point { x: i32 }
 |});
@@ -3642,7 +3643,7 @@ let%expect_test "typecheck: a module needs a member" =
     [
       ("main.rp", {|
 import math
-func main() { var _value = math }
+func main() i32 { var _value = math }
 |});
       ("math.rp", {|
 pub func add(_x: i32) {}
@@ -3653,11 +3654,12 @@ pub func add(_x: i32) {}
 let%expect_test "typecheck: modules can repeat a type spelling" =
   run_program
     [
-      ("main.rp", {|
+      ( "main.rp",
+        {|
 import math
 type Pair = i32
-func main() { math.check() }
-|});
+func main() i32 { math.check() }
+|} );
       ("math.rp", {|
 type Pair = bool
 pub func check() { var v: Pair = 1 }
@@ -3670,14 +3672,14 @@ pub func check() { var v: Pair = 1 }
 
 let%expect_test "typecheck: singular argument count" =
   run_src {|func take(_value: i32) {}
-func main() { take() }
+func main() i32 { take() }
 |};
   [%expect
     {|
     error: wrong number of arguments
-      at <test>:2:15
-        func main() { take() }
-                      ^~~~~~ expected 1 argument, found 0
+      at <test>:2:19
+        func main() i32 { take() }
+                          ^~~~~~ expected 1 argument, found 0
     |}]
 
 let%expect_test "typecheck: nonliteral operand types binary expression" =

@@ -11,7 +11,7 @@ func check(x: i32) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   comptime LOCAL: i32 = 9
   var n = match 9 {
     LOCAL => 100
@@ -19,5 +19,5 @@ func main() {
 
   }
   printf("%d %d %d\n", check(42), check(7), n)
-  return
+  return 0
 }

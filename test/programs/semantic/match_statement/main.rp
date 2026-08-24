@@ -11,9 +11,9 @@ func announce(level: Level) {
   return
 }
 
-func main() {
+func main() i32 {
   announce(Level.Mid)
   announce(Level.High)
   announce(Level.Low)
-  return
+  return 0
 }

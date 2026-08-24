@@ -12,7 +12,7 @@ func flip(level: Level) Level {
   return Level.Low
 }
 
-func main() {
+func main() i32 {
   printf("%d %d\n", pick(Level.Low, 1, 2), pick(flip(Level.Low), 1, 2))
-  return
+  return 0
 }

@@ -18,7 +18,7 @@ func align_up(val: i32, align: i32) i32 {
   return val + align - 1 & ~(align - 1)
 }
 
-func main() {
+func main() i32 {
   var flags: i32 = 0
   flags = set_flag(flags, PRESENT)
   flags = set_flag(flags, WRITABLE)

@@ -10,7 +10,7 @@ func digit(c: char) i32 {
   }
 }
 
-func main() {
+func main() i32 {
   printf("%d %d %d %d\n", digit('0'), digit('1'), digit('z'), digit('q'))
-  return
+  return 0
 }

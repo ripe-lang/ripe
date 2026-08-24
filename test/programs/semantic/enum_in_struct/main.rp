@@ -4,8 +4,8 @@ enum Kind { Circle; Square }
 
 struct Shape { kind: Kind; size: i32 }
 
-func main() {
+func main() i32 {
   var s = Shape { kind: Kind.Square, size: 3 }
   printf("%d %d\n", s.kind == Kind.Square, s.size)
-  return
+  return 0
 }
