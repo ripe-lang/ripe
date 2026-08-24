@@ -184,7 +184,7 @@ let find_main program =
   | Some func -> func
   | None -> unsupported "the x86 backend needs a main function"
 
-let emit_mir ~source_of:_ program =
+let emit ~source_of:_ program =
   let open Mir in
   if not (List.is_empty program.globals) then
     unsupported "the x86 backend cannot compile globals yet";

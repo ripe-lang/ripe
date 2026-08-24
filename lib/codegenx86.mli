@@ -34,4 +34,4 @@ exception Unsupported of string
 val create : ?size:int -> unit -> t
 val instr : t -> instr -> unit
 val finish : t -> labels:(string * int) list -> string
-val emit_mir : source_of:(int -> string * Sourcemap.t) -> Mir.program -> string
+val emit : source_of:(int -> string * Sourcemap.t) -> Mir.program -> string

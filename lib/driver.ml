@@ -360,7 +360,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
 
     match backend with
     | Backend.X86 ->
-        let object_bytes = Codegenx86.emit_mir ~source_of mir in
+        let object_bytes = Codegenx86.emit ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
         stop_at Obj (fun () -> output_bytes object_bytes);
 
@@ -371,7 +371,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
           ~compiler_time:(frontend_time +. codegen_time)
           ~link_time
     | Backend.Qbe ->
-        let il = Codegenqbe.emit_mir ~source_of mir in
+        let il = Codegenqbe.emit ~source_of mir in
         let codegen_time = Unix.gettimeofday () -. codegen_start in
 
         stop_at Qbe (fun () -> output_text il);

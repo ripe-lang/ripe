@@ -120,7 +120,7 @@ let run_src src =
 let run_codegen src =
   try
     let il =
-      Ripe.Codegenqbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+      Ripe.Codegenqbe.emit ~source_of:(source_of_src src) (mir_src src)
     in
     print_string il;
     check_qbe il
@@ -129,7 +129,7 @@ let run_codegen src =
 let run_codegen_ok src =
   try
     let il =
-      Ripe.Codegenqbe.emit_mir ~source_of:(source_of_src src) (mir_src src)
+      Ripe.Codegenqbe.emit ~source_of:(source_of_src src) (mir_src src)
     in
     check_qbe il;
     print_endline "ok"
