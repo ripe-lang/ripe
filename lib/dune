@@ -23,7 +23,7 @@
   typred
   reachability
   sema
-  typedast
+  tast
   mir
   constant
   codegenqbe

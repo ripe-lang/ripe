@@ -153,7 +153,7 @@ let show_program (program : Program.t) =
   |> String.concat ""
 
 let show_tdecls tdecls =
-  String.concat "\n" (List.map Typedast.show_tdecl tdecls) ^ "\n"
+  String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"
 
 let line_counts program =
   let count_processed_lines text =
@@ -236,7 +236,7 @@ let render_program program diags =
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main diags tdecls =
   let is_main decl =
-    match decl with Typedast.TFunc fd -> fd.Typedast.entry_point | _ -> false
+    match decl with Tast.TFunc fd -> fd.Tast.entry_point | _ -> false
   in
   if not (List.exists is_main tdecls) then
     Diagnostic.emit diags
