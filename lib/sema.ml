@@ -1074,7 +1074,9 @@ and positional_fields env span info
            (Printf.sprintf "expected %d, found %d" expected found));
   let rec zip field_id fields inits =
     match (fields, inits) with
-    | [], _ -> []
+    | [], inits ->
+        walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
+        []
     | (_, ft) :: fields, [] ->
         (field_id, Tast.mk ft Tast.TZero) :: zip (field_id + 1) fields []
     | (_, ft) :: fields, (_, _, init) :: inits ->
@@ -1578,6 +1580,9 @@ and check_range_bounds env lo hi =
   report_const_range env thi;
   (tlo, thi, t)
 
+(* A bad count drops the args so walk them or their errors never show *)
+and walk_unpaired_args env args = List.iter (fun a -> ignore (synth env a)) args
+
 and check_args env span fsig args =
   let n_params = List.length fsig.param_tys in
   let n_args = List.length args in
@@ -1590,6 +1595,7 @@ and check_args env span fsig args =
         (Diagnostic.arity span
            ~expected:("expected at least " ^ expected_args)
            ~found:n_args);
+      walk_unpaired_args env args;
       [])
     else
       let fixed = List.take n_params args in
@@ -1608,6 +1614,7 @@ and check_args env span fsig args =
       (Diagnostic.arity span
          ~expected:("expected " ^ expected_args)
          ~found:n_args);
+    walk_unpaired_args env args;
     [])
   else List.map2 (check env) args fsig.param_tys
 

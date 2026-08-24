@@ -1,0 +1,7 @@
+func g(a: i32) i32 {
+  return a
+}
+
+func main() i32 {
+  return g(1, bool(1.5))
+}
