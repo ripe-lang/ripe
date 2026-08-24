@@ -582,7 +582,7 @@ and resolve_decl st = function
       Option.iter (resolve_expr st) gd.init
   | Struct sd -> List.iter (fun f -> resolve_typ st f.field_typ) sd.fields
   | TypeAlias td -> resolve_typ st td.alias_typ
-  (* TODO: nothing to walk until a variant can hold a type *)
+  (* TODO(c111): nothing to walk until a variant can hold a type *)
   | Enum _ -> ()
 
 let visibility modifiers =

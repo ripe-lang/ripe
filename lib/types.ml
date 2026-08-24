@@ -29,7 +29,7 @@ type ty =
   | TSlice of ty
   | TAlias of Qname.t * ty
   | TError
-  (* TODO: every enum is an i32 until a backing type can be written down *)
+  (* TODO(2e26): every enum is an i32 until a backing type can be written down *)
   | TEnum of Qname.t
   | TUnit
 [@@deriving show { with_path = false }]

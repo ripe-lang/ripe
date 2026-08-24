@@ -30,7 +30,7 @@ type texpr_desc =
   | TZero
   | TUndef
   | TStructLit of Qname.t * (int * texpr) list
-  (* TODO: a payload variant carries its arguments here too *)
+  (* TODO(6c3f): a payload variant carries its arguments here too *)
   | TVariant of Qname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option

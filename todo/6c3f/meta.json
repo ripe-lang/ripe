@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-24 02:40:23.203684",
+  "depends": [],
+  "id": "6c3f",
+  "priority": "low",
+  "source": "lib/tast.ml",
+  "status": "open",
+  "tags": [],
+  "title": "a payload variant carries its arguments here too",
+  "updated_at": "2026-08-24 02:40:23.203684"
+}

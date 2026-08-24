@@ -221,7 +221,7 @@ let binop span op ~result_ty a b =
   | VFloat _, _ | _, VFloat _ -> (
       let x = float_of a and y = float_of b in
       (* The kind is read in the arm so a compare never asks a bool for one *)
-      (* FIXME: A mismatch can leave an int here so it doesn't fold this works for now
+      (* FIXME(8d3d): A mismatch can leave an int here so it doesn't fold this works for now
          but ill look more into this *)
       let arith f =
         match resolve_ty result_ty with

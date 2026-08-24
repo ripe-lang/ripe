@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-24 02:40:23.201073",
+  "depends": [],
+  "id": "766b",
+  "priority": "low",
+  "source": "lib/sema.ml",
+  "status": "open",
+  "tags": [],
+  "title": "a named constant and a range should both work as patterns",
+  "updated_at": "2026-08-24 02:40:23.201073"
+}

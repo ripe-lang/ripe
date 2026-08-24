@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-08-24 02:40:23.207508",
+  "depends": [],
+  "id": "c111",
+  "priority": "low",
+  "source": "lib/resolve.ml",
+  "status": "open",
+  "tags": [],
+  "title": "nothing to walk until a variant can hold a type",
+  "updated_at": "2026-08-24 02:40:23.207508"
+}
