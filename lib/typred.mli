@@ -3,9 +3,9 @@
 open Types
 
 val compatible : ty -> ty -> bool
-val is_lvalue : Typedast.texpr -> bool
-val root_lvalue : Typedast.texpr -> Typedast.texpr option
-val root_binding : Typedast.texpr -> Symbol.t option
+val is_lvalue : Tast.texpr -> bool
+val root_lvalue : Tast.texpr -> Tast.texpr option
+val root_binding : Tast.texpr -> Symbol.t option
 val is_integer : ty -> bool
 val is_num_literal : Ast.expr -> bool
 val suffix_kind : string -> int_kind

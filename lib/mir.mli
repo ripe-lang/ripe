@@ -140,7 +140,7 @@ type program = {
 
 type error = { function_name : string; error_span : Ast.span; message : string }
 
-val build : Typedast.tdecl list -> program
+val build : Tast.tdecl list -> program
 val dump : program -> string
 val show_error : error -> string
 val verify : program -> (unit, error list) result

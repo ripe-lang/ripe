@@ -2,7 +2,6 @@
 
 open Ast
 open Types
-module T = Typedast
 
 (* Types need exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
@@ -33,28 +32,28 @@ and compatible_under_pointer want got =
   | _, _ -> ty_equal want got
 
 let is_lvalue te =
-  match te.T.desc with
-  | T.TIdent _ | T.TFieldAccess _ | T.TIndex _ -> true
-  | T.TUnOp (Deref, _) -> true
+  match te.Tast.desc with
+  | Tast.TIdent _ | Tast.TFieldAccess _ | Tast.TIndex _ -> true
+  | Tast.TUnOp (Deref, _) -> true
   | _ -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_lvalue te =
-  match te.T.desc with
-  | T.TIdent _ -> Some te
-  | T.TFieldAccess (base, _) -> root_through base
-  | T.TIndex (base, _) -> root_through base
+  match te.Tast.desc with
+  | Tast.TIdent _ -> Some te
+  | Tast.TFieldAccess (base, _) -> root_through base
+  | Tast.TIndex (base, _) -> root_through base
   | _ -> None
 
 (* Going through a pointer or slice lands on memory this binding doesn't own *)
 and root_through base =
-  match resolve_ty base.T.ty with
+  match resolve_ty base.Tast.ty with
   | TPointer _ | TSlice _ -> None
   | _ -> root_lvalue base
 
 let root_binding te =
   match root_lvalue te with
-  | Some { T.desc = T.TIdent s; _ } -> Some s
+  | Some { Tast.desc = Tast.TIdent s; _ } -> Some s
   | Some _ | None -> None
 
 let is_numeric t =

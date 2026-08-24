@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 open Types
-open! Typedast
+open! Tast
 
 type local_id = int
 type block_id = int
@@ -192,25 +192,25 @@ let constant_of_value = function
   | Constant.VChar value -> Char value
   | Constant.VInt _ as value -> Int (Constant.int_of value)
 
-let rec global_init (expr : Typedast.texpr) =
+let rec global_init (expr : Tast.texpr) =
   match expr.desc with
-  | Typedast.TInt value -> GlobalConst (Int value, expr.ty)
+  | Tast.TInt value -> GlobalConst (Int value, expr.ty)
   (* The MIR keeps the value but not the variant name *)
-  | Typedast.TVariant (_, value) -> GlobalConst (Int value, expr.ty)
-  | Typedast.TFloat value -> GlobalConst (Float value, expr.ty)
-  | Typedast.TBool value -> GlobalConst (Bool value, expr.ty)
-  | Typedast.TNull -> GlobalConst (Null, expr.ty)
-  | Typedast.TCStr value -> GlobalConst (CStr value, expr.ty)
-  | Typedast.TStr value -> GlobalConst (Str value, expr.ty)
-  | Typedast.TChar value -> GlobalConst (Char value, expr.ty)
-  | Typedast.TZero -> GlobalConst (Zero, expr.ty)
-  | Typedast.TUndef -> GlobalConst (Undef, expr.ty)
-  | Typedast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+  | Tast.TVariant (_, value) -> GlobalConst (Int value, expr.ty)
+  | Tast.TFloat value -> GlobalConst (Float value, expr.ty)
+  | Tast.TBool value -> GlobalConst (Bool value, expr.ty)
+  | Tast.TNull -> GlobalConst (Null, expr.ty)
+  | Tast.TCStr value -> GlobalConst (CStr value, expr.ty)
+  | Tast.TStr value -> GlobalConst (Str value, expr.ty)
+  | Tast.TChar value -> GlobalConst (Char value, expr.ty)
+  | Tast.TZero -> GlobalConst (Zero, expr.ty)
+  | Tast.TUndef -> GlobalConst (Undef, expr.ty)
+  | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       GlobalConst (Function symbol.Symbol.link_name, expr.ty)
-  | Typedast.TUnOp (Ast.AddressOf, { desc = Typedast.TIdent symbol; _ }) ->
+  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TIdent symbol; _ }) ->
       GlobalAddress symbol.Symbol.link_name
-  | Typedast.TArrayLit values -> GlobalArray (List.map global_init values)
-  | Typedast.TStructLit (_, fields) ->
+  | Tast.TArrayLit values -> GlobalArray (List.map global_init values)
+  | Tast.TStructLit (_, fields) ->
       let compare_field_ids (left, _) (right, _) = Int.compare left right in
       GlobalStruct
         (List.map
@@ -314,7 +314,7 @@ let add_projection place projection =
 let local_place span id = place span (Local id)
 let copy span ty place = { desc = Copy place; ty; span }
 
-let constant (expr : Typedast.texpr) desc =
+let constant (expr : Tast.texpr) desc =
   { desc = Const desc; ty = expr.ty; span = expr.span }
 
 let const_operand span ty desc = { desc = Const desc; ty; span }
@@ -426,21 +426,21 @@ let check_arithmetic state op ~operand_ty (right : operand) span =
       negative_shift state right span
   | _ -> ()
 
-let rec block_value state (expr : Typedast.texpr) body =
+let rec block_value state (expr : Tast.texpr) body =
   match List.rev body with
   | [] -> constant expr Undef
   | last :: reversed ->
       List.iter (lower_statement state) (List.rev reversed);
       if is_live state then lower_expr state last else constant expr Undef
 
-and block_value_into state destination (expr : Typedast.texpr) body =
+and block_value_into state destination (expr : Tast.texpr) body =
   match List.rev body with
   | [] -> assign state destination (constant expr Undef)
   | last :: reversed ->
       List.iter (lower_statement state) (List.rev reversed);
       if is_live state then lower_fresh_into state destination last
 
-and lower_short_circuit state (expr : Typedast.texpr) left right short_value =
+and lower_short_circuit state (expr : Tast.texpr) left right short_value =
   let right_block = new_block state in
   let short_block = new_block state in
   let join_block = new_block state in
@@ -461,25 +461,25 @@ and lower_short_circuit state (expr : Typedast.texpr) left right short_value =
   copy expr.span Types.TBool (local_place expr.span result)
 
 (* A branch expr only needs a slot when it hands a value back *)
-and branch_result state (expr : Typedast.texpr) =
+and branch_result state (expr : Tast.texpr) =
   if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
   else
     let id = add_local state Temp expr.ty expr.span in
     Some (local_place expr.span id)
 
-and join_result state (expr : Typedast.texpr) result join =
+and join_result state (expr : Tast.texpr) result join =
   switch state join;
   if expr.ty = Types.TNever then terminate state Unreachable expr.span;
   match result with
   | Some result -> copy expr.span expr.ty result
   | None -> constant expr Undef
 
-and lower_if state (expr : Typedast.texpr) branches else_body =
+and lower_if state (expr : Tast.texpr) branches else_body =
   let result = branch_result state expr in
   let join = lower_if_into state expr result branches else_body in
   join_result state expr result join
 
-and lower_if_into state (expr : Typedast.texpr) result branches else_body =
+and lower_if_into state (expr : Tast.texpr) result branches else_body =
   let join = new_block state in
   let lower_else = function
     | Some body -> lower_arm state expr result join body
@@ -500,21 +500,20 @@ and lower_if_into state (expr : Typedast.texpr) result branches else_body =
   join
 
 (* A pattern walks the scrutinee and gathers what to compare and what to name *)
-and pattern_plan (place : place) (ty : ty) (pat : Typedast.tpattern) =
+and pattern_plan (place : place) (ty : ty) (pat : Tast.tpattern) =
   match pat with
-  | Typedast.TPatWild -> ([], [])
-  | Typedast.TPatBind (symbol, bound_ty) -> ([], [ (symbol, bound_ty, place) ])
-  | Typedast.TPatConst value -> ([ (place, ty, value) ], [])
+  | Tast.TPatWild -> ([], [])
+  | Tast.TPatBind (symbol, bound_ty) -> ([], [ (symbol, bound_ty, place) ])
+  | Tast.TPatConst value -> ([ (place, ty, value) ], [])
 
 (* One test per arm because a jump table only pays off on a dense range *)
-and lower_match state (expr : Typedast.texpr) (scrutinee : Typedast.texpr) arms
-    =
+and lower_match state (expr : Tast.texpr) (scrutinee : Tast.texpr) arms =
   let result = branch_result state expr in
   let join = lower_match_into state expr result scrutinee arms in
   join_result state expr result join
 
-and lower_match_into state (expr : Typedast.texpr) result
-    (scrutinee : Typedast.texpr) arms =
+and lower_match_into state (expr : Tast.texpr) result (scrutinee : Tast.texpr)
+    arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
   let join = new_block state in
@@ -559,7 +558,7 @@ and lower_match_into state (expr : Typedast.texpr) result
   lower_arms arms;
   join
 
-and lower_arm state (expr : Typedast.texpr) result join body =
+and lower_arm state (expr : Tast.texpr) result join body =
   match result with
   | None ->
       List.iter (lower_statement state) body;
@@ -570,17 +569,17 @@ and lower_arm state (expr : Typedast.texpr) result join body =
         terminate state (Jump join) expr.span
       end
 
-and lower_branch state (expr : Typedast.texpr) yes no =
+and lower_branch state (expr : Tast.texpr) yes no =
   match expr.desc with
-  | Typedast.TBool value ->
+  | Tast.TBool value ->
       terminate state (Jump (if value then yes else no)) expr.span
-  | Typedast.TUnOp (Ast.Not, inner) -> lower_branch state inner no yes
-  | Typedast.TBinOp (Ast.And, left, right) ->
+  | Tast.TUnOp (Ast.Not, inner) -> lower_branch state inner no yes
+  | Tast.TBinOp (Ast.And, left, right) ->
       let middle = new_block state in
       lower_branch state left middle no;
       switch state middle;
       lower_branch state right yes no
-  | Typedast.TBinOp (Ast.Or, left, right) ->
+  | Tast.TBinOp (Ast.Or, left, right) ->
       let middle = new_block state in
       lower_branch state left yes middle;
       switch state middle;
@@ -622,11 +621,11 @@ and lower_counted_loop state span label ~condition ?(enter_body = fun () -> ())
   terminate state (Jump condition_block) span;
   switch state exit_block
 
-and lower_for state span label symbol elem_ty (iter : Typedast.texpr) body =
+and lower_for state span label symbol elem_ty (iter : Tast.texpr) body =
   match iter.desc with
-  | Typedast.TRange (lo, hi) ->
+  | Tast.TRange (lo, hi) ->
       lower_range_for state span label symbol elem_ty lo hi false body
-  | Typedast.TRangeInclusive (lo, hi) ->
+  | Tast.TRangeInclusive (lo, hi) ->
       lower_range_for state span label symbol elem_ty lo hi true body
   | _ -> lower_each_for state span label symbol elem_ty iter body
 
@@ -663,7 +662,7 @@ and lower_range_for state span label (symbol : Symbol.t) elem_ty lo hi inclusive
     body
 
 and lower_each_for state span label (symbol : Symbol.t) elem_ty
-    (iter : Typedast.texpr) body =
+    (iter : Tast.texpr) body =
   let source = lower_expr state iter |> materialize state in
   let source =
     match resolve_ty iter.ty with
@@ -833,109 +832,106 @@ and map_operands state = function
         in
         value :: map_operands state rest
 
-and lower_expr state (expr : Typedast.texpr) =
+and lower_expr state (expr : Tast.texpr) =
   match expr.const with
   | Some value -> constant expr (constant_of_value value)
   | None -> lower_runtime_expr state expr
 
-and lower_runtime_expr state (expr : Typedast.texpr) =
+and lower_runtime_expr state (expr : Tast.texpr) =
   match expr.desc with
-  | Typedast.TErrorExpr ->
+  | Tast.TErrorExpr ->
       Diagnostic.ice ~span:expr.span "error expression reached MIR"
-  | Typedast.TInt value -> constant expr (Int value)
+  | Tast.TInt value -> constant expr (Int value)
   (* The backend sees the variant value as an integer *)
-  | Typedast.TVariant (_, value) -> constant expr (Int value)
-  | Typedast.TFloat value -> constant expr (Float value)
-  | Typedast.TBool value -> constant expr (Bool value)
-  | Typedast.TNull -> constant expr Null
-  | Typedast.TCStr value -> constant expr (CStr value)
-  | Typedast.TStr value -> constant expr (Str value)
-  | Typedast.TChar value -> constant expr (Char value)
-  | Typedast.TZero -> constant expr Zero
-  | Typedast.TUndef -> constant expr Undef
-  | Typedast.TIdent _ when expr.ty = Types.TUnit -> constant expr Undef
-  | Typedast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+  | Tast.TVariant (_, value) -> constant expr (Int value)
+  | Tast.TFloat value -> constant expr (Float value)
+  | Tast.TBool value -> constant expr (Bool value)
+  | Tast.TNull -> constant expr Null
+  | Tast.TCStr value -> constant expr (CStr value)
+  | Tast.TStr value -> constant expr (Str value)
+  | Tast.TChar value -> constant expr (Char value)
+  | Tast.TZero -> constant expr Zero
+  | Tast.TUndef -> constant expr Undef
+  | Tast.TIdent _ when expr.ty = Types.TUnit -> constant expr Undef
+  | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       constant expr (Function symbol.Symbol.link_name)
-  | Typedast.TIdent symbol ->
+  | Tast.TIdent symbol ->
       copy expr.span expr.ty (symbol_place state expr.span symbol)
-  | Typedast.TCall (callee, args, variadic_start) ->
+  | Tast.TCall (callee, args, variadic_start) ->
       lower_call state expr callee args variadic_start
-  | Typedast.TBinOp (Ast.And, left, right) ->
+  | Tast.TBinOp (Ast.And, left, right) ->
       lower_short_circuit state expr left right false
-  | Typedast.TBinOp (Ast.Or, left, right) ->
+  | Tast.TBinOp (Ast.Or, left, right) ->
       lower_short_circuit state expr left right true
-  | Typedast.TAssign (None, ({ desc = Typedast.TIdent _; _ } as left), right)
+  | Tast.TAssign (None, ({ desc = Tast.TIdent _; _ } as left), right)
     when left.ty <> Types.TUnit ->
       let destination = lower_place state left in
       lower_expr_into state destination right;
       copy expr.span left.ty destination
-  | Typedast.TAssign (None, left, right) ->
+  | Tast.TAssign (None, left, right) ->
       let assigned = lower_expr state right in
       if left.ty <> Types.TUnit then begin
         let destination = lower_place state left in
         assign state destination assigned
       end;
       assigned
-  | Typedast.TAssign (Some op, left, right) ->
+  | Tast.TAssign (Some op, left, right) ->
       lower_compound_assign state expr op left right
-  | Typedast.TBinOp (op, left, right) ->
+  | Tast.TBinOp (op, left, right) ->
       let left, right = lower_binop_operands state expr op left right in
       lower_binary state expr.span expr.ty op left right
-  | Typedast.TUnOp (Ast.Pos, inner) -> lower_expr state inner
-  | Typedast.TUnOp
-      (Ast.AddressOf, { desc = Typedast.TUnOp (Ast.Deref, inner); _ }) ->
+  | Tast.TUnOp (Ast.Pos, inner) -> lower_expr state inner
+  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TUnOp (Ast.Deref, inner); _ }) ->
       lower_expr state inner
-  | Typedast.TUnOp
-      (Ast.AddressOf, ({ desc = Typedast.TIdent symbol; _ } as inner))
+  | Tast.TUnOp (Ast.AddressOf, ({ desc = Tast.TIdent symbol; _ } as inner))
     when Symbol.is_func symbol.Symbol.kind ->
       let function_value = lower_expr state inner in
       { function_value with ty = expr.ty; span = expr.span }
-  | Typedast.TUnOp (Ast.AddressOf, inner) ->
+  | Tast.TUnOp (Ast.AddressOf, inner) ->
       let inner = lower_place state inner in
       temp_value state expr.ty expr.span (AddressOf inner)
-  | Typedast.TUnOp (Ast.Deref, _) ->
+  | Tast.TUnOp (Ast.Deref, _) ->
       let source = lower_place state expr in
       copy expr.span expr.ty source
-  | Typedast.TUnOp (op, inner) ->
+  | Tast.TUnOp (op, inner) ->
       let inner = lower_expr state inner in
       temp_value state expr.ty expr.span (Unary (lower_unop op, inner))
-  | Typedast.TFieldAccess _ | Typedast.TIndex _ ->
+  | Tast.TFieldAccess _ | Tast.TIndex _ ->
       let source = lower_place state expr in
       copy expr.span expr.ty source
-  | Typedast.TCast inner ->
+  | Tast.TCast inner ->
       let inner = lower_expr state inner in
       temp_value state expr.ty expr.span (Cast inner)
-  | Typedast.TSizeOf ty -> temp_value state expr.ty expr.span (SizeOf ty)
-  | Typedast.TRange _ | Typedast.TRangeInclusive _ ->
+  | Tast.TSizeOf ty -> temp_value state expr.ty expr.span (SizeOf ty)
+  | Tast.TRange _ | Tast.TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.span "range outside a for loop"
-  | Typedast.TArrayLit elements -> lower_array_literal state expr elements
-  | Typedast.TLen inner ->
+  | Tast.TArrayLit elements -> lower_array_literal state expr elements
+  | Tast.TLen inner ->
       let inner = lower_expr state inner |> materialize state in
       temp_value state expr.ty expr.span (Len inner)
-  | Typedast.TSliceExpr (base, lo, hi) -> lower_slice state expr base lo hi
-  | Typedast.TDataPtr inner ->
+  | Tast.TSliceExpr (base, lo, hi) -> lower_slice state expr base lo hi
+  | Tast.TDataPtr inner ->
       let inner = lower_expr state inner |> materialize state in
       temp_value state expr.ty expr.span (DataPtr inner)
-  | Typedast.TStructLit (_, fields) -> lower_struct_literal state expr fields
-  | Typedast.TLocalDecl -> constant expr Undef
-  | Typedast.TLoop (label, body) ->
-      lower_loop state expr.span label expr.ty body
-  | Typedast.TBlock body -> block_value state expr body
-  | Typedast.TIf (branches, else_body) -> lower_if state expr branches else_body
-  | Typedast.TMatch (scrutinee, arms) -> lower_match state expr scrutinee arms
-  | Typedast.TWhile (label, condition, body) ->
+  | Tast.TStructLit (_, fields) -> lower_struct_literal state expr fields
+  | Tast.TLocalDecl -> constant expr Undef
+  | Tast.TLoop (label, body) -> lower_loop state expr.span label expr.ty body
+  | Tast.TBlock body -> block_value state expr body
+  | Tast.TIf (branches, else_body) -> lower_if state expr branches else_body
+  | Tast.TMatch (scrutinee, arms) -> lower_match state expr scrutinee arms
+  | Tast.TWhile (label, condition, body) ->
       lower_while state expr.span label condition body;
       constant expr Undef
-  | Typedast.TFor (label, symbol, elem_ty, iter, body) ->
+  | Tast.TFor (label, symbol, elem_ty, iter, body) ->
       lower_for state expr.span label symbol elem_ty iter body;
       constant expr Undef
-  | Typedast.TBinding _ | Typedast.TReturn _ | Typedast.TBreak _
-  | Typedast.TContinue _ | Typedast.TPairAssign _ ->
+  | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _
+  | Tast.TPairAssign _ ->
       lower_statement state expr;
       constant expr Undef
-  | Typedast.TUnit -> constant expr Undef
+  | Tast.TUnit -> constant expr Undef
 
-and lower_call state (expr : Typedast.texpr) (callee : Typedast.texpr) args
+and lower_call state (expr : Tast.texpr) (callee : Tast.texpr) args
     variadic_start =
   let destination =
     if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
@@ -948,12 +944,12 @@ and lower_call state (expr : Typedast.texpr) (callee : Typedast.texpr) args
   | Some destination -> copy expr.span expr.ty destination
   | None -> constant expr Undef
 
-and emit_call state destination (expr : Typedast.texpr)
-    (callee : Typedast.texpr) args variadic_start =
+and emit_call state destination (expr : Tast.texpr) (callee : Tast.texpr) args
+    variadic_start =
   let args = map_operands state args in
   let callee_value, kind =
     match callee.desc with
-    | Typedast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
+    | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
         let kind =
           match resolve_ty callee.ty with
           | Types.TFunc (_, _, C) -> External
@@ -981,21 +977,21 @@ and emit_call state destination (expr : Typedast.texpr)
     expr.span;
   if expr.ty = Types.TNever then terminate state Unreachable expr.span
 
-and lower_binop_operands state (expr : Typedast.texpr) op left right =
+and lower_binop_operands state (expr : Tast.texpr) op left right =
   let left = lower_expr state left in
   let right = lower_expr state right in
   check_arithmetic state op ~operand_ty:left.ty right expr.span;
   (left, right)
 
-and lower_expr_into state destination (expr : Typedast.texpr) =
+and lower_expr_into state destination (expr : Tast.texpr) =
   match expr.desc with
-  | Typedast.TCall (callee, args, variadic_start) ->
+  | Tast.TCall (callee, args, variadic_start) ->
       let result =
         if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
         else Some destination
       in
       emit_call state result expr callee args variadic_start
-  | Typedast.TBinOp (op, left, right)
+  | Tast.TBinOp (op, left, right)
     when Option.is_none expr.const && op <> Ast.And && op <> Ast.Or ->
       let left, right = lower_binop_operands state expr op left right in
       ignore
@@ -1004,40 +1000,40 @@ and lower_expr_into state destination (expr : Typedast.texpr) =
       let assigned = lower_expr state expr in
       if is_live state then assign state destination assigned
 
-and lower_fresh_into state destination (expr : Typedast.texpr) =
+and lower_fresh_into state destination (expr : Tast.texpr) =
   match (expr.const, expr.desc) with
-  | None, Typedast.TArrayLit elements ->
+  | None, Tast.TArrayLit elements ->
       fill_array_literal state destination expr elements
-  | None, Typedast.TStructLit (_, fields) ->
+  | None, Tast.TStructLit (_, fields) ->
       fill_struct_literal state destination expr fields
-  | None, Typedast.TSliceExpr (base, lo, hi) ->
+  | None, Tast.TSliceExpr (base, lo, hi) ->
       fill_slice state destination expr base lo hi
-  | None, Typedast.TBlock body -> block_value_into state destination expr body
-  | None, Typedast.TIf (branches, else_body) ->
+  | None, Tast.TBlock body -> block_value_into state destination expr body
+  | None, Tast.TIf (branches, else_body) ->
       let join =
         lower_if_into state expr (Some destination) branches else_body
       in
       switch state join;
       if expr.ty = Types.TNever then terminate state Unreachable expr.span
-  | None, Typedast.TMatch (scrutinee, arms) ->
+  | None, Tast.TMatch (scrutinee, arms) ->
       let join =
         lower_match_into state expr (Some destination) scrutinee arms
       in
       switch state join;
       if expr.ty = Types.TNever then terminate state Unreachable expr.span
-  | None, Typedast.TLoop (label, body) ->
+  | None, Tast.TLoop (label, body) ->
       lower_loop_into state expr.span label expr.ty (Some destination) body
   | _ -> lower_expr_into state destination expr
 
-and lower_place state (expr : Typedast.texpr) =
+and lower_place state (expr : Tast.texpr) =
   match expr.desc with
-  | Typedast.TIdent symbol -> symbol_place state expr.span symbol
-  | Typedast.TUnOp (Ast.Deref, inner) ->
+  | Tast.TIdent symbol -> symbol_place state expr.span symbol
+  | Tast.TUnOp (Ast.Deref, inner) ->
       let pointer = lower_expr state inner in
       check_null state expr.ty pointer expr.span;
       let source = materialize state pointer in
       add_projection source Deref
-  | Typedast.TFieldAccess (base, field) ->
+  | Tast.TFieldAccess (base, field) ->
       let source =
         match resolve_ty base.ty with
         | Types.TPointer pointee ->
@@ -1048,7 +1044,7 @@ and lower_place state (expr : Typedast.texpr) =
         | _ -> lower_expr state base |> materialize state
       in
       add_projection source (Field field)
-  | Typedast.TIndex (base, index) ->
+  | Tast.TIndex (base, index) ->
       let base_value = lower_expr state base in
       let source = materialize state base_value in
       let index = lower_expr state index in
@@ -1065,7 +1061,7 @@ and lower_place state (expr : Typedast.texpr) =
       add_projection source (Index index)
   | _ -> lower_expr state expr |> materialize state
 
-and fill_array_literal state destination (expr : Typedast.texpr) elements =
+and fill_array_literal state destination (expr : Tast.texpr) elements =
   let element_ty =
     match resolve_ty expr.ty with
     | Types.TArray (element, _) -> element
@@ -1075,7 +1071,7 @@ and fill_array_literal state destination (expr : Typedast.texpr) elements =
     (Assign (destination, { desc = Use (constant expr Undef); ty = expr.ty }))
     expr.span;
   List.iteri
-    (fun index (element : Typedast.texpr) ->
+    (fun index (element : Tast.texpr) ->
       let index_operand =
         const_operand element.span (Types.TInt Usize) (Int (Int64.of_int index))
       in
@@ -1086,30 +1082,30 @@ and fill_array_literal state destination (expr : Typedast.texpr) elements =
         assign state target { assigned with ty = element_ty })
     elements
 
-and lower_array_literal state (expr : Typedast.texpr) elements =
+and lower_array_literal state (expr : Tast.texpr) elements =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_array_literal state destination expr elements;
   copy expr.span expr.ty destination
 
-and fill_struct_literal state destination (expr : Typedast.texpr) fields =
+and fill_struct_literal state destination (expr : Tast.texpr) fields =
   emit state
     (Assign (destination, { desc = Use (constant expr Zero); ty = expr.ty }))
     expr.span;
   List.iter
-    (fun (field, (value : Typedast.texpr)) ->
+    (fun (field, (value : Tast.texpr)) ->
       let target = add_projection destination (Field field) in
       if is_aggregate value.ty then lower_fresh_into state target value
       else assign state target (lower_expr state value))
     fields
 
-and lower_struct_literal state (expr : Typedast.texpr) fields =
+and lower_struct_literal state (expr : Tast.texpr) fields =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_struct_literal state destination expr fields;
   copy expr.span expr.ty destination
 
-and fill_slice state destination (expr : Typedast.texpr) base lo hi =
+and fill_slice state destination (expr : Tast.texpr) base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
@@ -1117,14 +1113,14 @@ and fill_slice state destination (expr : Typedast.texpr) base lo hi =
   check_slice_bounds state lo hi length expr.span;
   emit state (Slice (destination, base, lo, hi)) expr.span
 
-and lower_slice state (expr : Typedast.texpr) base lo hi =
+and lower_slice state (expr : Tast.texpr) base lo hi =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_slice state destination expr base lo hi;
   copy expr.span expr.ty destination
 
-and lower_compound_assign state (expr : Typedast.texpr) op
-    (left : Typedast.texpr) right =
+and lower_compound_assign state (expr : Tast.texpr) op (left : Tast.texpr) right
+    =
   let target = lower_place state left in
   let old = copy left.span left.ty target in
   let right = lower_expr state right in
@@ -1143,38 +1139,38 @@ and lower_pair_assign state first_target second_target first_value second_value
   assign state second_target second_value
 
 (* A later break can widen the loop type the earlier ones settled on *)
-and widen_break state result_ty (value : Typedast.texpr) (lowered : operand) =
+and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
   if lowered.ty = Types.TNever || ty_equal lowered.ty result_ty then lowered
   else temp_value state result_ty value.span (Cast lowered)
 
-and lower_statement state (expr : Typedast.texpr) =
+and lower_statement state (expr : Tast.texpr) =
   if is_live state then
     match expr.desc with
-    | Typedast.TBinding (_, _, ty, init)
+    | Tast.TBinding (_, _, ty, init)
       when ty = Types.TNever || init.ty = Types.TNever ->
         ignore (lower_expr state init)
-    | Typedast.TBinding (_, symbol, Types.TUnit, init) ->
+    | Tast.TBinding (_, symbol, Types.TUnit, init) ->
         let id =
           add_local state ~name:symbol.Symbol.name User Types.TUnit
             symbol.Symbol.span
         in
         bind_symbol state symbol id;
         ignore (lower_expr state init)
-    | Typedast.TBinding (Ast.Comptime, _, _, _) -> ()
-    | Typedast.TBinding (_, symbol, ty, init) ->
+    | Tast.TBinding (Ast.Comptime, _, _, _) -> ()
+    | Tast.TBinding (_, symbol, ty, init) ->
         let id =
           add_local state ~name:symbol.Symbol.name User ty symbol.Symbol.span
         in
         bind_symbol state symbol id;
         lower_fresh_into state (local_place expr.span id) init
-    | Typedast.TReturn (Some value) when state.result <> None ->
+    | Tast.TReturn (Some value) when state.result <> None ->
         let result = Option.get state.result in
         lower_fresh_into state (local_place expr.span result) value;
         if is_live state then terminate state (ReturnValue None) expr.span
-    | Typedast.TReturn (Some value) when value.ty = Types.TUnit ->
+    | Tast.TReturn (Some value) when value.ty = Types.TUnit ->
         ignore (lower_expr state value);
         if is_live state then terminate state (ReturnValue None) expr.span
-    | Typedast.TReturn returned ->
+    | Tast.TReturn returned ->
         let returned =
           match returned with
           | Some value -> Some (lower_expr state value)
@@ -1183,9 +1179,9 @@ and lower_statement state (expr : Typedast.texpr) =
           | None -> None
         in
         if is_live state then terminate state (ReturnValue returned) expr.span
-    | Typedast.TBreak (label, value) ->
+    | Tast.TBreak (label, value) ->
         let target = loop_target state label expr.span in
-        let break_with (value : Typedast.texpr) =
+        let break_with (value : Tast.texpr) =
           match target.result with
           | Some (result, result_ty) when is_aggregate result_ty ->
               lower_fresh_into state result value
@@ -1197,25 +1193,25 @@ and lower_statement state (expr : Typedast.texpr) =
         in
         Option.iter break_with value;
         terminate state (Jump target.break_block) expr.span
-    | Typedast.TContinue label ->
+    | Tast.TContinue label ->
         terminate state (Jump (continue_target state label expr.span)) expr.span
-    | Typedast.TWhile (label, condition, body) ->
+    | Tast.TWhile (label, condition, body) ->
         lower_while state expr.span label condition body
-    | Typedast.TFor (label, symbol, elem_ty, iter, body) ->
+    | Tast.TFor (label, symbol, elem_ty, iter, body) ->
         lower_for state expr.span label symbol elem_ty iter body
-    | Typedast.TLoop (label, body) ->
+    | Tast.TLoop (label, body) ->
         ignore (lower_loop state expr.span label expr.ty body)
-    | Typedast.TPairAssign
-        (first_target, second_target, first_value, second_value) ->
+    | Tast.TPairAssign (first_target, second_target, first_value, second_value)
+      ->
         lower_pair_assign state first_target second_target first_value
           second_value
-    | Typedast.TBlock body -> List.iter (lower_statement state) body
+    | Tast.TBlock body -> List.iter (lower_statement state) body
     | _ ->
         ignore (lower_expr state expr);
         if expr.ty = Types.TNever && is_live state then
           terminate state Unreachable expr.span
 
-let build_func struct_layouts globals (func : Typedast.tfunc_def) =
+let build_func struct_layouts globals (func : Tast.tfunc_def) =
   let state =
     make_builder ~struct_layouts ~globals
       ~bare_return_zero:(func.entry_point && func.ret_ty = Types.TInt Types.I32)
@@ -1265,31 +1261,29 @@ let build_func struct_layouts globals (func : Typedast.tfunc_def) =
     span;
   }
 
-let build (declarations : Typedast.tdecl list) =
+let build (declarations : Tast.tdecl list) =
   let globals_by_id = Hashtbl.create 16 in
   let structs_rev = ref [] in
   let globals_rev = ref [] in
   let functions_rev = ref [] in
   List.iter
     (function
-      | Typedast.TStruct (name, fields, _) ->
+      | Tast.TStruct (name, fields, _) ->
           structs_rev := { name; fields; local = false } :: !structs_rev
-      | Typedast.TLocalStruct (name, fields) ->
+      | Tast.TLocalStruct (name, fields) ->
           structs_rev := { name; fields; local = true } :: !structs_rev
-      | Typedast.TGlobal global when global.ty = Types.TUnit -> ()
-      | Typedast.TGlobal global when global.kind <> Ast.Comptime ->
+      | Tast.TGlobal global when global.ty = Types.TUnit -> ()
+      | Tast.TGlobal global when global.kind <> Ast.Comptime ->
           Hashtbl.add globals_by_id global.key global.name;
           globals_rev := global :: !globals_rev
-      | Typedast.TFunc func -> functions_rev := func :: !functions_rev
-      | Typedast.TGlobal _ | Typedast.TExtern _ | Typedast.TTypeAlias _
-      | Typedast.TEnum _ ->
-          ())
+      | Tast.TFunc func -> functions_rev := func :: !functions_rev
+      | Tast.TGlobal _ | Tast.TExtern _ | Tast.TTypeAlias _ | Tast.TEnum _ -> ())
     declarations;
   let structs = List.rev !structs_rev in
   let struct_layouts = build_struct_layouts structs in
   let globals =
     List.rev !globals_rev
-    |> List.map (fun (global : Typedast.tglobal_def) ->
+    |> List.map (fun (global : Tast.tglobal_def) ->
         {
           name = global.name;
           ty = global.ty;
