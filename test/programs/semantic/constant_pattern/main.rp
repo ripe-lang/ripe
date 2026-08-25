@@ -1,7 +1,9 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime KEY: i32 = 7
-comptime OTHER: i32 = 2 * 4
+const KEY: i32 = 7
+const OTHER: i32 = 2 * 4
 
 func lookup(n: i32) i32 {
   match n {

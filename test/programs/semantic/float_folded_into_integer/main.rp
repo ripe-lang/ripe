@@ -1,4 +1,4 @@
-comptime N = 3
+const N = 3
 
 func main() i32 {
   var x = 0

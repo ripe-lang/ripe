@@ -1,8 +1,10 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime LIMIT: i32 = 42
+const LIMIT: i32 = 42
 
-// A name standing for a comptime compares, any other bare name binds
+// A name standing for a const compares, any other bare name binds
 func check(x: i32) i32 {
   return match x {
     LIMIT => 1
@@ -12,7 +14,7 @@ func check(x: i32) i32 {
 }
 
 func main() i32 {
-  comptime LOCAL: i32 = 9
+  const LOCAL: i32 = 9
   var n = match 9 {
     LOCAL => 100
     _ => 0

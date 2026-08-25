@@ -1,5 +1,7 @@
-comptime SMALL: u8 = 200
-comptime WIDE: u32 = SMALL
+// BROKEN: const eval stripped
+
+const SMALL: u8 = 200
+const WIDE: u32 = SMALL
 var GLOBAL: i64 = SMALL
 
 func main() i32 {

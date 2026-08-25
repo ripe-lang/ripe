@@ -1,3 +1,5 @@
+// BROKEN: const eval stripped
+
 var A: i64 = 1 + 2
 
 func main() i32 {

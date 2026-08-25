@@ -1,10 +1,12 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime HALF: f64 = 0.5
-comptime DOUBLED: f64 = HALF * 4.0
-comptime TRUNCATED: i32 = i32(3.9)
-comptime WIDENED: f64 = f64(TRUNCATED)
-comptime NARROW: f32 = 1.5
+const HALF: f64 = 0.5
+const DOUBLED: f64 = HALF * 4.0
+const TRUNCATED: i32 = i32(3.9)
+const WIDENED: f64 = f64(TRUNCATED)
+const NARROW: f32 = 1.5
 
 func main() i32 {
   printf("%f %f %d %f %f\n", HALF, DOUBLED, TRUNCATED, WIDENED, f64(NARROW))

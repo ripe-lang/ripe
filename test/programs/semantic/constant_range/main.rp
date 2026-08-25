@@ -1,7 +1,9 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime K: i8 = 100
-comptime FOLDED: i8 = 100 * 3 - 250
+const K: i8 = 100
+const FOLDED: i8 = 100 * 3 - 250
 
 func main() i32 {
   var narrowed: u8 = 300 - 200

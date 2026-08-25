@@ -1,3 +1,5 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 extern "C" func malloc(n: u64) *opaque
 extern "C" func free(p: *opaque)

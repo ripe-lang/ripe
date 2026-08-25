@@ -1,6 +1,6 @@
 error: integer literal out of range
   at main.rp:2:21
-    comptime OVER: i8 = 100 + 100
+    const OVER: i8 = 100 + 100
                         ^~~~~~~~~ does not fit in i8
 error: integer literal out of range
   at main.rp:6:16
