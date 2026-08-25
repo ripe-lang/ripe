@@ -1,9 +1,5 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* Reference *)
-(* 1. Intel 64 and IA-32 Architectures Software Developer Manuals https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html *)
-(* 2. System V AMD64 psABI https://gitlab.com/x86-psABIs/x86-64-ABI *)
-
 type reg =
   | Rax
   | Rcx
@@ -49,7 +45,7 @@ let reg_index = function
   | R14 -> 14
   | R15 -> 15
 
-(* Extended registers carry their fourth index bit in REX [1] *)
+(* Extended registers carry their fourth index bit in REX *)
 let is_extended register = reg_index register > 7
 
 module Labels = Hashtbl.Make (String)
@@ -60,7 +56,7 @@ type t = { bytes : Buffer.t; mutable fixups : fixup list }
 let min_rel32 = -0x8000_0000
 let max_rel32 = 0x7fff_ffff
 
-(* The imm32 encoding accepts signed and unsigned callers [1] *)
+(* The imm32 encoding accepts signed and unsigned callers *)
 let min_imm32 = -0x8000_0000L
 let max_imm32 = 0xffff_ffffL
 let create ?(size = 64) () = { bytes = Buffer.create size; fixups = [] }
@@ -78,24 +74,24 @@ let le64 encoder value =
   le32 encoder (Int64.to_int value);
   le32 encoder (Int64.to_int (Int64.shift_right_logical value 32))
 
-(* REX is only emitted when a width or extended register bit is actually set [1] *)
+(* REX is only emitted when a width or extended register bit is actually set *)
 let rex encoder ~w ~r ~b =
   let bits =
     (if w then 8 else 0) lor (if r then 4 else 0) lor if b then 1 else 0
   in
   if bits <> 0 then byte encoder (0x40 lor bits)
 
-(* ModRM packs the addressing mode and two register fields into one byte [1] *)
+(* ModRM packs the addressing mode and two register fields into one byte *)
 let modrm encoder ~md ~reg ~rm =
   byte encoder ((md lsl 6) lor ((reg land 7) lsl 3) lor (rm land 7))
 
-(* Register direct mode avoids special stack and frame register meanings [1] *)
+(* Register direct mode avoids special stack and frame register meanings *)
 let register_direct = 3
 
-(* Instruction encodings follow the SDM instruction pages [1] *)
+(* Instruction encodings follow the SDM instruction pages *)
 let instr encoder instruction =
   match instruction with
-  (* Immediate width follows the operand size [1] *)
+  (* Immediate width follows the operand size *)
   | Mov_imm (width, dst, value) ->
       if
         width = W32
@@ -106,12 +102,12 @@ let instr encoder instruction =
       byte encoder (0xb8 lor (reg_index dst land 7));
       if width = W64 then le64 encoder value
       else le32 encoder (Int64.to_int value)
-  (* The source occupies ModRM reg and the destination occupies r/m [1] *)
+  (* The source occupies ModRM reg and the destination occupies r/m *)
   | Mov_reg (width, dst, src) ->
       rex encoder ~w:(width = W64) ~r:(is_extended src) ~b:(is_extended dst);
       byte encoder 0x89;
       modrm encoder ~md:register_direct ~reg:(reg_index src) ~rm:(reg_index dst)
-  (* Calls store a signed displacement from the next instruction [1] *)
+  (* Calls store a signed displacement from the next instruction *)
   | Call target ->
       byte encoder 0xe8;
       encoder.fixups <- { patch_at = offset encoder; target } :: encoder.fixups;
@@ -129,7 +125,7 @@ let finish encoder ~labels =
     match Labels.find_opt table fixup.target with
     | None -> Diagnostic.ice ("no label named " ^ fixup.target)
     | Some target ->
-        (* The displacement starts after the four byte immediate [1] *)
+        (* The displacement starts after the four byte immediate *)
         let relative = target - (fixup.patch_at + 4) in
         if relative < min_rel32 || relative > max_rel32 then
           Diagnostic.ice
