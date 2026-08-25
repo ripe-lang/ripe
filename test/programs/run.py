@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import difflib
+import itertools
 import os
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 IMPORT_PATH = os.path.dirname(os.path.dirname(TEST_DIR))
 IMPORT_PATH_LABEL = "<import-path>"
 TEST_TIMEOUT = 10
+BROKEN_MARK = "// BROKEN:"
+BROKEN_SCAN_LINES = 10
 
 
 def indented(text):
@@ -52,6 +55,17 @@ def diff(want, actual, golden):
         tofile="actual",
     )
     return indented("".join(lines))
+
+
+def broken_reason(testdir):
+    """The reason from a BROKEN directive near the top of main.rp."""
+    path = os.path.join(testdir, "main.rp")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in itertools.islice(f, BROKEN_SCAN_LINES):
+            found = line.partition(BROKEN_MARK)
+            if found[1]:
+                return found[2].strip() or "no reason given"
+    return None
 
 
 def check_one(ripec, testdir, workdir, promote=False):
@@ -113,10 +127,16 @@ def check_one(ripec, testdir, workdir, promote=False):
     return "mismatch", diff(want, actual, "out.txt")
 
 
-def report(results, succeeded, failed):
+def report(results, succeeded, failed, broken):
     print("[Tests]")
     for name, status in results:
         print("%s: %s" % (name, status))
+
+    if broken:
+        print()
+        print("[Broken]")
+        for name, reason in broken:
+            print("%s: %s" % (name, reason))
 
     if failed:
         print()
@@ -128,6 +148,8 @@ def report(results, succeeded, failed):
     print()
     print("[Summary]")
     print("Passed: %d" % len(succeeded))
+    if broken:
+        print("Broken: %d" % len(broken))
     if failed:
         print("Failed: %d" % len(failed))
 
@@ -136,21 +158,32 @@ def check(ripec, testname, verbose, promote=False):
     results = []
     succeeded = []
     failed = []
+    broken = []
 
     with tempfile.TemporaryDirectory() as workdir:
         for testdir in tests(testname):
             name = os.path.relpath(testdir, TEST_DIR)
             status, log = check_one(ripec, testdir, workdir, promote)
+            reason = broken_reason(testdir)
+            passing = status in ("ok", "promoted")
+
+            # A broken test that starts passing has to be noticed or the marker rots
+            if reason is not None and passing:
+                status = "marked broken but passes"
+            elif reason is not None:
+                status = "broken"
 
             results.append((name, status))
 
-            if status in ("ok", "promoted"):
+            if reason is not None and not passing:
+                broken.append((name, reason))
+            elif passing:
                 succeeded.append(name)
             else:
                 failed.append((name, status, log))
 
-    if failed or verbose:
-        report(results, succeeded, failed)
+    if failed or broken or verbose:
+        report(results, succeeded, failed, broken)
 
     return len(failed)
 
