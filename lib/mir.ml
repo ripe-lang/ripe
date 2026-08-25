@@ -192,6 +192,9 @@ let constant_of_value = function
   | Constant.VChar value -> Char value
   | Constant.VInt _ as value -> Int (Constant.int_of value)
 
+(* This is only temporary *)
+let _keep_constant_of_value = constant_of_value
+
 let rec global_init (expr : Tast.texpr) =
   match expr.desc with
   | Tast.TInt value -> GlobalConst (Int value, expr.ty)
@@ -216,11 +219,7 @@ let rec global_init (expr : Tast.texpr) =
         (List.map
            (fun (field, value) -> (field, global_init value))
            (List.sort compare_field_ids fields))
-  | _ -> (
-      match expr.const with
-      | Some value -> GlobalConst (constant_of_value value, expr.ty)
-      | None ->
-          Diagnostic.ice ~span:expr.span "unsupported MIR global initializer")
+  | _ -> Diagnostic.ice ~span:expr.span "unsupported MIR global initializer"
 
 let make_builder ~struct_layouts ~globals ~bare_return_zero =
   let blocks = Hashtbl.create 16 in
@@ -313,12 +312,12 @@ let add_projection place projection =
   { place with projections = projection :: place.projections }
 
 let local_place span id = place span (Local id)
-let copy span ty place = { desc = Copy place; ty; span }
+let copy span ty place : operand = { desc = Copy place; ty; span }
 
-let constant (expr : Tast.texpr) desc =
+let constant (expr : Tast.texpr) desc : operand =
   { desc = Const desc; ty = expr.ty; span = expr.span }
 
-let const_operand span ty desc = { desc = Const desc; ty; span }
+let const_operand span ty desc : operand = { desc = Const desc; ty; span }
 
 let assign (state : builder) destination (assigned : operand) =
   if is_live state then
@@ -834,11 +833,6 @@ and map_operands state = function
         value :: map_operands state rest
 
 and lower_expr state (expr : Tast.texpr) =
-  match expr.const with
-  | Some value -> constant expr (constant_of_value value)
-  | None -> lower_runtime_expr state expr
-
-and lower_runtime_expr state (expr : Tast.texpr) =
   match expr.desc with
   | Tast.TErrorExpr ->
       Diagnostic.ice ~span:expr.span "error expression reached MIR"
@@ -992,8 +986,7 @@ and lower_expr_into state destination (expr : Tast.texpr) =
         else Some destination
       in
       emit_call state result expr callee args variadic_start
-  | Tast.TBinOp (op, left, right)
-    when Option.is_none expr.const && op <> Ast.And && op <> Ast.Or ->
+  | Tast.TBinOp (op, left, right) when op <> Ast.And && op <> Ast.Or ->
       let left, right = lower_binop_operands state expr op left right in
       ignore
         (lower_binary_into state destination expr.span expr.ty op left right)
@@ -1002,27 +995,27 @@ and lower_expr_into state destination (expr : Tast.texpr) =
       if is_live state then assign state destination assigned
 
 and lower_fresh_into state destination (expr : Tast.texpr) =
-  match (expr.const, expr.desc) with
-  | None, Tast.TArrayLit elements ->
+  match expr.desc with
+  | Tast.TArrayLit elements ->
       fill_array_literal state destination expr elements
-  | None, Tast.TStructLit (_, fields) ->
+  | Tast.TStructLit (_, fields) ->
       fill_struct_literal state destination expr fields
-  | None, Tast.TSliceExpr (base, lo, hi) ->
+  | Tast.TSliceExpr (base, lo, hi) ->
       fill_slice state destination expr base lo hi
-  | None, Tast.TBlock body -> block_value_into state destination expr body
-  | None, Tast.TIf (branches, else_body) ->
+  | Tast.TBlock body -> block_value_into state destination expr body
+  | Tast.TIf (branches, else_body) ->
       let join =
         lower_if_into state expr (Some destination) branches else_body
       in
       switch state join;
       if expr.ty = Types.TNever then terminate state Unreachable expr.span
-  | None, Tast.TMatch (scrutinee, arms) ->
+  | Tast.TMatch (scrutinee, arms) ->
       let join =
         lower_match_into state expr (Some destination) scrutinee arms
       in
       switch state join;
       if expr.ty = Types.TNever then terminate state Unreachable expr.span
-  | None, Tast.TLoop (label, body) ->
+  | Tast.TLoop (label, body) ->
       lower_loop_into state expr.span label expr.ty (Some destination) body
   | _ -> lower_expr_into state destination expr
 
@@ -1157,7 +1150,7 @@ and lower_statement state (expr : Tast.texpr) =
         in
         bind_symbol state symbol id;
         ignore (lower_expr state init)
-    | Tast.TBinding (Ast.Comptime, _, _, _) -> ()
+    | Tast.TBinding (Ast.Const, _, _, _) -> ()
     | Tast.TBinding (_, symbol, ty, init) ->
         let id =
           add_local state ~name:symbol.Symbol.name User ty symbol.Symbol.span
@@ -1274,7 +1267,7 @@ let build (declarations : Tast.tdecl list) =
       | Tast.TLocalStruct (name, fields) ->
           structs_rev := { name; fields; local = true } :: !structs_rev
       | Tast.TGlobal global when global.ty = Types.TUnit -> ()
-      | Tast.TGlobal global when global.kind <> Ast.Comptime ->
+      | Tast.TGlobal global when global.kind <> Ast.Const ->
           Hashtbl.add globals_by_id global.key global.name;
           globals_rev := global :: !globals_rev
       | Tast.TFunc func -> functions_rev := func :: !functions_rev

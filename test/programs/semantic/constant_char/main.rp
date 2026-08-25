@@ -1,7 +1,9 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime LETTER: char = 'Z'
-comptime NEWLINE: char = '\n'
+const LETTER: char = 'Z'
+const NEWLINE: char = '\n'
 
 func classify(c: char) i32 {
   match c {

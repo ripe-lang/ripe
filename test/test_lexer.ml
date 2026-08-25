@@ -217,13 +217,13 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    "var comptime var return if else while for in true false break continue \
+    "var const var return if else while for in true false break continue \
      sizeof bitcast null extern struct pub func type undefined\n\
      import module loop\n";
   [%expect
     {|
     KW var
-    KW comptime
+    KW const
     KW var
     KW return
     KW if

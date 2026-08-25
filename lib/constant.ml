@@ -167,26 +167,17 @@ let unsupported_const span =
     |> at span
     |> help "constant initializers must evaluate at compile time")
 
-let overflowed span =
-  raise
-    (Diagnostic.Errors
-       [ Diagnostic.(error "constant expression overflows" |> at span) ])
-
-let zero_divide span what =
-  raise
-    (Diagnostic.Errors
-       [ Diagnostic.(error (what ^ " by zero in constant") |> at span) ])
-
 (* Only the arith lands here since a comp is not an int *)
-let int_binop span op a b =
+let int_binop op a b =
   try
     match op with
     | Ast.Add -> Some (add a b)
     | Ast.Sub -> Some (sub a b)
     | Ast.Mul -> Some (mul a b)
-    | Ast.Div when b.magnitude = 0L -> zero_divide span "division"
+    (* FIXME: This is temporary *)
+    | Ast.Div when b.magnitude = 0L -> None
     | Ast.Div -> Some (div a b)
-    | Ast.Mod when b.magnitude = 0L -> zero_divide span "remainder"
+    | Ast.Mod when b.magnitude = 0L -> None
     | Ast.Mod -> Some (rem a b)
     | Ast.BitAnd -> Some (bitwise Int64.logand a b)
     | Ast.BitOr -> Some (bitwise Int64.logor a b)
@@ -194,7 +185,7 @@ let int_binop span op a b =
     | Ast.Lshift -> Some (shift_left a (bits_of b))
     | Ast.Rshift -> Some (shift_right a (bits_of b))
     | _ -> None
-  with Overflow -> overflowed span
+  with Overflow -> None
 
 let cast target v =
   match (resolve_ty target, v) with
@@ -203,20 +194,19 @@ let cast target v =
   | _, VFloat (f, _) -> of_int64 target (Int64.of_float f)
   | _, _ -> of_int64 target (int_of v)
 
-let unop span op ~result_ty v =
+let unop op ~result_ty v =
   match (op, v) with
   | Ast.Pos, _ -> Some v
   | Ast.Neg, VFloat (f, kind) -> Some (of_float kind (-.f))
   | Ast.Neg, _ -> Some (retype result_ty (negate (exact_of v)))
   | Ast.BitNot, VFloat _ -> None
   | Ast.BitNot, _ -> (
-      try Some (retype result_ty (lognot (exact_of v)))
-      with Overflow -> overflowed span)
+      try Some (retype result_ty (lognot (exact_of v))) with Overflow -> None)
   | Ast.Not, VFloat _ -> None
   | Ast.Not, _ -> Some (VBool (int_of v = 0L))
   | (Ast.Deref | Ast.AddressOf), _ -> None
 
-let binop span op ~result_ty a b =
+let binop op ~result_ty a b =
   match (a, b) with
   | VFloat _, _ | _, VFloat _ -> (
       let x = float_of a and y = float_of b in
@@ -245,7 +235,7 @@ let binop span op ~result_ty a b =
       let x = exact_of a and y = exact_of b in
       let test b = Some (VBool b) in
       let cmp = compare_exact x y in
-      match (int_binop span op x y, op) with
+      match (int_binop op x y, op) with
       | Some e, _ -> Some (retype result_ty e)
       | None, Ast.Eq -> test (cmp = 0)
       | None, Ast.Neq -> test (cmp <> 0)

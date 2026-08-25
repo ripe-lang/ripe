@@ -1,8 +1,10 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
 var TABLE: [N]i32 = [10, 20, 30]
-comptime N: i32 = 3
-comptime DOUBLED: usize = sizeof([N * 2]i32)
+const N: i32 = 3
+const DOUBLED: usize = sizeof([N * 2]i32)
 
 struct box { buf: [N]i32; tail: i32 }
 
@@ -12,7 +14,7 @@ func main() i32 {
     wide[i] = i32(i)
   }
   var suffixed: [2u8]i32 = [5, 6]
-  comptime local_size: i32 = N + 1
+  const local_size: i32 = N + 1
   var sized_by_local: [local_size]i32 = [1, 2, 3, 4]
   var b: box = box{ buf: TABLE, tail: 7 }
   var sum: i32 = 0

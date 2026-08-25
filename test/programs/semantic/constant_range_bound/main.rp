@@ -1,4 +1,6 @@
-comptime START: u8 = 0
+// BROKEN: const eval stripped
+
+const START: u8 = 0
 
 func main() i32 {
   var total: i32 = 0

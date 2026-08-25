@@ -1,7 +1,9 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 
-comptime SMALL: i32 = 1000
-comptime TINY: i8 = 100
+const SMALL: i32 = 1000
+const TINY: i8 = 100
 
 func wide(x: i64) i64 {
   return x

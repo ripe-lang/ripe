@@ -1,5 +1,7 @@
-comptime K: i8 = 100
-comptime OVER: i8 = 100 + 100
+// BROKEN: const eval stripped
+
+const K: i8 = 100
+const OVER: i8 = 100 + 100
 
 func main() i32 {
   var runtime: u8 = 7

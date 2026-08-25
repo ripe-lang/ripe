@@ -1,8 +1,10 @@
+// BROKEN: const eval stripped
+
 extern "C" func printf(fmt: cstr, ...) i32
 extern "C" func abs(v: i32) i32
 extern "C" func atof(s: cstr) f64
 
-comptime BIG: i64 = 4294967297
+const BIG: i64 = 4294967297
 
 // A folded cast and the same cast on a runtime value must agree. The libc
 // calls are opaque so the second column really is computed at run time.

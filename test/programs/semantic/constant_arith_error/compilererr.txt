@@ -1,20 +1,20 @@
 error: integer literal out of range
   at main.rp:1:30
-    comptime OVERFLOW_MUL: i64 = 9223372036854775807 * 2
+    const OVERFLOW_MUL: i64 = 9223372036854775807 * 2
                                  ^~~~~~~~~~~~~~~~~~~~~~~ does not fit in i64
 error: integer literal out of range
   at main.rp:2:30
-    comptime OVERFLOW_ADD: i64 = 9223372036854775807 + 1
+    const OVERFLOW_ADD: i64 = 9223372036854775807 + 1
                                  ^~~~~~~~~~~~~~~~~~~~~~~ does not fit in i64
-error: division by zero in constant
+error: division by zero
   at main.rp:3:24
-    comptime DIVIDE: i32 = 1 / 0
+    const DIVIDE: i32 = 1 / 0
                            ^~~~~
-error: remainder by zero in constant
+error: remainder by zero
   at main.rp:4:27
-    comptime REMAINDER: i32 = 1 % 0
+    const REMAINDER: i32 = 1 % 0
                               ^~~~~
 error: constant expression overflows
   at main.rp:5:25
-    comptime SHIFTED: i64 = 1 << 200
+    const SHIFTED: i64 = 1 << 200
                             ^~~~~~~~
