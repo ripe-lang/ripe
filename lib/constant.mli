@@ -18,9 +18,6 @@ val representable : int_kind -> exact -> bool
 val of_float : float_kind -> float -> value
 val of_literal : ty -> int64 -> value
 val cast : ty -> value -> value
-val unop : Ast.span -> Ast.unop -> result_ty:ty -> value -> value option
-
-val binop :
-  Ast.span -> Ast.binop -> result_ty:ty -> value -> value -> value option
-
+val unop : Ast.unop -> result_ty:ty -> value -> value option
+val binop : Ast.binop -> result_ty:ty -> value -> value -> value option
 val unsupported_const : Ast.span -> Diagnostic.t

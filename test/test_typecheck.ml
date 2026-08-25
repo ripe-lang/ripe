@@ -369,9 +369,9 @@ var X: i32 = 7
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: assign to a comptime global" =
+let%expect_test "typecheck: assign to a const global" =
   run_src {|
-comptime X: i32 = 1
+const X: i32 = 1
 func f() { X = 2 }
 |};
   [%expect
@@ -417,38 +417,32 @@ let%expect_test "typecheck: global initializer must be constant" =
 func g() i32 { return 1 }
 var X: i32 = g()
 |};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: const requires initializer" =
+  run_src "const X: i32";
   [%expect
     {|
-    error: initializer must be constant
-      at <test>:3:14
-        var X: i32 = g()
-                     ^~~
+    error: const without initializer
+      at <test>:1:7
+        const X: i32
+              ^
     |}]
 
-let%expect_test "typecheck: comptime requires initializer" =
-  run_src "comptime X: i32";
+let%expect_test "typecheck: const cannot be undefined" =
+  run_src "const N: i32 = undefined";
   [%expect
     {|
-    error: comptime without initializer
-      at <test>:1:10
-        comptime X: i32
-                 ^
-    |}]
-
-let%expect_test "typecheck: comptime cannot be undefined" =
-  run_src "comptime N: i32 = undefined";
-  [%expect
-    {|
-    error: comptime cannot be undefined
-      at <test>:1:19
-        comptime N: i32 = undefined
-                          ^~~~~~~~~
+    error: const cannot be undefined
+      at <test>:1:16
+        const N: i32 = undefined
+                       ^~~~~~~~~
     help: use var for values that need storage
     |}]
 
-let%expect_test "typecheck: cannot take address of a comptime global" =
+let%expect_test "typecheck: cannot take address of a const global" =
   run_src {|
-comptime N: i32 = 4
+const N: i32 = 4
 func f() *i32 { return &N }
 |};
   [%expect
@@ -460,10 +454,10 @@ func f() *i32 { return &N }
     help: a const has no storage, use var
     |}]
 
-let%expect_test "typecheck: cannot take address of a local comptime" =
+let%expect_test "typecheck: cannot take address of a local const" =
   run_src {|
 func f() {
-  comptime c: i32 = 2
+  const c: i32 = 2
   var p: *i32 = &c
 }
 |};
@@ -481,74 +475,68 @@ func f() {
     help: a const has no storage, use var
     |}]
 
-let%expect_test "typecheck: comptime must be a scalar" =
+let%expect_test "typecheck: const must be a scalar" =
   run_src {|
 func f() {
-  comptime a: [2]i32 = [1, 2]
+  const a: [2]i32 = [1, 2]
 }
 |};
   [%expect
     {|
-    error: comptime must be a scalar
-      at <test>:3:12
-          comptime a: [2]i32 = [1, 2]
-                   ^ on [2]i32
+    error: const must be a scalar
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^ on [2]i32
     help: use var for values that need storage
     warning: unused variable: a
-      at <test>:3:12
-          comptime a: [2]i32 = [1, 2]
-                   ^
+      at <test>:3:9
+          const a: [2]i32 = [1, 2]
+                ^
     help: prefix with an underscore: _a
     |}]
 
-let%expect_test "typecheck: comptime cstr is not a scalar" =
+let%expect_test "typecheck: const cstr is not a scalar" =
   run_src {|
-comptime S: cstr = "x"
+const S: cstr = "x"
 |};
   [%expect
     {|
-    error: comptime must be a scalar
+    error: const must be a scalar
       at <test>:2:1
-        comptime S: cstr = "x"
-        ^~~~~~~~~~~~~~~~~~~~~~ on cstr
+        const S: cstr = "x"
+        ^~~~~~~~~~~~~~~~~~~ on cstr
     help: use var for values that need storage
     |}]
 
-let%expect_test "typecheck: local comptime initializer must fold" =
+let%expect_test "typecheck: local const initializer must fold" =
   run_src
     {|
 func g() i32 { return 3 }
 func f() i32 {
-  comptime c: i32 = g()
+  const c: i32 = g()
   return c
 }
 |};
   [%expect
     {|
     error: unsupported constant expression
-      at <test>:4:21
-          comptime c: i32 = g()
-                            ^~~
+      at <test>:4:18
+          const c: i32 = g()
+                         ^~~
     help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: mutually referential consts are a cycle" =
   run_src {|
-comptime A: i32 = B
-comptime B: i32 = A
+const A: i32 = B
+const B: i32 = A
 |};
-  [%expect
-    {|
-    error: cyclic constant
-      at <test>:3:19
-        comptime B: i32 = A
-                          ^
-    |}]
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: cannot assign to a comptime" =
+let%expect_test "typecheck: cannot assign to a const" =
   run_src {|
 func f() i32 {
-  comptime c: i32 = 2
+  const c: i32 = 2
   c = 3
   return c
 }
@@ -561,37 +549,58 @@ func f() i32 {
           ^
     |}]
 
-let%expect_test "typecheck: local comptime reads an earlier comptime" =
+let%expect_test "typecheck: local const reads an earlier const" =
   run_src
     {|
 func f() i32 {
-  comptime a: i32 = 2
-  comptime b: i32 = a * 3
+  const a: i32 = 2
+  const b: i32 = a * 3
   return b
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:4:18
+          const b: i32 = a * 3
+                         ^~~~~
+    help: constant initializers must evaluate at compile time
+    |}]
 
-let%expect_test "typecheck: array size from a later comptime" =
+let%expect_test "typecheck: array size from a later const" =
   run_src
     {|
 var a: [N]i32 = undefined
-comptime N: i32 = 3
+const N: i32 = 3
 func f() i32 { return a[0] }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:2:9
+        var a: [N]i32 = undefined
+                ^
+    help: constant initializers must evaluate at compile time
+    |}]
 
 let%expect_test "typecheck: array size expression" =
   run_src
     {|
-comptime N: i32 = 4
+const N: i32 = 4
 func f() i32 {
   var a: [N * 2 + 1]i32 = undefined
   a[8] = 1
   return a[8]
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:4:11
+          var a: [N * 2 + 1]i32 = undefined
+                  ^~~~~~~~~
+    help: constant initializers must evaluate at compile time
+    |}]
 
 let%expect_test "typecheck: array size with a suffix" =
   run_src {|
@@ -602,25 +611,43 @@ func f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: struct field sized by a later comptime" =
+let%expect_test "typecheck: struct field sized by a later const" =
   run_src
     {|
 struct S { buf: [N]i32 }
-comptime N: i32 = 2
+const N: i32 = 2
 func f(s: S) i32 { return s.buf[1] }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:2:18
+        struct S { buf: [N]i32 }
+                         ^
+    help: constant initializers must evaluate at compile time
+    |}]
 
-let%expect_test "typecheck: local comptime sizes a local array" =
+let%expect_test "typecheck: local const sizes a local array" =
   run_src
     {|
 func f() i32 {
-  comptime n: i32 = 3
+  const n: i32 = 3
   var a: [n]i32 = [1, 2, 3]
   return a[2]
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:4:11
+          var a: [n]i32 = [1, 2, 3]
+                  ^
+    help: constant initializers must evaluate at compile time
+    error: wrong number of arguments
+      at <test>:4:19
+          var a: [n]i32 = [1, 2, 3]
+                          ^~~~~~~~~ expected 0 elements, found 3
+    |}]
 
 let%expect_test "typecheck: negative array size" =
   run_src {|
@@ -628,10 +655,11 @@ var a: [0 - 1]i32 = undefined
 |};
   [%expect
     {|
-    error: array size is negative: -1
+    error: unsupported constant expression
       at <test>:2:9
         var a: [0 - 1]i32 = undefined
                 ^~~~~
+    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: bad array size in a param errors once" =
@@ -645,10 +673,11 @@ func f(a: [0 - 1]i32) {}
         func f(a: [0 - 1]i32) {}
                ^~~~~~~~~~~~~
     help: prefix with an underscore: _a
-    error: array size is negative: -1
+    error: unsupported constant expression
       at <test>:2:12
         func f(a: [0 - 1]i32) {}
                    ^~~~~
+    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: huge array size" =
@@ -669,10 +698,11 @@ var a: [u64(0 - 1)]i32 = undefined
 |};
   [%expect
     {|
-    error: array size is too large: 18446744073709551615
+    error: unsupported constant expression
       at <test>:2:9
         var a: [u64(0 - 1)]i32 = undefined
                 ^~~~~~~~~~
+    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: array size literal with a type suffix" =
@@ -685,13 +715,7 @@ let%expect_test "typecheck: array size literal suffix still range checks" =
   run_src {|
 var a: [300u8]i32 = undefined
 |};
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:2:9
-        var a: [300u8]i32 = undefined
-                ^~~~~ does not fit in u8
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: float array size" =
   run_src {|
@@ -734,17 +758,22 @@ var a: [g()]i32 = undefined
     |}]
 
 let%expect_test "typecheck: cycle through an array size" =
-  run_src
-    {|
-comptime N: i32 = sizeof([M]i32)
-comptime M: i32 = sizeof([N]i32)
+  run_src {|
+const N: i32 = sizeof([M]i32)
+const M: i32 = sizeof([N]i32)
 |};
   [%expect
     {|
-    error: cyclic constant
-      at <test>:3:27
-        comptime M: i32 = sizeof([N]i32)
-                                  ^
+    error: unsupported constant expression
+      at <test>:2:24
+        const N: i32 = sizeof([M]i32)
+                               ^
+    help: constant initializers must evaluate at compile time
+    error: unsupported constant expression
+      at <test>:3:24
+        const M: i32 = sizeof([N]i32)
+                               ^
+    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: int arithmetic ok" =
@@ -990,10 +1019,10 @@ let%expect_test "typecheck: nested loops break ok" =
   run_src "func f() { while true { while true { break } } }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: assign to a comptime local" =
+let%expect_test "typecheck: assign to a const local" =
   run_src {|
 func f() {
-  comptime x: i32 = 1
+  const x: i32 = 1
   x = 2
 }
 |};
@@ -1784,13 +1813,7 @@ let%expect_test "typecheck: global array non-constant element rejected" =
 func k() i32 { return 1 }
 var g: [2]i32 = [k(), 2]
 |};
-  [%expect
-    {|
-    error: initializer must be constant
-      at <test>:3:17
-        var g: [2]i32 = [k(), 2]
-                        ^~~~~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: iterate array of arrays" =
   run_src
@@ -2060,13 +2083,7 @@ struct pt { x: i32; y: i32 }
 func g() i32 { return 1 }
 var p: pt = pt { x: g(), y: 2 }
 |};
-  [%expect
-    {|
-    error: initializer must be constant
-      at <test>:4:13
-        var p: pt = pt { x: g(), y: 2 }
-                    ^~~~~~~~~~~~~~~~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: positional struct literal" =
   run_src
@@ -2381,10 +2398,10 @@ func f() {
                ^ expected [4]i32, found [3]i32
     |}]
 
-let%expect_test "typecheck: global var initialized from a comptime global" =
+let%expect_test "typecheck: global var initialized from a const global" =
   run_src
     {|
-comptime base: i32 = 10
+const base: i32 = 10
 var counter: i32 = base
 func f() i32 { return counter }
 |};
@@ -2507,10 +2524,7 @@ func main() i32 {
           var x: u8 = 300
               ^
     help: prefix with an underscore: _x
-    error: integer literal out of range
-      at <test>:3:15
-          var x: u8 = 300
-                      ^~~ does not fit in u8
+    ok
     |}]
 
 let%expect_test "typecheck: negative literal into unsigned rejected" =
@@ -2527,10 +2541,7 @@ func main() i32 {
           var x: u8 = -1
               ^
     help: prefix with an underscore: _x
-    error: integer literal out of range
-      at <test>:3:15
-          var x: u8 = -1
-                      ^~ does not fit in u8
+    ok
     |}]
 
 let%expect_test "typecheck: int literal at type bound accepted" =
@@ -2564,13 +2575,7 @@ func main() i32 {
   return x
 }
 |};
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:3:11
-          var x = 3000000000
-                  ^~~~~~~~~~ does not fit in i32
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: i64 max accepted" =
   run_src
@@ -2600,13 +2605,7 @@ func main() i32 {
   return 0
 }
 |};
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:3:17
-          var _x: i64 = 9223372036854775808
-                        ^~~~~~~~~~~~~~~~~~~ does not fit in i64
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: literal above u64 max rejected by lexer" =
   run_src
@@ -2631,13 +2630,7 @@ func main() i32 {
   return 0
 }
 |};
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:3:17
-          var _x: u64 = -1
-                        ^~ does not fit in u64
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: non-i32 main rejected" =
   run_src "func main() f64 { return 0.0 }";
@@ -2742,23 +2735,11 @@ let%expect_test "typecheck: unary plus rejects bool" =
 
 let%expect_test "typecheck: suffixed unary plus range includes operator" =
   run_src "func f() { var _x = +128i8 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:21
-        func f() { var _x = +128i8 }
-                            ^~~~~~ does not fit in i8
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: explicit positive literal reports full span" =
   run_src "func f() { var _x: i8 = +128 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:25
-        func f() { var _x: i8 = +128 }
-                                ^~~~ does not fit in i8
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: type alias keeps every comparison of its base" =
   run_src
@@ -2933,13 +2914,7 @@ let%expect_test "typecheck: int literal suffix that mismatches the target" =
 
 let%expect_test "typecheck: int literal suffix out of range" =
   run_src "func f() u8 { return 256u8 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:22
-        func f() u8 { return 256u8 }
-                             ^~~~~ does not fit in u8
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: negative unsigned suffix" =
   run_src "func f() i8 { return -1u8 }";
@@ -2949,10 +2924,6 @@ let%expect_test "typecheck: negative unsigned suffix" =
       at <test>:1:22
         func f() i8 { return -1u8 }
                              ^~~~ expected i8, found u8
-    error: integer literal out of range
-      at <test>:1:22
-        func f() i8 { return -1u8 }
-                             ^~~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: assignment in condition is not a value" =
@@ -3487,13 +3458,13 @@ let%expect_test "typecheck: pair assignment checks each value" =
     |}]
 
 let%expect_test "typecheck: pair assignment checks each target" =
-  run_src "func f(a: i32, b: i32) { comptime x = 1; x, b = b, a }";
+  run_src "func f(a: i32, b: i32) { const x = 1; x, b = b, a }";
   [%expect
     {|
     error: cannot assign to immutable
-      at <test>:1:42
-        func f(a: i32, b: i32) { comptime x = 1; x, b = b, a }
-                                                 ^
+      at <test>:1:39
+        func f(a: i32, b: i32) { const x = 1; x, b = b, a }
+                                              ^
     |}]
 
 let%expect_test "typecheck: pair assignment rejects an expression target" =
@@ -3820,13 +3791,7 @@ let%expect_test "typecheck: f64 is not f32" =
 
 let%expect_test "typecheck: literal too big for i64" =
   run_src "func f() { var _a: i64 = 9223372036854775808 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:26
-        func f() { var _a: i64 = 9223372036854775808 }
-                                 ^~~~~~~~~~~~~~~~~~~ does not fit in i64
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: type alias" =
   run_src "type small = i32\nfunc f() i32 { var a: small = 1\n  return a }";
@@ -3894,14 +3859,14 @@ let%expect_test "typecheck: a str global is constant" =
   run_src "var g: str = \"a\"";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: a str comptime is rejected" =
-  run_src "comptime C: str = \"a\"";
+let%expect_test "typecheck: a str const is rejected" =
+  run_src "const C: str = \"a\"";
   [%expect
     {|
-    error: comptime must be a scalar
+    error: const must be a scalar
       at <test>:1:1
-        comptime C: str = "a"
-        ^~~~~~~~~~~~~~~~~~~~~ on str
+        const C: str = "a"
+        ^~~~~~~~~~~~~~~~~~ on str
     help: use var for values that need storage
     |}]
 
@@ -4197,15 +4162,22 @@ let%expect_test "typecheck: a float cannot be matched" =
                                               ^~~ cannot test f32
     |}]
 
-let%expect_test "typecheck: a comptime name in a pattern compares" =
+let%expect_test "typecheck: a const name in a pattern compares" =
   run_src
-    {|comptime LIMIT: i32 = 42
+    {|const LIMIT: i32 = 42
 func f(x: i32) i32 { return match x { LIMIT => 1; other => other } }|};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:2:39
+        func f(x: i32) i32 { return match x { LIMIT => 1; other => other } }
+                                              ^~~~~
+    help: constant initializers must evaluate at compile time
+    |}]
 
-let%expect_test "typecheck: a comptime pattern still checks its type" =
+let%expect_test "typecheck: a const pattern still checks its type" =
   run_src
-    {|comptime LIMIT: i32 = 42
+    {|const LIMIT: i32 = 42
 func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }|};
   [%expect
     {|
@@ -4213,6 +4185,11 @@ func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }|};
       at <test>:2:40
         func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }
                                                ^~~~~ expected bool, found i32
+    error: unsupported constant expression
+      at <test>:2:40
+        func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }
+                                               ^~~~~
+    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: unit type and value" =
@@ -4423,13 +4400,7 @@ func f(wide: u64) u64 {
   return loop { if false { break -1 }; break wide }
 }
 |};
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:3:34
-          return loop { if false { break -1 }; break wide }
-                                         ^~ does not fit in u64
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: explicit widening stays legal" =
   run_src "func f(value: u8) i64 { return i64(value) }";
@@ -4538,7 +4509,7 @@ func f(value: i8) i32 {
 let%expect_test "typecheck: widening reaches remaining value positions" =
   run_src
     {|
-comptime SMALL: u8 = 1
+const SMALL: u8 = 1
 func take(value: i64) i64 { value }
 func tail(value: i32) i64 { value }
 func apply(f: func (i64) i64, value: i8) i64 { f(value) }
@@ -4558,7 +4529,14 @@ func f(small: i8, index: u8) i64 {
       tail(small) + apply(take, small)
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: unsupported constant expression
+      at <test>:17:30
+          var pattern = match 1i64 { SMALL => small; _ => 0i64 }
+                                     ^~~~~
+    help: constant initializers must evaluate at compile time
+    |}]
 
 let%expect_test "typecheck: shift count must be an integer" =
   run_src "func f() i32 { var a: i32 = 1\n  return a << 1.0 }";
@@ -4594,13 +4572,7 @@ let%expect_test "typecheck: cast has no effect" =
 
 let%expect_test "typecheck: constant expression overflows" =
   run_src "func f() i64 { return 9223372036854775807 * 9223372036854775807 }";
-  [%expect
-    {|
-    error: constant expression overflows
-      at <test>:1:23
-        func f() i64 { return 9223372036854775807 * 9223372036854775807 }
-                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: size does not fit" =
   run_src "struct big { a: [400]i32 }\nfunc f() u8 { return sizeof(big) }";

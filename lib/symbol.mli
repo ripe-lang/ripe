@@ -52,4 +52,4 @@ module Table : Hashtbl.S with type key = key
 val is_func : kind -> bool
 val is_global : kind -> bool
 val is_immutable : kind -> bool
-val is_comptime : kind -> bool
+val is_const : kind -> bool

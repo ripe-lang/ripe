@@ -46,12 +46,7 @@ type texpr_desc =
   | TMatch of texpr * tarm list
   | TUnit
 
-and texpr = {
-  desc : texpr_desc;
-  ty : ty;
-  span : Ast.span;
-  const : Constant.value option; [@opaque]
-}
+and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
 
 and tblock = texpr list [@@deriving show { with_path = false }]
@@ -63,7 +58,7 @@ and tarm = { tpat : tpattern; tbody : tblock }
 and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) ty desc = { desc; ty; span; const = None }
+let mk ?(span = Ast.dummy_span) ty desc = { desc; ty; span }
 
 type tfunc_def = {
   key : Symbol.key;

@@ -7,9 +7,9 @@ let all_kinds =
     Symbol.Func;
     Extern;
     Global Ast.Var;
-    Global Ast.Comptime;
+    Global Ast.Const;
     Type;
-    Local Ast.Comptime;
+    Local Ast.Const;
     Local Ast.Var;
     Param;
     ForVar;
@@ -28,9 +28,9 @@ let%expect_test "symbol: is_func covers only func and extern" =
     Func true
     Extern true
     (Global Var) false
-    (Global Comptime) false
+    (Global Const) false
     Type false
-    (Local Comptime) false
+    (Local Const) false
     (Local Var) false
     Param false
     ForVar false
@@ -44,9 +44,9 @@ let%expect_test "symbol: is_global covers only global" =
     Func false
     Extern false
     (Global Var) true
-    (Global Comptime) true
+    (Global Const) true
     Type false
-    (Local Comptime) false
+    (Local Const) false
     (Local Var) false
     Param false
     ForVar false

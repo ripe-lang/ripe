@@ -347,7 +347,7 @@ let%expect_test "parse: recover, errors in nested blocks" =
 let%expect_test "parse: recover, errors across top level declarations" =
   run_src
     {|var a: = 1
-comptime b: = 2
+const b: = 2
 var c: = 3
 type A = +
 struct S { x: }
@@ -360,9 +360,9 @@ func f(x:) {}|};
         var a: = 1
                ^ found =
     error: expected type
-      at <test>:2:13
-        comptime b: = 2
-                    ^ found =
+      at <test>:2:10
+        const b: = 2
+                 ^ found =
     error: expected type
       at <test>:3:8
         var c: = 3
@@ -515,7 +515,7 @@ let%expect_test "parse: recover operators across statement forms" =
     {|func f() {
   if 1 *
   var a = +
-  comptime b = 1 -
+  const b = 1 -
   var c = !
   while 2 /
   for x in 3 %
@@ -534,9 +534,9 @@ let%expect_test "parse: recover operators across statement forms" =
           var a = +
                   ^
     error: expected expression
-      at <test>:4:18
-          comptime b = 1 -
-                         ^
+      at <test>:4:15
+          const b = 1 -
+                      ^
     error: expected expression
       at <test>:5:11
           var c = !

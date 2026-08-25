@@ -108,15 +108,14 @@ let diagnose_dropped_continuation (st : state) (token : token) (span : span)
 
 let is_stmt_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | COMPTIME | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
+  | TILDE | BANG | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
   | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
   | UNDEFINED | LOOP | MATCH ->
       true
   | _ -> false
 
 let is_item_start = function
-  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | COMPTIME | VAR | ENUM ->
-      true
+  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | CONST | VAR | ENUM -> true
   | _ -> false
 
 let is_next_line_start (st : state) (line : int) (is_start : token -> bool) =
@@ -797,11 +796,11 @@ and parse_header_expr st = parse_expr ~no_struct_lit:true st 1
 and parse_simple_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
-  (* comptime N: i32 = 4 / var x: i32 / var x = 42 / var x *)
-  | (COMPTIME | VAR) as tok ->
+  (* const N: i32 = 4 / var x: i32 / var x = 42 / var x *)
+  | (CONST | VAR) as tok ->
       let depth = st.tok_depth in
       advance st;
-      let kind = match tok with COMPTIME -> Ast.Comptime | _ -> Ast.Var in
+      let kind = match tok with CONST -> Ast.Const | _ -> Ast.Var in
       let name, nspan = expect_binding_name st in
       let ann = optional_annotation st depth in
       (* Only var may omit the value *)
@@ -1043,7 +1042,7 @@ and parse_labeled_loop st name =
 let parse_global st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
-  let kind = match st.tok with COMPTIME -> Ast.Comptime | _ -> Ast.Var in
+  let kind = match st.tok with CONST -> Ast.Const | _ -> Ast.Var in
   advance st;
   let name, name_span = expect_ident_span st in
   let typ = optional_annotation st depth in
@@ -1094,7 +1093,7 @@ let parse_decl st =
   | _, FUNC -> Func (parse_func_def st mods)
   (* Any module can declare the same foreign symbol so pub says nothing *)
   | [], EXTERN -> parse_extern st
-  | _, (COMPTIME | VAR) -> parse_global st mods
+  | _, (CONST | VAR) -> parse_global st mods
   | _, TYPE -> TypeAlias (parse_alias_def st mods)
   | _, ENUM -> Enum (parse_enum_def st mods)
   | _ -> err ()

@@ -514,7 +514,7 @@ and resolve_arm st a =
 
 and resolve_pattern_binding st span name =
   match lookup st name with
-  | Some sym when Symbol.is_comptime sym.Symbol.kind -> use_symbol st span sym
+  | Some sym when Symbol.is_const sym.Symbol.kind -> use_symbol st span sym
   | Some _ | None -> declare_local st Symbol.MatchBind name span
 
 and resolve_pattern st p =
