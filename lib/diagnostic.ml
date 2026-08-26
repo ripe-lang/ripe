@@ -89,10 +89,10 @@ let severity_word (severity : severity) =
 
 let severity_ansi (severity : severity) =
   match severity with
-  | Error -> "\027[1;31m"
-  | Warning -> "\027[1;33m"
-  | Note -> "\027[1;36m"
-  | Help -> "\027[1;32m"
+  | Error -> "\027[1;31m" (* red *)
+  | Warning -> "\027[1;33m" (* yellow *)
+  | Note -> "\027[1;36m" (* cyan *)
+  | Help -> "\027[1;32m" (* green *)
 
 let reset = "\027[0m"
 let colored ctx sev s = if ctx.color then severity_ansi sev ^ s ^ reset else s
