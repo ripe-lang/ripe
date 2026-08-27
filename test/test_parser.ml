@@ -1444,6 +1444,81 @@ func main() i32 {
     help: separate variants with a newline or `;`
     |}]
 
+let%expect_test "parse: a bad parameter name keeps the arity" =
+  run_src
+    {|func add(99: i32, b: i32) i32 { return b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:10
+        func add(99: i32, b: i32) i32 { return b }
+                 ^~ found 99
+    |}]
+
+let%expect_test "parse: repeated bad parameter names do not collide" =
+  run_src
+    {|func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+func main() i32 { return f(1, 2, 3) }|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:8
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+               ^~ found 99
+    error: expected identifier
+      at <test>:1:17
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+                        ^~ found 88
+    error: expected identifier
+      at <test>:1:26
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+                                 ^~ found 77
+    |}]
+
+let%expect_test "parse: a semicolon between parameters keeps the function" =
+  run_src
+    {|func add(a: i32; b: i32) i32 { return a + b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:16
+        func add(a: i32; b: i32) i32 { return a + b }
+                       ^
+    help: separate parameters with `,`
+    |}]
+
+let%expect_test "parse: a missing parameter separator keeps the function" =
+  run_src
+    {|func add(a: i32 b: i32) i32 { return a + b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:17
+        func add(a: i32 b: i32) i32 { return a + b }
+                        ^
+    help: separate parameters with `,`
+    |}]
+
+let%expect_test "parse: a stray ellipsis keeps the function" =
+  run_src
+    {|func f(a: i32 ...; b: i32) i32 { return a }
+func main() i32 { return f(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:15
+        func f(a: i32 ...; b: i32) i32 { return a }
+                      ^~~
+    help: separate parameters with `,`
+    error: `...` must be the last parameter
+      at <test>:1:18
+        func f(a: i32 ...; b: i32) i32 { return a }
+                         ^
+    |}]
+
 let%expect_test "parse: match arms name arms in the separator error" =
   run_src
     {|enum C { Red

@@ -353,6 +353,8 @@ let use_callee st name span =
 (* Body binders can redeclare but params can't repeat *)
 let declare_param st p =
   match Names.find_opt st.scope.values p.param_name with
+  | _ when Ast.is_poison_name p.param_name ->
+      ignore (mint st Symbol.Error p.param_name p.param_span)
   | Some prev ->
       Diagnostic.emit st.diags
         (Diagnostic.redefinition p.param_span ~prev:prev.Symbol.span);

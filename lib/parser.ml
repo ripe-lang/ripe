@@ -215,6 +215,11 @@ let decl_sep_error st what =
   |> Diagnostic.at (cur_span st)
   |> Diagnostic.help ("separate " ^ what ^ "s with a newline or `;`")
 
+let param_sep_error st =
+  Diagnostic.error "expected parameter separator"
+  |> Diagnostic.at (cur_span st)
+  |> Diagnostic.help "separate parameters with `,`"
+
 (* A comma is the common slip so eating it keeps the rest of the list *)
 let expect_decl_sep st ~what =
   match st.tok with
@@ -469,26 +474,45 @@ and parse_params st =
   let depth = st.tok_depth in
   let params = ref [] in
   let variadic = ref false in
+  (* A poison name keeps the arity so the call sites still line up *)
   let parse_one () =
     let lo = cur_pos st in
-    let name = expect_ident st in
+    let name =
+      recover st depth [ COLON; COMMA; RPAREN ]
+        (fun () -> expect_ident st)
+        (fun _ _ -> Ast.poison_name)
+    in
     let t = recover_typ_after st depth [ COMMA; RPAREN ] COLON in
     let hi = st.prev_end in
-    ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
-      : param)
+    params :=
+      ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
+        : param)
+      :: !params
   in
   if st.tok <> RPAREN then begin
-    params := [ parse_one () ];
-    while st.tok = COMMA && not !variadic do
-      advance st;
+    parse_one ();
+    while st.tok <> RPAREN && st.tok <> EOF && not !variadic do
+      let stuck = cur_pos st in
+      if st.tok = COMMA then advance st
+      else begin
+        Diagnostic.emit st.diags (param_sep_error st);
+        skip_semi st
+      end;
       if st.tok = ELLIPSIS then (
         advance st;
         variadic := true)
-      else params := parse_one () :: !params
+      else if st.tok <> RPAREN then parse_one ();
+      if cur_pos st = stuck then advance st
     done
   end;
-  if !variadic && st.tok = COMMA then fail st "`...` must be the last parameter";
-  if is_semi st.tok then fail st "missing `,` before newline";
+  if !variadic && st.tok <> RPAREN then begin
+    Diagnostic.emit st.diags
+      (Diagnostic.error "`...` must be the last parameter"
+      |> Diagnostic.at (cur_span st));
+    while st.tok <> EOF && not (st.tok = RPAREN && st.tok_depth = depth) do
+      advance st
+    done
+  end;
   expect st RPAREN;
   (List.rev !params, !variadic)
 

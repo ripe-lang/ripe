@@ -9,6 +9,8 @@ let dummy_span = Span.dummy
 type name = Interner.id
 
 let pp_name = Interner.pp
+let poison_name = Interner.intern "{error}"
+let is_poison_name name = name = poison_name
 
 type 'a spanned = { value : 'a; span : span }
 [@@deriving show { with_path = false }]
