@@ -210,11 +210,20 @@ let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
     sync_to_depth_token st depth line stops;
     on_error st d
 
-let expect_decl_sep st =
+let decl_sep_error st what =
+  Diagnostic.error ("expected " ^ what ^ " separator")
+  |> Diagnostic.at (cur_span st)
+  |> Diagnostic.help ("separate " ^ what ^ "s with a newline or `;`")
+
+(* A comma is the common slip so eating it keeps the rest of the list *)
+let expect_decl_sep st ~what =
   match st.tok with
   | AUTOSEMI | SEMI -> skip_semi st
   | RBRACE -> ()
-  | _ -> fail_found st "expected `;` or newline between fields"
+  | COMMA ->
+      Diagnostic.emit st.diags (decl_sep_error st what);
+      advance st
+  | _ -> raise (ParseError (decl_sep_error st what))
 
 let expect_literal_field_sep st =
   match st.tok with
@@ -389,11 +398,11 @@ and parse_fields st =
     fields :=
       ({ field_name = name; field_typ = t; field_span = nspan } : field)
       :: !fields;
-    expect_decl_sep st
+    expect_decl_sep st ~what:"field"
   done;
   List.rev !fields
 
-(* struct point { x: i32, y: i32 } *)
+(* struct point { x: i32; y: i32 } *)
 and parse_struct_def st mods =
   let lo = cur_pos st in
   advance st;
@@ -411,7 +420,7 @@ and parse_struct_def st mods =
     struct_span = make_span st lo hi;
   }
 
-(* enum Color { Red, Green, Blue } *)
+(* enum Color { Red; Green; Blue } *)
 and parse_enum_def st mods =
   let lo = cur_pos st in
   advance st;
@@ -422,7 +431,7 @@ and parse_enum_def st mods =
   while st.tok <> RBRACE do
     let vname, vspan = expect_ident_span st in
     variants := { variant_name = vname; variant_span = vspan } :: !variants;
-    expect_decl_sep st
+    expect_decl_sep st ~what:"variant"
   done;
   expect st RBRACE;
   let hi = st.prev_end in
@@ -948,7 +957,7 @@ and parse_if st =
   let elseifs, else_body = parse_elseifs [] in
   mk lo st (If ((cond, body) :: elseifs, else_body))
 
-(* match c { Color.Red => 0, _ => 1 } *)
+(* match c { Color.Red => 0; _ => 1 } *)
 and parse_match st =
   let lo = cur_pos st in
   advance st;
@@ -958,7 +967,7 @@ and parse_match st =
   let arms = ref [] in
   while st.tok <> RBRACE do
     arms := parse_arm st :: !arms;
-    expect_decl_sep st
+    expect_decl_sep st ~what:"arm"
   done;
   expect st RBRACE;
   mk lo st (Match (scrutinee, List.rev !arms))

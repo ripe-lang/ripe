@@ -1328,10 +1328,62 @@ let%expect_test "parse: struct fields need a separator" =
   run_src "struct S { x: i32 y: i32 }";
   [%expect
     {|
-    error: expected `;` or newline between fields
+    error: expected field separator
       at <test>:1:19
         struct S { x: i32 y: i32 }
-                          ^ found y
+                          ^
+    help: separate fields with a newline or `;`
+    |}]
+
+(* A dropped field would show up as a later error on p.x or p.y *)
+let%expect_test "parse: a comma between fields keeps the struct" =
+  run_src
+    {|struct P { x: i32, y: i32 }
+func main() i32 {
+  var p: P = P { x: 12, y: 30 }
+  return p.x + p.y
+}|};
+  [%expect
+    {|
+    error: expected field separator
+      at <test>:1:18
+        struct P { x: i32, y: i32 }
+                         ^
+    help: separate fields with a newline or `;`
+    |}]
+
+let%expect_test "parse: a comma between variants keeps the enum" =
+  run_src
+    {|enum C { Red, Green }
+func main() i32 {
+  var a: C = C.Red
+  var b: C = C.Green
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected variant separator
+      at <test>:1:13
+        enum C { Red, Green }
+                    ^
+    help: separate variants with a newline or `;`
+    |}]
+
+let%expect_test "parse: match arms name arms in the separator error" =
+  run_src
+    {|enum C { Red
+  Green }
+func main() i32 {
+  var c: C = C.Red
+  return match c { C.Red => 0, C.Green => 1 }
+}|};
+  [%expect
+    {|
+    error: expected arm separator
+      at <test>:5:30
+          return match c { C.Red => 0, C.Green => 1 }
+                                     ^
+    help: separate arms with a newline or `;`
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
