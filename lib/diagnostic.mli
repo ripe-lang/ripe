@@ -24,9 +24,6 @@ val help : string -> t -> t
 val error_at : Ast.span -> string -> t
 val sink : unit -> sink
 val emit : sink -> t -> unit
-
-(* The parser keeps its own sink so the errors go next to the lexer *)
-val absorb : into:sink -> sink -> unit
 val emit_error_at : sink -> Ast.span -> string -> unit
 val emit_warn_at : sink -> Ast.span -> string -> unit
 val has_errors : sink -> bool
