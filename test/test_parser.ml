@@ -1369,6 +1369,81 @@ func main() i32 {
     help: separate variants with a newline or `;`
     |}]
 
+let%expect_test "parse: a bad field name drops only that field" =
+  run_src
+    {|struct P { 99: i32
+  y: i32 }
+func main() i32 {
+  var p: P = undefined
+  return p.y
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:12
+        struct P { 99: i32
+                   ^~ found 99
+    |}]
+
+let%expect_test "parse: a bad variant name drops only that variant" =
+  run_src
+    {|enum C { 99
+  Green }
+func main() i32 {
+  var c: C = C.Green
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:10
+        enum C { 99
+                 ^~ found 99
+    |}]
+
+let%expect_test "parse: two bad fields report once each" =
+  run_src
+    {|struct P { 99: i32
+  88: i32
+  z: i32 }
+func main() i32 {
+  var p: P = undefined
+  return p.z
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:12
+        struct P { 99: i32
+                   ^~ found 99
+    error: expected identifier
+      at <test>:2:3
+          88: i32
+          ^~ found 88
+    |}]
+
+let%expect_test "parse: a missing separator keeps both items" =
+  run_src
+    {|enum C { Red
+  Green @
+  Blue }
+func main() i32 {
+  var c: C = C.Blue
+  return 0
+}|};
+  [%expect
+    {|
+    error: unexpected character
+      at <test>:2:9
+          Green @
+                ^
+    error: expected variant separator
+      at <test>:3:3
+          Blue }
+          ^~~~
+    help: separate variants with a newline or `;`
+    |}]
+
 let%expect_test "parse: match arms name arms in the separator error" =
   run_src
     {|enum C { Red

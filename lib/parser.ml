@@ -220,10 +220,21 @@ let expect_decl_sep st ~what =
   match st.tok with
   | AUTOSEMI | SEMI -> skip_semi st
   | RBRACE -> ()
-  | COMMA ->
+  | tok ->
       Diagnostic.emit st.diags (decl_sep_error st what);
-      advance st
-  | _ -> raise (ParseError (decl_sep_error st what))
+      if tok = COMMA then advance st
+
+(* A bad item drops only itself so the rest of the braced list still lands *)
+let parse_decl_list st ~what parse_one =
+  let depth = st.tok_depth in
+  let items = ref [] in
+  while st.tok <> RBRACE do
+    recover st depth []
+      (fun () -> items := parse_one depth :: !items)
+      (fun _ _ -> ());
+    expect_decl_sep st ~what
+  done;
+  List.rev !items
 
 let expect_literal_field_sep st =
   match st.tok with
@@ -390,17 +401,10 @@ and parse_modifiers st =
 
 (* x: i32 *)
 and parse_fields st =
-  let fields = ref [] in
-  let depth = st.tok_depth in
-  while st.tok <> RBRACE do
-    let name, nspan = expect_ident_span st in
-    let t = recover_typ_after st depth [] COLON in
-    fields :=
-      ({ field_name = name; field_typ = t; field_span = nspan } : field)
-      :: !fields;
-    expect_decl_sep st ~what:"field"
-  done;
-  List.rev !fields
+  parse_decl_list st ~what:"field" (fun depth ->
+      let name, nspan = expect_ident_span st in
+      let t = recover_typ_after st depth [] COLON in
+      ({ field_name = name; field_typ = t; field_span = nspan } : field))
 
 (* struct point { x: i32; y: i32 } *)
 and parse_struct_def st mods =
@@ -427,18 +431,17 @@ and parse_enum_def st mods =
   (* ENUM *)
   let name, name_span = expect_ident_span st in
   expect st LBRACE;
-  let variants = ref [] in
-  while st.tok <> RBRACE do
-    let vname, vspan = expect_ident_span st in
-    variants := { variant_name = vname; variant_span = vspan } :: !variants;
-    expect_decl_sep st ~what:"variant"
-  done;
+  let variants =
+    parse_decl_list st ~what:"variant" (fun _ ->
+        let vname, vspan = expect_ident_span st in
+        { variant_name = vname; variant_span = vspan })
+  in
   expect st RBRACE;
   let hi = st.prev_end in
   {
     enum_name = name;
     enum_name_span = name_span;
-    variants = List.rev !variants;
+    variants;
     enum_modifiers = mods;
     enum_span = make_span st lo hi;
   }
