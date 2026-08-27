@@ -1182,7 +1182,6 @@ let stream read lexbuf diags =
 let parse ~(diags : Diagnostic.sink)
     (read : Lexing.lexbuf -> Tokens.token * Ast.span * int)
     (lexbuf : Lexing.lexbuf) =
-  let parse_diags = Diagnostic.sink () in
   let st =
     {
       tok = EOF;
@@ -1190,12 +1189,10 @@ let parse ~(diags : Diagnostic.sink)
       tok_line = 1;
       tok_depth = 0;
       read = stream read lexbuf diags;
-      diags = parse_diags;
+      diags;
       prev_end = 0;
       ahead = None;
     }
   in
   advance st;
-  let module_ = parse_module st in
-  Diagnostic.absorb ~into:diags parse_diags;
-  module_
+  parse_module st
