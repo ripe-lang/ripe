@@ -1758,24 +1758,16 @@ let%expect_test "parse: a loop is a value in a binding" =
   [%expect {| (= x (loop (block (break 1)))) |}]
 
 let%expect_test "parse: an enum declares its variants" =
-  (match parse "enum Color { Red, Green, Blue }" with
+  (match parse {|enum Color {
+  Red
+  Green
+  Blue
+}|} with
   | [ Ripe.Ast.Enum ed ] ->
       let name (v : Ripe.Ast.variant) = Ripe.Interner.text v.variant_name in
       print_endline (String.concat " " (List.map name ed.variants))
   | _ -> print_endline "<expected an enum>");
-  [%expect.unreachable]
-[@@expect.uncaught_exn
-  {|
-  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-     This is strongly discouraged as backtraces are fragile.
-     Please change this test to not include a backtrace. *)
-  ("Ripe.Diagnostic.Errors(_)")
-  Raised at Test_ripe__Diag.finish in file "test/diag.ml", line 29, characters 17-51
-  Called from Test_ripe__Pipeline.parse_module in file "test/pipeline.ml", lines 7-8, characters 4-63
-  Called from Test_ripe__Pipeline.parse in file "test/pipeline.ml", line 10, characters 28-52
-  Called from Test_ripe__Test_parser.(fun) in file "test/test_parser.ml", line 1753, characters 9-48
-  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 142, characters 10-28
-  |}]
+  [%expect {| Red Green Blue |}]
 
 let%expect_test "parse: a newline separates variants" =
   (match parse {|enum Color {
