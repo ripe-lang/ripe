@@ -1,0 +1,7 @@
+struct P { x: i32, y: i32 }
+
+func main() i32 {
+  var p: P = P { x: 12, y: 30 }
+  return p.x + p.y
+}
+

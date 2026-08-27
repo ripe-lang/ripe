@@ -1440,6 +1440,10 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
   run_src "func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }";
   [%expect
     {|
+    error: expected `;`
+      at <test>:1:22
+        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
+                             ^~~~~ found `while`
     error: mismatched delimiter
       at <test>:1:59
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
@@ -1453,6 +1457,10 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
   run_src "func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
   [%expect
     {|
+    error: expected `;`
+      at <test>:1:32
+        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+                                       ^~ found `if`
     error: mismatched delimiter
       at <test>:1:48
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
