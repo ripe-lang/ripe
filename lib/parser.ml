@@ -1221,7 +1221,9 @@ let stream read lexbuf diags =
             stack := rest;
             decr depth;
             info
-        | Bracketcheck.Stray | Bracketcheck.Other -> info
+        | Bracketcheck.Stray ->
+            { info with token = ERROR "unexpected closing delimiter" }
+        | Bracketcheck.Other -> info
         | Bracketcheck.Open opener ->
             stack := (opener, sp) :: !stack;
             incr depth;

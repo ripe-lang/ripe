@@ -1519,6 +1519,18 @@ func main() i32 { return f(1, 2) }|};
                          ^
     |}]
 
+let%expect_test "parse: a stray closing brace reports once" =
+  run_src {|func f() {}
+}
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: unexpected closing delimiter
+      at <test>:2:1
+        }
+        ^
+    |}]
+
 let%expect_test "parse: a stray character reports once" =
   run_src "func main() i32 { return 1 @ 2 }";
   [%expect
@@ -1697,10 +1709,6 @@ let%expect_test "parse: stray closing paren with nothing open" =
       at <test>:1:1
         )
         ^
-    error: expected declaration
-      at <test>:1:1
-        )
-        ^ found )
     |}]
 
 let%expect_test "parse: multiple unclosed delimiters at eof" =
