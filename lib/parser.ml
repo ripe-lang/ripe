@@ -69,7 +69,7 @@ let fail_found st headline =
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACKET
-  | UNDEFINED | IF | LBRACE | LOOP | MATCH ->
+  | UNDEFINED | IF | LBRACE | LOOP | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -78,7 +78,7 @@ let require_expr_start st span =
     raise (ParseError (Diagnostic.expected_expression span))
 
 let is_type_start = function
-  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
+  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN | ERROR _ -> true
   | _ -> false
 
 let is_semi = function AUTOSEMI | SEMI -> true | _ -> false
@@ -110,7 +110,7 @@ let is_stmt_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
   | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
-  | UNDEFINED | LOOP | MATCH ->
+  | UNDEFINED | LOOP | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -182,6 +182,14 @@ let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 let recovery_span (st : state) (d : Diagnostic.t) =
   Option.value (Diagnostic.primary d) ~default:(cur_span st)
 
+let emit_parse_error (st : state) (d : Diagnostic.t) =
+  let duplicate =
+    match st.tok with
+    | ERROR _ -> Diagnostic.primary d = Some (cur_span st)
+    | _ -> false
+  in
+  if not duplicate then Diagnostic.emit st.diags d
+
 let error_expr (st : state) (d : Diagnostic.t) =
   { desc = ErrorExpr; span = recovery_span st d }
 
@@ -206,7 +214,7 @@ let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
-    Diagnostic.emit st.diags d;
+    emit_parse_error st d;
     sync_to_depth_token st depth line stops;
     on_error st d
 
@@ -226,7 +234,7 @@ let expect_decl_sep st ~what =
   | AUTOSEMI | SEMI -> skip_semi st
   | RBRACE -> ()
   | tok ->
-      Diagnostic.emit st.diags (decl_sep_error st what);
+      emit_parse_error st (decl_sep_error st what);
       if tok = COMMA then advance st
 
 (* A bad item drops only itself so the rest of the braced list still lands *)
@@ -308,6 +316,9 @@ let assign_of = function
 let rec parse_typ st =
   let lo = cur_pos st in
   match st.tok with
+  | ERROR _ ->
+      advance st;
+      mkt lo st ErrorType
   | EXTERN ->
       advance st;
       parse_func_ptr st lo (parse_abi st)
@@ -495,7 +506,7 @@ and parse_params st =
       let stuck = cur_pos st in
       if st.tok = COMMA then advance st
       else begin
-        Diagnostic.emit st.diags (param_sep_error st);
+        emit_parse_error st (param_sep_error st);
         skip_semi st
       end;
       if st.tok = ELLIPSIS then (
@@ -705,6 +716,9 @@ and parse_index_arg st =
 and parse_primary ?(no_struct_lit = false) st =
   let lo = cur_pos st in
   match st.tok with
+  | ERROR _ ->
+      advance st;
+      mk lo st ErrorExpr
   | INT (n, suf) ->
       advance st;
       mk lo st (Int (n, suf))
@@ -925,7 +939,7 @@ and parse_stmts st =
           fail_found st "expected `;`"
     with ParseError d ->
       after_auto_semi := false;
-      Diagnostic.emit st.diags d;
+      emit_parse_error st d;
       sync_to_stmt st depth line false;
       stmts := Expr (error_expr st d) :: !stmts;
       skip_semi st
@@ -1173,7 +1187,7 @@ let parse_module st =
       if is_semi st.tok then skip_semi st
       else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
-      Diagnostic.emit st.diags d;
+      emit_parse_error st d;
       sync_to_item st);
   while st.tok <> EOF do
     let line = st.tok_line in
@@ -1186,7 +1200,7 @@ let parse_module st =
         if not (is_next_line_start st line is_item_start) then
           fail_found st "expected `;`"
     with ParseError d ->
-      Diagnostic.emit st.diags d;
+      emit_parse_error st d;
       sync_to_item st
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
@@ -1194,11 +1208,11 @@ let parse_module st =
 let stream read lexbuf diags =
   let stack = ref [] in
   let depth = ref 0 in
-  let rec next () =
+  let next () =
     match read lexbuf with
-    | ERROR msg, sp, _ ->
+    | ERROR msg, sp, line ->
         Diagnostic.emit_error_at diags sp msg;
-        next ()
+        { token = ERROR msg; span = sp; line; depth = !depth }
     | t, sp, line -> (
         let info = { token = t; span = sp; line; depth = !depth } in
         match Bracketcheck.step diags !stack t sp with

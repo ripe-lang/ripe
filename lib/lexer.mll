@@ -38,13 +38,10 @@ let end_pos lexbuf = lexbuf.Lexing.lex_curr_pos
 let lexbuf_span st lexbuf =
   Span.make (st.base + start_pos lexbuf) (st.base + end_pos lexbuf)
 
-let int_token st lexbuf ?suf text =
+let int_token _st _lexbuf ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
-  | None ->
-      (* The 0 prevents a 2 parser errors *)
-      Queue.push (INT (0L, suf), lexbuf_span st lexbuf, st.line) st.token_queue;
-      ERROR "integer literal out of range"
+  | None -> ERROR "integer literal out of range"
 
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
@@ -72,9 +69,7 @@ let float_token text =
     FLOAT (float_of_string body, Some suffix)
   else FLOAT (float_of_string text, None)
 
-let bad_char st lexbuf msg =
-  Queue.push (CHAR 0, lexbuf_span st lexbuf, st.line) st.token_queue;
-  ERROR msg
+let bad_char _st _lexbuf msg = ERROR msg
 
 let char_token st lexbuf inner =
   let d = String.get_utf_8_uchar inner 0 in

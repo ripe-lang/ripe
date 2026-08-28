@@ -269,11 +269,8 @@ let%expect_test "lexer: u64 max literal" =
 
 let%expect_test "lexer: literal above u64 is an error" =
   dump_tokens "99999999999999999999999\n";
-  [%expect
-    {|
+  [%expect {|
     ERROR integer literal out of range
-    INT 0
-    AUTOSEMI
     EOF
     |}]
 
@@ -355,11 +352,8 @@ let%expect_test "lexer: malformed binary is an error" =
 
 let%expect_test "lexer: hex above u64 is an error" =
   dump_tokens "0xfffffffffffffffff\n";
-  [%expect
-    {|
+  [%expect {|
     ERROR integer literal out of range
-    INT 0
-    AUTOSEMI
     EOF
     |}]
 
@@ -437,11 +431,8 @@ let%expect_test "lexer: max scalar U+10FFFF" =
 
 let%expect_test "lexer: empty char literal is an error" =
   dump_tokens "''\n";
-  [%expect
-    {|
+  [%expect {|
     ERROR empty character literal
-    '\u{0}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -450,8 +441,6 @@ let%expect_test "lexer: two chars in a literal is an error" =
   [%expect
     {|
     ERROR character literal must be a single character
-    '\u{0}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -460,18 +449,13 @@ let%expect_test "lexer: two scalars in a literal is an error" =
   [%expect
     {|
     ERROR character literal must be a single character
-    '\u{0}'
-    AUTOSEMI
     EOF
     |}]
 
 let%expect_test "lexer: unknown char escape is an error" =
   dump_tokens {|'\q'|};
-  [%expect
-    {|
+  [%expect {|
     ERROR unknown escape: '\q'
-    '\u{0}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -480,7 +464,6 @@ let%expect_test "lexer: unterminated char literal is an error" =
   [%expect
     {|
     ERROR unterminated character literal
-    '\u{0}'
     IDENT a
     AUTOSEMI
     EOF

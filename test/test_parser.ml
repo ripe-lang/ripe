@@ -1519,6 +1519,27 @@ func main() i32 { return f(1, 2) }|};
                          ^
     |}]
 
+let%expect_test "parse: a stray character reports once" =
+  run_src "func main() i32 { return 1 @ 2 }";
+  [%expect
+    {|
+    error: unexpected character
+      at <test>:1:28
+        func main() i32 { return 1 @ 2 }
+                                   ^
+    |}]
+
+let%expect_test "parse: a bad number literal reports once" =
+  run_src {|func f() i32 { return 0xZZ }
+func main() i32 { return f() }|};
+  [%expect
+    {|
+    error: invalid number literal
+      at <test>:1:23
+        func f() i32 { return 0xZZ }
+                              ^~~~
+    |}]
+
 let%expect_test "parse: match arms name arms in the separator error" =
   run_src
     {|enum C { Red
@@ -1627,10 +1648,6 @@ let%expect_test "parse: a bad char literal does not cascade" =
       at <test>:1:23
         func f() i32 { return 'AA'i32() }
                               ^~~~
-    error: type mismatch
-      at <test>:1:23
-        func f() i32 { return 'AA'i32() }
-                              ^~~~ expected i32, found char
     error: expected `;`
       at <test>:1:27
         func f() i32 { return 'AA'i32() }
