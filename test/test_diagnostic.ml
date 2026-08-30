@@ -42,25 +42,6 @@ let%expect_test "inline label after the caret" =
                           ^~~~ expected Int, found Str
     |}]
 
-let%expect_test "note with a secondary location" =
-  let src = "use()\ndecl()\n" in
-  render src
-    Diagnostic.(
-      error "undefined name: foo"
-      |> at (span src "use")
-      |> add_note (note "declared here" |> at (span src "decl")));
-  [%expect
-    {|
-    error: undefined name: foo
-      at <test>:1:1
-        use()
-        ^~~
-    note: declared here
-      at <test>:2:1
-        decl()
-        ^~~~
-    |}]
-
 let%expect_test "help suggestion line" =
   let src = "var x = 1 hi\n" in
   render src

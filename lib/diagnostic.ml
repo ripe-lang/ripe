@@ -11,7 +11,6 @@ type t = {
   primary : Ast.span option; (* Caret snippet target *)
   primary_label : string option; (* Inline text after the caret *)
   labels : span_label list; (* Secondary snippets *)
-  notes : t list; (* "note:" sub diagnostics *)
   detail : string option; (* Verbatim block after the snippet *)
   suggestion : string option; (* Closing "help:" line *)
 }
@@ -25,7 +24,6 @@ let make severity headline =
     primary = None;
     primary_label = None;
     labels = [];
-    notes = [];
     detail = None;
     suggestion = None;
   }
@@ -33,14 +31,12 @@ let make severity headline =
 (* Builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
 let error headline = make Error headline
 let warning headline = make Warning headline
-let note headline = make Note headline
 let at span d = { d with primary = Some span }
 let label message d = { d with primary_label = Some message }
 
 let secondary span message d =
   { d with labels = d.labels @ [ { span; message } ] }
 
-let add_note n d = { d with notes = d.notes @ [ n ] }
 let detail s d = { d with detail = Some s }
 let help s d = { d with suggestion = Some s }
 let error_at span msg = error msg |> at span
@@ -206,33 +202,29 @@ let render_snippet ctx buf span label severity =
 
 let render_with (context_at : int -> ctx) default_ctx d =
   let buf = Buffer.create 256 in
-  let render_one_with d =
-    let ctx =
-      match d.primary with
-      | Some span -> context_at (Span.lo span)
-      | None -> default_ctx
-    in
-    Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
-    Buffer.add_string buf ": ";
-    Buffer.add_string buf d.headline;
-    Buffer.add_char buf '\n';
-    (match d.primary with
-    | Some span ->
-        render_location ctx buf span;
-        render_snippet ctx buf span d.primary_label d.severity
-    | None -> ());
-    List.iter
-      (fun label ->
-        let label_ctx = context_at (Span.lo label.span) in
-        render_location label_ctx buf label.span;
-        render_snippet label_ctx buf label.span (Some label.message) Note)
-      d.labels
+  let ctx =
+    match d.primary with
+    | Some span -> context_at (Span.lo span)
+    | None -> default_ctx
   in
-  render_one_with d;
+  Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
+  Buffer.add_string buf ": ";
+  Buffer.add_string buf d.headline;
+  Buffer.add_char buf '\n';
+  (match d.primary with
+  | Some span ->
+      render_location ctx buf span;
+      render_snippet ctx buf span d.primary_label d.severity
+  | None -> ());
+  List.iter
+    (fun label ->
+      let label_ctx = context_at (Span.lo label.span) in
+      render_location label_ctx buf label.span;
+      render_snippet label_ctx buf label.span (Some label.message) Note)
+    d.labels;
   (match d.detail with
   | Some detail -> Buffer.add_string buf detail
   | None -> ());
-  List.iter render_one_with d.notes;
   (match d.suggestion with
   | Some suggestion ->
       Buffer.add_string buf (colored default_ctx Help (severity_word Help));
