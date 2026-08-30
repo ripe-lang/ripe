@@ -1,7 +1,3 @@
-error: unclosed delimiter
-  at main.rp:1:11
-    func scale(n: i32 i32 {
-              ^
 error: expected `)`
   at main.rp:1:19
     func scale(n: i32 i32 {

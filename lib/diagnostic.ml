@@ -278,8 +278,8 @@ let cannot_infer span =
   |> help "write the type or give it a value"
 
 let expected_expression span = error "expected expression" |> at span
-let cyclic_constant span = error_at span "cyclic constant"
 let expected_type span = error "expected type" |> at span
+let cyclic_constant span = error_at span "cyclic constant"
 let with_found span msg found = error msg |> at span |> label ("found " ^ found)
 
 let internal ?span msg =

@@ -1,0 +1,8 @@
+error: expected `}`
+  at main.rp:5:3
+      var a: i32 = 1
+      ^~~ found `var`
+error: expected `}`
+  at main.rp:8:3
+    }
+      ^ found <eof>

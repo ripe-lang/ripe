@@ -178,10 +178,12 @@ let expect_binding_name st =
       (Interner.intern "_", span)
   | _ -> expect_ident_span st
 
+let expected_error st t =
+  let headline = Printf.sprintf "expected `%s`" (show_token t) in
+  Diagnostic.with_found (cur_span st) headline (show_found_token st.tok)
+
 let expect st t =
-  if st.tok <> t then
-    fail_found st (Printf.sprintf "expected `%s`" (show_token t))
-  else advance st
+  if st.tok = t then advance st else raise (ParseError (expected_error st t))
 
 (* item (, item)* with an optional trailing comma before stop *)
 let comma_sep st stop parse_one =
@@ -225,7 +227,7 @@ let rec sync_to_depth_token st depth line stops =
     st.tok = EOF
     || st.tok_depth = depth
        && (List.mem st.tok stops || is_semi st.tok || st.tok = RBRACE)
-    || (st.tok_depth = 0 && depth = 0 && is_item_resume st.tok)
+    || (depth = 0 && is_item_start st.tok)
     || st.tok_depth = depth && st.tok_line > line
        && if depth = 0 then is_item_start st.tok else is_stmt_start st.tok
   then ()
@@ -268,16 +270,24 @@ let param_sep_error st =
 let expect_decl_sep st ~what =
   match st.tok with
   | AUTOSEMI | SEMI -> skip_semi st
-  | RBRACE -> ()
+  | RBRACE | EOF -> ()
   | tok ->
       emit_parse_error st (decl_sep_error st what);
       if not (is_member_start tok) then advance st
+
+let is_stmt_keyword = function
+  | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH ->
+      true
+  | _ -> false
+
+(* A statement can't be a member so an unclosed body stops swallowing here *)
+let ends_member_list tok = is_item_resume tok || is_stmt_keyword tok
 
 (* A bad item leaves a missing one so the rest of the braced list still lands *)
 let parse_decl_list st ~what ~missing parse_one =
   let depth = st.tok_depth in
   let items = ref [] in
-  while st.tok <> RBRACE && st.tok <> EOF && not (is_item_resume st.tok) do
+  while st.tok <> RBRACE && st.tok <> EOF && not (ends_member_list st.tok) do
     recover st ~depth ~stops:[]
       ~parse:(fun () -> items := parse_one depth :: !items)
       ~fallback:(fun st d -> items := missing (recovery_span st d) :: !items);
@@ -401,10 +411,15 @@ let rec parse_typ st =
 and recover_typ st depth stops =
   recover st ~depth ~stops ~parse:(fun () -> parse_typ st) ~fallback:error_typ
 
+(* A newline ends the declaration so the caret stays on the `=` or `:` *)
 and recover_typ_after st depth stops tok =
+  let span = cur_span st in
+  let line = st.tok_line in
   recover st ~depth ~stops
     ~parse:(fun () ->
       expect st tok;
+      if st.tok_line > line then
+        raise (ParseError (Diagnostic.expected_type span));
       parse_typ st)
     ~fallback:error_typ
 
@@ -412,9 +427,9 @@ and recover_typ_after st depth stops tok =
 and recover_init st depth =
   let span = cur_span st in
   let line = st.tok_line in
-  expect st ASSIGN;
   recover st ~depth ~stops:[]
     ~parse:(fun () ->
+      expect st ASSIGN;
       if st.tok_line > line then require_expr_start st span;
       parse_expr st 1)
     ~fallback:error_expr
@@ -526,12 +541,16 @@ and parse_params st =
   let parse_one () =
     let lo = cur_pos st in
     let name =
-      recover st ~depth
-        ~stops:[ COLON; COMMA; RPAREN; LBRACE ]
+      recover st ~depth ~stops:[ COLON; COMMA; RPAREN ]
         ~parse:(fun () -> expect_decl_name st)
         ~fallback:(fun st _ -> Ast.missing_ident (cur_span st))
     in
-    let t = recover_typ_after st depth [ COMMA; RPAREN; LBRACE ] COLON in
+    (* A name that never parsed leaves nothing to hang an annotation on *)
+    let t =
+      if Option.is_none name.value && not (at st COLON) then
+        { tdesc = ErrorType; tspan = cur_span st }
+      else recover_typ_after st depth [ COMMA; RPAREN; LBRACE ] COLON
+    in
     let hi = st.prev_end in
     params :=
       ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
@@ -567,7 +586,8 @@ and parse_params st =
       advance st
     done
   end;
-  expect st RPAREN;
+  (* The declaration still stands when the parameter list won't close *)
+  (try expect st RPAREN with ParseError d -> emit_parse_error st d);
   (List.rev !params, !variadic)
 
 (* i32 *)
@@ -984,7 +1004,8 @@ and parse_stmts st =
           fail_found st "expected `;`"
     with ParseError d ->
       after_auto_semi := false;
-      emit_parse_error st d;
+      (* The block reports the missing closer so running out of input is its news *)
+      if st.tok <> EOF then emit_parse_error st d;
       sync_to_stmt st depth line false;
       stmts := Expr (error_expr st d) :: !stmts;
       skip_semi st
@@ -1231,6 +1252,24 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
+let closer_for = function
+  | LPAREN -> Some RPAREN
+  | LBRACKET -> Some RBRACKET
+  | LBRACE -> Some RBRACE
+  | _ -> None
+
+let is_closer = function RPAREN | RBRACKET | RBRACE -> true | _ -> false
+
+(* A crossed closer throws the depth off so the run stops here *)
+let abort_mismatch diags span opener want open_span =
+  Diagnostic.emit diags
+    (Diagnostic.error "mismatched delimiter"
+    |> Diagnostic.at span
+    |> Diagnostic.label (Printf.sprintf "expected `%s`" (show_token want))
+    |> Diagnostic.secondary open_span
+         (Printf.sprintf "to match this `%s`" (show_token opener)));
+  raise (Diagnostic.Errors (Diagnostic.drain diags))
+
 let stream read lexbuf diags =
   let stack = ref [] in
   let depth = ref 0 in
@@ -1239,20 +1278,23 @@ let stream read lexbuf diags =
     | ERROR msg, sp, line ->
         Diagnostic.emit_error_at diags sp msg;
         { token = ERROR msg; span = sp; line; depth = !depth }
-    | t, sp, line -> (
+    | EOF, sp, line -> { token = EOF; span = sp; line; depth = !depth }
+    | t, sp, line ->
         let info = { token = t; span = sp; line; depth = !depth } in
-        match Bracketcheck.step diags !stack t sp with
-        | Bracketcheck.End -> info
-        | Bracketcheck.Closed rest ->
-            stack := rest;
-            decr depth;
-            info
-        | Bracketcheck.Stray -> info
-        | Bracketcheck.Other -> info
-        | Bracketcheck.Open opener ->
-            stack := (opener, sp) :: !stack;
-            incr depth;
-            info)
+        (match closer_for t with
+        | Some want ->
+            stack := (t, want, sp) :: !stack;
+            incr depth
+        | None -> (
+            match !stack with
+            | (opener, want, open_span) :: rest when is_closer t ->
+                if t = want then begin
+                  stack := rest;
+                  decr depth
+                end
+                else abort_mismatch diags sp opener want open_span
+            | _ -> ()));
+        info
   in
   next
 

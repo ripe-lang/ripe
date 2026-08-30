@@ -1,6 +1,6 @@
 error: expected `)`
   at main.rp:1:17
-    type pair = (i32, i32
+    type pair = (i32, i32)
                     ^ found ,
 error: expected `)`
   at main.rp:3:19

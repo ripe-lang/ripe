@@ -1,0 +1,11 @@
+error: expected identifier
+  at main.rp:1:10
+    func add({a: i32, b: i32) i32 { return a + b }
+             ^ found {
+error: mismatched delimiter
+  at main.rp:1:25
+    func add({a: i32, b: i32) i32 { return a + b }
+                            ^ expected `}`
+  at main.rp:1:10
+    func add({a: i32, b: i32) i32 { return a + b }
+             ^ to match this `{`

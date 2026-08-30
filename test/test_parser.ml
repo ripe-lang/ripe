@@ -14,7 +14,7 @@ let%expect_test "parse: missing rparen" =
                       ^ expected `)`
       at <test>:1:13
         func f() { g( }
-                    ^ unclosed `(`
+                    ^ to match this `(`
     |}]
 
 let%expect_test "parse: stray token" =
@@ -31,14 +31,14 @@ let%expect_test "parse: unterminated string" =
   run_src "func f() { var s = \"oops";
   [%expect
     {|
-    error: unclosed delimiter
-      at <test>:1:10
-        func f() { var s = "oops
-                 ^
     error: unterminated string
       at <test>:1:25
         func f() { var s = "oops
                                 ^
+    error: expected `}`
+      at <test>:1:25
+        func f() { var s = "oops
+                                ^ found <eof>
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -1108,7 +1108,7 @@ let%expect_test "parse: stray closing paren" =
                    ^ expected `}`
       at <test>:1:10
         func f() { ) }
-                 ^ unclosed `{`
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -1676,7 +1676,7 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
                                                                   ^ expected `)`
       at <test>:1:28
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                   ^ unclosed `(`
+                                   ^ to match this `(`
     |}]
 
 let%expect_test "parse: unclosed bracket in an index points at the bracket" =
@@ -1693,7 +1693,7 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
                                                        ^ expected `]`
       at <test>:1:39
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                              ^ unclosed `[`
+                                              ^ to match this `[`
     |}]
 
 let%expect_test "parse: stray closing paren with nothing open" =
@@ -1710,18 +1710,10 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
   run_src "func f() { ( [";
   [%expect
     {|
-    error: unclosed delimiter
-      at <test>:1:10
+    error: expected `}`
+      at <test>:1:15
         func f() { ( [
-                 ^
-    error: unclosed delimiter
-      at <test>:1:12
-        func f() { ( [
-                   ^
-    error: unclosed delimiter
-      at <test>:1:14
-        func f() { ( [
-                     ^
+                      ^ found <eof>
     |}]
 
 let%expect_test "parse: spans from different files are distinct" =
