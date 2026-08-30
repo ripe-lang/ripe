@@ -1,0 +1,8 @@
+error: expected identifier
+  at main.rp:1:6
+    func 3scale(n: i32) i32 {
+         ^ found 3
+error: undefined function
+  at main.rp:4:26
+    func main() i32 { return scale(2) }
+                             ^~~~~

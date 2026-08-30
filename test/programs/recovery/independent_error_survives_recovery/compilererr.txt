@@ -1,0 +1,8 @@
+error: expected `{`
+  at main.rp:1:24
+    func helper(n: i32) i32
+                           ^ found ;
+error: expected expression
+  at main.rp:5:31
+    func bad() i32 { var x: i32 = ; return x }
+                                  ^ found ;

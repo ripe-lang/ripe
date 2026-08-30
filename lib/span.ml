@@ -22,6 +22,6 @@ let show t = Format.asprintf "%a" pp t
 module Table = Hashtbl.Make (struct
   type nonrec t = t
 
-  let equal (a : t) (b : t) = a = b
+  let equal a b = a = b
   let hash t = t lsr offset_bits
 end)

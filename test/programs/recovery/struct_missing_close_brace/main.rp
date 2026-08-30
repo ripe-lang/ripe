@@ -1,0 +1,9 @@
+struct point {
+  x: i32
+
+func helper(n: i32) i32 { return n }
+
+func main() i32 {
+  var p = point { 5 }
+  return p.x + helper(1)
+}

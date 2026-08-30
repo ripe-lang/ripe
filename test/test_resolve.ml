@@ -28,7 +28,7 @@ let dump_decl_visibilities src =
     (fun decl ->
       let name, span = decl_name_span decl in
       let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n" (Ripe.Interner.text name)
+      Printf.printf "%s %s\n" (Ripe.Ast.ident_text name)
         (Ripe.Symbol.show_visibility sym.visibility))
     decls
 

@@ -53,7 +53,7 @@ let at st t = st.tok = t
 (* Start of the current lookahead token *)
 let cur_pos st = Span.lo st.tok_span
 
-let loop_lo st (label : Ast.loop_label option) =
+let loop_lo st label =
   match label with
   | Some (l : Ast.loop_label) -> Span.lo l.span
   | None -> cur_pos st
@@ -92,11 +92,10 @@ let is_ambiguous_continuation = function
   | PLUS | MINUS | STAR | AMP -> true
   | _ -> false
 
-let is_dereference_assignment (token : token) (e : expr) =
+let is_dereference_assignment token e =
   match e.desc with Assign _ -> token = STAR | _ -> false
 
-let diagnose_dropped_continuation (st : state) (token : token) (span : span)
-    (expr : expr) =
+let diagnose_dropped_continuation st token span expr =
   if
     is_ambiguous_continuation token
     && not (is_dereference_assignment token expr)
@@ -118,11 +117,29 @@ let is_item_start = function
   | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | CONST | VAR | ENUM -> true
   | _ -> false
 
-let is_next_line_start (st : state) (line : int) (is_start : token -> bool) =
-  st.tok_line > line && is_start st.tok
+let is_item_resume tok = is_item_start tok && not (is_stmt_start tok)
+let is_member_start = function IDENT _ -> true | _ -> false
+let is_params_end = function LBRACE | EOF -> true | _ -> false
 
-let rec sync_to_stmt (st : state) (depth : int) (line : int) (after_semi : bool)
-    =
+let is_param_start st =
+  match st.tok with
+  | ELLIPSIS -> true
+  | IDENT _ -> (peek st).token = COLON
+  | tok -> is_semi tok
+
+let is_next_line_start st line is_start = st.tok_line > line && is_start st.tok
+
+(* The enclosing block needs its own closer back *)
+let rec sync_to_item st depth =
+  match st.tok with
+  | EOF -> ()
+  | RBRACE when depth > 0 && st.tok_depth <= depth -> ()
+  | _ when is_item_resume st.tok -> ()
+  | _ ->
+      advance st;
+      sync_to_item st depth
+
+let rec sync_to_stmt st depth line after_semi =
   match st.tok with
   | EOF -> ()
   | RBRACE when st.tok_depth = depth -> ()
@@ -148,6 +165,10 @@ let expect_ident_span st =
   let span = st.tok_span in
   let name = expect_ident st in
   (name, span)
+
+let expect_decl_name st =
+  let span = st.tok_span in
+  Ast.ident (expect_ident st) span
 
 let expect_binding_name st =
   match st.tok with
@@ -179,10 +200,10 @@ let make_span _st lo hi = Span.make lo hi
 let mk lo st desc = { desc; span = make_span st lo st.prev_end }
 let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 
-let recovery_span (st : state) (d : Diagnostic.t) =
+let recovery_span st d =
   Option.value (Diagnostic.primary d) ~default:(cur_span st)
 
-let emit_parse_error (st : state) (d : Diagnostic.t) =
+let emit_parse_error st d =
   let duplicate =
     match st.tok with
     | ERROR _ -> Diagnostic.primary d = Some (cur_span st)
@@ -190,18 +211,21 @@ let emit_parse_error (st : state) (d : Diagnostic.t) =
   in
   if not duplicate then Diagnostic.emit st.diags d
 
-let error_expr (st : state) (d : Diagnostic.t) =
-  { desc = ErrorExpr; span = recovery_span st d }
+let error_expr st d = { desc = ErrorExpr; span = recovery_span st d }
+let error_typ st d = { tdesc = ErrorType; tspan = recovery_span st d }
 
-let error_typ (st : state) (d : Diagnostic.t) =
-  { tdesc = ErrorType; tspan = recovery_span st d }
+let missing_field span =
+  {
+    field_name = Ast.missing_ident span;
+    field_typ = { tdesc = ErrorType; tspan = span };
+  }
 
-let rec sync_to_depth_token (st : state) (depth : int) (line : int)
-    (stops : token list) =
+let rec sync_to_depth_token st depth line stops =
   if
     st.tok = EOF
     || st.tok_depth = depth
        && (List.mem st.tok stops || is_semi st.tok || st.tok = RBRACE)
+    || (st.tok_depth = 0 && depth = 0 && is_item_resume st.tok)
     || st.tok_depth = depth && st.tok_line > line
        && if depth = 0 then is_item_start st.tok else is_stmt_start st.tok
   then ()
@@ -209,14 +233,26 @@ let rec sync_to_depth_token (st : state) (depth : int) (line : int)
     advance st;
     sync_to_depth_token st depth line stops)
 
-let recover (st : state) (depth : int) (stops : token list) (parse : unit -> 'a)
-    (on_error : state -> Diagnostic.t -> 'a) =
+let recover st ~depth ~stops ~parse ~fallback =
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
     emit_parse_error st d;
     sync_to_depth_token st depth line stops;
-    on_error st d
+    fallback st d
+
+(* { item; item } *)
+let parse_braced st parse =
+  let depth = st.tok_depth in
+  try
+    expect st LBRACE;
+    let items = parse st in
+    expect st RBRACE;
+    Some items
+  with ParseError d ->
+    emit_parse_error st d;
+    sync_to_item st depth;
+    None
 
 let decl_sep_error st what =
   Diagnostic.error ("expected " ^ what ^ " separator")
@@ -228,23 +264,23 @@ let param_sep_error st =
   |> Diagnostic.at (cur_span st)
   |> Diagnostic.help "separate parameters with `,`"
 
-(* A comma is the common slip so eating it keeps the rest of the list *)
+(* Junk that can't start the next item is eaten so it isn't reported twice *)
 let expect_decl_sep st ~what =
   match st.tok with
   | AUTOSEMI | SEMI -> skip_semi st
   | RBRACE -> ()
   | tok ->
       emit_parse_error st (decl_sep_error st what);
-      if tok = COMMA then advance st
+      if not (is_member_start tok) then advance st
 
-(* A bad item drops only itself so the rest of the braced list still lands *)
-let parse_decl_list st ~what parse_one =
+(* A bad item leaves a missing one so the rest of the braced list still lands *)
+let parse_decl_list st ~what ~missing parse_one =
   let depth = st.tok_depth in
   let items = ref [] in
-  while st.tok <> RBRACE do
-    recover st depth []
-      (fun () -> items := parse_one depth :: !items)
-      (fun _ _ -> ());
+  while st.tok <> RBRACE && st.tok <> EOF && not (is_item_resume st.tok) do
+    recover st ~depth ~stops:[]
+      ~parse:(fun () -> items := parse_one depth :: !items)
+      ~fallback:(fun st d -> items := missing (recovery_span st d) :: !items);
     expect_decl_sep st ~what
   done;
   List.rev !items
@@ -363,17 +399,25 @@ let rec parse_typ st =
 
 (* I have to wrap it in a fun so it doesn't run before the catch is ready *)
 and recover_typ st depth stops =
-  recover st depth stops (fun () -> parse_typ st) error_typ
+  recover st ~depth ~stops ~parse:(fun () -> parse_typ st) ~fallback:error_typ
 
 and recover_typ_after st depth stops tok =
-  recover st depth stops
-    (fun () ->
+  recover st ~depth ~stops
+    ~parse:(fun () ->
       expect st tok;
       parse_typ st)
-    error_typ
+    ~fallback:error_typ
 
-and recover_expr st depth stops =
-  recover st depth stops (fun () -> parse_expr st 1) error_expr
+(* Nothing after the `=` puts the caret on it, not on the next line *)
+and recover_init st depth =
+  let span = cur_span st in
+  let line = st.tok_line in
+  expect st ASSIGN;
+  recover st ~depth ~stops:[]
+    ~parse:(fun () ->
+      if st.tok_line > line then require_expr_start st span;
+      parse_expr st 1)
+    ~fallback:error_expr
 
 and optional_annotation st depth =
   if at st COLON then (
@@ -417,24 +461,25 @@ and parse_modifiers st =
 
 (* x: i32 *)
 and parse_fields st =
-  parse_decl_list st ~what:"field" (fun depth ->
-      let name, nspan = expect_ident_span st in
+  parse_decl_list st ~what:"field" ~missing:missing_field (fun depth ->
+      let name = expect_decl_name st in
       let t = recover_typ_after st depth [] COLON in
-      ({ field_name = name; field_typ = t; field_span = nspan } : field))
+      ({ field_name = name; field_typ = t } : field))
+
+and parse_variants st =
+  parse_decl_list st ~what:"variant" ~missing:Ast.missing_ident (fun _ ->
+      expect_decl_name st)
 
 (* struct point { x: i32; y: i32 } *)
 and parse_struct_def st mods =
   let lo = cur_pos st in
   advance st;
   (* STRUCT *)
-  let name, name_span = expect_ident_span st in
-  expect st LBRACE;
-  let fields = parse_fields st in
-  expect st RBRACE;
+  let name = expect_decl_name st in
+  let fields = parse_braced st parse_fields in
   let hi = st.prev_end in
   {
     struct_name = name;
-    struct_name_span = name_span;
     fields;
     struct_modifiers = mods;
     struct_span = make_span st lo hi;
@@ -445,18 +490,11 @@ and parse_enum_def st mods =
   let lo = cur_pos st in
   advance st;
   (* ENUM *)
-  let name, name_span = expect_ident_span st in
-  expect st LBRACE;
-  let variants =
-    parse_decl_list st ~what:"variant" (fun _ ->
-        let vname, vspan = expect_ident_span st in
-        { variant_name = vname; variant_span = vspan })
-  in
-  expect st RBRACE;
+  let name = expect_decl_name st in
+  let variants = parse_braced st parse_variants in
   let hi = st.prev_end in
   {
     enum_name = name;
-    enum_name_span = name_span;
     variants;
     enum_modifiers = mods;
     enum_span = make_span st lo hi;
@@ -467,12 +505,11 @@ and parse_alias_def st mods =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   advance st;
-  let name, name_span = expect_ident_span st in
+  let name = expect_decl_name st in
   let typ = recover_typ_after st depth [] ASSIGN in
   let hi = st.prev_end in
   ({
      alias_name = name;
-     alias_name_span = name_span;
      alias_typ = typ;
      alias_modifiers = mods;
      alias_span = make_span st lo hi;
@@ -485,15 +522,16 @@ and parse_params st =
   let depth = st.tok_depth in
   let params = ref [] in
   let variadic = ref false in
-  (* A poison name keeps the arity so the call sites still line up *)
+  (* A missing name keeps the arity so the call sites still line up *)
   let parse_one () =
     let lo = cur_pos st in
     let name =
-      recover st depth [ COLON; COMMA; RPAREN ]
-        (fun () -> expect_ident st)
-        (fun _ _ -> Ast.poison_name)
+      recover st ~depth
+        ~stops:[ COLON; COMMA; RPAREN; LBRACE ]
+        ~parse:(fun () -> expect_decl_name st)
+        ~fallback:(fun st _ -> Ast.missing_ident (cur_span st))
     in
-    let t = recover_typ_after st depth [ COMMA; RPAREN ] COLON in
+    let t = recover_typ_after st depth [ COMMA; RPAREN; LBRACE ] COLON in
     let hi = st.prev_end in
     params :=
       ({ param_name = name; param_typ = t; param_span = make_span st lo hi }
@@ -502,7 +540,12 @@ and parse_params st =
   in
   if st.tok <> RPAREN then begin
     parse_one ();
-    while st.tok <> RPAREN && st.tok <> EOF && not !variadic do
+    while
+      st.tok <> RPAREN
+      && (not (is_params_end st.tok))
+      && (not !variadic)
+      && (st.tok = COMMA || is_param_start st)
+    do
       let stuck = cur_pos st in
       if st.tok = COMMA then advance st
       else begin
@@ -538,20 +581,27 @@ and parse_ret_type st =
 (* func NAME(params) ret *)
 and parse_signature st =
   expect st FUNC;
-  let name, name_span = expect_ident_span st in
+  let name = expect_decl_name st in
   let params, variadic = parse_params st in
   let ret = parse_ret_type st in
-  (name, name_span, params, ret, variadic)
+  (name, params, ret, variadic)
 
 (* func add(a: i32, b: i32) i32 { ... } *)
 and parse_func_def st mods =
   let lo = cur_pos st in
-  let name, name_span, params, ret, variadic = parse_signature st in
-  let body = parse_block st in
+  let depth = st.tok_depth in
+  let name, params, ret, variadic = parse_signature st in
+  (* The declaration still stands when the body won't parse *)
+  let body =
+    try parse_block st
+    with ParseError d ->
+      emit_parse_error st d;
+      sync_to_item st depth;
+      [ Expr (error_expr st d) ]
+  in
   let hi = st.prev_end in
   {
     func_name = name;
-    func_name_span = name_span;
     params;
     ret;
     body;
@@ -855,12 +905,7 @@ and parse_simple_stmt ?(no_pair = false) st =
       let ann = optional_annotation st depth in
       (* Only var may omit the value *)
       let e =
-        if kind <> Ast.Var then (
-          expect st ASSIGN;
-          Some (recover_expr st depth []))
-        else if at st ASSIGN then (
-          advance st;
-          Some (recover_expr st depth []))
+        if kind <> Ast.Var || at st ASSIGN then Some (recover_init st depth)
         else None
       in
       mk lo st (Binding (kind, name, nspan, ann, e))
@@ -887,7 +932,7 @@ and parse_simple_stmt ?(no_pair = false) st =
       else first
 
 (* a, b = b, a *)
-and parse_pair_assign (state : state) (lo : int) (ft : expr) =
+and parse_pair_assign state lo ft =
   expect state COMMA;
   let st = parse_expr state 2 in
   if at state COMMA then
@@ -1094,25 +1139,11 @@ let parse_global st mods =
   let depth = st.tok_depth in
   let kind = match st.tok with CONST -> Ast.Const | _ -> Ast.Var in
   advance st;
-  let name, name_span = expect_ident_span st in
+  let name = expect_decl_name st in
   let typ = optional_annotation st depth in
-  let init =
-    if at st ASSIGN then (
-      advance st;
-      Some (recover_expr st depth []))
-    else None
-  in
+  let init = if at st ASSIGN then Some (recover_init st depth) else None in
   let hi = st.prev_end in
-  Global
-    {
-      name;
-      name_span;
-      typ;
-      init;
-      kind;
-      modifiers = mods;
-      span = make_span st lo hi;
-    }
+  Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
 
 (* extern "C" func add(a: i32, b: i32) i32 *)
 let parse_extern st =
@@ -1120,12 +1151,11 @@ let parse_extern st =
   advance st;
   (* EXTERN *)
   let extern_abi = parse_abi st in
-  let name, name_span, params, ret, variadic = parse_signature st in
+  let name, params, ret, variadic = parse_signature st in
   let hi = st.prev_end in
   Extern
     {
       func_name = name;
-      func_name_span = name_span;
       params;
       ret;
       body = [];
@@ -1136,7 +1166,11 @@ let parse_extern st =
     }
 
 let parse_decl st =
-  let err () = fail_found st "expected declaration" in
+  let err () =
+    match st.tok with
+    | RPAREN | RBRACKET | RBRACE -> fail st "unexpected closing delimiter"
+    | _ -> fail_found st "expected declaration"
+  in
   let mods = parse_modifiers st in
   match (mods, st.tok) with
   | _, STRUCT -> Struct (parse_struct_def st mods)
@@ -1161,20 +1195,12 @@ let parse_import st =
   { path = List.rev !path; span = make_span st lo hi }
 
 (* module math *)
-let parse_module_header (st : state) =
+let parse_module_header st =
   let lo = cur_pos st in
   advance st;
   let name = expect_ident st in
   let hi = st.prev_end in
   { Ast.name; span = make_span st lo hi }
-
-let rec sync_to_item (st : state) =
-  match st.tok with
-  | EOF -> ()
-  | _ when st.tok_depth = 0 && is_item_start st.tok -> ()
-  | _ ->
-      advance st;
-      sync_to_item st
 
 let parse_module st =
   let header = ref None in
@@ -1188,7 +1214,7 @@ let parse_module st =
       else if st.tok <> EOF then fail_found st "expected `;`"
     with ParseError d ->
       emit_parse_error st d;
-      sync_to_item st);
+      sync_to_item st 0);
   while st.tok <> EOF do
     let line = st.tok_line in
     try
@@ -1201,7 +1227,7 @@ let parse_module st =
           fail_found st "expected `;`"
     with ParseError d ->
       emit_parse_error st d;
-      sync_to_item st
+      sync_to_item st 0
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
@@ -1221,8 +1247,7 @@ let stream read lexbuf diags =
             stack := rest;
             decr depth;
             info
-        | Bracketcheck.Stray ->
-            { info with token = ERROR "unexpected closing delimiter" }
+        | Bracketcheck.Stray -> info
         | Bracketcheck.Other -> info
         | Bracketcheck.Open opener ->
             stack := (opener, sp) :: !stack;
@@ -1231,9 +1256,8 @@ let stream read lexbuf diags =
   in
   next
 
-let parse ~(diags : Diagnostic.sink)
-    (read : Lexing.lexbuf -> Tokens.token * Ast.span * int)
-    (lexbuf : Lexing.lexbuf) =
+let parse ~diags (read : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf
+    =
   let st =
     {
       tok = EOF;

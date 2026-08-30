@@ -131,7 +131,7 @@ let dump_tokens read lexbuf =
   loop ();
   Buffer.contents buf
 
-let show_module (module_ : Ast.module_) =
+let show_module module_ =
   let header =
     match module_.Ast.header with
     | None -> []
@@ -146,10 +146,10 @@ let show_module (module_ : Ast.module_) =
     (header @ imports @ List.map Ast.show_decl module_.Ast.decls)
   ^ "\n"
 
-let show_program (program : Program.t) =
+let show_program program =
   program.Program.modules |> Array.to_list
-  |> List.concat_map (fun (module_ : Program.module_) -> module_.Program.units)
-  |> List.map (fun (unit_ : Program.unit_) -> show_module unit_.Program.ast)
+  |> List.concat_map (fun module_ -> module_.Program.units)
+  |> List.map (fun unit_ -> show_module unit_.Program.ast)
   |> String.concat ""
 
 let show_tdecls tdecls =
@@ -176,9 +176,9 @@ let line_counts program =
   let processed = ref 0 in
   let all = ref 0 in
   Array.iter
-    (fun (module_ : Program.module_) ->
+    (fun module_ ->
       List.iter
-        (fun (unit_ : Program.unit_) ->
+        (fun unit_ ->
           let source_map = unit_.Program.source.Program.source_map in
           let source = Sourcemap.src source_map in
           let source_processed = count_processed_lines source in
@@ -213,15 +213,14 @@ let report_stats stats program ~total_start ~frontend_time ~qbe_time
     print_stats program ~frontend_time ~qbe_time ~compiler_time ~link_time
       ~total_time:(Unix.gettimeofday () -. total_start)
 
-let source_ctx color (source : Program.source) : Diagnostic.ctx =
+let source_ctx color source : Diagnostic.ctx =
   {
     Diagnostic.sm = source.Program.source_map;
     filename = source.Program.filename;
     color;
   }
 
-let program_context (program : Program.t) :
-    (int -> Diagnostic.ctx) * Diagnostic.ctx =
+let program_context program : (int -> Diagnostic.ctx) * Diagnostic.ctx =
   let color = use_color () in
   let source_at = Program.source_at program in
   ( (fun pos -> source_ctx color (source_at pos)),
@@ -348,7 +347,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     | Ok () -> ()
     | Error errors ->
         List.iter
-          (fun (error : Mir.error) ->
+          (fun error ->
             Diagnostic.emit diags
               (Diagnostic.internal ~span:error.Mir.error_span
                  (Mir.show_error error)))

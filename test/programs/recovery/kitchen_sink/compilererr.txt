@@ -1,0 +1,20 @@
+error: expected identifier
+  at main.rp:1:16
+    struct point { 99: i32
+                   ^~ found 99
+error: expected identifier
+  at main.rp:4:14
+    enum color { 88; Green }
+                 ^~ found 88
+error: expected expression
+  at main.rp:6:18
+    const LIMIT: i32 =
+                     ^
+error: expected `{`
+  at main.rp:8:23
+    func scale(n: i32) i32
+                          ^ found ;
+error: expected expression
+  at main.rp:11:31
+    func bad() i32 { var z: i32 = ; return z }
+                                  ^ found ;

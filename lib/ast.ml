@@ -9,8 +9,6 @@ let dummy_span = Span.dummy
 type name = Interner.id
 
 let pp_name = Interner.pp
-let poison_name = Interner.intern "{error}"
-let is_poison_name name = name = poison_name
 
 type 'a spanned = { value : 'a; span : span }
 [@@deriving show { with_path = false }]
@@ -18,6 +16,16 @@ type 'a spanned = { value : 'a; span : span }
 let spanned value span = { value; span }
 
 type loop_label = name spanned [@@deriving show { with_path = false }]
+
+(* A name the parser could not read is missing, not absent *)
+type ident = name option spanned [@@deriving show { with_path = false }]
+
+let ident name span = spanned (Some name) span
+let missing_ident span = spanned None span
+
+(* A missing name has no text so nothing downstream can name it *)
+let ident_text i =
+  match i.value with Some name -> Interner.text name | None -> ""
 
 type binop =
   | Add
@@ -142,33 +150,31 @@ and typ = { tdesc : typ_desc; tspan : span }
 and abi = NoAbi | NamedAbi of string * span | AbiError
 [@@deriving show { with_path = false }]
 
-and field = { field_name : name; field_typ : typ; field_span : span }
+and field = { field_name : ident; field_typ : typ }
 [@@deriving show { with_path = false }]
 
+(* No field list at all means the braces never parsed, not an empty struct *)
 and struct_def = {
-  struct_name : name;
-  struct_name_span : span;
-  fields : field list;
+  struct_name : ident;
+  fields : field list option;
   struct_modifiers : modifier list;
   struct_span : span;
 }
 [@@deriving show { with_path = false }]
 
 and type_alias_def = {
-  alias_name : name;
-  alias_name_span : span;
+  alias_name : ident;
   alias_typ : typ;
   alias_modifiers : modifier list;
   alias_span : span;
 }
 [@@deriving show { with_path = false }]
 
-and param = { param_name : name; param_typ : typ; param_span : span }
+and param = { param_name : ident; param_typ : typ; param_span : span }
 [@@deriving show { with_path = false }]
 
 and func_def = {
-  func_name : name;
-  func_name_span : span;
+  func_name : ident;
   params : param list;
   ret : typ option;
   body : block;
@@ -189,15 +195,11 @@ and pattern = { pdesc : pattern_desc; pspan : span }
 and pattern_desc = PatValue of expr | PatWild | PatBind of name
 [@@deriving show { with_path = false }]
 
-(* TODO(d737): a variant carries no explicit value and no payload *)
-and variant = { variant_name : name; variant_span : span }
-[@@deriving show { with_path = false }]
-
 (* TODO(f1ac): every enum is an i32 and flags don't exist *)
+(* TODO(d737): a variant carries no explicit value and no payload *)
 and enum_def = {
-  enum_name : name;
-  enum_name_span : span;
-  variants : variant list;
+  enum_name : ident;
+  variants : ident list option;
   enum_modifiers : modifier list;
   enum_span : span;
 }
@@ -229,8 +231,7 @@ let path_split p = (path_names p, fst p.member)
 let path_segments p = Nonempty.to_list p.owner @ [ p.member ]
 
 type global_def = {
-  name : name;
-  name_span : span;
+  name : ident;
   typ : typ option;
   init : expr option;
   kind : binding_kind;

@@ -1,0 +1,4 @@
+error: expected identifier
+  at main.rp:1:16
+    struct point { 99: i32
+                   ^~ found 99

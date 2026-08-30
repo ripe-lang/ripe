@@ -239,50 +239,44 @@ let make_builder ~struct_layouts ~globals ~bare_return_zero =
     result = None;
   }
 
-let finish_blocks (state : builder) =
+let finish_blocks state =
   Array.init !(state.next_block) (fun id ->
       let b = Hashtbl.find state.blocks id in
       ({ statements = List.rev b.statements; terminator = b.terminator }
         : block))
 
-let add_local (state : builder) ?name storage ty span =
+let add_local state ?name storage ty span =
   let id = !(state.next_local) in
   incr state.next_local;
   state.locals_rev := { name; ty; storage; span } :: !(state.locals_rev);
   id
 
-let finish_locals (state : builder) =
-  Array.of_list (List.rev !(state.locals_rev))
+let finish_locals state = Array.of_list (List.rev !(state.locals_rev))
+let bind_symbol state symbol id = Hashtbl.add state.symbols symbol.Symbol.id id
 
-let bind_symbol (state : builder) (symbol : Symbol.t) id =
-  Hashtbl.add state.symbols symbol.Symbol.id id
-
-let new_block (state : builder) =
+let new_block state =
   let id = !(state.next_block) in
   incr state.next_block;
   Hashtbl.add state.blocks id { statements = []; terminator = None };
   id
 
 let current_block (state : builder) = Hashtbl.find state.blocks !(state.current)
-let is_live (state : builder) = Option.is_none (current_block state).terminator
-let switch (state : builder) block = state.current := block
+let is_live state = Option.is_none (current_block state).terminator
+let switch state block = state.current := block
 
-let emit (state : builder) desc span =
+let emit state desc span =
   let block = current_block state in
   if Option.is_none block.terminator then
     block.statements <- { desc; span } :: block.statements
 
-let terminate (state : builder) desc span =
+let terminate state desc span =
   let block = current_block state in
   if Option.is_none block.terminator then
     block.terminator <- Some { desc; span }
 
 (* The stack gives nested loop control the nearest matching target *)
-let with_loop (state : builder) label ~continue_block ~break_block ~result body
-    =
-  let label =
-    Option.map (fun (label : Ast.loop_label) -> label.Ast.value) label
-  in
+let with_loop state label ~continue_block ~break_block ~result body =
+  let label = Option.map (fun label -> label.Ast.value) label in
   state.loops :=
     { label; continue_block; break_block; result } :: !(state.loops);
   body ();
@@ -291,7 +285,7 @@ let with_loop (state : builder) label ~continue_block ~break_block ~result body
     | _ :: loops -> loops
     | [] -> Diagnostic.ice "loop stack is empty"
 
-let loop_target (state : builder) label span =
+let loop_target state label span =
   let target =
     match (label, !(state.loops)) with
     | None, loop :: _ -> Some loop
@@ -319,13 +313,13 @@ let constant (expr : Tast.texpr) desc : operand =
 
 let const_operand span ty desc : operand = { desc = Const desc; ty; span }
 
-let assign (state : builder) destination (assigned : operand) =
+let assign state destination assigned =
   if is_live state then
     emit state
       (Assign (destination, { desc = Use assigned; ty = assigned.ty }))
       assigned.span
 
-let temp_value_into (state : builder) destination ty span desc =
+let temp_value_into state destination ty span desc =
   emit state (Assign (destination, { desc; ty })) span;
   copy span ty destination
 
@@ -355,13 +349,13 @@ let global_place (state : builder) span (symbol : Symbol.t) =
       Diagnostic.ice ~span
         (Printf.sprintf "no MIR place for symbol %s" symbol.Symbol.name)
 
-let symbol_place (state : builder) span (symbol : Symbol.t) =
+let symbol_place state span symbol =
   match Hashtbl.find_opt state.symbols symbol.Symbol.id with
   | Some id -> local_place span id
   | None -> global_place state span symbol
 
 (* The surviving source operators keep their meaning *)
-let lower_unop (op : Ast.unop) =
+let lower_unop op =
   match op with
   | Ast.Neg -> Neg
   | Ast.Not -> Not
@@ -370,7 +364,7 @@ let lower_unop (op : Ast.unop) =
   | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
   | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
-let lower_binop (op : Ast.binop) =
+let lower_binop op =
   match op with
   | Ast.Add -> Add
   | Ast.Sub -> Sub
@@ -418,7 +412,7 @@ let negative_shift state count span =
   emit_check state (NegativeShift count) span
 
 (* Plain and compound arithmetic guard the same two operators the same way *)
-let check_arithmetic state op ~operand_ty (right : operand) span =
+let check_arithmetic state op ~operand_ty right span =
   match op with
   | (Ast.Div | Ast.Mod) when not (is_float operand_ty) ->
       div_zero state right span
@@ -426,7 +420,7 @@ let check_arithmetic state op ~operand_ty (right : operand) span =
       negative_shift state right span
   | _ -> ()
 
-let rec block_value state (expr : Tast.texpr) body =
+let rec block_value state expr body =
   match List.rev body with
   | [] -> constant expr Undef
   | last :: reversed ->
@@ -474,12 +468,12 @@ and join_result state (expr : Tast.texpr) result join =
   | Some result -> copy expr.span expr.ty result
   | None -> constant expr Undef
 
-and lower_if state (expr : Tast.texpr) branches else_body =
+and lower_if state expr branches else_body =
   let result = branch_result state expr in
   let join = lower_if_into state expr result branches else_body in
   join_result state expr result join
 
-and lower_if_into state (expr : Tast.texpr) result branches else_body =
+and lower_if_into state expr result branches else_body =
   let join = new_block state in
   let lower_else = function
     | Some body -> lower_arm state expr result join body
@@ -629,8 +623,7 @@ and lower_for state span label symbol elem_ty (iter : Tast.texpr) body =
       lower_range_for state span label symbol elem_ty lo hi true body
   | _ -> lower_each_for state span label symbol elem_ty iter body
 
-and lower_range_for state span label (symbol : Symbol.t) elem_ty lo hi inclusive
-    body =
+and lower_range_for state span label symbol elem_ty lo hi inclusive body =
   let loop_id =
     add_local state ~name:symbol.Symbol.name User elem_ty symbol.Symbol.span
   in
@@ -661,8 +654,7 @@ and lower_range_for state span label (symbol : Symbol.t) elem_ty lo hi inclusive
       assign state (local_place span loop_id) next)
     body
 
-and lower_each_for state span label (symbol : Symbol.t) elem_ty
-    (iter : Tast.texpr) body =
+and lower_each_for state span label symbol elem_ty iter body =
   let source = lower_expr state iter |> materialize state in
   let source =
     match resolve_ty iter.ty with
@@ -761,7 +753,7 @@ and lower_guarded_div_into state destination span ty op (left : operand)
   switch state join_block;
   copy span ty destination
 
-and lower_guarded_div state span ty op (left : operand) (right : operand) =
+and lower_guarded_div state span ty op left right =
   let destination = local_place span (add_local state Temp ty span) in
   lower_guarded_div_into state destination span ty op left right
 
@@ -794,7 +786,7 @@ and lower_guarded_shift_into state destination span ty op (left : operand)
   switch state join_block;
   copy span ty destination
 
-and lower_guarded_shift state span ty op (left : operand) (right : operand) =
+and lower_guarded_shift state span ty op left right =
   let destination = local_place span (add_local state Temp ty span) in
   lower_guarded_shift_into state destination span ty op left right
 
@@ -832,7 +824,7 @@ and map_operands state = function
         in
         value :: map_operands state rest
 
-and lower_expr state (expr : Tast.texpr) =
+and lower_expr state expr =
   match expr.desc with
   | Tast.TErrorExpr ->
       Diagnostic.ice ~span:expr.span "error expression reached MIR"
@@ -926,8 +918,7 @@ and lower_expr state (expr : Tast.texpr) =
       constant expr Undef
   | Tast.TUnit -> constant expr Undef
 
-and lower_call state (expr : Tast.texpr) (callee : Tast.texpr) args
-    variadic_start =
+and lower_call state expr callee args variadic_start =
   let destination =
     if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
     else
@@ -939,8 +930,7 @@ and lower_call state (expr : Tast.texpr) (callee : Tast.texpr) args
   | Some destination -> copy expr.span expr.ty destination
   | None -> constant expr Undef
 
-and emit_call state destination (expr : Tast.texpr) (callee : Tast.texpr) args
-    variadic_start =
+and emit_call state destination expr callee args variadic_start =
   let args = map_operands state args in
   let callee_value, kind =
     match callee.desc with
@@ -972,13 +962,13 @@ and emit_call state destination (expr : Tast.texpr) (callee : Tast.texpr) args
     expr.span;
   if expr.ty = Types.TNever then terminate state Unreachable expr.span
 
-and lower_binop_operands state (expr : Tast.texpr) op left right =
+and lower_binop_operands state expr op left right =
   let left = lower_expr state left in
   let right = lower_expr state right in
   check_arithmetic state op ~operand_ty:left.ty right expr.span;
   (left, right)
 
-and lower_expr_into state destination (expr : Tast.texpr) =
+and lower_expr_into state destination expr =
   match expr.desc with
   | Tast.TCall (callee, args, variadic_start) ->
       let result =
@@ -994,7 +984,7 @@ and lower_expr_into state destination (expr : Tast.texpr) =
       let assigned = lower_expr state expr in
       if is_live state then assign state destination assigned
 
-and lower_fresh_into state destination (expr : Tast.texpr) =
+and lower_fresh_into state destination expr =
   match expr.desc with
   | Tast.TArrayLit elements ->
       fill_array_literal state destination expr elements
@@ -1019,7 +1009,7 @@ and lower_fresh_into state destination (expr : Tast.texpr) =
       lower_loop_into state expr.span label expr.ty (Some destination) body
   | _ -> lower_expr_into state destination expr
 
-and lower_place state (expr : Tast.texpr) =
+and lower_place state expr =
   match expr.desc with
   | Tast.TIdent symbol -> symbol_place state expr.span symbol
   | Tast.TUnOp (Ast.Deref, inner) ->
@@ -1076,13 +1066,13 @@ and fill_array_literal state destination (expr : Tast.texpr) elements =
         assign state target { assigned with ty = element_ty })
     elements
 
-and lower_array_literal state (expr : Tast.texpr) elements =
+and lower_array_literal state expr elements =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_array_literal state destination expr elements;
   copy expr.span expr.ty destination
 
-and fill_struct_literal state destination (expr : Tast.texpr) fields =
+and fill_struct_literal state destination expr fields =
   emit state
     (Assign (destination, { desc = Use (constant expr Zero); ty = expr.ty }))
     expr.span;
@@ -1093,13 +1083,13 @@ and fill_struct_literal state destination (expr : Tast.texpr) fields =
       else assign state target (lower_expr state value))
     fields
 
-and lower_struct_literal state (expr : Tast.texpr) fields =
+and lower_struct_literal state expr fields =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_struct_literal state destination expr fields;
   copy expr.span expr.ty destination
 
-and fill_slice state destination (expr : Tast.texpr) base lo hi =
+and fill_slice state destination expr base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
@@ -1107,7 +1097,7 @@ and fill_slice state destination (expr : Tast.texpr) base lo hi =
   check_slice_bounds state lo hi length expr.span;
   emit state (Slice (destination, base, lo, hi)) expr.span
 
-and lower_slice state (expr : Tast.texpr) base lo hi =
+and lower_slice state expr base lo hi =
   let id = add_local state Temp expr.ty expr.span in
   let destination = local_place expr.span id in
   fill_slice state destination expr base lo hi;
@@ -1137,7 +1127,7 @@ and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
   if lowered.ty = Types.TNever || ty_equal lowered.ty result_ty then lowered
   else temp_value state result_ty value.span (Cast lowered)
 
-and lower_statement state (expr : Tast.texpr) =
+and lower_statement state expr =
   if is_live state then
     match expr.desc with
     | Tast.TBinding (_, _, ty, init)
@@ -1175,7 +1165,7 @@ and lower_statement state (expr : Tast.texpr) =
         if is_live state then terminate state (ReturnValue returned) expr.span
     | Tast.TBreak (label, value) ->
         let target = loop_target state label expr.span in
-        let break_with (value : Tast.texpr) =
+        let break_with value =
           match target.result with
           | Some (result, result_ty) when is_aggregate result_ty ->
               lower_fresh_into state result value
@@ -1223,7 +1213,7 @@ let build_func struct_layouts globals (func : Tast.tfunc_def) =
       Some (add_local state ~name:"result" Result func.ret_ty span);
   let params =
     List.filter_map
-      (fun ((symbol : Symbol.t), ty) ->
+      (fun (symbol, ty) ->
         if ty = Types.TUnit then None
         else
           let id =
@@ -1291,14 +1281,14 @@ let build (declarations : Tast.tdecl list) =
   in
   { structs; globals; functions }
 
-let show_storage (storage : storage_kind) =
+let show_storage storage =
   match storage with
   | Param -> "param"
   | User -> "user"
   | Temp -> "temp"
   | Result -> "result"
 
-let show_constant (constant : constant) =
+let show_constant constant =
   match constant with
   | Int value -> Int64.to_string value
   | Float value -> Printf.sprintf "%.17g" value
@@ -1311,10 +1301,9 @@ let show_constant (constant : constant) =
   | Function name -> "@" ^ name
   | Str value -> Printf.sprintf "str %S" value
 
-let show_unop (op : unop) =
-  match op with Neg -> "-" | Not -> "!" | BitNot -> "~"
+let show_unop op = match op with Neg -> "-" | Not -> "!" | BitNot -> "~"
 
-let show_binop (op : binop) =
+let show_binop op =
   match op with
   | Add -> "+"
   | Sub -> "-"
@@ -1333,7 +1322,7 @@ let show_binop (op : binop) =
   | Lshift -> "<<"
   | Rshift -> ">>"
 
-let rec show_place (value : place) =
+let rec show_place value =
   let projection = function
     | Deref -> ".deref"
     | Field field -> Printf.sprintf ".field%d" field
@@ -1703,7 +1692,7 @@ let make_context (program : program) =
     program.globals;
   { structs; globals }
 
-let verify (program : program) =
+let verify program =
   let context = make_context program in
   let errors = List.concat_map (verify_func context) program.functions in
   match errors with [] -> Ok () | _ -> Error errors

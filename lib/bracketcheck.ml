@@ -36,25 +36,19 @@ let report_mismatch diags span open_span opener =
       |> label (Printf.sprintf "expected %s" (closer_repr want))
       |> secondary open_span ("unclosed " ^ opener_repr opener))
 
-let report_stray diags span =
-  Diagnostic.emit diags
-    Diagnostic.(error "unexpected closing delimiter" |> at span)
-
 let report_unclosed diags (_, open_span) =
   Diagnostic.emit diags Diagnostic.(error "unclosed delimiter" |> at open_span)
 
 (* This checks the token against open delimiters from the inside out *)
 let step diags stack tok span =
-  if is_closer tok then (
+  if is_closer tok then
     match stack with
     | (opener, _) :: rest when closer_of opener = tok -> Closed rest
     | (opener, open_span) :: _ ->
         report_mismatch diags span open_span opener;
         (* This mismatch throws everything off so stop before the cascade *)
         raise (Diagnostic.Errors (Diagnostic.drain diags))
-    | [] ->
-        report_stray diags span;
-        Stray)
+    | [] -> Stray
   else if tok = EOF then
     if not (List.is_empty stack) then begin
       (* The stack is reversed so errors show up in source order *)

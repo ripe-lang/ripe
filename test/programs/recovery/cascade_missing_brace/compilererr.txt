@@ -1,0 +1,4 @@
+error: expected `{`
+  at main.rp:1:24
+    func helper(n: i32) i32
+                           ^ found ;

@@ -1,0 +1,2 @@
+extern 99 func puts(s: cstr) i32
+func main() i32 { return puts("hi") }

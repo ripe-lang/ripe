@@ -1437,11 +1437,6 @@ func main() i32 {
       at <test>:2:9
           Green @
                 ^
-    error: expected variant separator
-      at <test>:3:3
-          Blue }
-          ^~~~
-    help: separate variants with a newline or `;`
     |}]
 
 let%expect_test "parse: a bad parameter name keeps the arity" =
@@ -1990,9 +1985,8 @@ let%expect_test "parse: an enum declares its variants" =
   Green
   Blue
 }|} with
-  | [ Ripe.Ast.Enum ed ] ->
-      let name (v : Ripe.Ast.variant) = Ripe.Interner.text v.variant_name in
-      print_endline (String.concat " " (List.map name ed.variants))
+  | [ Ripe.Ast.Enum { variants = Some variants; _ } ] ->
+      print_endline (String.concat " " (List.map Ripe.Ast.ident_text variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| Red Green Blue |}]
 
@@ -2001,8 +1995,8 @@ let%expect_test "parse: a newline separates variants" =
   Red
   Green
 }|} with
-  | [ Ripe.Ast.Enum ed ] ->
-      print_endline (string_of_int (List.length ed.variants))
+  | [ Ripe.Ast.Enum { variants = Some variants; _ } ] ->
+      print_endline (string_of_int (List.length variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| 2 |}]
 
