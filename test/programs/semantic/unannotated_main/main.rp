@@ -1,0 +1,3 @@
+func square(n: i32) i32 { return n * n }
+
+func main() { square(5) }

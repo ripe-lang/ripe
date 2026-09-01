@@ -1,0 +1,9 @@
+extern "C" func write(fd: i32, buf: *u8, n: usize) i64
+
+func announce(s: str) {
+  write(1, s.ptr, s.len)
+}
+
+func main() {
+  announce("done\n")
+}
