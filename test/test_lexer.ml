@@ -370,7 +370,6 @@ let%expect_test "lexer: CRLF newline inserts one semicolon" =
 let%expect_test "lexer: unterminated string yields an error token" =
   dump_tokens {|"abc|};
   [%expect {|
-    STRING abc
     ERROR unterminated string
     EOF
     |}]

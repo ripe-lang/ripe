@@ -11,6 +11,7 @@ type state = {
   mutable last_token : Tokens.token;
   mutable line : int;
   mutable token_line : int;
+  mutable string_resume : (int * int) option;
 }
 
 let make_state base = {
@@ -20,6 +21,7 @@ let make_state base = {
   last_token = EOF;
   line = 1;
   token_line = 1;
+  string_resume = None;
 }
 
 let next_line st = st.line <- st.line + 1
@@ -203,6 +205,7 @@ rule read_main st = parse
       let str_start = lexbuf.Lexing.lex_start_pos in
       let str_line = st.line in
       Buffer.clear st.buf;
+      st.string_resume <- None;
       let tok = read_string st lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- str_start;
@@ -238,6 +241,8 @@ and read_string st = parse
     }
   (* FIXME(2151): raw newlines stay for now *)
   | newline {
+      if st.string_resume = None then
+        st.string_resume <- Some (start_pos lexbuf, st.line);
       next_line st;
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
@@ -246,15 +251,15 @@ and read_string st = parse
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
-  (* The parser recovers after an unterm string *)
+  (* A quote that never closed only ever meant the line it was opened on *)
   | eof {
-      let s = Buffer.contents st.buf in
       Buffer.clear st.buf;
-      let here = st.base + end_pos lexbuf in
-      Queue.push
-        (ERROR "unterminated string", Span.make here here, st.line)
-        st.token_queue;
-      STRING s
+      (match st.string_resume with
+       | Some (pos, line) ->
+           lexbuf.Lexing.lex_curr_pos <- pos;
+           st.line <- line
+       | None -> ());
+      ERROR "unterminated string"
     }
 
 and read_block_comment st depth saw_newline = parse
