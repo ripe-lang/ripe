@@ -1,0 +1,9 @@
+error: cannot infer type
+  at main.rp:3:7
+      var f; func (i32) i32 = twice
+          ^
+help: write the type or give it a value
+error: expected expression
+  at main.rp:3:10
+      var f; func (i32) i32 = twice
+             ^~~~ found `func`

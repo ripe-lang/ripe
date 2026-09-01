@@ -1,0 +1,4 @@
+error: unexpected character
+  at main.rp:2:13
+      var x = 1 $ 2
+                ^

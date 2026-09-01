@@ -1,0 +1,1 @@
+func f(a: func (b: i32) i32) i32 { return 0 }

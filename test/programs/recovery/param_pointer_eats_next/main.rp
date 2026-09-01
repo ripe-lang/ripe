@@ -1,0 +1,1 @@
+func f(a: *b: i32) i32 { return 0 }

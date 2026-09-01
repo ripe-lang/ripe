@@ -1,0 +1,18 @@
+error: expected `}`
+  at main.rp:2:32
+      struct pair { a: i32; b: i32 return
+                                   ^~~~~~ found `return`
+  at main.rp:2:15
+      struct pair { a: i32; b: i32 return
+                  ^ to match this `{`
+error: expected `;`
+  at main.rp:3:3
+      type small = i32
+      ^~~~ found `type`
+error: expected `}`
+  at main.rp:7:3
+    }
+      ^ found <eof>
+  at main.rp:1:17
+    func main() i32 {
+                    ^ to match this `{`

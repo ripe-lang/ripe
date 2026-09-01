@@ -1,0 +1,2 @@
+func f(a: i32) i32 { return a }
+func main() i32 { return f(1 }

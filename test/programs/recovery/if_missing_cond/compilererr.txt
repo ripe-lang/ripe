@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:2:6
+      if { return 1 }
+         ^

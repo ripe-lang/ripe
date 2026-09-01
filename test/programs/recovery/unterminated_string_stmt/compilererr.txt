@@ -1,0 +1,4 @@
+error: unterminated string
+  at main.rp:2:11
+      var s = "oops
+              ^~~~~

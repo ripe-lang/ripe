@@ -1,0 +1,1 @@
+func f(a: [2]b: i32) i32 { return 0 }

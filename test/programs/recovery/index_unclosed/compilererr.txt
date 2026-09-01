@@ -1,0 +1,7 @@
+error: expected `]`
+  at main.rp:3:13
+      return a[0
+                ^ found ;
+  at main.rp:3:11
+      return a[0
+              ^ to match this `[`

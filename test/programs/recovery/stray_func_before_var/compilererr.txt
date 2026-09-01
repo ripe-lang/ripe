@@ -1,0 +1,4 @@
+error: expected identifier
+  at main.rp:3:8
+      func var f: func (i32) i32 = twice
+           ^~~ found `var`

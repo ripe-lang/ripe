@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:2:4
+      x:
+       ^

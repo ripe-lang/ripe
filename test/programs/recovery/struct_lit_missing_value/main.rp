@@ -1,0 +1,4 @@
+struct s { x: i32 }
+func main() i32 { var v = s { x: }
+  return v.x
+}

@@ -1,0 +1,7 @@
+error: expected `}`
+  at main.rp:2:10
+      x: i32
+             ^ found <eof>
+  at main.rp:1:10
+    struct s {
+             ^ to match this `{`

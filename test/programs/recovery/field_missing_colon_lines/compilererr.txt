@@ -1,0 +1,4 @@
+error: expected `:`
+  at main.rp:2:5
+      x i32
+        ^~~ found i32

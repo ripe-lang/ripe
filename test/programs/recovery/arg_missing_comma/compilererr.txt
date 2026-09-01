@@ -1,0 +1,7 @@
+error: expected `)`
+  at main.rp:2:32
+    func main() i32 { return add(1 2) }
+                                   ^ found 2
+  at main.rp:2:29
+    func main() i32 { return add(1 2) }
+                                ^ to match this `(`

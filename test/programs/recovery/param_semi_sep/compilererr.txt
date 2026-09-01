@@ -1,0 +1,5 @@
+error: expected parameter separator
+  at main.rp:1:16
+    func add(a: i32; b: i32) i32 { return a + b }
+                   ^
+help: separate parameters with `,`

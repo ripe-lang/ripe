@@ -1,0 +1,4 @@
+error: undefined variable
+  at main.rp:1:13
+    var total = i32 = 3
+                ^~~

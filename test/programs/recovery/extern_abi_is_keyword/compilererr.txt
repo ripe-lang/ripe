@@ -1,0 +1,4 @@
+error: expected ABI name
+  at main.rp:1:8
+    extern struct func puts(s: *i8) i32
+           ^~~~~~ found `struct`

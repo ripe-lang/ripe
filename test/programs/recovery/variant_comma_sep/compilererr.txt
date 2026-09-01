@@ -1,0 +1,5 @@
+error: expected variant separator
+  at main.rp:1:17
+    enum color { Red, Green }
+                    ^
+help: separate variants with a newline or `;`

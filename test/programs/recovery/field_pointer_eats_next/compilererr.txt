@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:16
+    struct s { x: *y: i32 }
+                   ^ found y

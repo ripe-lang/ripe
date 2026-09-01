@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:13
+    func add(a: , b: i32) i32 { return b }
+                ^ found ,

@@ -1,0 +1,11 @@
+error: expected `)`
+  at main.rp:1:19
+    func scale(n: i32 i32 {
+                      ^~~ found i32
+  at main.rp:1:11
+    func scale(n: i32 i32 {
+              ^ to match this `(`
+error: expected expression
+  at main.rp:5:31
+    func bad() i32 { var z: i32 = ; return z }
+                                  ^ found ;

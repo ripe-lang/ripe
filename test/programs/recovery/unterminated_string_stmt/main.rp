@@ -1,0 +1,4 @@
+func main() i32 {
+  var s = "oops
+  return 0
+}

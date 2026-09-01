@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:2:15
+      var a = [1, , 3]
+                  ^ found ,

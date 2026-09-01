@@ -1,0 +1,3 @@
+type pair = (i32, i32
+
+func bad() i32 { var z: i32 = ; return z }

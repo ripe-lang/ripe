@@ -1,0 +1,8 @@
+error: cannot assign to expression
+  at main.rp:3:17
+      var p: *i32 = &
+                    ^
+error: undefined variable
+  at main.rp:4:4
+      *p = 6
+       ^

@@ -1,0 +1,4 @@
+struct point {
+  x: i32
+  y:
+}
