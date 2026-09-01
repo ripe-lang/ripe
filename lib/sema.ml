@@ -1888,7 +1888,10 @@ let params_are_unsure (fd : func_def) =
 let ret_ty_of env fd =
   if params_have_a_hole fd then Types.TError
   else
-    match fd.ret with Some t -> return_ty_of_ast env t | None -> Types.TUnit
+    match fd.ret with
+    | Some t -> return_ty_of_ast env t
+    | None when is_entry env fd.func_span -> Types.TInt I32
+    | None -> Types.TUnit
 
 (* The signature pass enables forward calls *)
 let collect_func env fd =
