@@ -339,6 +339,7 @@ let drop_stray_keyword st =
   emit_parse_error st (found_error st headline)
 
 let error_expr st d = { desc = ErrorExpr; span = recovery_span st d }
+let is_error_expr e = match e.desc with ErrorExpr -> true | _ -> false
 let error_typ st d = { tdesc = ErrorType; tspan = recovery_span st d }
 
 (* A nameless parameter is where a whole run of them got dropped *)
@@ -1077,7 +1078,9 @@ and parse_primary ?(no_struct_lit = false) st =
       advance st;
       mk lo st Undefined
   | IF -> parse_if st
-  | MATCH -> parse_match st
+  | MATCH -> parse_match ~in_header:no_struct_lit st
+  | LBRACE when no_struct_lit ->
+      raise (ParseError (Diagnostic.expected_expression (cur_span st)))
   | LBRACE -> mk lo st (Block (parse_block st))
   | LOOP -> parse_loop st
   | ELSE ->
@@ -1130,9 +1133,15 @@ and parse_struct_lit_fields st =
   done;
   List.rev !fields
 
-(* IDENT { in an if/while/for header is the body, not a struct literal *)
-and parse_header_expr st = parse_expr ~no_struct_lit:true st 1
+(* The x < len of if x < len { } *)
+and parse_header_expr st =
+  match parse_expr ~no_struct_lit:true st 1 with
+  | e -> e
+  | exception ParseError d when at st LBRACE ->
+      emit_parse_error st d;
+      error_expr st d
 
+(* x = 1 or f(x) *)
 and parse_simple_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
@@ -1292,31 +1301,58 @@ and parse_if st =
   mk lo st (If ((cond, body) :: elseifs, else_body))
 
 (* match c { Color.Red => 0; _ => 1 } *)
-and parse_match st =
+and parse_match ?(in_header = false) st =
   let lo = cur_pos st in
   advance st;
   (* MATCH *)
   let scrutinee = parse_header_expr st in
-  expect st LBRACE;
-  let arms = ref [] in
-  while st.tok <> RBRACE do
-    arms := parse_arm st :: !arms;
-    expect_decl_sep st ~what:"arm"
-  done;
-  expect st RBRACE;
-  mk lo st (Match (scrutinee, List.rev !arms))
+  (* The brace belongs to the header outside so the arms were never here *)
+  if in_header && is_error_expr scrutinee then scrutinee
+  else parse_arms st lo scrutinee
 
+(* { Color.Red => 0; _ => 1 } *)
+and parse_arms st lo scrutinee =
+  let outer = st.tok_depth in
+  (* No arm is a statement so none of them outlives a missing `{` *)
+  match expect st LBRACE with
+  | exception ParseError d ->
+      emit_parse_error st d;
+      sync_past st outer d;
+      error_expr st d
+  | () ->
+      let depth = st.tok_depth in
+      let arms = ref [] in
+      while st.tok <> RBRACE && st.tok <> EOF do
+        let line = st.tok_line in
+        let stuck = cur_pos st in
+        (try
+           arms := parse_arm st :: !arms;
+           expect_decl_sep st ~what:"arm"
+         with ParseError d ->
+           emit_parse_error st d;
+           sync_to_depth_token st depth line no_stop;
+           skip_semi st);
+        if cur_pos st = stuck then advance st
+      done;
+      expect st RBRACE;
+      mk lo st (Match (scrutinee, List.rev !arms))
+
+(* Color.Red => 0 *)
 and parse_arm st =
   let lo = cur_pos st in
   let pat = parse_pattern st in
+  let arrow = cur_span st in
+  let line = st.tok_line in
   expect st FATARROW;
+  if st.tok_line > line then
+    raise (ParseError (Diagnostic.expected_expression arrow));
   let body_lo = cur_pos st in
   let body =
     spanned [ parse_stmt ~no_pair:true st ] (make_span st body_lo st.prev_end)
   in
   { pat; arm_body = body; arm_span = make_span st lo st.prev_end }
 
-(* A bare name binds and a dotted one names a constant *)
+(* _ / n / Color.Red *)
 and parse_pattern st =
   let lo = cur_pos st in
   let done_ pdesc = { pdesc; pspan = make_span st lo st.prev_end } in
