@@ -7,7 +7,7 @@ open Types
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 let rec compatible want got =
   match (resolve_ty want, resolve_ty got) with
-  | TError, _ | _, TError -> true
+  | a, b when has_error a || has_error b -> true
   | _, TNever -> true
   | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
   | TPointer _, TNull -> true

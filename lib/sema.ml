@@ -10,6 +10,7 @@ type func_sig = {
   ret_ty : ty;
   variadic : bool;
   abi : Types.func_abi;
+  param_hole : bool;
 }
 
 (* No field list means the braces never parsed *)
@@ -182,6 +183,7 @@ let add_error env span msg =
 
 let add_error_in ctx span msg = Diagnostic.emit_error_at ctx.diags span msg
 let dummy_texpr = Tast.mk Types.TError Tast.TErrorExpr
+let is_poisoned (te : Tast.texpr) = Types.has_error te.ty
 
 let add_warning env span msg =
   if not env.suppress_warnings then
@@ -312,6 +314,7 @@ let lookup_func env span =
         ret_ty = Types.TError;
         variadic = true;
         abi = Types.Ripe;
+        param_hole = true;
       }
 
 let is_const_global env key =
@@ -650,6 +653,7 @@ let synth_conversion env span (te : Tast.texpr) ty =
 let check_int_literal env (e : expr) want target value =
   match adopt_int_literal env e.span want target ~neg:false value with
   | Some typed -> typed
+  | None when Types.has_error want -> dummy_texpr
   | None ->
       emit env
         (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
@@ -659,6 +663,7 @@ let check_int_literal env (e : expr) want target value =
 let check_float_literal env (e : expr) want target value =
   match target with
   | Types.TFloat _ | Types.TError -> Tast.mk want (Tast.TFloat value)
+  | _ when Types.has_error want -> dummy_texpr
   | _ ->
       emit env
         (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
@@ -748,6 +753,7 @@ and lookup_non_local env span =
       | Some fact -> pending_global_ty env span key fact
       | None -> (
           match Symbol.Table.find_opt env.ctx.func_sigs key with
+          | Some fsig when fsig.param_hole -> Types.TError
           | Some fsig -> Types.TFunc (fsig.param_tys, fsig.ret_ty, fsig.abi)
           | None ->
               emit env (Diagnostic.undefined_name span "variable");
@@ -1019,23 +1025,29 @@ and positional_fields env span info
     (inits : (Ast.name option * Ast.span * expr) list) =
   let expected = List.length (known_fields info) in
   let found = List.length inits in
-  if Option.is_some info.field_tys && found <> expected then
-    emit env
-      (Diagnostic.error "wrong number of fields"
-      |> Diagnostic.at span
-      |> Diagnostic.label
-           (Printf.sprintf "expected %d, found %d" expected found));
-  let rec zip field_id fields inits =
-    match (fields, inits) with
-    | [], inits ->
-        walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
-        []
-    | (_, ft) :: fields, [] ->
-        (field_id, Tast.mk ft Tast.TZero) :: zip (field_id + 1) fields []
-    | (_, ft) :: fields, (_, _, init) :: inits ->
-        (field_id, check env init ft) :: zip (field_id + 1) fields inits
-  in
-  zip 0 (known_fields info) inits
+  (* A hole shifts every field behind it so no count or pairing proves anything *)
+  if fields_have_a_hole info then (
+    walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
+    [])
+  else begin
+    if Option.is_some info.field_tys && found <> expected then
+      emit env
+        (Diagnostic.error "wrong number of fields"
+        |> Diagnostic.at span
+        |> Diagnostic.label
+             (Printf.sprintf "expected %d, found %d" expected found));
+    let rec zip field_id fields inits =
+      match (fields, inits) with
+      | [], inits ->
+          walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
+          []
+      | (_, ft) :: fields, [] ->
+          (field_id, Tast.mk ft Tast.TZero) :: zip (field_id + 1) fields []
+      | (_, ft) :: fields, (_, _, init) :: inits ->
+          (field_id, check env init ft) :: zip (field_id + 1) fields inits
+    in
+    zip 0 (known_fields info) inits
+  end
 
 and reconcile_if_result env (branches : (expr * block Ast.spanned) list) else_b
     =
@@ -1534,7 +1546,10 @@ and check_args env span fsig args =
   let expected_args =
     Printf.sprintf "%d argument%s" n_params (if n_params = 1 then "" else "s")
   in
-  if fsig.variadic then
+  if fsig.param_hole then (
+    walk_unpaired_args env args;
+    [])
+  else if fsig.variadic then
     if n_args < n_params then (
       emit env
         (Diagnostic.arity span
@@ -1586,7 +1601,11 @@ and synth_binop env op l r =
 
 and synth_assign env base l r =
   let tl, tr = check_assign_operands env base l r in
-  Tast.mk Types.TUnit (Tast.TAssign (base, tl, tr))
+  (* Whoever reads this back must not be told it went fine *)
+  let ty =
+    if is_poisoned tl || is_poisoned tr then Types.TError else Types.TUnit
+  in
+  Tast.mk ty (Tast.TAssign (base, tl, tr))
 
 and check_comparison_operands env l r =
   let is_contextual_literal e =
@@ -1723,7 +1742,9 @@ and synth_call env span callee args =
       match resolve_ty callee_texpr.ty with
       | Types.TError -> dummy_texpr
       | Types.TFunc (param_tys, ret_ty, abi) ->
-          let fsig = { param_tys; ret_ty; variadic = false; abi } in
+          let fsig =
+            { param_tys; ret_ty; variadic = false; abi; param_hole = false }
+          in
           let targs = check_args env span fsig args in
           Tast.mk ret_ty (Tast.TCall (callee_texpr, targs, None))
       | _ ->
@@ -1853,16 +1874,28 @@ and eval_array_size env e =
    demand entry point exists *)
 let _keep_const_query = (const_of_symbol, global_const_num)
 
+let params_have_a_hole (fd : func_def) =
+  List.exists (fun p -> Option.is_none p.param_name.value) fd.params
+
+(* A parameter that never parsed leaves the count as unsure as a hole does *)
+let params_are_unsure (fd : func_def) =
+  params_have_a_hole fd
+  || List.exists (fun p -> p.param_typ.tdesc = Ast.ErrorType) fd.params
+
+(* A list that never closed swallowed whatever result type came after it *)
 let ret_ty_of env fd =
-  match fd.ret with Some t -> return_ty_of_ast env t | None -> Types.TUnit
+  if params_have_a_hole fd then Types.TError
+  else
+    match fd.ret with Some t -> return_ty_of_ast env t | None -> Types.TUnit
 
 (* The signature pass enables forward calls *)
 let collect_func env fd =
   let abi = resolve_abi env fd.extern_abi in
   let param_tys = List.map (fun p -> ty_of_ast env p.param_typ) fd.params in
   let ret_ty = ret_ty_of env fd in
+  let param_hole = params_are_unsure fd in
   Symbol.Table.replace env.ctx.func_sigs (key_at env fd.func_span)
-    { param_tys; ret_ty; variadic = fd.variadic; abi }
+    { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken ctx span = Symbol.Table.mem ctx.type_defs (key_in ctx span)
