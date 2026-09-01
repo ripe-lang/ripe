@@ -8,13 +8,10 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: mismatched delimiter
+    error: expected `)`
       at <test>:1:15
         func f() { g( }
-                      ^ expected `)`
-      at <test>:1:13
-        func f() { g( }
-                    ^ to match this `(`
+                      ^ found }
     |}]
 
 let%expect_test "parse: stray token" =
@@ -32,13 +29,16 @@ let%expect_test "parse: unterminated string" =
   [%expect
     {|
     error: unterminated string
-      at <test>:1:25
+      at <test>:1:20
         func f() { var s = "oops
-                                ^
+                           ^~~~~
     error: expected `}`
       at <test>:1:25
         func f() { var s = "oops
                                 ^ found <eof>
+      at <test>:1:10
+        func f() { var s = "oops
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -1102,13 +1102,10 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: mismatched delimiter
+    error: expected expression
       at <test>:1:12
         func f() { ) }
-                   ^ expected `}`
-      at <test>:1:10
-        func f() { ) }
-                 ^ to match this `{`
+                   ^ found )
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -1670,13 +1667,6 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
       at <test>:1:22
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
                              ^~~~~ found `while`
-    error: mismatched delimiter
-      at <test>:1:59
-        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                                                  ^ expected `)`
-      at <test>:1:28
-        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                   ^ to match this `(`
     |}]
 
 let%expect_test "parse: unclosed bracket in an index points at the bracket" =
@@ -1687,13 +1677,6 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
       at <test>:1:32
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
                                        ^~ found `if`
-    error: mismatched delimiter
-      at <test>:1:48
-        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                                       ^ expected `]`
-      at <test>:1:39
-        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                              ^ to match this `[`
     |}]
 
 let%expect_test "parse: stray closing paren with nothing open" =
@@ -1714,6 +1697,15 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
       at <test>:1:15
         func f() { ( [
                       ^ found <eof>
+      at <test>:1:14
+        func f() { ( [
+                     ^ to match this `[`
+      at <test>:1:12
+        func f() { ( [
+                   ^ to match this `(`
+      at <test>:1:10
+        func f() { ( [
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: spans from different files are distinct" =

@@ -2,3 +2,10 @@ error: expected `)`
   at main.rp:1:19
     func scale(n: i32 i32 {
                       ^~~ found i32
+  at main.rp:1:11
+    func scale(n: i32 i32 {
+              ^ to match this `(`
+error: wrong number of arguments
+  at main.rp:4:26
+    func main() i32 { return scale(2) }
+                             ^~~~~~~~ expected 2 arguments, found 1

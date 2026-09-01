@@ -2,3 +2,6 @@ error: expected `}`
   at main.rp:4:1
     func helper(n: i32) i32 { return n }
     ^~~~ found `func`
+  at main.rp:1:14
+    struct point {
+                 ^ to match this `{`

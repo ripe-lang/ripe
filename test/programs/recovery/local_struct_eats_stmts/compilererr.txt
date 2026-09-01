@@ -2,7 +2,13 @@ error: expected `}`
   at main.rp:5:3
       var a: i32 = 1
       ^~~ found `var`
+  at main.rp:2:16
+      struct Point {
+                   ^ to match this `{`
 error: expected `}`
   at main.rp:8:3
     }
       ^ found <eof>
+  at main.rp:1:17
+    func main() i32 {
+                    ^ to match this `{`
