@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:3:16
+      if n > match { return 1 } else if n > 0 { return 2 } else { return 3 }
+                   ^

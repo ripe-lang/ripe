@@ -1,0 +1,4 @@
+func main() i32 {
+  var z: i32 =
+  return z
+}

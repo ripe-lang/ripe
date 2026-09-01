@@ -19,7 +19,6 @@ let destruct_last (x :: xs : 'a t) : 'a list * 'a =
   | [] -> ([], x)
   | last :: rev_init -> (x :: Stdlib.List.rev rev_init, last)
 
-let pp (f : Format.formatter -> 'a -> unit) (fmt : Format.formatter) (t : 'a t)
-    : unit =
+let pp (f : Format.formatter -> 'a -> unit) fmt (t : 'a t) : unit =
   let sep fmt () = Format.fprintf fmt "; " in
   Format.fprintf fmt "[%a]" (Format.pp_print_list ~pp_sep:sep f) (to_list t)

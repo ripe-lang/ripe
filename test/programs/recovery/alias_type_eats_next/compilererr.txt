@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:8
+    type a = b: i32
+           ^

@@ -11,7 +11,6 @@ type t = {
   primary : Ast.span option; (* Caret snippet target *)
   primary_label : string option; (* Inline text after the caret *)
   labels : span_label list; (* Secondary snippets *)
-  notes : t list; (* "note:" sub diagnostics *)
   detail : string option; (* Verbatim block after the snippet *)
   suggestion : string option; (* Closing "help:" line *)
 }
@@ -25,7 +24,6 @@ let make severity headline =
     primary = None;
     primary_label = None;
     labels = [];
-    notes = [];
     detail = None;
     suggestion = None;
   }
@@ -33,37 +31,35 @@ let make severity headline =
 (* Builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
 let error headline = make Error headline
 let warning headline = make Warning headline
-let note headline = make Note headline
 let at span d = { d with primary = Some span }
 let label message d = { d with primary_label = Some message }
 
 let secondary span message d =
   { d with labels = d.labels @ [ { span; message } ] }
 
-let add_note n d = { d with notes = d.notes @ [ n ] }
 let detail s d = { d with detail = Some s }
 let help s d = { d with suggestion = Some s }
-let error_at (span : Ast.span) (msg : string) = error msg |> at span
+let error_at span msg = error msg |> at span
 
 (* Where a pass dumps diagnostics and the edge drains it to render *)
 type sink = t list ref
 
 let sink () = ref []
-let headline (d : t) = d.headline
-let primary (d : t) = d.primary
-let detail_of (d : t) = d.detail
-let emit (s : sink) (d : t) = s := d :: !s
-let emit_error_at (s : sink) span msg = emit s (error_at span msg)
-let emit_warn_at (s : sink) span msg = emit s (warning msg |> at span)
-let has_errors (s : sink) = List.exists (fun (d : t) -> d.severity = Error) !s
+let headline d = d.headline
+let primary d = d.primary
+let detail_of d = d.detail
+let emit s d = s := d :: !s
+let emit_error_at s span msg = emit s (error_at span msg)
+let emit_warn_at s span msg = emit s (warning msg |> at span)
+let has_errors s = List.exists (fun d -> d.severity = Error) !s
 
 (* Sorted into source order and ties keep emission order *)
-let drain (s : sink) =
+let drain s =
   let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
   List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
 
 (* The next stage would report these all over again if the sink kept them *)
-let take (s : sink) =
+let take s =
   let all = drain s in
   s := [];
   all
@@ -114,7 +110,7 @@ let visual_col src line_start pos =
   done;
   !col
 
-let render_location ctx buf (span : Ast.span) =
+let render_location ctx buf span =
   let line, _ = Sourcemap.lookup ctx.sm (Span.lo span) in
   let src = Sourcemap.src ctx.sm in
   let lo = Sourcemap.rel ctx.sm (Span.lo span) in
@@ -172,7 +168,7 @@ let window_of (cells : string Dynarray.t) caret_lo =
   end
 
 (* Offsets here index into the raw source so they have to be file relative *)
-let render_snippet ctx buf (span : Ast.span) label severity =
+let render_snippet ctx buf span label severity =
   let src = Sourcemap.src ctx.sm in
   let lo = Sourcemap.rel ctx.sm (Span.lo span) in
   let line_start, line_end = Sourcemap.line_bounds ctx.sm (Span.lo span) in
@@ -204,35 +200,31 @@ let render_snippet ctx buf (span : Ast.span) label severity =
   | None -> ());
   Buffer.add_char buf '\n'
 
-let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) =
+let render_with (context_at : int -> ctx) default_ctx d =
   let buf = Buffer.create 256 in
-  let render_one_with d =
-    let ctx =
-      match d.primary with
-      | Some span -> context_at (Span.lo span)
-      | None -> default_ctx
-    in
-    Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
-    Buffer.add_string buf ": ";
-    Buffer.add_string buf d.headline;
-    Buffer.add_char buf '\n';
-    (match d.primary with
-    | Some span ->
-        render_location ctx buf span;
-        render_snippet ctx buf span d.primary_label d.severity
-    | None -> ());
-    List.iter
-      (fun (label : span_label) ->
-        let label_ctx = context_at (Span.lo label.span) in
-        render_location label_ctx buf label.span;
-        render_snippet label_ctx buf label.span (Some label.message) Note)
-      d.labels
+  let ctx =
+    match d.primary with
+    | Some span -> context_at (Span.lo span)
+    | None -> default_ctx
   in
-  render_one_with d;
+  Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
+  Buffer.add_string buf ": ";
+  Buffer.add_string buf d.headline;
+  Buffer.add_char buf '\n';
+  (match d.primary with
+  | Some span ->
+      render_location ctx buf span;
+      render_snippet ctx buf span d.primary_label d.severity
+  | None -> ());
+  List.iter
+    (fun label ->
+      let label_ctx = context_at (Span.lo label.span) in
+      render_location label_ctx buf label.span;
+      render_snippet label_ctx buf label.span (Some label.message) Note)
+    d.labels;
   (match d.detail with
   | Some detail -> Buffer.add_string buf detail
   | None -> ());
-  List.iter render_one_with d.notes;
   (match d.suggestion with
   | Some suggestion ->
       Buffer.add_string buf (colored default_ctx Help (severity_word Help));
@@ -242,63 +234,55 @@ let render_with (context_at : int -> ctx) (default_ctx : ctx) (d : t) =
   | None -> ());
   Buffer.contents buf
 
-let render (ctx : ctx) (d : t) = render_with (fun _ -> ctx) ctx d
+let render ctx d = render_with (fun _ -> ctx) ctx d
 
-let type_mismatch (span : Ast.span) ~(expected : string) ~(found : string) =
+let type_mismatch span ~expected ~found =
   error "type mismatch" |> at span
   |> label (Printf.sprintf "expected %s, found %s" expected found)
 
-let undefined_name (span : Ast.span) (kind : string) =
-  error ("undefined " ^ kind) |> at span
+let undefined_name span kind = error ("undefined " ^ kind) |> at span
+let with_type span msg ty = error msg |> at span |> label ("on " ^ ty)
 
-let with_type (span : Ast.span) (msg : string) (ty : string) =
-  error msg |> at span |> label ("on " ^ ty)
-
-let redefinition (span : Ast.span) ~(prev : Ast.span) =
+let redefinition span ~prev =
   error_at span "already defined" |> secondary prev "previous definition here"
 
-let arity (span : Ast.span) ~(expected : string) ~(found : int) =
+let arity span ~expected ~found =
   error "wrong number of arguments"
   |> at span
   |> label (Printf.sprintf "%s, found %d" expected found)
 
-let unsupported_abi (span : Ast.span) =
+let unsupported_abi span =
   error "unsupported ABI" |> at span |> label "this ABI is not supported here"
 
-let int_out_of_range (span : Ast.span) ~(ty : string) =
+let int_out_of_range span ~ty =
   error "integer literal out of range"
   |> at span
   |> label ("does not fit in " ^ ty)
 
-let bad_operand (span : Ast.span) ~(op : string) ~(ty : string) =
+let bad_operand span ~op ~ty =
   error "invalid operand" |> at span
   |> label (Printf.sprintf "cannot apply `%s` to %s" op ty)
 
-let break_disagree (span : Ast.span) (message : string) ~(other : Ast.span)
-    ~(other_message : string) =
+let break_disagree span message ~other ~other_message =
   error "`break` values disagree"
   |> at span |> label message
   |> secondary other other_message
 
-let opaque_operation (span : Ast.span) (action : string) =
+let opaque_operation span action =
   error (Printf.sprintf "cannot %s *opaque" action)
   |> at span
   |> help "cast to a typed pointer first"
 
-let cannot_infer (span : Ast.span) =
+let cannot_infer span =
   error "cannot infer type" |> at span
   |> help "write the type or give it a value"
 
-let expected_expression (span : Ast.span) =
-  error "expected expression" |> at span
+let expected_expression span = error "expected expression" |> at span
+let expected_type span = error "expected type" |> at span
+let cyclic_constant span = error_at span "cyclic constant"
+let with_found span msg found = error msg |> at span |> label ("found " ^ found)
 
-let cyclic_constant (span : Ast.span) = error_at span "cyclic constant"
-let expected_type (span : Ast.span) = error "expected type" |> at span
-
-let with_found (span : Ast.span) (msg : string) (found : string) =
-  error msg |> at span |> label ("found " ^ found)
-
-let internal ?(span : Ast.span option) (msg : string) =
+let internal ?span msg =
   let d =
     error "internal compiler error"
     |> detail (msg ^ "\n")
@@ -308,5 +292,4 @@ let internal ?(span : Ast.span option) (msg : string) =
   in
   match span with Some sp -> at sp d | None -> d
 
-let ice ?(span : Ast.span option) (msg : string) =
-  raise (Errors [ internal ?span msg ])
+let ice ?span msg = raise (Errors [ internal ?span msg ])

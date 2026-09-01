@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:14
+    type count = struct
+                 ^~~~~~ found `struct`

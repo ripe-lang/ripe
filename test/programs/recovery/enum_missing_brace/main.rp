@@ -1,0 +1,5 @@
+enum color Red; Green }
+func main() i32 {
+  var c = color.Red
+  return match c { color.Red => 1; color.Green => 2 }
+}

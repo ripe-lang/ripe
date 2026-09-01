@@ -1,0 +1,7 @@
+error: expected `]`
+  at main.rp:2:14
+      var a = [1 2, 3]
+                 ^ found 2
+  at main.rp:2:11
+      var a = [1 2, 3]
+              ^ to match this `[`

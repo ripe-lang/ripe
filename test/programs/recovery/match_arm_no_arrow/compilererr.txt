@@ -1,0 +1,4 @@
+error: expected `=>`
+  at main.rp:4:7
+        1 1
+          ^ found 1

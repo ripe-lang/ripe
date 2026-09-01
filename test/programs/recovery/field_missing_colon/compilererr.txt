@@ -1,0 +1,4 @@
+error: expected `:`
+  at main.rp:1:18
+    struct point { x i32; y: i32 }
+                     ^~~ found i32

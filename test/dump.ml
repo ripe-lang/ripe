@@ -17,6 +17,9 @@ let tok_str (t : Ripe.Tokens.token) =
         "KW " ^ show_token other
       else show_token other
 
+let dump_ident (i : Ripe.Ast.ident) =
+  match i.value with Some n -> Ripe.Interner.text n | None -> "<missing>"
+
 (* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
@@ -139,15 +142,13 @@ and dump_block (body : Ripe.Ast.block) : string =
     match item with
     | Expr e -> dump_expr e
     | Decl (LocalStruct sd) ->
-        "(local struct " ^ Ripe.Interner.text sd.struct_name ^ ")"
+        "(local struct " ^ dump_ident sd.struct_name ^ ")"
     | Decl (LocalTypeAlias td) ->
-        "(local type " ^ Ripe.Interner.text td.alias_name ^ ")"
+        "(local type " ^ dump_ident td.alias_name ^ ")"
     | Decl (LocalFunc fd) ->
-        "(local func "
-        ^ Ripe.Interner.text fd.func_name
-        ^ " " ^ dump_block fd.body ^ ")"
-    | Decl (LocalEnum ed) ->
-        "(local enum " ^ Ripe.Interner.text ed.enum_name ^ ")"
+        "(local func " ^ dump_ident fd.func_name ^ " " ^ dump_block fd.body
+        ^ ")"
+    | Decl (LocalEnum ed) -> "(local enum " ^ dump_ident ed.enum_name ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 

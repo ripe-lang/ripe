@@ -1,0 +1,4 @@
+error: expected `{`
+  at main.rp:2:15
+      struct inner
+                  ^ found ;

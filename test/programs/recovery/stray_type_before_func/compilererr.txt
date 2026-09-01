@@ -1,0 +1,4 @@
+error: expected identifier
+  at main.rp:2:6
+    type func main() i32 {
+         ^~~~ found `func`

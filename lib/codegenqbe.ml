@@ -5,7 +5,7 @@ open Types
 
 type qbe_scalar = B | H | W | L | S | D
 
-let qbe_scalar (t : ty) =
+let qbe_scalar t =
   match resolve_ty t with
   | TBool -> B
   | TChar | TEnum _ -> W
@@ -31,14 +31,13 @@ let scalar_letter = function
 type qbe_base = W | L | S | D
 
 (* QBE doesn't have sub word reg so a byte and a half word both live in a w *)
-let qbe_base (t : ty) : qbe_base =
+let qbe_base t : qbe_base =
   match qbe_scalar t with B | H | W -> W | L -> L | S -> S | D -> D
 
-let qbe_ty (t : ty) =
-  match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
+let qbe_ty t = match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
 (* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
-let signedness (t : ty) =
+let signedness t =
   match resolve_ty t with
   | TPointer _ | TOpaquePtr | TNull | TCStr | TChar | TBool -> "u"
   | t -> if is_unsigned t then "u" else "s"
@@ -47,7 +46,7 @@ let signedness (t : ty) =
 let bulk_mem_threshold = 64
 
 (* s_ for single, d_ for double *)
-let float_lit (ty : ty) (f : float) =
+let float_lit ty f =
   let prefix, digits =
     match resolve_ty ty with
     | TFloat F32 -> ("s_", 9)
@@ -57,7 +56,7 @@ let float_lit (ty : ty) (f : float) =
   in
   prefix ^ Printf.sprintf "%.*g" digits f
 
-let alloc_instr (structs : Layout.structs) (t : ty) =
+let alloc_instr structs t =
   match Layout.ty_align structs t with
   | 1 | 2 | 4 -> "alloc4"
   | 8 -> "alloc8"
@@ -67,12 +66,12 @@ let alloc_instr (structs : Layout.structs) (t : ty) =
         (Printf.sprintf "no alloc instruction for %d byte alignment" a)
 
 (* A narrow load says how to fill the rest of the register but a wide one can't *)
-let qbe_load (t : ty) =
+let qbe_load t =
   match qbe_scalar t with
   | (B | H | W) as s -> "load" ^ signedness t ^ scalar_letter s
   | (L | S | D) as s -> "load" ^ scalar_letter s
 
-let qbe_store (t : ty) = "store" ^ scalar_letter (qbe_scalar t)
+let qbe_store t = "store" ^ scalar_letter (qbe_scalar t)
 
 type ctx = {
   structs : Layout.structs;
@@ -221,13 +220,12 @@ let widen_to_l ctx v ty =
     emit_op1 ctx t "l" ins v;
     t
 
-let bounds_condition (ctx : ctx) (idx : string) (len : string) =
+let bounds_condition ctx idx len =
   let cond = fresh ctx in
   emit_op2 ctx cond "w" "cugel" idx len;
   cond
 
-let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
-    (len : string) =
+let slice_bounds_condition ctx lo hi len =
   let hi_bad = fresh ctx in
   emit ctx "%s =w cugtl %s, %s\n" hi_bad hi len;
   let lo_bad = fresh ctx in
@@ -236,17 +234,17 @@ let slice_bounds_condition (ctx : ctx) (lo : string) (hi : string)
   emit ctx "%s =w or %s, %s\n" bad hi_bad lo_bad;
   bad
 
-let null_condition (ctx : ctx) (ptr : string) =
+let null_condition ctx ptr =
   let isnull = fresh ctx in
   emit ctx "%s =w ceql %s, 0\n" isnull ptr;
   isnull
 
-let div_zero_condition (ctx : ctx) (divisor : string) (op_qt : string) =
+let div_zero_condition ctx divisor op_qt =
   let zero = fresh ctx in
   emit ctx "%s =w ceq%s %s, 0\n" zero op_qt divisor;
   zero
 
-let negative_shift_condition (ctx : ctx) (count : string) (count_qt : string) =
+let negative_shift_condition ctx count count_qt =
   let neg = fresh ctx in
   emit ctx "%s =w cslt%s %s, 0\n" neg count_qt count;
   neg
@@ -288,8 +286,7 @@ let emit_aggregate_copy ctx dest src size =
     put_char ctx '\n'
   end
 
-let rec emit_arith_binop ctx (op : Mir.binop) ~result_ty:t ~operand_ty:lty
-    ~count_ty lv rv =
+let rec emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~count_ty lv rv =
   let qt = qbe_ty t in
   let op_qt = qbe_ty lty in
   let sign = signedness lty in
@@ -397,10 +394,10 @@ and emit_cast ctx v src_ty target_ty =
           emit ctx "%s =%s %s %s\n" tmp tgt instr v);
       narrow_int_to ctx tmp target_ty
 
-let qbe_struct_name (ctx : ctx) (name : Qname.t) =
+let qbe_struct_name ctx name =
   Symbol.Table.find ctx.struct_names (Qname.key name)
 
-let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) =
+let rec qbe_ext_ty (struct_name : Qname.t -> string) t =
   match resolve_ty t with
   | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
@@ -418,7 +415,7 @@ let rec qbe_ext_ty (struct_name : Qname.t -> string) (t : ty) =
   | _ -> scalar_letter (qbe_scalar t)
 
 (* A field that takes up no bytes changes nothing here, and leaving one in makes QBE think the whole struct is empty *)
-let emit_struct_type (ctx : ctx) (name : Qname.t) (fields : ty iarray) =
+let emit_struct_type ctx name fields =
   let struct_name = qbe_struct_name ctx in
   let keep ft rest =
     if Layout.ty_size ctx.structs ft > 0 then qbe_ext_ty struct_name ft :: rest
@@ -440,7 +437,7 @@ let escape_data_string content =
     content;
   Buffer.contents buf
 
-let emit_string_data (ctx : ctx) (lbl : string) (content : string) =
+let emit_string_data ctx lbl content =
   emit ctx "data %s = { b \"%s\", b 0 }\n" lbl (escape_data_string content)
 
 let emit_string_into ctx destination content =
@@ -514,7 +511,7 @@ and emit_mir_index_addr (mctx : mir_ctx) storage element
       emit_op2 ctx addr "l" "add" storage offset;
       addr
 
-and emit_mir_place mctx (place : Mir.place) =
+and emit_mir_place mctx place =
   let ctx = mctx.qbe in
   let rec project addr ty = function
     | [] -> (addr, ty)
@@ -803,7 +800,7 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
       put_char ctx '\n'
   | Mir.Unreachable -> put ctx "hlt\n"
 
-let analyze_local_usage (func : Mir.func) =
+let analyze_local_usage func =
   let address_taken = Array.make (Array.length func.Mir.locals) false in
   let defined = Array.make (Array.length func.Mir.locals) false in
   let mark_defined (place : Mir.place) =
@@ -824,9 +821,7 @@ let analyze_local_usage (func : Mir.func) =
     | Mir.Call call -> Option.iter mark_defined call.Mir.destination
     | Mir.Slice (destination, _, _, _) -> mark_defined destination
   in
-  let mark_block (block : Mir.block) =
-    List.iter mark_statement block.Mir.statements
-  in
+  let mark_block block = List.iter mark_statement block.Mir.statements in
   Array.iter mark_block func.Mir.blocks;
   List.iter (fun id -> defined.(id) <- true) func.Mir.params;
   { address_taken; defined }
@@ -838,7 +833,7 @@ let can_bind_value (local : Mir.local) =
   | _ -> false
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)
-let bind_mir_locals (ctx : ctx) (func : Mir.func) =
+let bind_mir_locals ctx func =
   let usage = analyze_local_usage func in
   Array.mapi
     (fun id (local : Mir.local) ->
@@ -921,7 +916,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
     params;
   let mctx = { qbe = ctx; func; bindings; global_types } in
   Array.iteri
-    (fun id (block : Mir.block) ->
+    (fun id block ->
       if id > 0 then emit_label ctx (mir_block_label ctx id);
       List.iter (emit_mir_statement mctx) block.Mir.statements;
       match block.Mir.terminator with
@@ -1024,7 +1019,7 @@ let emit ~source_of program =
   in
   (* The QBE format requires member structs before containing structs *)
   let emitted = Symbol.Table.create (List.length program.Mir.structs) in
-  let rec emit_struct (name : Qname.t) =
+  let rec emit_struct name =
     let key = Qname.key name in
     if not (Symbol.Table.mem emitted key) then begin
       Symbol.Table.add emitted key ();
@@ -1051,7 +1046,7 @@ let emit ~source_of program =
   | [] -> ()
   | sites ->
       let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
-      let entry (site : Panictable.site) =
+      let entry site =
         Printf.sprintf "w %d, w %d, w %d, w %d" site.Panictable.file
           site.Panictable.line site.Panictable.col site.Panictable.func
       in

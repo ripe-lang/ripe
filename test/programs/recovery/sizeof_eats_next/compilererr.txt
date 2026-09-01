@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:33
+    func main() i32 { return sizeof(b: i32) }
+                                    ^ found b

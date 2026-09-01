@@ -1,0 +1,5 @@
+func scale(n: i32 i32 {
+  return n * 2
+}
+
+func bad() i32 { var z: i32 = ; return z }

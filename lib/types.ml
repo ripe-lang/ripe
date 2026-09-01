@@ -181,6 +181,13 @@ let rec erase_aliases = function
   | TSlice t -> TSlice (erase_aliases t)
   | t -> t
 
+let rec has_error = function
+  | TError -> true
+  | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
+  | TStruct (_, args) -> List.exists has_error args
+  | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
+  | _ -> false
+
 let ty_equal a b =
   match (erase_aliases a, erase_aliases b) with
   | TError, _ | _, TError -> true

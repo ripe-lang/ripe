@@ -1,0 +1,10 @@
+struct point { x: i32; y: i32 }
+enum color { Red; Green }
+type pair = i32
+const LIMIT: i32 = 4
+func add(a: i32, b: i32) i32 { return a + b }
+func main() i32 {
+  var p = point { 5, 4 }
+  var _c = color.Red
+  return add(p.x, p.y)
+}

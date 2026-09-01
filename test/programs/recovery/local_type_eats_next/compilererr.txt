@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:2:8
+      var x: y: i32 = 1
+           ^

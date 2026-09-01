@@ -11,6 +11,7 @@ type state = {
   mutable last_token : Tokens.token;
   mutable line : int;
   mutable token_line : int;
+  mutable string_resume : (int * int) option;
 }
 
 let make_state base = {
@@ -20,6 +21,7 @@ let make_state base = {
   last_token = EOF;
   line = 1;
   token_line = 1;
+  string_resume = None;
 }
 
 let next_line st = st.line <- st.line + 1
@@ -38,13 +40,10 @@ let end_pos lexbuf = lexbuf.Lexing.lex_curr_pos
 let lexbuf_span st lexbuf =
   Span.make (st.base + start_pos lexbuf) (st.base + end_pos lexbuf)
 
-let int_token st lexbuf ?suf text =
+let int_token _st _lexbuf ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
-  | None ->
-      (* The 0 prevents a 2 parser errors *)
-      Queue.push (INT (0L, suf), lexbuf_span st lexbuf, st.line) st.token_queue;
-      ERROR "integer literal out of range"
+  | None -> ERROR "integer literal out of range"
 
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
@@ -72,9 +71,7 @@ let float_token text =
     FLOAT (float_of_string body, Some suffix)
   else FLOAT (float_of_string text, None)
 
-let bad_char st lexbuf msg =
-  Queue.push (CHAR 0, lexbuf_span st lexbuf, st.line) st.token_queue;
-  ERROR msg
+let bad_char _st _lexbuf msg = ERROR msg
 
 let char_token st lexbuf inner =
   let d = String.get_utf_8_uchar inner 0 in
@@ -208,6 +205,7 @@ rule read_main st = parse
       let str_start = lexbuf.Lexing.lex_start_pos in
       let str_line = st.line in
       Buffer.clear st.buf;
+      st.string_resume <- None;
       let tok = read_string st lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- str_start;
@@ -243,6 +241,8 @@ and read_string st = parse
     }
   (* FIXME(2151): raw newlines stay for now *)
   | newline {
+      if st.string_resume = None then
+        st.string_resume <- Some (start_pos lexbuf, st.line);
       next_line st;
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
@@ -251,15 +251,15 @@ and read_string st = parse
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
-  (* The parser recovers after an unterm string *)
+  (* A quote that never closed only ever meant the line it was opened on *)
   | eof {
-      let s = Buffer.contents st.buf in
       Buffer.clear st.buf;
-      let here = st.base + end_pos lexbuf in
-      Queue.push
-        (ERROR "unterminated string", Span.make here here, st.line)
-        st.token_queue;
-      STRING s
+      (match st.string_resume with
+       | Some (pos, line) ->
+           lexbuf.Lexing.lex_curr_pos <- pos;
+           st.line <- line
+       | None -> ());
+      ERROR "unterminated string"
     }
 
 and read_block_comment st depth saw_newline = parse

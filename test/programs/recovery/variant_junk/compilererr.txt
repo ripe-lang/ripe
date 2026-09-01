@@ -1,0 +1,4 @@
+error: expected identifier
+  at main.rp:1:19
+    enum color { Red; 9; Green }
+                      ^ found 9

@@ -1,0 +1,4 @@
+func scale(n: i32 i32 {
+  return n * 2
+}
+func main() i32 { return scale(2) }

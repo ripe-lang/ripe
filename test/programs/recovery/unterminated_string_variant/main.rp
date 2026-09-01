@@ -1,0 +1,5 @@
+enum E {
+  V0
+  V1 "unterminated
+  V2
+}

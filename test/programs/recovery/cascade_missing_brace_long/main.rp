@@ -1,0 +1,20 @@
+func helper(n: i32) i32
+  var a1: i32 = n
+  var a2: i32 = a1 + n
+  var a3: i32 = a2 + n
+  var a4: i32 = a3 + n
+  var a5: i32 = a4 + n
+  var a6: i32 = a5 + n
+  var a7: i32 = a6 + n
+  var a8: i32 = a7 + n
+  var a9: i32 = a8 + n
+  var a10: i32 = a9 + n
+  var a11: i32 = a10 + n
+  var a12: i32 = a11 + n
+  var a13: i32 = a12 + n
+  var a14: i32 = a13 + n
+  var a15: i32 = a14 + n
+  var a16: i32 = a15 + n
+  return a16
+}
+func main() i32 { return helper(2) }

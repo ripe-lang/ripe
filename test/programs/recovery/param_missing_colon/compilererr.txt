@@ -1,0 +1,4 @@
+error: expected `:`
+  at main.rp:1:12
+    func add(a i32, b: i32) i32 { return b }
+               ^~~ found i32

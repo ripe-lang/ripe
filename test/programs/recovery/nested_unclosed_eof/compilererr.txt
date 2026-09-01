@@ -1,0 +1,13 @@
+error: expected `}`
+  at main.rp:1:16
+    func f() { ( [
+                   ^ found <eof>
+  at main.rp:1:14
+    func f() { ( [
+                 ^ to match this `[`
+  at main.rp:1:12
+    func f() { ( [
+               ^ to match this `(`
+  at main.rp:1:10
+    func f() { ( [
+             ^ to match this `{`

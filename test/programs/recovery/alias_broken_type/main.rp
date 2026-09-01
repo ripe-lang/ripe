@@ -1,0 +1,5 @@
+type pair = (i32, i32
+func main() i32 {
+  var q: pair = (1, 2)
+  return 0
+}

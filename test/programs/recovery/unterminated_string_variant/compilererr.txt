@@ -1,0 +1,4 @@
+error: unterminated string
+  at main.rp:3:6
+      V1 "unterminated
+         ^~~~~~~~~~~~~

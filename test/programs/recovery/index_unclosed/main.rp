@@ -1,0 +1,4 @@
+func main() i32 {
+  var a: [3]i32 = undefined
+  return a[0
+}

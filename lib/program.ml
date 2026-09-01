@@ -45,15 +45,15 @@ type loader = {
   mutable modules : module_ list;
 }
 
-let module_decls (module_ : module_) =
-  List.concat_map (fun (unit_ : unit_) -> unit_.ast.Ast.decls) module_.units
+let module_decls module_ =
+  List.concat_map (fun unit_ -> unit_.ast.Ast.decls) module_.units
 
 let source_at (t : t) =
   let sources =
     t.modules |> Array.to_list
-    |> List.concat_map (fun (m : module_) -> m.units)
-    |> List.map (fun (u : unit_) -> u.source)
-    |> List.sort (fun (a : source) (b : source) -> compare a.base b.base)
+    |> List.concat_map (fun m -> m.units)
+    |> List.map (fun u -> u.source)
+    |> List.sort (fun a b -> compare a.base b.base)
     |> Array.of_list
   in
   let rec search pos lo hi =
@@ -71,8 +71,7 @@ let source_at (t : t) =
 
 let empty_ast = { Ast.header = None; imports = []; decls = [] }
 
-let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
-    (src : string) =
+let parse_source ~diags ~base filename src =
   let source = { base; filename; source_map = Sourcemap.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state base) in
@@ -82,22 +81,22 @@ let parse_source ~(diags : Diagnostic.sink) ~(base : int) (filename : string)
   in
   (source, ast)
 
-let file_of_path (source_root : string) (path : string list) =
+let file_of_path source_root path =
   List.fold_left Filename.concat source_root path ^ ".rp"
 
-let dir_of_path (source_root : string) (path : string list) =
+let dir_of_path source_root path =
   List.fold_left Filename.concat source_root path
 
-let show_module_path (path : string list) = String.concat "." path
+let show_module_path path = String.concat "." path
 
-let module_name_of_path (path : string list) =
+let module_name_of_path path =
   match List.rev path with name :: _ -> name | [] -> ""
 
-let parent_path (path : string list) =
+let parent_path path =
   match List.rev path with _ :: rest -> List.rev rest | [] -> []
 
 (* The cycle is the tail of the stack starting where the path shows up again *)
-let import_cycle (stack : hop list) (path : string list) =
+let import_cycle stack path =
   let rec starting_at = function
     | [] -> []
     | hop :: _ as hops when hop.from_path = path -> hops
@@ -123,7 +122,7 @@ let show_import_cycle hops back =
       ^ String.concat "" (hops_from hops)
 
 (* Only the first item matters so a full parse would double every error *)
-let probe_header (src : string) =
+let probe_header src =
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
@@ -136,7 +135,7 @@ let probe_header (src : string) =
   in
   match first_item () with Tokens.MODULE -> module_name () | _ -> None
 
-let ripe_files (list_dir : string -> string list) (dir : string) =
+let ripe_files (list_dir : string -> string list) dir =
   match list_dir dir with
   | exception Sys_error _ -> []
   | entries ->
@@ -146,8 +145,7 @@ let ripe_files (list_dir : string -> string list) (dir : string) =
       |> List.map (Filename.concat dir)
 
 let locate_module ~(read_file : string -> string)
-    ~(list_dir : string -> string list) (source_root : string)
-    (path : string list) =
+    ~(list_dir : string -> string list) source_root path =
   let file = file_of_path source_root path in
   let readable filename =
     match read_file filename with exception Sys_error _ -> false | _ -> true
@@ -165,8 +163,7 @@ let locate_module ~(read_file : string -> string)
   | false, false -> Not_found
 
 (* Every file of a merged module needs the name importers actually write *)
-let check_header ~(diags : Diagnostic.sink) (path : string list) (merged : bool)
-    (unit_ : unit_) =
+let check_header ~diags path merged unit_ =
   let expected = module_name_of_path path in
   match unit_.ast.Ast.header with
   | Some header when Interner.text header.Ast.name <> expected ->
@@ -327,9 +324,9 @@ and load_imports loader stack path unit_ =
   in
   List.map load_import unit_.ast.Ast.imports
 
-let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
+let load ~diags ~(read_file : string -> string)
     ~(list_dir : string -> string list) ?(search_roots : string list = [])
-    ~(root_filename : string) () =
+    ~root_filename () =
   (* A bare filename has no directory so every import would start with "./" *)
   let source_root =
     match Filename.dirname root_filename with "." -> "" | dir -> dir
@@ -360,7 +357,7 @@ let load ~(diags : Diagnostic.sink) ~(read_file : string -> string)
   (* Sorting lines the array index up with the module ID *)
   let modules =
     loader.modules
-    |> List.sort (fun (a : module_) b -> compare a.module_id b.module_id)
+    |> List.sort (fun a b -> compare a.module_id b.module_id)
     |> Array.of_list
   in
   let root = modules.(root_id) in

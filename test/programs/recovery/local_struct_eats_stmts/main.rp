@@ -1,0 +1,8 @@
+func main() i32 {
+  struct Point {
+    x: i32
+
+  var a: i32 = 1
+  var b: i32 = 2
+  return a + b
+}

@@ -12,7 +12,6 @@
   diagnostic
   tokens
   lexer
-  bracketcheck
   parser
   symbol
   program

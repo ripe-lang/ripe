@@ -1,0 +1,4 @@
+error: expected `)`
+  at main.rp:2:30
+    func main() i32 { return f(1 }
+                                 ^ found }

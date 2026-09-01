@@ -1,0 +1,2 @@
+func a(x: y: i32) i32 { return 0 }
+func b() i32 { var z: i32 = ; return z }

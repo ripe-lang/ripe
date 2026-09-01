@@ -1,0 +1,7 @@
+error: expected `}`
+  at main.rp:2:12
+      return 1
+               ^ found <eof>
+  at main.rp:1:14
+    func f() i32 {
+                 ^ to match this `{`

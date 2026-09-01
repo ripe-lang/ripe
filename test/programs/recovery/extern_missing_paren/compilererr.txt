@@ -1,0 +1,7 @@
+error: expected `)`
+  at main.rp:1:29
+    extern "C" func puts(s: *i8 i32
+                                ^~~ found i32
+  at main.rp:1:21
+    extern "C" func puts(s: *i8 i32
+                        ^ to match this `(`

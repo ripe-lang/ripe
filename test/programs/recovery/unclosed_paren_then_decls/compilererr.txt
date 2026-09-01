@@ -1,0 +1,11 @@
+error: expected `)`
+  at main.rp:1:17
+    type pair = (i32, i32
+                    ^ found ,
+  at main.rp:1:13
+    type pair = (i32, i32
+                ^ to match this `(`
+error: expected expression
+  at main.rp:3:31
+    func bad() i32 { var z: i32 = ; return z }
+                                  ^ found ;

@@ -14,11 +14,9 @@ type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
 val error : string -> t
 val warning : string -> t
-val note : string -> t
 val at : Ast.span -> t -> t
 val label : string -> t -> t
 val secondary : Ast.span -> string -> t -> t
-val add_note : t -> t -> t
 val detail : string -> t -> t
 val help : string -> t -> t
 val error_at : Ast.span -> string -> t

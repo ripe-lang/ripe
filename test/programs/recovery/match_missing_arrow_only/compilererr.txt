@@ -1,0 +1,4 @@
+error: expected `=>`
+  at main.rp:3:30
+      return match x { 1 => 1; _ 0 }
+                                 ^ found 0

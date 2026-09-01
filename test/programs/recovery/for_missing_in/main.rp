@@ -1,0 +1,4 @@
+func main() i32 {
+  for i 0..3 { }
+  return 0
+}

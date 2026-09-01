@@ -1,0 +1,14 @@
+error: expected `)`
+  at main.rp:1:17
+    type pair = (i32, i32
+                    ^ found ,
+  at main.rp:1:13
+    type pair = (i32, i32
+                ^ to match this `(`
+error: expected `)`
+  at main.rp:3:19
+      var q: pair = (1, 2)
+                      ^ found ,
+  at main.rp:3:17
+      var q: pair = (1, 2)
+                    ^ to match this `(`

@@ -1,0 +1,5 @@
+struct 3point { x: i32 }
+func main() i32 {
+  var p = point { 5 }
+  return p.x
+}

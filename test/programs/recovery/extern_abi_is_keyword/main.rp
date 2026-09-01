@@ -1,0 +1,5 @@
+extern struct func puts(s: *i8) i32
+func main() i32 {
+  var msg = "hi"
+  return 0
+}

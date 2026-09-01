@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:2:34
+    func main() i32 { var v = s { x: }
+                                     ^ found }

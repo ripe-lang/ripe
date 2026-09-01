@@ -1,0 +1,5 @@
+type count = struct
+func main() i32 {
+  var n: count = 7
+  return n
+}

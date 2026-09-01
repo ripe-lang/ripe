@@ -1,0 +1,4 @@
+error: expected ABI name
+  at main.rp:1:8
+    extern 99 func puts(s: cstr) i32
+           ^~ found 99

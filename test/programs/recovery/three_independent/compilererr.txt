@@ -1,0 +1,12 @@
+error: expected type
+  at main.rp:1:15
+    struct s { x: }
+                  ^ found }
+error: empty return in non-unit function
+  at main.rp:2:16
+    func a() i32 { return }
+                   ^~~~~~
+error: expected expression
+  at main.rp:3:29
+    func b() i32 { var z: i32 = ; return z }
+                                ^ found ;

@@ -1,0 +1,4 @@
+error: expected `{`
+  at main.rp:1:12
+    enum color Red; Green }
+               ^~~ found Red

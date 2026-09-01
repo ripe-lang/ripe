@@ -1,0 +1,4 @@
+error: unexpected closing delimiter
+  at main.rp:2:1
+    )
+    ^

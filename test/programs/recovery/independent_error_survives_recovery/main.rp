@@ -1,0 +1,6 @@
+func helper(n: i32) i32
+  var a1: i32 = n
+  return a1
+}
+func bad() i32 { var x: i32 = ; return x }
+func main() i32 { return helper(2) + bad() }

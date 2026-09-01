@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:3:18
+      var v = s { x: }
+                     ^ found }

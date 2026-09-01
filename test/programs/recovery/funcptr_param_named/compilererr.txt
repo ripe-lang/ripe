@@ -1,0 +1,4 @@
+error: expected type
+  at main.rp:1:17
+    func f(a: func (b: i32) i32) i32 { return 0 }
+                    ^ found b

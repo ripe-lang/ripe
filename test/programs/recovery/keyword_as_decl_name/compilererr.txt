@@ -1,0 +1,4 @@
+error: expected identifier
+  at main.rp:1:6
+    func struct() i32 {
+         ^~~~~~ found `struct`

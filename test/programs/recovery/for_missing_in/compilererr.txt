@@ -1,0 +1,4 @@
+error: expected `in`
+  at main.rp:2:9
+      for i 0..3 { }
+            ^ found 0

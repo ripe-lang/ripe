@@ -8,13 +8,10 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: mismatched delimiter
+    error: expected `)`
       at <test>:1:15
         func f() { g( }
-                      ^ expected `)`
-      at <test>:1:13
-        func f() { g( }
-                    ^ unclosed `(`
+                      ^ found }
     |}]
 
 let%expect_test "parse: stray token" =
@@ -31,14 +28,17 @@ let%expect_test "parse: unterminated string" =
   run_src "func f() { var s = \"oops";
   [%expect
     {|
-    error: unclosed delimiter
-      at <test>:1:10
-        func f() { var s = "oops
-                 ^
     error: unterminated string
+      at <test>:1:20
+        func f() { var s = "oops
+                           ^~~~~
+    error: expected `}`
       at <test>:1:25
         func f() { var s = "oops
-                                ^
+                                ^ found <eof>
+      at <test>:1:10
+        func f() { var s = "oops
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -1102,13 +1102,10 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: mismatched delimiter
+    error: expected expression
       at <test>:1:12
         func f() { ) }
-                   ^ expected `}`
-      at <test>:1:10
-        func f() { ) }
-                 ^ unclosed `{`
+                   ^ found )
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -1328,10 +1325,240 @@ let%expect_test "parse: struct fields need a separator" =
   run_src "struct S { x: i32 y: i32 }";
   [%expect
     {|
-    error: expected `;` or newline between fields
+    error: expected field separator
       at <test>:1:19
         struct S { x: i32 y: i32 }
-                          ^ found y
+                          ^
+    help: separate fields with a newline or `;`
+    |}]
+
+(* A dropped field would show up as a later error on p.x or p.y *)
+let%expect_test "parse: a comma between fields keeps the struct" =
+  run_src
+    {|struct P { x: i32, y: i32 }
+func main() i32 {
+  var p: P = P { x: 12, y: 30 }
+  return p.x + p.y
+}|};
+  [%expect
+    {|
+    error: expected field separator
+      at <test>:1:18
+        struct P { x: i32, y: i32 }
+                         ^
+    help: separate fields with a newline or `;`
+    |}]
+
+let%expect_test "parse: a comma between variants keeps the enum" =
+  run_src
+    {|enum C { Red, Green }
+func main() i32 {
+  var a: C = C.Red
+  var b: C = C.Green
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected variant separator
+      at <test>:1:13
+        enum C { Red, Green }
+                    ^
+    help: separate variants with a newline or `;`
+    |}]
+
+let%expect_test "parse: a bad field name drops only that field" =
+  run_src
+    {|struct P { 99: i32
+  y: i32 }
+func main() i32 {
+  var p: P = undefined
+  return p.y
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:12
+        struct P { 99: i32
+                   ^~ found 99
+    |}]
+
+let%expect_test "parse: a bad variant name drops only that variant" =
+  run_src
+    {|enum C { 99
+  Green }
+func main() i32 {
+  var c: C = C.Green
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:10
+        enum C { 99
+                 ^~ found 99
+    |}]
+
+let%expect_test "parse: two bad fields report once each" =
+  run_src
+    {|struct P { 99: i32
+  88: i32
+  z: i32 }
+func main() i32 {
+  var p: P = undefined
+  return p.z
+}|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:12
+        struct P { 99: i32
+                   ^~ found 99
+    error: expected identifier
+      at <test>:2:3
+          88: i32
+          ^~ found 88
+    |}]
+
+let%expect_test "parse: a missing separator keeps both items" =
+  run_src
+    {|enum C { Red
+  Green @
+  Blue }
+func main() i32 {
+  var c: C = C.Blue
+  return 0
+}|};
+  [%expect
+    {|
+    error: unexpected character
+      at <test>:2:9
+          Green @
+                ^
+    |}]
+
+let%expect_test "parse: a bad parameter name keeps the arity" =
+  run_src
+    {|func add(99: i32, b: i32) i32 { return b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:10
+        func add(99: i32, b: i32) i32 { return b }
+                 ^~ found 99
+    |}]
+
+let%expect_test "parse: repeated bad parameter names do not collide" =
+  run_src
+    {|func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+func main() i32 { return f(1, 2, 3) }|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:8
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+               ^~ found 99
+    error: expected identifier
+      at <test>:1:17
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+                        ^~ found 88
+    error: expected identifier
+      at <test>:1:26
+        func f(99: i32, 88: i32, 77: i32) i32 { return 1 }
+                                 ^~ found 77
+    |}]
+
+let%expect_test "parse: a semicolon between parameters keeps the function" =
+  run_src
+    {|func add(a: i32; b: i32) i32 { return a + b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:16
+        func add(a: i32; b: i32) i32 { return a + b }
+                       ^
+    help: separate parameters with `,`
+    |}]
+
+let%expect_test "parse: a missing parameter separator keeps the function" =
+  run_src
+    {|func add(a: i32 b: i32) i32 { return a + b }
+func main() i32 { return add(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:17
+        func add(a: i32 b: i32) i32 { return a + b }
+                        ^
+    help: separate parameters with `,`
+    |}]
+
+let%expect_test "parse: a stray ellipsis keeps the function" =
+  run_src
+    {|func f(a: i32 ...; b: i32) i32 { return a }
+func main() i32 { return f(1, 2) }|};
+  [%expect
+    {|
+    error: expected parameter separator
+      at <test>:1:15
+        func f(a: i32 ...; b: i32) i32 { return a }
+                      ^~~
+    help: separate parameters with `,`
+    error: `...` must be the last parameter
+      at <test>:1:18
+        func f(a: i32 ...; b: i32) i32 { return a }
+                         ^
+    |}]
+
+let%expect_test "parse: a stray closing brace reports once" =
+  run_src {|func f() {}
+}
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: unexpected closing delimiter
+      at <test>:2:1
+        }
+        ^
+    |}]
+
+let%expect_test "parse: a stray character reports once" =
+  run_src "func main() i32 { return 1 @ 2 }";
+  [%expect
+    {|
+    error: unexpected character
+      at <test>:1:28
+        func main() i32 { return 1 @ 2 }
+                                   ^
+    |}]
+
+let%expect_test "parse: a bad number literal reports once" =
+  run_src {|func f() i32 { return 0xZZ }
+func main() i32 { return f() }|};
+  [%expect
+    {|
+    error: invalid number literal
+      at <test>:1:23
+        func f() i32 { return 0xZZ }
+                              ^~~~
+    |}]
+
+let%expect_test "parse: match arms name arms in the separator error" =
+  run_src
+    {|enum C { Red
+  Green }
+func main() i32 {
+  var c: C = C.Red
+  return match c { C.Red => 0, C.Green => 1 }
+}|};
+  [%expect
+    {|
+    error: expected arm separator
+      at <test>:5:30
+          return match c { C.Red => 0, C.Green => 1 }
+                                     ^
+    help: separate arms with a newline or `;`
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
@@ -1425,10 +1652,6 @@ let%expect_test "parse: a bad char literal does not cascade" =
       at <test>:1:23
         func f() i32 { return 'AA'i32() }
                               ^~~~
-    error: type mismatch
-      at <test>:1:23
-        func f() i32 { return 'AA'i32() }
-                              ^~~~ expected i32, found char
     error: expected `;`
       at <test>:1:27
         func f() i32 { return 'AA'i32() }
@@ -1444,13 +1667,6 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
       at <test>:1:22
         func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
                              ^~~~~ found `while`
-    error: mismatched delimiter
-      at <test>:1:59
-        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                                                  ^ expected `)`
-      at <test>:1:28
-        func f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } }
-                                   ^ unclosed `(`
     |}]
 
 let%expect_test "parse: unclosed bracket in an index points at the bracket" =
@@ -1461,13 +1677,6 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
       at <test>:1:32
         func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
                                        ^~ found `if`
-    error: mismatched delimiter
-      at <test>:1:48
-        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                                       ^ expected `]`
-      at <test>:1:39
-        func f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                              ^ unclosed `[`
     |}]
 
 let%expect_test "parse: stray closing paren with nothing open" =
@@ -1478,28 +1687,25 @@ let%expect_test "parse: stray closing paren with nothing open" =
       at <test>:1:1
         )
         ^
-    error: expected declaration
-      at <test>:1:1
-        )
-        ^ found )
     |}]
 
 let%expect_test "parse: multiple unclosed delimiters at eof" =
   run_src "func f() { ( [";
   [%expect
     {|
-    error: unclosed delimiter
-      at <test>:1:10
+    error: expected `}`
+      at <test>:1:15
         func f() { ( [
-                 ^
-    error: unclosed delimiter
-      at <test>:1:12
-        func f() { ( [
-                   ^
-    error: unclosed delimiter
+                      ^ found <eof>
       at <test>:1:14
         func f() { ( [
-                     ^
+                     ^ to match this `[`
+      at <test>:1:12
+        func f() { ( [
+                   ^ to match this `(`
+      at <test>:1:10
+        func f() { ( [
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: spans from different files are distinct" =
@@ -1763,9 +1969,8 @@ let%expect_test "parse: an enum declares its variants" =
   Green
   Blue
 }|} with
-  | [ Ripe.Ast.Enum ed ] ->
-      let name (v : Ripe.Ast.variant) = Ripe.Interner.text v.variant_name in
-      print_endline (String.concat " " (List.map name ed.variants))
+  | [ Ripe.Ast.Enum { variants = Some variants; _ } ] ->
+      print_endline (String.concat " " (List.map Ripe.Ast.ident_text variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| Red Green Blue |}]
 
@@ -1774,8 +1979,8 @@ let%expect_test "parse: a newline separates variants" =
   Red
   Green
 }|} with
-  | [ Ripe.Ast.Enum ed ] ->
-      print_endline (string_of_int (List.length ed.variants))
+  | [ Ripe.Ast.Enum { variants = Some variants; _ } ] ->
+      print_endline (string_of_int (List.length variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| 2 |}]
 
