@@ -1,0 +1,11 @@
+counting:
+  item 0
+  item 1
+  item 2
+true
+0
+-9223372036854775808
+9223372036854775807
+
+to stderr
+exit: 0

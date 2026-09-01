@@ -1,0 +1,70 @@
+extern "C" func write(fd: i32, buf: *u8, n: usize) i64
+
+func put(fd: i32, s: str) {
+  write(fd, s.ptr, s.len)
+}
+
+// The standard itoa but the sign flips per digit
+// https://www.geeksforgeeks.org/c/implement-itoa/
+func put_int(fd: i32, value: i64) {
+  var buf: [21]u8 = undefined
+  var i: usize = 21
+
+  var negative = value < 0
+  var n = value
+
+  if n == 0 {
+    i = i - 1
+    buf[i] = 48
+  }
+
+  while n != 0 {
+    var digit = n % 10
+    if digit < 0 { digit = -digit }
+
+    i = i - 1
+    buf[i] = u8(48 + digit)
+    n = n / 10
+  }
+
+  if negative {
+    i = i - 1
+    buf[i] = 45
+  }
+
+  var digits = buf[i..21]
+  write(fd, digits.ptr, digits.len)
+}
+
+// The fds are spelled out until const works again
+pub func print(s: str) {
+  put(1, s)
+  put(1, "\n")
+}
+
+pub func print_raw(s: str) {
+  put(1, s)
+}
+
+pub func print_line() {
+  put(1, "\n")
+}
+
+pub func print_error(s: str) {
+  put(2, s)
+  put(2, "\n")
+}
+
+pub func print_int(value: i64) {
+  put_int(1, value)
+  put(1, "\n")
+}
+
+pub func print_int_raw(value: i64) {
+  put_int(1, value)
+}
+
+pub func print_bool(value: bool) {
+  put(1, if value { "true" } else { "false" })
+  put(1, "\n")
+}
