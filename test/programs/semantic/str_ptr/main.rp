@@ -1,0 +1,14 @@
+extern "C" func write(fd: i32, buf: *u8, n: usize) i64
+
+func emit(s: str) i64 {
+  return write(1, s.ptr, s.len)
+}
+
+func main() i32 {
+  emit("param\n")
+  var annotated: str = "annotated\n"
+  write(1, annotated.ptr, annotated.len)
+  var first: u8 = *annotated.ptr
+  var empty: str = ""
+  return i32(first) - i32(empty.len)
+}

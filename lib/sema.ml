@@ -676,6 +676,8 @@ let synth_typed_field env span (te : Tast.texpr) fname fspan =
   match (resolve_ty ty, fname) with
   | Types.TStr, name when name = len_name ->
       Tast.mk (Types.TInt Usize) (Tast.TLen te)
+  | Types.TStr, name when name = ptr_name ->
+      Tast.mk (Types.TPointer (Types.TInt U8)) (Tast.TDataPtr te)
   | Types.TStr, _ -> no_such_field env fspan ty
   | (Types.TArray _ | Types.TSlice _), name when name = len_name ->
       Tast.mk (Types.TInt Usize) (Tast.TLen te)

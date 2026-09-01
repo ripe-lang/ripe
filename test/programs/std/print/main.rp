@@ -1,0 +1,18 @@
+import std.io
+
+func main() i32 {
+  io.print("counting:")
+  var i = 0
+  while i < 3 {
+    io.print_raw("  item ")
+    io.print_int(i)
+    i = i + 1
+  }
+  io.print_bool(i == 3)
+  io.print_int(0)
+  io.print_int(-9223372036854775808)
+  io.print_int(9223372036854775807)
+  io.print_line()
+  io.print_error("to stderr")
+  return 0
+}

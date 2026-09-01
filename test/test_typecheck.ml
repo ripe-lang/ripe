@@ -3825,14 +3825,18 @@ let%expect_test "typecheck: a bare literal is still cstr" =
   run_src "func f() { var _s = \"a\" }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: str has no ptr field" =
+let%expect_test "typecheck: str has a ptr field" =
   run_src "func f() { var s: str = \"a\"\n  var _p = s.ptr }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: str ptr is a byte pointer" =
+  run_src "func f() { var s: str = \"a\"\n  var _p: f32 = s.ptr }";
   [%expect
     {|
-    error: no field
-      at <test>:2:14
-          var _p = s.ptr }
-                     ^~~ on str
+    error: type mismatch
+      at <test>:2:17
+          var _p: f32 = s.ptr }
+                        ^~~~~ expected f32, found *u8
     |}]
 
 let%expect_test "typecheck: str cannot be indexed" =
