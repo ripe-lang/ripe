@@ -37,7 +37,7 @@ invalid operand
 ```text
 cannot apply `+` to bool
 expected `;`
-never is only valid as a function return type 
+cannot zero init this type
 ```
 
 **Secondary** is the other place that matters

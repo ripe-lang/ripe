@@ -363,6 +363,32 @@ let find_field info name =
   | None when fields_have_a_hole info -> Some (0, Types.TError)
   | None -> None
 
+(* Never has no value so a type holding one has none either *)
+let is_uninhabited env ty =
+  let rec go seen ty =
+    match resolve_ty ty with
+    | Types.TNever -> true
+    | Types.TArray (elem, n) -> n > 0 && go seen elem
+    | Types.TStruct (name, _) -> struct_holds_never seen (Qname.key name)
+    | _ -> false
+  (* A cyclic struct already errored and the walk still has to stop *)
+  and struct_holds_never seen key =
+    if List.mem key seen then false
+    else
+      match Symbol.Table.find_opt env.ctx.type_defs key with
+      | Some (Struct_type { contents = Completed info }) ->
+          List.exists (fun (_, ft) -> go (key :: seen) ft) (known_fields info)
+      | _ -> false
+  in
+  go [] ty
+
+let zero_init_ty env span ty =
+  if is_uninhabited env ty then (
+    emit env
+      (Diagnostic.with_type span "cannot zero init this type" (show_ty env ty));
+    Types.TError)
+  else ty
+
 let lift_ty (f : ty -> ty) ty =
   match ty with Types.TError -> Types.TError | ty -> f ty
 
@@ -387,13 +413,6 @@ let unresolved_named_ty env span =
 
 let named_ty env span shown =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
-  | Some (Builtin_type (BTy Types.TNever)) ->
-      emit env
-        Diagnostic.(
-          error "never is only valid as a function return type"
-          |> at span
-          |> help "a value of type never cannot exist");
-      Types.TError
   | Some (Builtin_type BOpaque) ->
       emit env
         Diagnostic.(
@@ -710,7 +729,7 @@ let rec ty_of_ast env t =
   | FuncPtr (abi, ps, ret) -> (
       let pts = List.map (ty_of_ast env) ps in
       let rt =
-        match ret with Some t -> return_ty_of_ast env t | None -> Types.TUnit
+        match ret with Some t -> ty_of_ast env t | None -> Types.TUnit
       in
       match (resolve_abi env abi, rt, List.mem Types.TError pts) with
       | Types.AbiError, _, _ -> Types.TError
@@ -722,11 +741,6 @@ and array_ty_of_ast env size element =
   match (ty_of_ast env element, size.desc) with
   | Types.TError, _ | _, ErrorExpr -> Types.TError
   | ty, _ -> Types.TArray (ty, eval_array_size env size)
-
-and return_ty_of_ast env t =
-  match builtin_at env t.tspan with
-  | Some (BTy Types.TNever) -> Types.TNever
-  | Some (BTy _) | Some BOpaque | None -> ty_of_ast env t
 
 (* An array size may name a global not collected yet so type it now *)
 and pending_global_ty env span key fact =
@@ -914,7 +928,7 @@ and synth_struct_lit env span path name name_span inits =
       let fields =
         match inits with
         | (None, _, _) :: _ -> positional_fields env span info inits
-        | _ -> named_fields env info inits
+        | _ -> named_fields env span info inits
       in
       let qname = qname_at env name_span (Ast.show_named path name) in
       Tast.mk (Types.TStruct (qname, [])) (Tast.TStructLit (qname, fields))
@@ -986,7 +1000,8 @@ and synth_array_lit env first rest =
   in
   Tast.mk (Types.TArray (elem, List.length tes)) (Tast.TArrayLit tes)
 
-and named_fields env info (inits : (Ast.name option * Ast.span * expr) list) =
+and named_fields env span info
+    (inits : (Ast.name option * Ast.span * expr) list) =
   let seen = Hashtbl.create 4 in
   let check_named_field (fname, fspan, e) =
     match fname with
@@ -1008,7 +1023,7 @@ and named_fields env info (inits : (Ast.name option * Ast.span * expr) list) =
   let default_field field_id (fname, ft) =
     match fname with
     | Some name when Hashtbl.mem seen name -> None
-    | _ -> Some (field_id, Tast.mk ft Tast.TZero)
+    | _ -> Some (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
   in
   let rec defaults field_id fields =
     match fields with
@@ -1044,7 +1059,8 @@ and positional_fields env span info
           walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
           []
       | (_, ft) :: fields, [] ->
-          (field_id, Tast.mk ft Tast.TZero) :: zip (field_id + 1) fields []
+          (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
+          :: zip (field_id + 1) fields []
       | (_, ft) :: fields, (_, _, init) :: inits ->
           (field_id, check env init ft) :: zip (field_id + 1) fields inits
     in
@@ -1110,7 +1126,7 @@ and check_elem env item use : local_env * Tast.texpr =
       (env, Tast.mk Types.TUnit Tast.TLocalDecl)
   | Expr ({ desc = Binding (kind, name, nspan, ann, init); _ } as e) ->
       let env', tbind = check_binding env kind name nspan ann init in
-      verify_unit_result env e.span use;
+      if tbind.ty <> Types.TNever then verify_unit_result env e.span use;
       (env', tbind)
   | Expr e -> (env, check_value_for_use env e use)
 
@@ -1137,7 +1153,7 @@ and check_binding env kind name nspan ann init =
         let te = synth env e in
         (te.ty, te)
     | Some a, None ->
-        let want = ty_of_ast env a in
+        let want = zero_init_ty env a.tspan (ty_of_ast env a) in
         (want, Tast.mk want Tast.TZero)
     | None, None ->
         emit env (Diagnostic.cannot_infer nspan);
@@ -1148,8 +1164,10 @@ and check_binding env kind name nspan ann init =
     verify_const_scalar env nspan t;
     let value = const_value_or env dummy_value te in
     Symbol.Table.replace (local_consts env) (Symbol.key (sym env nspan)) value);
+  (* An init that diverges makes the binding itself dead so it carries never *)
+  let node_ty = if te.ty = Types.TNever then Types.TNever else Types.TUnit in
   ( extend_var env nspan name t,
-    Tast.mk Types.TUnit (Tast.TBinding (kind, sym env nspan, t, te)) )
+    Tast.mk node_ty (Tast.TBinding (kind, sym env nspan, t, te)) )
 
 and synth_return env span init =
   if env.ret_ty = Types.TNever then
@@ -1889,7 +1907,7 @@ let ret_ty_of env fd =
   if params_have_a_hole fd then Types.TError
   else
     match fd.ret with
-    | Some t -> return_ty_of_ast env t
+    | Some t -> ty_of_ast env t
     | None when is_entry env fd.func_span -> Types.TInt I32
     | None -> Types.TUnit
 

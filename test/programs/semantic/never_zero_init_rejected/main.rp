@@ -1,0 +1,8 @@
+struct hole { a: never; b: i32 }
+
+func main() i32 {
+  var bare: never
+  var whole: hole
+  var partial = hole { b: 1 }
+  return 0
+}

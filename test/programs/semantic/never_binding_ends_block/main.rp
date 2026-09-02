@@ -1,0 +1,9 @@
+extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func exit(code: i32) never
+
+func main() i32 {
+  printf("before\n")
+  var _x: never = exit(4)
+  printf("after\n")
+  return 0
+}

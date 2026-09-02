@@ -1,0 +1,12 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func spin() never { loop {} }
+
+// A never param can never be passed so it takes no slot
+func unreachable_arg(_a: never) i32 { return 1 }
+
+func main() i32 {
+  if false { var _r = unreachable_arg(spin()) }
+  printf("alive\n")
+  return 0
+}

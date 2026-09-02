@@ -71,8 +71,7 @@ and ty_measure structs t =
   | TBool -> (1, 1)
   | TChar -> (4, 4)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> (8, 8)
-  | TNever -> Diagnostic.ice "TNever has no size"
-  (* A field that already errored still needs a size so checking can go on *)
+  | TNever -> (0, 1)
   | TError -> (0, 1)
   | TStruct (name, _) ->
       let layout = layout_of structs name in

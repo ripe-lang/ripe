@@ -1,0 +1,14 @@
+extern "C" func printf(fmt: cstr, ...) i32
+
+func spin() never { loop {} }
+
+struct hole { a: never }
+
+var absent: never = spin()
+
+func main() i32 {
+  var _p: *never = null
+  var n = if false { spin() } else { 7 }
+  printf("%d %d\n", n, sizeof(never))
+  return 0
+}

@@ -187,6 +187,48 @@ let%expect_test "typecheck: unreachable code after a returning if" =
     ok
     |}]
 
+let%expect_test "typecheck: unreachable code after a diverging binding" =
+  run_src
+    {|
+func d() never { loop {} }
+func f() { var _x = d()
+    g() }
+func g() {}
+|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:4:5
+            g() }
+            ^~~
+    ok
+    |}]
+
+let%expect_test
+    "typecheck: unreachable code after an annotated diverging binding" =
+  run_src
+    {|
+func d() never { loop {} }
+func f() { var _x: i32 = d()
+    g() }
+func g() {}
+|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:4:5
+            g() }
+            ^~~
+    ok
+    |}]
+
+let%expect_test "typecheck: a diverging binding ends a value block" =
+  run_src {|
+func d() never { loop {} }
+func f() i32 { var _x = d() }
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: forward reference" =
   run_src {|
 func f() { g() }
@@ -2957,7 +2999,7 @@ let%expect_test "typecheck: assign to for loop variable" =
                                    ^
     |}]
 
-let%expect_test "typecheck: never rejected as a var type" =
+let%expect_test "typecheck: a never var needs a diverging init" =
   run_src "func f() { var x: never = 0 }";
   [%expect
     {|
@@ -2966,54 +3008,65 @@ let%expect_test "typecheck: never rejected as a var type" =
         func f() { var x: never = 0 }
                        ^
     help: prefix with an underscore: _x
-    error: never is only valid as a function return type
-      at <test>:1:19
+    error: type mismatch
+      at <test>:1:27
         func f() { var x: never = 0 }
-                          ^~~~~
-    help: a value of type never cannot exist
+                                  ^ expected never, found i32
     |}]
 
-let%expect_test "typecheck: never rejected as a param type" =
-  run_src "func f(x: never) {}";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:8
-        func f(x: never) {}
-               ^~~~~~~~
-    help: prefix with an underscore: _x
-    error: never is only valid as a function return type
-      at <test>:1:11
-        func f(x: never) {}
-                  ^~~~~
-    help: a value of type never cannot exist
-    |}]
+let%expect_test "typecheck: never as a var type" =
+  run_src {|
+func d() never { loop {} }
+func f() { var _x: never = d() }
+|};
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: never rejected as a pointee type" =
-  run_src "func f() { var p: *never = null }";
-  [%expect
-    {|
-    warning: unused variable: p
-      at <test>:1:16
-        func f() { var p: *never = null }
-                       ^
-    help: prefix with an underscore: _p
-    error: never is only valid as a function return type
-      at <test>:1:20
-        func f() { var p: *never = null }
-                           ^~~~~
-    help: a value of type never cannot exist
-    |}]
+let%expect_test "typecheck: never as a param type" =
+  run_src "func f(_x: never) {}";
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: never rejected as a field type" =
+let%expect_test "typecheck: never as a pointee type" =
+  run_src "func f() { var _p: *never = null }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: never as a field type" =
   run_src "struct S { x: never }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a never field cannot be zero init" =
+  run_src {|
+struct S { x: never }
+func f() { var _s: S }
+|};
   [%expect
     {|
-    error: never is only valid as a function return type
-      at <test>:1:15
-        struct S { x: never }
-                      ^~~~~
-    help: a value of type never cannot exist
+    error: cannot zero init this type
+      at <test>:3:20
+        func f() { var _s: S }
+                           ^ on S
+    |}]
+
+let%expect_test "typecheck: an omitted never field cannot be zero init" =
+  run_src {|
+struct S { x: never; y: i32 }
+func f() { var _s = S { y: 1 } }
+|};
+  [%expect
+    {|
+    error: cannot zero init this type
+      at <test>:3:21
+        func f() { var _s = S { y: 1 } }
+                            ^~~~~~~~~~ on never
+    |}]
+
+let%expect_test "typecheck: a never element cannot be zero init" =
+  run_src "func f() { var _a: [2]never }";
+  [%expect
+    {|
+    error: cannot zero init this type
+      at <test>:1:20
+        func f() { var _a: [2]never }
+                           ^~~~~~~~ on [2]never
     |}]
 
 let%expect_test "typecheck: return in a never function is rejected" =
@@ -3203,7 +3256,14 @@ let%expect_test "typecheck: all-never if-expr binds as never" =
 extern "C" func exit(c: i32) never
 func f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:3:63
+        func f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
+                                                                      ^~~~~~~~
+    ok
+    |}]
 
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src

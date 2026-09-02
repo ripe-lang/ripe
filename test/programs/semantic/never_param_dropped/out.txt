@@ -1,0 +1,2 @@
+alive
+exit: 0
