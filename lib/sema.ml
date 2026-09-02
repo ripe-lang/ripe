@@ -1110,7 +1110,7 @@ and check_elem env item use : local_env * Tast.texpr =
       (env, Tast.mk Types.TUnit Tast.TLocalDecl)
   | Expr ({ desc = Binding (kind, name, nspan, ann, init); _ } as e) ->
       let env', tbind = check_binding env kind name nspan ann init in
-      verify_unit_result env e.span use;
+      if tbind.ty <> Types.TNever then verify_unit_result env e.span use;
       (env', tbind)
   | Expr e -> (env, check_value_for_use env e use)
 
@@ -1148,8 +1148,10 @@ and check_binding env kind name nspan ann init =
     verify_const_scalar env nspan t;
     let value = const_value_or env dummy_value te in
     Symbol.Table.replace (local_consts env) (Symbol.key (sym env nspan)) value);
+  (* An init that diverges makes the binding itself dead so it carries never *)
+  let node_ty = if te.ty = Types.TNever then Types.TNever else Types.TUnit in
   ( extend_var env nspan name t,
-    Tast.mk Types.TUnit (Tast.TBinding (kind, sym env nspan, t, te)) )
+    Tast.mk node_ty (Tast.TBinding (kind, sym env nspan, t, te)) )
 
 and synth_return env span init =
   if env.ret_ty = Types.TNever then

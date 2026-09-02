@@ -187,6 +187,48 @@ let%expect_test "typecheck: unreachable code after a returning if" =
     ok
     |}]
 
+let%expect_test "typecheck: unreachable code after a diverging binding" =
+  run_src
+    {|
+func d() never { loop {} }
+func f() { var _x = d()
+    g() }
+func g() {}
+|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:4:5
+            g() }
+            ^~~
+    ok
+    |}]
+
+let%expect_test
+    "typecheck: unreachable code after an annotated diverging binding" =
+  run_src
+    {|
+func d() never { loop {} }
+func f() { var _x: i32 = d()
+    g() }
+func g() {}
+|};
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:4:5
+            g() }
+            ^~~
+    ok
+    |}]
+
+let%expect_test "typecheck: a diverging binding ends a value block" =
+  run_src {|
+func d() never { loop {} }
+func f() i32 { var _x = d() }
+|};
+  [%expect {| ok |}]
+
 let%expect_test "typecheck: forward reference" =
   run_src {|
 func f() { g() }
@@ -3203,7 +3245,14 @@ let%expect_test "typecheck: all-never if-expr binds as never" =
 extern "C" func exit(c: i32) never
 func f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    warning: unreachable code
+      at <test>:3:63
+        func f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
+                                                                      ^~~~~~~~
+    ok
+    |}]
 
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
