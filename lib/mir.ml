@@ -1214,7 +1214,7 @@ let build_func struct_layouts globals (func : Tast.tfunc_def) =
   let params =
     List.filter_map
       (fun (symbol, ty) ->
-        if ty = Types.TUnit then None
+        if ty = Types.TUnit || ty = Types.TNever then None
         else
           let id =
             add_local state ~name:symbol.Symbol.name Param ty symbol.Symbol.span
@@ -1256,7 +1256,9 @@ let build (declarations : Tast.tdecl list) =
           structs_rev := { name; fields; local = false } :: !structs_rev
       | Tast.TLocalStruct (name, fields) ->
           structs_rev := { name; fields; local = true } :: !structs_rev
-      | Tast.TGlobal global when global.ty = Types.TUnit -> ()
+      | Tast.TGlobal global
+        when global.ty = Types.TUnit || global.ty = Types.TNever ->
+          ()
       | Tast.TGlobal global when global.kind <> Ast.Const ->
           Hashtbl.add globals_by_id global.key global.name;
           globals_rev := global :: !globals_rev

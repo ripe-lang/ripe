@@ -1,0 +1,27 @@
+warning: unused variable: bare
+  at main.rp:4:7
+      var bare: never
+          ^~~~
+help: prefix with an underscore: _bare
+error: cannot zero init this type
+  at main.rp:4:13
+      var bare: never
+                ^~~~~ on never
+warning: unused variable: whole
+  at main.rp:5:7
+      var whole: hole
+          ^~~~~
+help: prefix with an underscore: _whole
+error: cannot zero init this type
+  at main.rp:5:14
+      var whole: hole
+                 ^~~~ on hole
+warning: unused variable: partial
+  at main.rp:6:7
+      var partial = hole { b: 1 }
+          ^~~~~~~
+help: prefix with an underscore: _partial
+error: cannot zero init this type
+  at main.rp:6:17
+      var partial = hole { b: 1 }
+                    ^~~~~~~~~~~~~ on never
