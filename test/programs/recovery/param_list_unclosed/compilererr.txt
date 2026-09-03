@@ -1,0 +1,11 @@
+error: expected identifier
+  at main.rp:1:13
+    func helper(else i32 { return 0 }
+                ^~~~ found `else`
+error: expected `)`
+  at main.rp:2:1
+    func a() i32 { return 1 }
+    ^~~~ found `func`
+  at main.rp:1:12
+    func helper(else i32 { return 0 }
+               ^ to match this `(`
