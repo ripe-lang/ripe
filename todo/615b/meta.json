@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-01 16:24:04.681733",
+  "depends": [],
+  "id": "615b",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "diagnostics"
+  ],
+  "title": "Trim the leading indent from diagnostic snippets",
+  "updated_at": "2026-09-01 16:24:04.681750"
+}
