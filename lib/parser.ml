@@ -418,9 +418,9 @@ let decl_sep_error st what =
   |> Diagnostic.at (cur_span st)
   |> Diagnostic.help ("separate " ^ what ^ "s with a newline or `;`")
 
-let param_sep_error st =
+let param_sep_error span =
   Diagnostic.error "expected parameter separator"
-  |> Diagnostic.at (cur_span st)
+  |> Diagnostic.at span
   |> Diagnostic.help "separate parameters with `,`"
 
 (* Junk that can't start the next item is eaten so it isn't reported twice *)
@@ -769,16 +769,21 @@ and parse_params st =
       && (st.tok = COMMA || is_param_start st)
     do
       let stuck = cur_pos st in
-      if st.tok = COMMA then advance st
-      else begin
-        if !parsed then emit_parse_error st (param_sep_error st);
-        skip_semi st
-      end;
+      let after_comma = st.tok = COMMA in
+      (* The blame belongs on the separator and not on what follows it *)
+      let sep_span = cur_span st in
+      if after_comma then advance st else skip_semi st;
+      (* A list that ran into a declaration lost its `)` and not a separator *)
+      let sep_missing = (not after_comma) && !parsed && not (starts_item st) in
+      if sep_missing then emit_parse_error st (param_sep_error sep_span);
       if st.tok = ELLIPSIS then (
         advance st;
         variadic := true)
-      else if st.tok <> RPAREN && not (is_params_end st.tok) then
-        parsed := parse_one ();
+      else if
+        st.tok <> RPAREN
+        && (not (is_params_end st.tok))
+        && (after_comma || not (starts_item st))
+      then parsed := parse_one ();
       if cur_pos st = stuck then advance st
     done
   end;
@@ -802,6 +807,7 @@ and parse_params st =
 and parse_ret_type st =
   match st.tok with
   | LBRACE | AUTOSEMI | SEMI | EOF | ASSIGN -> None
+  | FUNC when is_member_start (peek st).token -> None
   | tok when not (is_type_start tok) -> None
   | _ ->
       let depth = st.tok_depth in
