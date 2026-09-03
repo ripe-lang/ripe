@@ -17,6 +17,27 @@ A systems programming language.
 > I'm pausing new feature work for a while so I can build things with Ripe as
 > it is. I want to figure out what the language needs instead of deciding every feature in advance. My main goals are Ripe should compile quickly, stay low level, and feel easy to write. The compiler should handle routine bookkeeping while leaving control to the programmer. I'll still be doing a bunch of refactoring until then.
 
+```go
+import std.io
+
+struct Point { x: i32; y: i32 }
+
+func norm(p: Point) i32 {
+  p.x * p.x + p.y * p.y
+}
+
+func main() i32 {
+  var points: [2]Point = [
+    Point { x: 1, y: 2 },
+    Point { x: 8, y: 0 },
+  ]
+  for p in points {
+    io.print_int(norm(p)) // 5 then 64
+  }
+  return 0
+}
+```
+
 ## Documentation
 
 Read the documentation at [ripe-lang.org](https://www.ripe-lang.org).
