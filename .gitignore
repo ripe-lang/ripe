@@ -3,3 +3,4 @@ _opam
 __pycache__
 /dist/
 /vendor/toolchain/linux-x86_64/*
+local/
