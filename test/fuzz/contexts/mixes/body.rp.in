@@ -1,0 +1,2 @@
+func f() i32 %%D%% return 1 }
+func main() i32 { return f() }
