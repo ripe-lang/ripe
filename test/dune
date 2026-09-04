@@ -23,4 +23,5 @@
   test_config
   test_nonempty
   test_mir
-  test_x86))
+  test_x86
+  test_layout))
