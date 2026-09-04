@@ -28,4 +28,8 @@
   test_typred
   test_reachability
   test_panictable
-  test_program))
+  test_program
+  test_span
+  test_types
+  test_qname
+  test_interner))
