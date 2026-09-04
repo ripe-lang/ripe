@@ -1,0 +1,16 @@
+struct pt { x: i32; y: i32 }
+enum col { Red; Green }
+type mi = i64
+const K: i32 = 3
+var tbl: [3]i32 = [1, 2, 3]
+func add(a: i32, b: i32) i32 { return a + b }
+func idx(i: i32) i32 { return tbl[i] }
+func mk() pt { return pt { 1, 2 } }
+func deep(n: i32) i32 { return ((n + 1) * (n - 1)) + tbl[(n + 0)] }
+func main() i32 {
+  var p = mk()
+  var c = col.Red
+  var w: mi = 9
+  var s = add(idx(0), deep(2)) + K + p.x
+  return match c { col.Red => s; col.Green => 0 }
+}
