@@ -4,21 +4,6 @@ module M = Ripe.Mir
 
 let span : Ripe.Ast.span = Ripe.Ast.dummy_span
 
-let%expect_test "mir: straight line scalar function" =
-  Pipeline.run_mir "func add(a: i32, b: i32) i32 { return a + b }";
-  [%expect
-    {|
-    func add(%0: i32, %1: i32) i32 {
-      local %0 a: i32 param
-      local %1 b: i32 param
-      local %2: i32 temp
-
-      block0:
-        %2 = copy %0 + copy %1
-        return copy %2
-    }
-    |}]
-
 let local (ty : Ripe.Types.ty) : M.local =
   { M.name = None; ty; storage = M.Temp; span }
 
@@ -62,6 +47,21 @@ let verify (program : M.program) : unit =
       List.iter (fun error -> print_endline (Ripe.Mir.show_error error)) errors
 
 let verify_func ?structs function_ = verify (program ?structs function_)
+
+let%expect_test "mir: straight line scalar function" =
+  Pipeline.run_mir "func add(a: i32, b: i32) i32 { return a + b }";
+  [%expect
+    {|
+    func add(%0: i32, %1: i32) i32 {
+      local %0 a: i32 param
+      local %1 b: i32 param
+      local %2: i32 temp
+
+      block0:
+        %2 = copy %0 + copy %1
+        return copy %2
+    }
+    |}]
 
 let%expect_test "mir verifier: every block has a terminator" =
   verify_func (func_with_block None);
@@ -489,5 +489,512 @@ func f() pair {
         %2 = call @side(2)
         %0.field0 = copy %2
         return
+    }
+    |}]
+
+let%expect_test "mir: a short circuit and skips the right side" =
+  Pipeline.run_mir "func f(a: bool, b: bool) bool { return a && b }";
+  [%expect
+    {|
+    func f(%0: bool, %1: bool) bool {
+      local %0 a: bool param
+      local %1 b: bool param
+      local %2: bool temp
+
+      block0:
+        branch copy %0 block1 block2
+
+      block1:
+        %2 = copy %1
+        jump block3
+
+      block2:
+        %2 = false
+        jump block3
+
+      block3:
+        return copy %2
+    }
+    |}]
+
+let%expect_test "mir: a short circuit or skips the right side" =
+  Pipeline.run_mir "func f(a: bool, b: bool) bool { return a || b }";
+  [%expect
+    {|
+    func f(%0: bool, %1: bool) bool {
+      local %0 a: bool param
+      local %1 b: bool param
+      local %2: bool temp
+
+      block0:
+        branch copy %0 block2 block1
+
+      block1:
+        %2 = copy %1
+        jump block3
+
+      block2:
+        %2 = true
+        jump block3
+
+      block3:
+        return copy %2
+    }
+    |}]
+
+let%expect_test "mir: an if used as a value writes one result local" =
+  Pipeline.run_mir "func f(a: bool) i32 { return if a { 1 } else { 2 } }";
+  [%expect
+    {|
+    func f(%0: bool) i32 {
+      local %0 a: bool param
+      local %1: i32 temp
+
+      block0:
+        branch copy %0 block2 block3
+
+      block1:
+        return copy %1
+
+      block2:
+        %1 = 1
+        jump block1
+
+      block3:
+        %1 = 2
+        jump block1
+    }
+    |}]
+
+let%expect_test "mir: a match lowers to a chain of tests" =
+  Pipeline.run_mir
+    {|func f(n: i32) i32 {
+  return match n {
+    1 => 10
+    2 => 20
+    _ => 0
+  }
+}|};
+  [%expect
+    {|
+    func f(%0: i32) i32 {
+      local %0 n: i32 param
+      local %1: i32 temp
+      local %2: bool temp
+      local %3: bool temp
+
+      block0:
+        %2 = copy %0 == 1
+        branch copy %2 block3 block2
+
+      block1:
+        return copy %1
+
+      block2:
+        %3 = copy %0 == 2
+        branch copy %3 block5 block4
+
+      block3:
+        %1 = 10
+        jump block1
+
+      block4:
+        %1 = 0
+        jump block1
+
+      block5:
+        %1 = 20
+        jump block1
+    }
+    |}]
+
+let%expect_test "mir: a range for counts without a bounds check" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var t: i32 = 0
+  for i in 0..3 { t += i }
+  return t
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 t: i32 user
+      local %1 i: i32 user
+      local %2 for.hi: i32 temp
+      local %3: bool temp
+      local %4: i32 temp
+      local %5: i32 temp
+
+      block0:
+        %0 = 0
+        %1 = 0
+        %2 = 3
+        jump block1
+
+      block1:
+        %3 = copy %1 < copy %2
+        branch copy %3 block2 block4
+
+      block2:
+        %4 = copy %0 + copy %1
+        %0 = copy %4
+        jump block3
+
+      block3:
+        %5 = copy %1 + 1
+        %1 = copy %5
+        jump block1
+
+      block4:
+        return copy %0
+    }
+    |}]
+
+let%expect_test "mir: an inclusive range stops one step later" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var t: i32 = 0
+  for i in 0..=3 { t += i }
+  return t
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 t: i32 user
+      local %1 i: i32 user
+      local %2 for.hi: i32 temp
+      local %3: bool temp
+      local %4: i32 temp
+      local %5: bool temp
+      local %6: i32 temp
+
+      block0:
+        %0 = 0
+        %1 = 0
+        %2 = 3
+        jump block1
+
+      block1:
+        %3 = copy %1 <= copy %2
+        branch copy %3 block2 block4
+
+      block2:
+        %4 = copy %0 + copy %1
+        %0 = copy %4
+        jump block3
+
+      block3:
+        %5 = copy %1 == copy %2
+        branch copy %5 block4 block5
+
+      block4:
+        return copy %0
+
+      block5:
+        %6 = copy %1 + 1
+        %1 = copy %6
+        jump block1
+    }
+    |}]
+
+let%expect_test "mir: a for over an array walks it by index" =
+  Pipeline.run_mir
+    {|func f(a: [3]i32) i32 {
+  var t: i32 = 0
+  for v in a { t += v }
+  return t
+}|};
+  [%expect
+    {|
+    func f(%0: [3]i32) i32 {
+      local %0 a: [3]i32 param
+      local %1 t: i32 user
+      local %2: *i32 temp
+      local %3: usize temp
+      local %4: usize temp
+      local %5 v: i32 user
+      local %6: *i32 temp
+      local %7: usize temp
+      local %8: bool temp
+      local %9: i32 temp
+      local %10: usize temp
+
+      block0:
+        %1 = 0
+        %6 = data_ptr %0
+        %7 = len %0
+        %2 = copy %6
+        %3 = copy %7
+        %4 = 0
+        jump block1
+
+      block1:
+        %8 = copy %4 < copy %3
+        branch copy %8 block2 block4
+
+      block2:
+        %5 = copy %2[copy %4]
+        %9 = copy %1 + copy %5
+        %1 = copy %9
+        jump block3
+
+      block3:
+        %10 = copy %4 + 1
+        %4 = copy %10
+        jump block1
+
+      block4:
+        return copy %1
+    }
+    |}]
+
+let%expect_test "mir: a slice expression carries a base and a length" =
+  Pipeline.run_mir "func f(a: [4]i32) []i32 { return a[1..3] }";
+  [%expect
+    {|
+    func f(%1: [4]i32) []i32 {
+      local %0 result: []i32 result
+      local %1 a: [4]i32 param
+      local %2: usize temp
+
+      block0:
+        %2 = len %1
+        assert_slice_bounds 1 3 copy %2 block2 block1
+
+      block1:
+        panic slice_bounds 1 3 copy %2
+
+      block2:
+        %0 = slice %1 1 3
+        return
+    }
+    |}]
+
+let%expect_test "mir: a pair assign reads both sides before writing" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var a: i32 = 1
+  var b: i32 = 2
+  a, b = b, a
+  return a
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 a: i32 user
+      local %1 b: i32 user
+      local %2: i32 temp
+      local %3: i32 temp
+
+      block0:
+        %0 = 1
+        %1 = 2
+        %2 = copy %1
+        %3 = copy %0
+        %0 = copy %2
+        %1 = copy %3
+        return copy %0
+    }
+    |}]
+
+let%expect_test "mir: a compound assign reuses the place it writes" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var a: [2]i32 = [1, 2]
+  a[0] += 5
+  return a[0]
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 a: [2]i32 user
+      local %1: usize temp
+      local %2: i32 temp
+      local %3: usize temp
+
+      block0:
+        %0 = undef
+        %0[0] = 1
+        %0[1] = 2
+        %1 = len %0
+        assert_bounds 0 copy %1 block2 block1
+
+      block1:
+        panic bounds 0 copy %1
+
+      block2:
+        %2 = copy %0[0] + 5
+        %0[0] = copy %2
+        %3 = len %0
+        assert_bounds 0 copy %3 block4 block3
+
+      block3:
+        panic bounds 0 copy %3
+
+      block4:
+        return copy %0[0]
+    }
+    |}]
+
+let%expect_test "mir: a shift guards against an out of range count" =
+  Pipeline.run_mir "func f(a: i32, b: i32) i32 { return a << b }";
+  [%expect
+    {|
+    func f(%0: i32, %1: i32) i32 {
+      local %0 a: i32 param
+      local %1 b: i32 param
+      local %2: i32 temp
+      local %3: bool temp
+      local %4: i32 temp
+
+      block0:
+        assert_negative_shift copy %1 block2 block1
+
+      block1:
+        panic negative_shift copy %1
+
+      block2:
+        %3 = copy %1 < 32
+        branch copy %3 block3 block4
+
+      block3:
+        %4 = copy %0 << copy %1
+        %2 = copy %4
+        jump block5
+
+      block4:
+        %2 = 0
+        jump block5
+
+      block5:
+        return copy %2
+    }
+    |}]
+
+let%expect_test "mir: a variadic call marks where the fixed params stop" =
+  Pipeline.run_mir
+    {|extern "C" func printf(fmt: cstr, ...) i32
+func f() i32 { return printf("%d %d\n", 1, 2) }|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0: i32 temp
+
+      block0:
+        %0 = call @printf("%d %d\n", 1, 2)
+        return copy %0
+    }
+    |}]
+
+let%expect_test "mir: an array literal writes each element in order" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var a: [3]i32 = [7, 8, 9]
+  return a[1]
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 a: [3]i32 user
+      local %1: usize temp
+
+      block0:
+        %0 = undef
+        %0[0] = 7
+        %0[1] = 8
+        %0[2] = 9
+        %1 = len %0
+        assert_bounds 1 copy %1 block2 block1
+
+      block1:
+        panic bounds 1 copy %1
+
+      block2:
+        return copy %0[1]
+    }
+    |}]
+
+let%expect_test "mir: a loop yields the value its break carries" =
+  Pipeline.run_mir
+    {|func f() i32 {
+  var n = 0
+  return loop {
+    n += 1
+    if n == 3 { break n }
+  }
+}|};
+  [%expect
+    {|
+    func f() i32 {
+      local %0 n: i32 user
+      local %1: i32 temp
+      local %2: i32 temp
+      local %3: bool temp
+
+      block0:
+        %0 = 0
+        jump block1
+
+      block1:
+        %2 = copy %0 + 1
+        %0 = copy %2
+        %3 = copy %0 == 3
+        branch copy %3 block4 block5
+
+      block2:
+        return copy %1
+
+      block3:
+        jump block1
+
+      block4:
+        %1 = copy %0
+        jump block2
+
+      block5:
+        jump block3
+    }
+    |}]
+
+let%expect_test "mir: a nested field lands on one place with two projections" =
+  Pipeline.run_mir
+    {|struct Inner { v: i32 }
+struct Outer { i: Inner }
+func f(o: Outer) i32 { return o.i.v }|};
+  [%expect
+    {|
+    func f(%0: Outer) i32 {
+      local %0 o: Outer param
+
+      block0:
+        return copy %0.field0.field0
+    }
+    |}]
+
+let%expect_test "mir: a deref through a pointer is a place projection" =
+  Pipeline.run_mir {|func f(p: *i32) i32 {
+  *p = 4
+  return *p
+}|};
+  [%expect
+    {|
+    func f(%0: *i32) i32 {
+      local %0 p: *i32 param
+
+      block0:
+        assert_null copy %0 block2 block1
+
+      block1:
+        panic null copy %0
+
+      block2:
+        %0.deref = 4
+        assert_null copy %0 block4 block3
+
+      block3:
+        panic null copy %0
+
+      block4:
+        return copy %0.deref
     }
     |}]
