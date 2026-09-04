@@ -1,0 +1,5 @@
+Error: Failed to parse the argument to "-e": invalid value: "bogus" (valid values are: tokens, ast, resolve, tast, check, mir, qbe, asm, obj)
+
+Usage: ripec [OPTION]… <FILE>
+
+For more info, try running `ripec --help`.
