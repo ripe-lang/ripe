@@ -1,0 +1,17 @@
+func _R4main3add(%0: i32, %1: i32) i32 {
+  local %0 a: i32 param
+  local %1 b: i32 param
+  local %2: i32 temp
+
+  block0:
+    %2 = copy %0 + copy %1
+    return copy %2
+}
+
+func main() i32 {
+  local %0: i32 temp
+
+  block0:
+    %0 = call @_R4main3add(1, 2)
+    return copy %0
+}

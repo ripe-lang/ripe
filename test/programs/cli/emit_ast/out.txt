@@ -1,0 +1,40 @@
+(Func
+   { func_name = { value = (Some add); span = (5,8) };
+     params =
+     [{ param_name = { value = (Some a); span = (9,10) };
+        param_typ = { tdesc = (Named ([], i32)); tspan = (12,15) };
+        param_span = (9,15) };
+       { param_name = { value = (Some b); span = (17,18) };
+         param_typ = { tdesc = (Named ([], i32)); tspan = (20,23) };
+         param_span = (17,23) }
+       ];
+     ret = (Some { tdesc = (Named ([], i32)); tspan = (25,28) });
+     body =
+     [(Expr
+         { desc =
+           (Return
+              (Some { desc =
+                      (BinOp (Add, { desc = (Ident a); span = (40,41) },
+                         { desc = (Ident b); span = (44,45) }));
+                      span = (40,45) }));
+           span = (33,45) })
+       ];
+     func_modifiers = []; variadic = false; extern_abi = NoAbi;
+     func_span = (0,47) })
+(Func
+   { func_name = { value = (Some main); span = (54,58) }; params = [];
+     ret = (Some { tdesc = (Named ([], i32)); tspan = (61,64) });
+     body =
+     [(Expr
+         { desc =
+           (Return
+              (Some { desc =
+                      (Call ({ desc = (Ident add); span = (76,79) },
+                         [{ desc = (Int (1L, None)); span = (80,81) };
+                           { desc = (Int (2L, None)); span = (83,84) }]
+                         ));
+                      span = (76,85) }));
+           span = (69,85) })
+       ];
+     func_modifiers = []; variadic = false; extern_abi = NoAbi;
+     func_span = (49,87) })

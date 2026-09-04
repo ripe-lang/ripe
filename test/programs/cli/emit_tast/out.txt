@@ -1,0 +1,63 @@
+(TFunc
+   { key = 0; name = "_R4main3add"; source_name = "main.add";
+     entry_point = false;
+     params =
+     [({ id = 2; module_id = 0; name = "a"; link_name = "a"; kind = Param;
+         visibility = Private; entry_point = false; span = (9,15);
+         name_span = (9,15) },
+       (TInt I32));
+       ({ id = 3; module_id = 0; name = "b"; link_name = "b"; kind = Param;
+          visibility = Private; entry_point = false; span = (17,23);
+          name_span = (17,23) },
+        (TInt I32))
+       ];
+     ret_ty = (TInt I32);
+     body =
+     [{ desc =
+        (TReturn
+           (Some { desc =
+                   (TBinOp (Add,
+                      { desc =
+                        (TIdent
+                           { id = 2; module_id = 0; name = "a";
+                             link_name = "a"; kind = Param;
+                             visibility = Private; entry_point = false;
+                             span = (9,15); name_span = (9,15) });
+                        ty = (TInt I32); span = (40,41) },
+                      { desc =
+                        (TIdent
+                           { id = 3; module_id = 0; name = "b";
+                             link_name = "b"; kind = Param;
+                             visibility = Private; entry_point = false;
+                             span = (17,23); name_span = (17,23) });
+                        ty = (TInt I32); span = (44,45) }
+                      ));
+                   ty = (TInt I32); span = (40,45) }));
+        ty = TNever; span = (33,45) }
+       ];
+     modifiers = []; variadic = false })
+(TFunc
+   { key = 1; name = "main"; source_name = "main.main"; entry_point = true;
+     params = []; ret_ty = (TInt I32);
+     body =
+     [{ desc =
+        (TReturn
+           (Some { desc =
+                   (TCall (
+                      { desc =
+                        (TIdent
+                           { id = 0; module_id = 0; name = "add";
+                             link_name = "_R4main3add"; kind = Func;
+                             visibility = Private; entry_point = false;
+                             span = (0,47); name_span = (5,8) });
+                        ty =
+                        (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
+                        span = (-1,-1) },
+                      [{ desc = (TInt 1L); ty = (TInt I32); span = (80,81) };
+                        { desc = (TInt 2L); ty = (TInt I32); span = (83,84) }
+                        ],
+                      None));
+                   ty = (TInt I32); span = (76,85) }));
+        ty = TNever; span = (69,85) }
+       ];
+     modifiers = []; variadic = false })
