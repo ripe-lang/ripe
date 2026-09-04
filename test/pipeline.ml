@@ -54,6 +54,13 @@ let load_program ?search_roots (files : (string * string) list) =
   let program, diags = load_tree ?search_roots files in
   (Ripe.Resolve.resolve_program ~diags program, diags)
 
+let run_resolve_program ?search_roots files =
+  let program, diags = load_tree ?search_roots files in
+  let resolved = Ripe.Resolve.resolve_program ~diags program in
+  match Diag.finish diags resolved with
+  | _ -> print_endline "ok"
+  | exception Ripe.Diagnostic.Errors ds -> List.iter (Diag.render_in program) ds
+
 let run_program files =
   let headline (d : Ripe.Diagnostic.t) =
     print_endline (Ripe.Diagnostic.headline d)
