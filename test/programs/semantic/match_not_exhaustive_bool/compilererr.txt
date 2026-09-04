@@ -1,0 +1,5 @@
+error: match is not exhaustive
+  at main.rp:2:16
+      return match b {
+                   ^ false not covered
+help: add `false => { }` or `_ => { }`

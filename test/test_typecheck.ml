@@ -4127,15 +4127,264 @@ func f() { var _p = Point.x }|};
                             ^~~~~ this names a type
     |}]
 
-let%expect_test "typecheck: an enum match may name only some variants" =
+let%expect_test "typecheck: an enum match must name every variant" =
   run_src
     {|enum Color { Red; Green; Blue }
 func f(c: Color) i32 { match c { Color.Red => 1 } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:30
+        func f(c: Color) i32 { match c { Color.Red => 1 } }
+                                     ^ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: an enum match naming every variant is ok" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 {
+  match c { Color.Red => 1; Color.Green => 2; Color.Blue => 3 }
+}|};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: an integer match needs no catch all" =
+let%expect_test "typecheck: an integer match needs a catch all" =
   run_src "func f(n: i32) i32 { match n { 0 => 1 } }";
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:1:28
+        func f(n: i32) i32 { match n { 0 => 1 } }
+                                   ^ on i32
+    help: add `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a bool match naming both values is ok" =
+  run_src "func f(b: bool) i32 { match b { true => 1; false => 0 } }";
   [%expect {| ok |}]
+
+let%expect_test "typecheck: a bool match missing a value" =
+  run_src "func f(b: bool) i32 { match b { true => 1 } }";
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:1:29
+        func f(b: bool) i32 { match b { true => 1 } }
+                                    ^ false not covered
+    help: add `false => { }` or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a broken enum reports once" =
+  run_src
+    {|enum Color { 88; Green }
+func f(c: Color) i32 { match c { Color.Green => 1 } }|};
+  [%expect
+    {|
+    error: expected identifier
+      at <test>:1:14
+        enum Color { 88; Green }
+                     ^~ found 88
+    |}]
+
+let%expect_test "typecheck: a statement match must cover every case" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) { match c { Color.Red => { } } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:26
+        func f(c: Color) { match c { Color.Red => { } } }
+                                 ^ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a catch all still silences the check" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 { return match c { Color.Red => 1; _ => 2 } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a bare name binding still silences the check" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 { return match c { Color.Red => 1; other => 2 } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a catch all first reports the dead arm" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 { return match c { _ => 1; Color.Red => 2 } }|};
+  [%expect
+    {|
+    error: arm never runs
+      at <test>:2:49
+        func f(c: Color) i32 { return match c { _ => 1; Color.Red => 2 } }
+                                                        ^~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: an alias names the enum it stands for" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+type Shade = Color
+func f(s: Shade) i32 { return match s { Color.Red => 1 } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:3:37
+        func f(s: Shade) i32 { return match s { Color.Red => 1 } }
+                                            ^ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: an empty match names every case" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 { return match c { } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:37
+        func f(c: Color) i32 { return match c { } }
+                                            ^ Color.Red, Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a one variant enum is covered by naming it" =
+  run_src
+    {|enum One { Only }
+func f(o: One) i32 { return match o { One.Only => 5 } }|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a char match needs a catch all" =
+  run_src "func f(c: char) i32 { return match c { 'A' => 1 } }";
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:1:36
+        func f(c: char) i32 { return match c { 'A' => 1 } }
+                                           ^ on char
+    help: add `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a bool match with no arms names both values" =
+  run_src "func f(b: bool) i32 { return match b { } }";
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:1:36
+        func f(b: bool) i32 { return match b { } }
+                                           ^ false, true not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: an undefined scrutinee reports once" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f() i32 { return match nope { Color.Red => 1 } }|};
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:29
+        func f() i32 { return match nope { Color.Red => 1 } }
+                                    ^~~~
+    |}]
+
+let%expect_test "typecheck: a struct scrutinee can only ask for a catch all" =
+  run_src {|struct P { x: i32 }
+func f(p: P) i32 { return match p { } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:33
+        func f(p: P) i32 { return match p { } }
+                                        ^ on P
+    help: add `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a duplicate arm and a hole are both reported" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 { return match c { Color.Red => 1; Color.Red => 2 } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:37
+        func f(c: Color) i32 { return match c { Color.Red => 1; Color.Red => 2 } }
+                                            ^ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    error: duplicate pattern
+      at <test>:2:57
+        func f(c: Color) i32 { return match c { Color.Red => 1; Color.Red => 2 } }
+                                                                ^~~~~~~~~
+    |}]
+
+let%expect_test "typecheck: an inner match is checked inside a covered outer" =
+  run_src
+    {|enum Color { Red; Green }
+enum Size { Small; Large }
+func f(c: Color, s: Size) i32 {
+  return match c { Color.Red => match s { Size.Small => 1 }; Color.Green => 2 }
+}|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:4:39
+          return match c { Color.Red => match s { Size.Small => 1 }; Color.Green => 2 }
+                                              ^ Size.Large not covered
+    help: add `Size.Large => { }` or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: an alias of an alias still names the enum" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+type Shade = Color
+type Tint = Shade
+func f(t: Tint) i32 { return match t { Color.Red => 1 } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:4:36
+        func f(t: Tint) i32 { return match t { Color.Red => 1 } }
+                                           ^ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a call result is checked like any scrutinee" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func pick() Color { return Color.Red }
+func f() i32 { return match pick() { Color.Red => 1 } }|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:3:29
+        func f() i32 { return match pick() { Color.Red => 1 } }
+                                    ^~~~~~ Color.Green, Color.Blue not covered
+    help: add an arm for each, or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: every variant named and every arm returns" =
+  run_src
+    {|enum Color { Red; Green; Blue }
+func f(c: Color) i32 {
+  match c {
+    Color.Red => { return 1 }
+    Color.Green => { return 2 }
+    Color.Blue => { return 3 }
+  }
+}|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: an uncomparable pattern reports once" =
+  run_src "func f(x: f32) i32 { return match x { 1.5 => 1 } }";
+  [%expect
+    {|
+    error: pattern is not comparable
+      at <test>:1:39
+        func f(x: f32) i32 { return match x { 1.5 => 1 } }
+                                              ^~~ cannot test f32
+    |}]
 
 let%expect_test "typecheck: duplicate arm" =
   run_src
@@ -4248,11 +4497,6 @@ func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }|};
       at <test>:2:40
         func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }
                                                ^~~~~ expected bool, found i32
-    error: unsupported constant expression
-      at <test>:2:40
-        func f(x: bool) i32 { return match x { LIMIT => 1; _ => 0 } }
-                                               ^~~~~
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: unit type and value" =

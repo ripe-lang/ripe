@@ -34,6 +34,7 @@ type type_def =
   | Enum_type of enum_info deferred ref
 
 type result_use = Infer | Expect of ty | Discard
+type coverage = Covered | Missing of string list | Unbounded | Unknown
 type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
 
 let cyclic_constant span = Diagnostic.Errors [ Diagnostic.cyclic_constant span ]
@@ -1387,6 +1388,7 @@ and check_pattern env sty pat =
         (env, None)
       in
       match te.desc with
+      | _ when not (Typred.compatible sty te.ty) -> (env, None)
       | Tast.TVariant (_, value) -> (env, Some (Tast.TPatConst value))
       | Tast.TInt n -> (env, Some (Tast.TPatConst n))
       | Tast.TBool b -> (env, Some (Tast.TPatConst (if b then 1L else 0L)))
@@ -1409,9 +1411,53 @@ and check_match env scrutinee arms use =
   | Expect w -> check_match_arms env ts arms (Some w)
   | Discard -> check_match_arms env ts arms None
 
+and coverage_of env ty seen =
+  let absent value name rest =
+    if Hashtbl.mem seen value then rest else (value, name) :: rest
+  in
+  let in_declared_order cases =
+    match List.map snd (List.sort compare cases) with
+    | [] -> Covered
+    | missing -> Missing missing
+  in
+  match resolve_ty ty with
+  | Types.TError -> Unknown
+  | Types.TBool -> in_declared_order (absent 0L "false" (absent 1L "true" []))
+  | Types.TEnum name -> (
+      match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
+      | Some (Enum_type { contents = Completed info }) when info.variants_known
+        ->
+          (* An alias can't spell its own variants so name the enum itself *)
+          let shown = show_ty env (Types.TEnum name) in
+          let gather variant value rest =
+            absent value (shown ^ "." ^ Interner.text variant) rest
+          in
+          in_declared_order (Hashtbl.fold gather info.variants_by_name [])
+      | Some (Enum_type _) -> Unknown
+      | _ -> Unbounded)
+  | _ -> Unbounded
+
+and report_coverage env (ts : Tast.texpr) = function
+  | Covered | Unknown -> ()
+  | Missing names ->
+      let fix =
+        match names with
+        | [ one ] -> Printf.sprintf "add `%s => { }` or `_ => { }`" one
+        | _ -> "add an arm for each, or `_ => { }`"
+      in
+      emit env
+        (Diagnostic.error_at ts.span "match is not exhaustive"
+        |> Diagnostic.label (String.concat ", " names ^ " not covered")
+        |> Diagnostic.help fix)
+  | Unbounded ->
+      emit env
+        (Diagnostic.error_at ts.span "match is not exhaustive"
+        |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ts.ty))
+        |> Diagnostic.help "add `_ => { }`")
+
 and check_match_arms env ts arms want =
   let arm_use = match want with Some w -> Expect w | None -> Discard in
-  (* A match without a catch all can fall through *)
+  (* The seen values decide whether the arms reach every case *)
   let seen = Hashtbl.create 8 in
   let caught_all = ref false in
   let record pat tpat =
@@ -1434,6 +1480,13 @@ and check_match_arms env ts arms want =
     Option.map (fun tpat -> { tpat; tbody }) tpat
   in
   let tarms = List.filter_map check_arm arms in
+  (* An arm lost to a parse or type error looks like a hole it never left *)
+  let arms_all_arrived =
+    List.compare_lengths tarms arms = 0 && not env.ctx.initial_errors
+  in
+  if (not !caught_all) && arms_all_arrived then
+    report_coverage env ts (coverage_of env ts.ty seen);
+
   (* A catch all with every arm diverging is the only way nothing falls past *)
   let diverges =
     !caught_all

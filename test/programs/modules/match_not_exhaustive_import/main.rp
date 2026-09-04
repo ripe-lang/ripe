@@ -1,0 +1,11 @@
+import palette
+
+func describe(c: palette.Color) i32 {
+  return match c {
+    palette.Color.Red => 1
+  }
+}
+
+func main() i32 {
+  return describe(palette.Color.Red)
+}

@@ -1,0 +1,9 @@
+enum Color { Red; Green; Blue }
+
+func describe(c: Color) i32 {
+  return match c { }
+}
+
+func main() i32 {
+  return describe(Color.Red)
+}
