@@ -163,8 +163,9 @@ def check(ripec, testname, verbose, promote=False):
     with tempfile.TemporaryDirectory() as workdir:
         for testdir in tests(testname):
             name = os.path.relpath(testdir, TEST_DIR)
-            status, log = check_one(ripec, testdir, workdir, promote)
             reason = broken_reason(testdir)
+            # A broken test would bake its wrong output into the golden
+            status, log = check_one(ripec, testdir, workdir, promote and reason is None)
             passing = status in ("ok", "promoted")
 
             # A broken test that starts passing has to be noticed or the marker rots
