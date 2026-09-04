@@ -1,0 +1,4 @@
+func main() i32 {
+  var n: i32 = 7
+  return match n { 0 => 100; other => other - 7 }
+}

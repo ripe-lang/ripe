@@ -1,0 +1,2 @@
+func main() i32 { var _v: %%T%% = %%L%%
+  return 0 }

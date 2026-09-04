@@ -1,0 +1,2 @@
+func f(a: [2]%%T%%) i32 { return 0 }
+func main() i32 { return 0 }

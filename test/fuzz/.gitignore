@@ -1,4 +1,3 @@
 fuzzwork
 .venv
-test_*.py
 soak.log

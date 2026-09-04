@@ -1,0 +1,3 @@
+struct s %%D%% x: i32 }
+func main() i32 { var v = s { 1 }
+  return v.x }

@@ -1,0 +1,2 @@
+var t: [3]i32 = %%D%%1, 2, 3]
+func main() i32 { return t[0] }

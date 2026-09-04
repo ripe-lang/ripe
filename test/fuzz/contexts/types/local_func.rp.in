@@ -1,0 +1,4 @@
+func main() i32 {
+  func g(a: %%T%%) i32 { return 0 }
+  return g(%%L%%)
+}

@@ -1,0 +1,5 @@
+var total: i32 = 3
+func main() i32 {
+  total = total + 1
+  return total
+}
