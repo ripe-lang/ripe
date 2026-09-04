@@ -110,6 +110,13 @@ let parse_expr src =
     | _ -> print_endline "<parse_expr: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render wrapped) diags
 
+let parse_body src =
+  try
+    match parse src with
+    | [ Ripe.Ast.Func fd ] -> print_endline (Dump.dump_block fd.body)
+    | _ -> print_endline "<parse_body: unexpected shape>"
+  with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
+
 let run_src src =
   try
     let _, warns = check_src src in
