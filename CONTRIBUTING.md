@@ -47,6 +47,7 @@ test/programs/<name>/
   main.rp           # input
   out.txt           # golden stdout
   compilererr.txt   # golden compile error
+  flags.txt         # ripec arguments for a test about compiler output
 ```
 
 Promote a new golden file with:
