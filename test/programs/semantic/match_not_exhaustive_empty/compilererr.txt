@@ -1,0 +1,5 @@
+error: match is not exhaustive
+  at main.rp:4:16
+      return match c { }
+                   ^ Color.Red, Color.Green, Color.Blue not covered
+help: add an arm for each, or `_ => { }`
