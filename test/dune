@@ -8,6 +8,7 @@
   spanutils
   diag
   dump
+  fake
   pipeline
   test_lexer
   test_parser
@@ -22,4 +23,16 @@
   test_config
   test_nonempty
   test_mir
-  test_x86))
+  test_x86
+  test_layout
+  test_typred
+  test_reachability
+  test_panictable
+  test_program
+  test_span
+  test_types
+  test_qname
+  test_interner
+  test_elf64
+  test_driver
+  test_platform))

@@ -387,25 +387,8 @@ pub type meters = i32
     meters Public
     |}]
 
-let resolve_program_src ?(search_roots = []) (files : (string * string) list) =
-  let read_file name =
-    match List.assoc_opt name files with
-    | Some src -> src
-    | None -> raise (Sys_error name)
-  in
-  let list_dir name = raise (Sys_error name) in
-  let diags = Ripe.Diagnostic.sink () in
-  let program =
-    Ripe.Program.load ~diags ~read_file ~list_dir ~search_roots
-      ~root_filename:"main.rp" ()
-  in
-  let resolved = Ripe.Resolve.resolve_program ~diags program in
-  match Diag.finish diags resolved with
-  | _, _ -> print_endline "ok"
-  | exception Ripe.Diagnostic.Errors ds -> List.iter (Diag.render_in program) ds
-
 let%expect_test "resolve: a call reaches into an imported module" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -418,7 +401,7 @@ pub func add(x: i32) {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: an unknown member of an import is reported" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -437,7 +420,7 @@ pub func add(x: i32) {}
     |}]
 
 let%expect_test "resolve: a local shadows an import of the same name" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -450,7 +433,7 @@ pub func add(x: i32) {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: an import and a function cannot share a name" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -474,7 +457,7 @@ pub func add(x: i32) {}
 
 (* A struct and a func already share a name here so an import does too *)
 let%expect_test "resolve: an import and a struct can share a name" =
-  resolve_program_src
+  run_resolve_program
     [
       ( "main.rp",
         {|
@@ -489,7 +472,7 @@ pub func add(x: i32) {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: a nested import binds its final name" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math.vector
@@ -502,7 +485,7 @@ pub func add(x: i32) {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: imports with the same final name collide" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math.vector
@@ -528,7 +511,7 @@ pub func scale(x: i32) {}
     |}]
 
 let%expect_test "resolve: a type annotation reaches into an imported module" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -541,7 +524,7 @@ pub type meters = i32
   [%expect {| ok |}]
 
 let%expect_test "resolve: a private type in another module is reported" =
-  resolve_program_src
+  run_resolve_program
     [
       ("main.rp", {|
 import math
@@ -642,7 +625,7 @@ func outer() i32 {
     |}]
 
 let%expect_test "resolve: an import resolves through a search root" =
-  resolve_program_src ~search_roots:[ "/libs" ]
+  run_resolve_program ~search_roots:[ "/libs" ]
     [
       ("main.rp", {|
 import std.io
@@ -656,7 +639,7 @@ pub func write() {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: a relative module shadows a search root" =
-  resolve_program_src ~search_roots:[ "/libs" ]
+  run_resolve_program ~search_roots:[ "/libs" ]
     [
       ("main.rp", {|
 import std.io
@@ -674,7 +657,7 @@ pub func write() {}
   [%expect {| ok |}]
 
 let%expect_test "resolve: a missing import lists every root tried" =
-  resolve_program_src ~search_roots:[ "/libs"; "/other" ]
+  run_resolve_program ~search_roots:[ "/libs"; "/other" ]
     [ ("main.rp", {|
 import std.io
 func main() {}
@@ -688,4 +671,104 @@ func main() {}
       tried std/io.rp
             /libs/std/io.rp
             /other/std/io.rp
+    |}]
+
+let%expect_test "resolve: a span with no symbol comes back empty" =
+  let src = {|func target() i32 { return 1 }|} in
+  let decls, uses = resolve_src 0 src in
+  let _, recorded = decl_name_span (List.hd decls) in
+  let show what sp =
+    Printf.printf "%s %s\n" what
+      (match Ripe.Resolve.sym_at_opt uses sp with
+      | Some s -> s.Ripe.Symbol.name
+      | None -> "none")
+  in
+  show "the declaration" recorded;
+  show "just the name" (span src "target");
+  show "a literal" (span src "1");
+  show "nothing" Ripe.Span.dummy;
+  [%expect
+    {|
+    the declaration target
+    just the name none
+    a literal none
+    nothing none
+    |}]
+
+let%expect_test "resolve: a symbol carries the qualified name it resolves to" =
+  let src = {|func target() i32 { return 1 }|} in
+  let decls, uses = resolve_src 3 src in
+  let _, recorded = decl_name_span (List.hd decls) in
+  let sym = Ripe.Resolve.sym_at uses recorded in
+  let qname = Ripe.Resolve.qname_of uses sym in
+  Printf.printf "%s key matches %b\n" (Ripe.Qname.show qname)
+    (Ripe.Qname.key qname = Ripe.Symbol.key sym);
+  [%expect {| target key matches true |}]
+
+let%expect_test "resolve: a function declared in a body is lifted out" =
+  let src =
+    {|func outer() i32 {
+  func inner() i32 { return 1 }
+  return inner()
+}|}
+  in
+  let decls, uses = resolve_src 0 src in
+  let name (decl : Ripe.Ast.decl) =
+    let n, _ = decl_name_span decl in
+    Ripe.Ast.ident_text n
+  in
+  Printf.printf "top %s\n" (String.concat " " (List.map name decls));
+  Printf.printf "lifted %s\n"
+    (String.concat " " (List.map name (Ripe.Resolve.local_decls uses)));
+  [%expect {|
+    top outer
+    lifted inner
+    |}]
+
+let%expect_test "resolve: nothing is lifted when no body declares one" =
+  let _, uses = resolve_src 0 {|func target() i32 { return 1 }|} in
+  Printf.printf "%d\n" (List.length (Ripe.Resolve.local_decls uses));
+  [%expect {| 0 |}]
+
+let%expect_test "resolve: a span reports the module path it sits in" =
+  let src = {|func target() i32 { return 1 }|} in
+  let _, uses = resolve_src 0 src in
+  let path = Ripe.Resolve.module_path_at uses (span src "target") in
+  Printf.printf "%S\n" (String.concat "." path);
+  [%expect {| "" |}]
+
+let%expect_test "resolve: the builtin types are all in scope" =
+  let _, uses = resolve_src 0 {|func f() i32 { return 1 }|} in
+  let builtins = Ripe.Resolve.builtins uses in
+  let name (_, builtin) =
+    match builtin with
+    | Ripe.Types.BTy t -> Ripe.Types.show_ty t
+    | Ripe.Types.BOpaque -> "opaque"
+  in
+  print_endline (String.concat " " (List.map name builtins));
+  Printf.printf "%d\n" (List.length builtins);
+  [%expect
+    {|
+    i8 i16 i32 i64 u8 u16 u32 u64 isize usize f32 f64 bool char cstr str never opaque
+    18
+    |}]
+
+let%expect_test "resolve: the dump lists what each name resolved to" =
+  let _, uses = resolve_src 0 {|func f(a: i32) i32 { return a }|} in
+  print_string (Ripe.Resolve.dump uses);
+  [%expect
+    {|
+    Resolver output
+
+    Each line maps a source byte range to its definition.
+    * (start,end): source byte range
+    * #module.id: declaration ID
+    * #-module.id: built in declaration
+    * kind name: resolved definition
+
+    (0,31) -> #0.0 Func f
+    (7,13) -> #0.1 Param a
+    (10,13) -> #-2.2 Type i32
+    (15,18) -> #-2.2 Type i32
+    (28,29) -> #0.1 Param a
     |}]
