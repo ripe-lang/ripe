@@ -32,4 +32,7 @@
   test_span
   test_types
   test_qname
-  test_interner))
+  test_interner
+  test_elf64
+  test_driver
+  test_platform))
