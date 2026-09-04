@@ -26,4 +26,5 @@
   test_x86
   test_layout
   test_typred
-  test_reachability))
+  test_reachability
+  test_panictable))
