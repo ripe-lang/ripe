@@ -1,13 +1,14 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let ctx src =
+let ctx ?(color = false) src =
   {
     Ripe.Diagnostic.sm = Ripe.Sourcemap.create ~base:0 src;
     filename = "<test>";
-    color = false;
+    color;
   }
 
-let render src d = print_string (Ripe.Diagnostic.render (ctx src) d)
+let render ?color src d =
+  print_string (Ripe.Diagnostic.render (ctx ?color src) d)
 
 (* Offsets are global so a diagnostic renders against whichever file it hit *)
 let render_in (program : Ripe.Program.t) d =

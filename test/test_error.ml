@@ -115,3 +115,87 @@ let%expect_test "error: message with type" =
         return value[0]
                ^~~~~~~~ on i32
     |}]
+
+let%expect_test "error: invalid operand names the op and the type" =
+  let src = "a + b\n" in
+  render src (Diagnostic.bad_operand (span src "+") ~op:"+" ~ty:"bool");
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:1:3
+        a + b
+          ^ cannot apply `+` to bool
+    |}]
+
+let%expect_test "error: cannot infer suggests writing the type" =
+  let src = "var x\n" in
+  render src (Diagnostic.cannot_infer (span src "x"));
+  [%expect
+    {|
+    error: cannot infer type
+      at <test>:1:5
+        var x
+            ^
+    help: write the type or give it a value
+    |}]
+
+let%expect_test "error: message with what was found instead" =
+  let src = "type T = 1\n" in
+  render src (Diagnostic.with_found (span src "1") "expected a type" "a number");
+  [%expect
+    {|
+    error: expected a type
+      at <test>:1:10
+        type T = 1
+                 ^ found a number
+    |}]
+
+let%expect_test "error: an unsupported abi" =
+  let src = {|extern "Rust" func f()|} in
+  render src (Diagnostic.unsupported_abi (span src {|"Rust"|}));
+  [%expect
+    {|
+    error: unsupported ABI
+      at <test>:1:8
+        extern "Rust" func f()
+               ^~~~~~ this ABI is not supported here
+    |}]
+
+let%expect_test "error: an operation on an opaque pointer" =
+  let src = "var y = *p\n" in
+  render src (Diagnostic.opaque_operation (span src "*p") "dereference");
+  [%expect
+    {|
+    error: cannot dereference *opaque
+      at <test>:1:9
+        var y = *p
+                ^~
+    help: cast to a typed pointer first
+    |}]
+
+let%expect_test "error: a constant that depends on itself" =
+  let src = "const C = C + 1\n" in
+  render src (Diagnostic.cyclic_constant (span src "C + 1"));
+  [%expect
+    {|
+    error: cyclic constant
+      at <test>:1:11
+        const C = C + 1
+                  ^~~~~
+    |}]
+
+let%expect_test "error: two break values that disagree" =
+  let src = "break 1\nbreak true\n" in
+  render src
+    (Diagnostic.break_disagree (span src "break true") "this one is bool"
+       ~other:(span src "break 1") ~other_message:"this one is i32");
+  [%expect
+    {|
+    error: `break` values disagree
+      at <test>:2:1
+        break true
+        ^~~~~~~~~~ this one is bool
+      at <test>:1:1
+        break 1
+        ^~~~~~~ this one is i32
+    |}]
