@@ -24,4 +24,5 @@
   test_nonempty
   test_mir
   test_x86
-  test_layout))
+  test_layout
+  test_typred))
