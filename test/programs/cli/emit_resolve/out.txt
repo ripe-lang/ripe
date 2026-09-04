@@ -1,0 +1,19 @@
+Resolver output
+
+Each line maps a source byte range to its definition.
+* (start,end): source byte range
+* #module.id: declaration ID
+* #-module.id: built in declaration
+* kind name: resolved definition
+
+(0,47) -> #0.0 Func add
+(9,15) -> #0.2 Param a
+(12,15) -> #-2.2 Type i32
+(17,23) -> #0.3 Param b
+(20,23) -> #-2.2 Type i32
+(25,28) -> #-2.2 Type i32
+(40,41) -> #0.2 Param a
+(44,45) -> #0.3 Param b
+(49,87) -> #0.1 Func main
+(61,64) -> #-2.2 Type i32
+(76,79) -> #0.0 Func add

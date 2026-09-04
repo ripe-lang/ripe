@@ -14,6 +14,7 @@ IMPORT_PATH_LABEL = "<import-path>"
 TEST_TIMEOUT = 10
 BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
+FLAGS_FILE = "flags.txt"
 
 
 def indented(text):
@@ -68,12 +69,43 @@ def broken_reason(testdir):
     return None
 
 
+def extra_flags(testdir):
+    """The ripec arguments a test needs in place of building a binary."""
+    path = os.path.join(testdir, FLAGS_FILE)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return f.read().split()
+
+
+def scrub(text, testdir):
+    return text.replace(os.path.realpath(testdir) + os.sep, "").replace(
+        IMPORT_PATH + os.sep, IMPORT_PATH_LABEL + os.sep
+    )
+
+
+def compare(actual, golden, label, promote):
+    with open(golden, encoding="utf-8") as f:
+        want = f.read()
+    if actual == want:
+        return "ok", ""
+    if promote:
+        with open(golden, "w", encoding="utf-8") as f:
+            f.write(actual)
+        return "promoted", ""
+    return "mismatch", diff(want, actual, label)
+
+
 def check_one(ripec, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
+    flags = extra_flags(testdir)
+    command = [ripec, "-I", IMPORT_PATH]
+    command += flags if flags is not None else ["-o", binary]
+    command.append("main.rp")
     try:
         compile = subprocess.run(
-            [ripec, "-I", IMPORT_PATH, "-o", binary, "main.rp"],
+            command,
             cwd=testdir,
             capture_output=True,
             text=True,
@@ -84,25 +116,20 @@ def check_one(ripec, testdir, workdir, promote=False):
 
     err_golden = os.path.join(testdir, "compilererr.txt")
     if os.path.isfile(err_golden):
-        with open(err_golden, encoding="utf-8") as f:
-            want = f.read()
         if compile.returncode == 0:
             return "compiled clean", "expected a compile error, got none\n"
-        actual = (
-            (compile.stdout + compile.stderr)
-            .replace(os.path.realpath(testdir) + os.sep, "")
-            .replace(IMPORT_PATH + os.sep, IMPORT_PATH_LABEL + os.sep)
-        )
-        if actual == want:
-            return "ok", ""
-        if promote:
-            with open(err_golden, "w", encoding="utf-8") as f:
-                f.write(actual)
-            return "promoted", ""
-        return "mismatch", diff(want, actual, "compilererr.txt")
+        actual = scrub(compile.stdout + compile.stderr, testdir)
+        return compare(actual, err_golden, "compilererr.txt", promote)
 
     if compile.returncode != 0:
         return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
+
+    if flags is not None:
+        actual = scrub(compile.stdout + compile.stderr, testdir)
+        out_golden = os.path.join(testdir, "out.txt")
+        if not os.path.isfile(out_golden):
+            return "no golden", "out.txt missing\nActual:\n" + indented(actual)
+        return compare(actual, out_golden, "out.txt", promote)
 
     try:
         run = subprocess.run(
@@ -115,16 +142,7 @@ def check_one(ripec, testdir, workdir, promote=False):
     out_golden = os.path.join(testdir, "out.txt")
     if not os.path.isfile(out_golden):
         return "no golden", "out.txt missing\nActual:\n" + indented(actual)
-
-    with open(out_golden, encoding="utf-8") as f:
-        want = f.read()
-    if actual == want:
-        return "ok", ""
-    if promote:
-        with open(out_golden, "w", encoding="utf-8") as f:
-            f.write(actual)
-        return "promoted", ""
-    return "mismatch", diff(want, actual, "out.txt")
+    return compare(actual, out_golden, "out.txt", promote)
 
 
 def report(results, succeeded, failed, broken):
@@ -163,8 +181,9 @@ def check(ripec, testname, verbose, promote=False):
     with tempfile.TemporaryDirectory() as workdir:
         for testdir in tests(testname):
             name = os.path.relpath(testdir, TEST_DIR)
-            status, log = check_one(ripec, testdir, workdir, promote)
             reason = broken_reason(testdir)
+            # A broken test would bake its wrong output into the golden
+            status, log = check_one(ripec, testdir, workdir, promote and reason is None)
             passing = status in ("ok", "promoted")
 
             # A broken test that starts passing has to be noticed or the marker rots

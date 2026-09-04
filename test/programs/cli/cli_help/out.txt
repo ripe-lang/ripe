@@ -1,0 +1,27 @@
+The Ripe compiler
+
+Usage: ripec [OPTIONS] <FILE>
+
+Options:
+  -e, --emit <STAGE>    Stop compilation after <STAGE> and print its output:
+                          tokens  the lexer token stream
+                          ast     the untyped syntax tree
+                          resolve  the resolved symbol table
+                          tast    the typed syntax tree
+                          check   the typecheck result
+                          mir     the middle intermediate representation
+                          qbe     the QBE intermediate representation
+                          asm     the target assembly
+                          obj     the relocatable object file
+  -b, --backend <NAME>  Select the code generator: qbe, x86 (default qbe)
+  -o, --output <FILE>   Write the compiler output to <FILE>
+  -l, --library <NAME>  Link with the named library
+  -I, --import-path <DIR>
+                        Add a directory to the import search path
+  --stats               Print compiler timing and tool commands
+  -h, --help            Display this list of options
+
+Examples:
+  ripec source.rp
+  ripec --emit tast source.rp
+  ripec -o output.s source.rp
