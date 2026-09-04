@@ -217,9 +217,9 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    "var const var return if else while for in true false break continue \
-     sizeof bitcast null extern struct pub func type undefined\n\
-     import module loop\n";
+    {|var const var return if else while for in true false break continue sizeof bitcast null extern struct pub func type undefined
+import module loop
+|};
   [%expect
     {|
     KW var

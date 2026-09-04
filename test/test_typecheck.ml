@@ -175,9 +175,9 @@ let%expect_test "typecheck: unreachable code after continue" =
 
 let%expect_test "typecheck: unreachable code after a returning if" =
   run_src
-    "func f() i32 { if true { return 1 } else { return 2 }\n\
-    \    g() }\n\
-     func g() {}";
+    {|func f() i32 { if true { return 1 } else { return 2 }
+    g() }
+func g() {}|};
   [%expect
     {|
     warning: unreachable code
@@ -3236,8 +3236,8 @@ func f() i32 { var y = if true { 10 } else { exit(1) }; return y }
 
 let%expect_test "typecheck: if-expr arm type is order independent" =
   run_src
-    "func f() i32 { var x: i64 = 5\n\
-    \ var y = if true { x } else { 10 }; return y as i32 }";
+    {|func f() i32 { var x: i64 = 5
+ var y = if true { x } else { 10 }; return y as i32 }|};
   [%expect
     {|
     error: type mismatch
@@ -3276,9 +3276,8 @@ func f() i32 { var y = if true { if false { 10 } else { exit(1) } } else
 
 let%expect_test "typecheck: nested concrete arm anchors the outer if-expr" =
   run_src
-    "func f() i32 { var x: i64 = 7\n\
-    \ var y = if true { if false { x } else { 5 } } else { 10 }; return y as \
-     i32 }";
+    {|func f() i32 { var x: i64 = 7
+ var y = if true { if false { x } else { 5 } } else { 10 }; return y as i32 }|};
   [%expect
     {|
     error: type mismatch
@@ -3349,8 +3348,8 @@ let%expect_test "collapse: value if arms must agree" =
 
 let%expect_test "collapse: a never arm coerces to the live arm" =
   run_src
-    "func f(c: bool) i32 { var x: i32 = if c { 1 } else { return 0 }\n\
-    \ return x }";
+    {|func f(c: bool) i32 { var x: i32 = if c { 1 } else { return 0 }
+ return x }|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: value if without else is unit" =
@@ -3373,16 +3372,16 @@ let%expect_test "collapse: never function may loop forever" =
 
 let%expect_test "collapse: break in a value arm inside a loop" =
   run_src
-    "func f() i32 { while true { var x: i32 = if false { 1 } else { break }\n\
-    \ return x }; return 0 }";
+    {|func f() i32 { while true { var x: i32 = if false { 1 } else { break }
+ return x }; return 0 }|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: continue as a value runs the step" =
   run_src
-    "func f() i32 { var i: i32 = 0\n\
-    \ while i < 3 { var x: i32 = if i == 2 { i } else { i = i + 1\n\
-    \ continue }\n\
-    \ return x }; return 9 }";
+    {|func f() i32 { var i: i32 = 0
+ while i < 3 { var x: i32 = if i == 2 { i } else { i = i + 1
+ continue }
+ return x }; return 9 }|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: discarded arithmetic warns" =
