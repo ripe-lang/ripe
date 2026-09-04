@@ -27,4 +27,5 @@
   test_layout
   test_typred
   test_reachability
-  test_panictable))
+  test_panictable
+  test_program))

@@ -23,17 +23,35 @@ let resolve_src module_id src =
   let uses, _ = Diag.finish diags uses in
   (decls, uses)
 
-let load_program (files : (string * string) list) =
-  let read_file name =
-    match List.assoc_opt name files with
-    | Some src -> src
-    | None -> raise (Sys_error name)
+let read_from files name =
+  match List.assoc_opt name files with
+  | Some src -> src
+  | None -> raise (Sys_error name)
+
+let list_from files dir =
+  let prefix = if String.is_empty dir then "" else dir ^ Filename.dir_sep in
+  let strip name =
+    String.sub name (String.length prefix)
+      (String.length name - String.length prefix)
   in
-  let list_dir name = raise (Sys_error name) in
+  let entries =
+    files |> List.map fst
+    |> List.filter (String.starts_with ~prefix)
+    |> List.map strip
+    |> List.filter (fun name -> not (String.contains name '/'))
+  in
+  if List.is_empty entries then raise (Sys_error dir) else entries
+
+let load_tree ?(search_roots = []) (files : (string * string) list) =
   let diags = Ripe.Diagnostic.sink () in
   let program =
-    Ripe.Program.load ~diags ~read_file ~list_dir ~root_filename:"main.rp" ()
+    Ripe.Program.load ~diags ~read_file:(read_from files)
+      ~list_dir:(list_from files) ~search_roots ~root_filename:"main.rp" ()
   in
+  (program, diags)
+
+let load_program ?search_roots (files : (string * string) list) =
+  let program, diags = load_tree ?search_roots files in
   (Ripe.Resolve.resolve_program ~diags program, diags)
 
 let run_program files =
