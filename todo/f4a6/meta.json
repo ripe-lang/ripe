@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-03 18:04:31.290680",
+  "depends": [],
+  "id": "f4a6",
+  "priority": "medium",
+  "source": "test/test_reachability.ml",
+  "status": "open",
+  "tags": [
+    "sema"
+  ],
+  "title": "A match arm never gets walked so this answers false",
+  "updated_at": "2026-09-03 22:37:59.084170"
+}
