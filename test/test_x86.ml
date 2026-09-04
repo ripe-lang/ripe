@@ -2,15 +2,10 @@
 
 open Ripe
 
-let hex (bytes : string) : string =
-  String.to_seq bytes
-  |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
-  |> List.of_seq |> String.concat " "
-
 let encode ?(labels = []) (instrs : Codegenx86.instr list) : unit =
   let encoder = Codegenx86.create () in
   List.iter (Codegenx86.instr encoder) instrs;
-  print_string (hex (Codegenx86.finish encoder ~labels))
+  print_string (Fake.hex (Codegenx86.finish encoder ~labels))
 
 let%expect_test "mov imm32 needs no prefix for the low registers" =
   encode [ Codegenx86.Mov_imm (W32, Rax, 42L) ];

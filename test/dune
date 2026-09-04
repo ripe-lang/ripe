@@ -8,6 +8,7 @@
   spanutils
   diag
   dump
+  fake
   pipeline
   test_lexer
   test_parser
