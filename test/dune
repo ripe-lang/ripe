@@ -25,4 +25,5 @@
   test_mir
   test_x86
   test_layout
-  test_typred))
+  test_typred
+  test_reachability))
