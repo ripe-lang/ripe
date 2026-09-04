@@ -174,7 +174,7 @@ let int_binop op a b =
     | Ast.Add -> Some (add a b)
     | Ast.Sub -> Some (sub a b)
     | Ast.Mul -> Some (mul a b)
-    (* FIXME: This is temporary *)
+    (* FIXME(cdbe): This is temporary *)
     | Ast.Div when b.magnitude = 0L -> None
     | Ast.Div -> Some (div a b)
     | Ast.Mod when b.magnitude = 0L -> None
