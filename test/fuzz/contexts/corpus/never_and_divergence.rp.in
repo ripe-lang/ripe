@@ -1,0 +1,8 @@
+func spin() never { loop {} }
+func take(n: never) i32 { return 0 }
+struct hole { a: never }
+func main() i32 {
+  var p: *never = null
+  var n = if false { spin() } else { 1 }
+  return n
+}

@@ -1,0 +1,2 @@
+var G: %%T%% = %%L%%
+func main() i32 { return 0 }

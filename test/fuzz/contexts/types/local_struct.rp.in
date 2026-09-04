@@ -1,0 +1,5 @@
+func main() i32 {
+  struct S { a: %%T%% }
+  var v = S { %%L%% }
+  return 0
+}

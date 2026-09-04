@@ -1,0 +1,7 @@
+func main() i32 {
+  struct pair { a: i32; b: i32 }
+  type small = i32
+  func helper(n: small) i32 { return n + 1 }
+  var v = pair { 1, 2 }
+  return helper(v.a) + v.b
+}
