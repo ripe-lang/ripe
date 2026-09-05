@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-05 01:12:14.165383",
+  "depends": [],
+  "id": "ba16",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "diagnostics"
+  ],
+  "title": "Spacing in diagnostic snippets is unpredictable",
+  "updated_at": "2026-09-05 01:12:14.165396"
+}
