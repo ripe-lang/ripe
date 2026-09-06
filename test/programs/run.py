@@ -15,6 +15,7 @@ TEST_TIMEOUT = 10
 BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
 FLAGS_FILE = "flags.txt"
+CC = "cc"
 
 
 def indented(text):
@@ -37,6 +38,17 @@ def find_ripec(explicit):
         return found
 
     return built
+
+
+def find_runtime(explicit):
+    """The panic object a hand linked test needs, since it skips ripec's own link."""
+    if explicit:
+        return os.path.abspath(explicit)
+
+    built = os.path.join(
+        TEST_DIR, "..", "..", "_build", "default", "runtime", "panic.o"
+    )
+    return os.path.abspath(built)
 
 
 def tests(testname):
@@ -78,6 +90,12 @@ def extra_flags(testdir):
         return f.read().split()
 
 
+def c_sources(testdir):
+    """The C files a test links against the compiled ripe object."""
+    found = [name for name in os.listdir(testdir) if name.endswith(".c")]
+    return sorted(os.path.join(testdir, name) for name in found)
+
+
 def scrub(text, testdir):
     return text.replace(os.path.realpath(testdir) + os.sep, "").replace(
         IMPORT_PATH + os.sep, IMPORT_PATH_LABEL + os.sep
@@ -96,12 +114,25 @@ def compare(actual, golden, label, promote):
     return "mismatch", diff(want, actual, label)
 
 
-def check_one(ripec, testdir, workdir, promote=False):
+def link(runtime, binary, object_file, sources):
+    """Put the ripe object and the test's C files through cc the way ripec would."""
+    command = [CC, "-o", binary, object_file] + sources + [runtime]
+    return subprocess.run(command, capture_output=True, text=True, timeout=TEST_TIMEOUT)
+
+
+def check_one(ripec, runtime, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
+    object_file = os.path.join(workdir, "main.o")
     flags = extra_flags(testdir)
+    sources = c_sources(testdir) if flags is None else []
     command = [ripec, "-I", IMPORT_PATH]
-    command += flags if flags is not None else ["-o", binary]
+    if flags is not None:
+        command += flags
+    elif sources:
+        command += ["--emit", "obj", "-o", object_file]
+    else:
+        command += ["-o", binary]
     command.append("main.rp")
     try:
         compile = subprocess.run(
@@ -130,6 +161,14 @@ def check_one(ripec, testdir, workdir, promote=False):
         if not os.path.isfile(out_golden):
             return "no golden", "out.txt missing\nActual:\n" + indented(actual)
         return compare(actual, out_golden, "out.txt", promote)
+
+    if sources:
+        try:
+            linked = link(runtime, binary, object_file, sources)
+        except subprocess.TimeoutExpired:
+            return "link timeout", "the linker didn't finish\n"
+        if linked.returncode != 0:
+            return "link error", "Error:\n" + indented(linked.stdout + linked.stderr)
 
     try:
         run = subprocess.run(
@@ -172,7 +211,7 @@ def report(results, succeeded, failed, broken):
         print("Failed: %d" % len(failed))
 
 
-def check(ripec, testname, verbose, promote=False):
+def check(ripec, runtime, testname, verbose, promote=False):
     results = []
     succeeded = []
     failed = []
@@ -183,7 +222,9 @@ def check(ripec, testname, verbose, promote=False):
             name = os.path.relpath(testdir, TEST_DIR)
             reason = broken_reason(testdir)
             # A broken test would bake its wrong output into the golden
-            status, log = check_one(ripec, testdir, workdir, promote and reason is None)
+            status, log = check_one(
+                ripec, runtime, testdir, workdir, promote and reason is None
+            )
             passing = status in ("ok", "promoted")
 
             # A broken test that starts passing has to be noticed or the marker rots
@@ -215,6 +256,11 @@ def main():
         help="ripe compiler to use (defaults to the build dir, then ripec on PATH)",
     )
     parser.add_argument(
+        "--runtime",
+        default=None,
+        help="panic object to link a C test against (defaults to the build dir)",
+    )
+    parser.add_argument(
         "testname",
         nargs="?",
         help="only run tests under the given subdirectory",
@@ -233,8 +279,9 @@ def main():
     args = parser.parse_args()
 
     ripec = find_ripec(args.ripec)
+    runtime = find_runtime(args.runtime)
 
-    return check(ripec, args.testname, args.verbose, args.promote)
+    return check(ripec, runtime, args.testname, args.verbose, args.promote)
 
 
 if __name__ == "__main__":
