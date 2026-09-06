@@ -26,7 +26,7 @@ def build_base(rev):
         capture_output=True,
         text=True,
     )
-    subprocess.run(["dune", "build"], cwd=BASE_TREE, check=True)
+    subprocess.run(["dune", "build", "--root", "."], cwd=BASE_TREE, check=True)
 
 
 def kinds(out):
