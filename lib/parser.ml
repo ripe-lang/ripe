@@ -182,13 +182,6 @@ let is_param_start st =
 let is_next_line_start st line is_start = st.tok_line > line && is_start st.tok
 let has_abi st = match (peek st).token with STRING _ -> true | _ -> false
 
-(* An `extern` opens a declaration unless another one or the line end follows *)
-let opens_extern st =
-  match (peek st).token with
-  | STRING _ | FUNC -> true
-  | _ when (peek_nth st 1).token = FUNC -> true
-  | tok -> not (is_semi tok || is_closer tok || tok = EOF || is_item_start tok)
-
 let opens_decl tok name after =
   match (tok, name, after) with
   | FUNC, IDENT _, LPAREN
@@ -196,8 +189,7 @@ let opens_decl tok name after =
   | TYPE, IDENT _, ASSIGN
   | (CONST | VAR), IDENT _, (COLON | ASSIGN)
   | IMPORT, IDENT _, _
-  | EXTERN, (STRING _ | FUNC), _
-  | PUBLIC, _, _ ->
+  | (PUBLIC | EXTERN), _, _ ->
       true
   | _ -> false
 
@@ -205,24 +197,16 @@ let opens_decl tok name after =
 let names_decl tok name =
   match (tok, name) with
   | (FUNC | STRUCT | ENUM | TYPE | CONST | VAR | IMPORT), IDENT _
-  | EXTERN, (STRING _ | FUNC)
-  | PUBLIC, _ ->
+  | (PUBLIC | EXTERN), _ ->
       true
   | _ -> false
 
-(* A keyword with nothing usable behind it opens a type or nothing at all *)
-let starts_item st =
-  match st.tok with
-  | EXTERN -> opens_extern st
-  | tok -> names_decl tok (peek st).token
-
+let starts_item st = names_decl st.tok (peek st).token
 let resumes_item st = starts_item st && not (is_stmt_start st.tok)
 
 (* A whole declaration behind a keyword means that keyword was a slip *)
 let is_stray_keyword st =
-  is_item_start st.tok && st.tok <> PUBLIC
-  (* An `extern func` is only missing its ABI so it keeps both words *)
-  && (not (st.tok = EXTERN && (peek st).token = FUNC))
+  is_item_start st.tok && st.tok <> PUBLIC && st.tok <> EXTERN
   && opens_decl (peek st).token (peek_nth st 1).token (peek_nth st 2).token
 
 (* The enclosing block needs its own closer back *)
@@ -332,11 +316,18 @@ let emit_parse_error st d =
   if not duplicate then Diagnostic.emit st.diags d
 
 let drop_stray_keyword st =
-  let headline =
-    if st.tok = EXTERN then "expected ABI name" else "expected identifier"
-  in
   advance st;
-  emit_parse_error st (found_error st headline)
+  emit_parse_error st (found_error st "expected identifier")
+
+let abi_wants_func st = function
+  | Ast.NamedAbi _ -> emit_parse_error st (found_error st "expected `func`")
+  | Ast.NoAbi | Ast.AbiError -> ()
+
+let no_variadic_body st span =
+  Diagnostic.emit st.diags
+    (Diagnostic.error "a function with a body cannot be variadic"
+    |> Diagnostic.at span
+    |> Diagnostic.help "`...` only works on a declaration with no body")
 
 let error_expr st d = { desc = ErrorExpr; span = recovery_span st d }
 let is_error_expr e = match e.desc with ErrorExpr -> true | _ -> false
@@ -634,12 +625,15 @@ and parse_abi st =
       let span = cur_span st in
       advance st;
       Ast.NamedAbi (name, span)
+  | _ when starts_item st ->
+      emit_parse_error st (found_error st "expected ABI name");
+      Ast.AbiError
   | _ ->
-      Diagnostic.emit st.diags
-        (Diagnostic.with_found (cur_span st) "expected ABI name"
-           (show_found_token st.tok));
+      let d = found_error st "expected ABI name" in
       (* The junk standing in for the ABI would derail what follows it *)
       sync_to_depth_token st st.tok_depth st.tok_line (at_one_of [ FUNC ]);
+      if st.tok <> FUNC then raise (ParseError d);
+      emit_parse_error st d;
       Ast.AbiError
 
 (* pub *)
@@ -652,6 +646,18 @@ and parse_modifiers st =
     | _ -> List.rev acc
   in
   go []
+
+(* pub, extern "C", pub extern "C" *)
+and parse_decl_modifiers st mods abi =
+  match st.tok with
+  | PUBLIC ->
+      advance st;
+      parse_decl_modifiers st (Ast.Pub :: mods) abi
+  | EXTERN when abi = Ast.NoAbi ->
+      advance st;
+      let abi = parse_abi st in
+      parse_decl_modifiers st mods abi
+  | _ -> (List.rev mods, abi)
 
 (* x: i32 *)
 and parse_fields st =
@@ -711,12 +717,12 @@ and parse_alias_def st mods =
    }
     : type_alias_def)
 
-(* (a: i32, b: i32) or (fmt: cstr, ...) returns (params, variadic) *)
+(* (a: i32, b: i32), (fmt: cstr, ...) *)
 and parse_params st =
   expect st LPAREN;
   let depth = st.tok_depth in
   let params = ref [] in
-  let variadic = ref false in
+  let variadic = ref None in
   let stop st = starts_member st || at_one_of [ COMMA; RPAREN; LBRACE ] st in
   let add lo name t =
     params :=
@@ -765,7 +771,7 @@ and parse_params st =
     while
       st.tok <> RPAREN
       && (not (is_params_end st.tok))
-      && (not !variadic)
+      && Option.is_none !variadic
       && (st.tok = COMMA || is_param_start st)
     do
       let stuck = cur_pos st in
@@ -777,8 +783,8 @@ and parse_params st =
       let sep_missing = (not after_comma) && !parsed && not (starts_item st) in
       if sep_missing then emit_parse_error st (param_sep_error sep_span);
       if st.tok = ELLIPSIS then (
-        advance st;
-        variadic := true)
+        variadic := Some (cur_span st);
+        advance st)
       else if
         st.tok <> RPAREN
         && (not (is_params_end st.tok))
@@ -787,7 +793,7 @@ and parse_params st =
       if cur_pos st = stuck then advance st
     done
   end;
-  if !variadic && st.tok <> RPAREN then begin
+  if Option.is_some !variadic && st.tok <> RPAREN then begin
     Diagnostic.emit st.diags
       (Diagnostic.error "`...` must be the last parameter"
       |> Diagnostic.at (cur_span st));
@@ -821,42 +827,46 @@ and parse_signature st =
   let ret = parse_ret_type st in
   (name, params, ret, variadic)
 
-(* func add(a: i32, b: i32) i32 { ... } *)
-and parse_func_def st mods =
+(* { return 1 } *)
+and parse_func_body st depth params =
+  (* A signature with a hole in it already said so once *)
+  if has_hole params && not (at st LBRACE) then begin
+    sync_to_item st depth;
+    [ Expr { desc = ErrorExpr; span = cur_span st } ]
+  end (* The body never opened so what stands here is junk *)
+  else if not (at st LBRACE) then begin
+    let d = expected_error st LBRACE in
+    emit_parse_error st d;
+    sync_past st depth d;
+    [ Expr (error_expr st d) ]
+  end
+  else
+    try parse_block st
+    with ParseError d ->
+      emit_parse_error st d;
+      sync_to_item st depth;
+      [ Expr (error_expr st d) ]
+
+(* func add(a: i32, b: i32) i32 { ... }, extern "C" func puts(s: cstr) i32 *)
+and parse_func_def st mods abi =
   let lo = cur_pos st in
   let depth = st.tok_depth in
   let name, params, ret, variadic = parse_signature st in
-  (* The declaration still stands when the body won't parse *)
-  let body =
-    (* A signature with a hole in it already said so once *)
-    if has_hole params && not (at st LBRACE) then begin
-      sync_to_item st depth;
-      [ Expr { desc = ErrorExpr; span = cur_span st } ]
-    end (* The body never opened so what stands here is junk *)
-    else if not (at st LBRACE) then begin
-      let d = expected_error st LBRACE in
-      emit_parse_error st d;
-      sync_past st depth d;
-      [ Expr (error_expr st d) ]
-    end
-    else
-      try parse_block st
-      with ParseError d ->
-        emit_parse_error st d;
-        sync_to_item st depth;
-        [ Expr (error_expr st d) ]
-  in
+  let imported = abi <> Ast.NoAbi && not (at st LBRACE) in
+  let body = if imported then [] else parse_func_body st depth params in
+  if not imported then Option.iter (no_variadic_body st) variadic;
   let hi = st.prev_end in
-  {
-    func_name = name;
-    params;
-    ret;
-    body;
-    func_modifiers = mods;
-    variadic;
-    extern_abi = NoAbi;
-    func_span = make_span st lo hi;
-  }
+  ( {
+      func_name = name;
+      params;
+      ret;
+      body;
+      func_modifiers = mods;
+      variadic = Option.is_some variadic;
+      extern_abi = abi;
+      func_span = make_span st lo hi;
+    },
+    imported )
 
 (* a + b * c *)
 and parse_expr ?(no_struct_lit = false) st min_prec =
@@ -1147,7 +1157,7 @@ and parse_header_expr st =
       emit_parse_error st d;
       error_expr st d
 
-(* x = 1 or f(x) *)
+(* x = 1, f(x) *)
 and parse_simple_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
@@ -1248,7 +1258,7 @@ and parse_stmts st =
   done;
   List.rev !stmts
 
-(* var n = 1 or if c { } or return x *)
+(* var n = 1, if c { }, return x *)
 and parse_stmt ?(no_pair = false) st =
   let lo = cur_pos st in
   match st.tok with
@@ -1276,7 +1286,7 @@ and parse_local_decl st =
     match st.tok with
     | STRUCT -> LocalStruct (parse_struct_def st modifiers)
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
-    | FUNC -> LocalFunc (parse_func_def st modifiers)
+    | FUNC -> LocalFunc (fst (parse_func_def st modifiers Ast.NoAbi))
     | ENUM -> LocalEnum (parse_enum_def st modifiers)
     | _ -> fail_found st "expected local declaration"
   in
@@ -1435,26 +1445,6 @@ let parse_global st mods =
   let hi = st.prev_end in
   Global { name; typ; init; kind; modifiers = mods; span = make_span st lo hi }
 
-(* extern "C" func add(a: i32, b: i32) i32 *)
-let parse_extern st =
-  let lo = cur_pos st in
-  advance st;
-  (* EXTERN *)
-  let extern_abi = parse_abi st in
-  let name, params, ret, variadic = parse_signature st in
-  let hi = st.prev_end in
-  Extern
-    {
-      func_name = name;
-      params;
-      ret;
-      body = [];
-      func_modifiers = [];
-      variadic;
-      extern_abi;
-      func_span = make_span st lo hi;
-    }
-
 (* pub func f() i32 { } *)
 let parse_decl st =
   let err () =
@@ -1462,24 +1452,31 @@ let parse_decl st =
     | RPAREN | RBRACKET | RBRACE -> fail st "unexpected closing delimiter"
     | _ -> fail_found st "expected declaration"
   in
-  let mods = parse_modifiers st in
-  let rec dispatch mods =
-    match (mods, st.tok) with
-    | _, _ when is_stray_keyword st ->
+  let rec dispatch mods abi =
+    match st.tok with
+    | _ when is_stray_keyword st ->
         drop_stray_keyword st;
-        dispatch (mods @ parse_modifiers st)
-    | _, STRUCT -> Struct (parse_struct_def st mods)
-    | _, FUNC -> Func (parse_func_def st mods)
-    | [], EXTERN when opens_extern st -> parse_extern st
-    | _ :: _, EXTERN when opens_extern st ->
-        emit_parse_error st (found_error st "expected declaration");
-        parse_extern st
-    | _, (CONST | VAR) -> parse_global st mods
-    | _, TYPE -> TypeAlias (parse_alias_def st mods)
-    | _, ENUM -> Enum (parse_enum_def st mods)
+        let mods, abi = parse_decl_modifiers st (List.rev mods) abi in
+        dispatch mods abi
+    | FUNC ->
+        let fd, imported = parse_func_def st mods abi in
+        if imported then Extern fd else Func fd
+    | STRUCT ->
+        abi_wants_func st abi;
+        Struct (parse_struct_def st mods)
+    | CONST | VAR ->
+        abi_wants_func st abi;
+        parse_global st mods
+    | TYPE ->
+        abi_wants_func st abi;
+        TypeAlias (parse_alias_def st mods)
+    | ENUM ->
+        abi_wants_func st abi;
+        Enum (parse_enum_def st mods)
     | _ -> err ()
   in
-  dispatch mods
+  let mods, abi = parse_decl_modifiers st [] Ast.NoAbi in
+  dispatch mods abi
 
 (* import math.vector *)
 let parse_import st =

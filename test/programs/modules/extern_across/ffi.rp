@@ -1,0 +1,5 @@
+pub extern "C" func abs(n: i32) i32
+
+pub extern "C" func doubled(x: i32) i32 {
+  return x * 2
+}

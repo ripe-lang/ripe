@@ -1308,6 +1308,46 @@ func f() {
 |};
   [%expect {| ok |}]
 
+let%expect_test "typecheck: extern definition callable" =
+  run_src
+    {|
+pub extern "C" func add(a: i32, b: i32) i32 { return a + b }
+func f() i32 { return add(1, 2) }
+|};
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: extern definition checks its body" =
+  run_src {|extern "C" func add(a: i32, b: i32) i32 { return a > b }|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:50
+        extern "C" func add(a: i32, b: i32) i32 { return a > b }
+                                                         ^~~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: extern definition warns about an unused parameter" =
+  run_src {|extern "C" func add(a: i32, b: i32) i32 { return a }|};
+  [%expect
+    {|
+    warning: unused variable: b
+      at <test>:1:29
+        extern "C" func add(a: i32, b: i32) i32 { return a }
+                                    ^~~~~~
+    help: prefix with an underscore: _b
+    ok
+    |}]
+
+let%expect_test "typecheck: an unsupported ABI on a definition" =
+  run_src {|pub extern "Rust" func add(a: i32) i32 { return a }|};
+  [%expect
+    {|
+    error: unsupported ABI
+      at <test>:1:12
+        pub extern "Rust" func add(a: i32) i32 { return a }
+                   ^~~~~~ this ABI is not supported here
+    |}]
+
 let%expect_test "typecheck: array literal inferred" =
   run_src "func f() { var a = [1, 2, 3]; a[0] }";
   [%expect {| ok |}]
