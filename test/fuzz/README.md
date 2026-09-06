@@ -47,11 +47,11 @@ These numbers come from `601fd7a`.
 
 | Script | Cases | Failures | Worst |
 | --- | --- | --- | --- |
-| `test_mutations.py` | 47822 | 105 | 10 |
-| `test_cluster_failures.py` | 47822 | 105 in 70 groups | |
+| `test_mutations.py` | 50831 | 120 | 10 |
+| `test_cluster_failures.py` | 50831 | 120 in 71 groups | |
 | `test_delim_perms.py` | 5760 | 75 | |
-| `test_recovery.py` | 1200 | 0 | 4 |
-| `test_type_positions.py` | 927 | 0 | 2 |
+| `test_recovery.py` | 1200 | 4 | 5 |
+| `test_type_positions.py` | 1062 | 0 | 2 |
 | `test_delim_random.py` | 400 | 0 | |
 | `test_delim_mixes.py` | 150 | 0 | |
 

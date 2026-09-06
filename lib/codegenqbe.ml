@@ -734,6 +734,16 @@ let qbe_call_ty ctx kind ty =
   | Mir.External when is_aggregate ty -> qbe_abi_ty ctx ty
   | _ -> qbe_ty ty
 
+(* C hands an aggregate over by value so QBE has to see the layout *)
+let qbe_param_ty ctx abi ty =
+  if abi = C && is_aggregate ty then qbe_abi_ty ctx ty else qbe_ty ty
+
+let c_result_slot (func : Mir.func) bindings =
+  match func.Mir.result with
+  | Some id when func.Mir.abi = C && is_aggregate func.Mir.return_ty -> (
+      match bindings.(id) with Value name | Memory name -> Some name)
+  | _ -> None
+
 let emit_mir_call mctx (call : Mir.call) =
   let ctx = mctx.qbe in
   let hidden_result =
@@ -792,7 +802,10 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
         (emit_mir_check_condition mctx check)
         (mir_block_label ctx fail) (mir_block_label ctx ok)
   | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
-  | Mir.ReturnValue None -> put ctx "ret\n"
+  | Mir.ReturnValue None -> (
+      match c_result_slot mctx.func mctx.bindings with
+      | Some slot -> emit ctx "ret %s\n" slot
+      | None -> put ctx "ret\n")
   | Mir.ReturnValue (Some returned) ->
       let returned = emit_mir_operand mctx returned in
       put ctx "ret ";
@@ -859,14 +872,15 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   ctx.tmp := 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
+  let returns_itself = c_result_slot func bindings <> None in
   (* The result local lives in the caller's storage so it borrows the hidden pointer *)
   let result_tmp =
     match func.Mir.result with
-    | None -> None
-    | Some id ->
+    | Some id when not returns_itself ->
         let tmp = fresh ctx in
         bindings.(id) <- Memory tmp;
         Some tmp
+    | _ -> None
   in
   let params =
     List.map
@@ -878,14 +892,16 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   in
   let params_text =
     (match result_tmp with None -> [] | Some tmp -> [ "l " ^ tmp ])
-    @ List.map (fun (_, ty, tmp) -> qbe_ty ty ^ " " ^ tmp) params
+    @ List.map
+        (fun (_, ty, tmp) -> qbe_param_ty ctx func.Mir.abi ty ^ " " ^ tmp)
+        params
   in
   let is_main = func.Mir.entry_point && func.Mir.return_ty = TInt I32 in
   let return_text =
     if
       func.Mir.return_ty = TUnit
       || func.Mir.return_ty = TNever
-      || func.Mir.result <> None
+      || Option.is_some result_tmp
     then ""
     else qbe_abi_ty ctx func.Mir.return_ty ^ " "
   in
@@ -899,7 +915,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
       match bindings.(id) with
       | Value _ -> ()
       | Memory slot ->
-          if Some id <> func.Mir.result then
+          if returns_itself || Some id <> func.Mir.result then
             emit_op1 ctx slot "l"
               (alloc_instr ctx.structs local.Mir.ty)
               (string_of_int (Layout.ty_size ctx.structs local.Mir.ty)))

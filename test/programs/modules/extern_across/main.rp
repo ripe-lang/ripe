@@ -1,0 +1,5 @@
+import ffi
+
+func main() i32 {
+  return ffi.doubled(ffi.abs(-11))
+}

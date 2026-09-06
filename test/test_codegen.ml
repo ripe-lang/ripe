@@ -150,3 +150,53 @@ func main() i32 {
 }
 |};
   [%expect {| ok |}]
+
+let%expect_test "qbe hands a C export its aggregates by value" =
+  run_codegen
+    {|
+struct Pair { left: i32; right: i32 }
+pub extern "C" func first(p: Pair) i32 { return p.left }
+|};
+  [%expect
+    {|
+    type :Pair = { w, w }
+
+    export function w $first(:Pair %t0) {
+    @start
+    %p =l alloc4 8
+    blit %t0, %p, 8
+    %t1 =w loadsw %p
+    ret %t1
+    }
+    |}]
+
+let%expect_test "qbe returns a C aggregate to the caller" =
+  run_codegen_ok
+    {|
+struct Pair { left: i32; right: i32 }
+pub extern "C" func make(x: i32) Pair { return Pair { left: x, right: x } }
+func main() i32 {
+  var pair = make(2)
+  return pair.left + pair.right
+}
+|};
+  [%expect {| ok |}]
+
+let%expect_test "qbe keeps the Ripe ABI for a Ripe export" =
+  run_codegen
+    {|
+struct Pair { left: i32; right: i32 }
+pub extern "Ripe" func first(p: Pair) i32 { return p.left }
+|};
+  [%expect
+    {|
+    type :Pair = { w, w }
+
+    export function w $first(l %t0) {
+    @start
+    %p =l alloc4 8
+    blit %t0, %p, 8
+    %t1 =w loadsw %p
+    ret %t1
+    }
+    |}]

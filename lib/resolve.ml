@@ -157,15 +157,11 @@ let module_path_at r span =
 let main_name = Interner.intern "main"
 let is_entry st kind name = kind = Symbol.Func && st.is_root && name = main_name
 
-(* An extern and the entry point are named by something outside the compiler *)
+(* The entry point is named by something outside the compiler *)
 let declaration_link_name st kind name =
   let text = Interner.text name in
-  if not st.qualify then text
-  else if is_entry st kind name then text
-  else
-    match kind with
-    | Symbol.Extern -> text
-    | _ -> Mangle.declaration st.module_path text
+  if (not st.qualify) || is_entry st kind name then text
+  else Mangle.declaration st.module_path text
 
 let mint ?(visibility = Symbol.Private) ?link_name ?name_span st kind name span
     =
@@ -214,8 +210,8 @@ let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
             (mint ~visibility ~link_name ~name_span:ident.span st kind name span)
       )
 
-let declare_global st kind visibility ident span =
-  declare_in st.top.values st kind visibility ident span
+let declare_global ?link_name st kind visibility ident span =
+  declare_in ?link_name st.top.values st kind visibility ident span
 
 let declare_type st visibility ident span =
   declare_in st.top.types st Symbol.Type visibility ident span
@@ -601,6 +597,11 @@ and resolve_decl st = function
 let visibility modifiers =
   if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
 
+let foreign_link_name (fd : Ast.func_def) =
+  if fd.extern_abi <> Ast.NoAbi && List.mem Ast.Pub fd.func_modifiers then
+    Some (Ast.ident_text fd.func_name)
+  else None
+
 let make_state ~out ~diags ~module_id ~module_path ~qualify ~is_root =
   let top = new_scope (Some out.prelude) in
   {
@@ -621,12 +622,15 @@ let declare_decls st decls =
   List.iter
     (function
       | Func fd ->
-          declare_global st Symbol.Func
+          declare_global ?link_name:(foreign_link_name fd) st Symbol.Func
             (visibility fd.func_modifiers)
             fd.func_name fd.func_span
       | Extern fd ->
-          declare_global st Symbol.Extern Symbol.Private fd.func_name
-            fd.func_span
+          declare_global
+            ~link_name:(Ast.ident_text fd.func_name)
+            st Symbol.Extern
+            (visibility fd.func_modifiers)
+            fd.func_name fd.func_span
       | Global gd ->
           declare_global st (Symbol.Global gd.kind) (visibility gd.modifiers)
             gd.name gd.span

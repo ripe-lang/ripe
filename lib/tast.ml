@@ -70,6 +70,7 @@ type tfunc_def = {
   body : tblock;
   modifiers : Ast.modifier list;
   variadic : bool;
+  abi : func_abi;
 }
 [@@deriving show { with_path = false }]
 

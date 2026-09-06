@@ -572,6 +572,79 @@ pub func main() {}
     main -> _R4math4main
     |}]
 
+let%expect_test "resolve: only a public ABI keeps the name C spells" =
+  let resolved, _ =
+    load_program
+      [
+        ("main.rp", {|
+import ffi
+func main() i32 { return 0 }
+|});
+        ( "ffi.rp",
+          {|
+extern "C" func puts(s: cstr) i32
+pub extern "C" func exported(x: i32) i32 { return x }
+pub extern "Ripe" func unmangled(x: i32) i32 { return x }
+extern "C" func callback(x: i32) i32 { return x }
+pub func plain(x: i32) i32 { return x }
+|}
+        );
+      ]
+  in
+  let show (decl : Ripe.Ast.decl) =
+    match decl with
+    | Ripe.Ast.Func fd | Ripe.Ast.Extern fd ->
+        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.func_span in
+        Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
+          sym.Ripe.Symbol.link_name
+    | _ -> ()
+  in
+  List.iter show resolved.Ripe.Resolve.decls;
+  [%expect
+    {|
+    main -> main
+    puts -> puts
+    exported -> exported
+    unmangled -> unmangled
+    callback -> _R3ffi8callback
+    plain -> _R3ffi5plain
+    |}]
+
+let%expect_test "resolve: a public import is callable from another module" =
+  run_resolve_program
+    [
+      ("main.rp", {|
+import ffi
+func main() i32 { return ffi.puts("hi") }
+|});
+      ("ffi.rp", {|
+pub extern "C" func puts(s: cstr) i32
+|});
+    ];
+  [%expect {| ok |}]
+
+let%expect_test "resolve: a private import stays in its module" =
+  run_resolve_program
+    [
+      ("main.rp", {|
+import ffi
+func main() i32 { return ffi.puts("hi") }
+|});
+      ("ffi.rp", {|
+extern "C" func puts(s: cstr) i32
+|});
+    ];
+  [%expect
+    {|
+    error: private declaration
+      at <test>:3:26
+        func main() i32 { return ffi.puts("hi") }
+                                 ^~~~~~~~
+      at <test>:2:12
+        extern "C" func puts(s: cstr) i32
+                   ^~~~~~~~~~~~~~~~~~~~~~ declared private here
+    |}]
+
 let%expect_test "resolve: a local function may call a later sibling" =
   run_src
     {|func f() i32 {

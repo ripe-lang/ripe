@@ -113,6 +113,7 @@ type func = {
   name : string;
   source_name : string;
   public : bool;
+  abi : Types.func_abi;
   params : local_id list;
   result : local_id option;
   locals : local array;
@@ -1236,6 +1237,7 @@ let build_func struct_layouts globals (func : Tast.tfunc_def) =
     name = func.name;
     source_name = func.source_name;
     public = List.mem Ast.Pub func.modifiers;
+    abi = func.abi;
     params;
     result = state.result;
     locals = finish_locals state;

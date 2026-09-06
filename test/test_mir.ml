@@ -25,6 +25,7 @@ let func ?(locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |])
     M.name = "f";
     source_name = "f";
     public = false;
+    abi = Ripe.Types.Ripe;
     params = [];
     result = None;
     locals;

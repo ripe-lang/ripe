@@ -14,9 +14,14 @@ SHAPES = (
     ("*[2]i32", "null"),
     ("[2]*i32", "[null, null]"),
     ("never", "spin()"),
+    ('extern "C" func (i32) i32', "hc"),
 )
 
-PRELUDE = "func h0(a: i32) i32 { return a }\nfunc spin() never { loop {} }\n"
+PRELUDE = (
+    "func h0(a: i32) i32 { return a }\n"
+    'extern "C" func hc(a: i32) i32 { return a }\n'
+    "func spin() never { loop {} }\n"
+)
 
 SKIP = {
     ("ret", "never"),

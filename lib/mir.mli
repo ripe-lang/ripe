@@ -108,6 +108,7 @@ type func = {
   name : string;
   source_name : string;
   public : bool;
+  abi : Types.func_abi;
   params : local_id list;
   result : local_id option;
   locals : local array;

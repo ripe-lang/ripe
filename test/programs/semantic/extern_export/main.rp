@@ -1,0 +1,16 @@
+struct Pair { a: i32; b: i32 }
+
+pub extern "C" func make_pair(x: i32) Pair {
+  return Pair { a: x, b: x * 2 }
+}
+
+pub extern "C" func total(p: Pair) i32 {
+  return p.a + p.b
+}
+
+extern "C" func step(x: i32) i32 { return x + 1 }
+
+func main() i32 {
+  var p = make_pair(7)
+  return step(total(p))
+}

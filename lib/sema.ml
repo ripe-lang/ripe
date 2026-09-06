@@ -2293,6 +2293,10 @@ let check_func ?(is_extern = false) env fd =
     body = tbody;
     modifiers = fd.func_modifiers;
     variadic = fd.variadic;
+    abi =
+      (match collected with
+      | Some s -> s.abi
+      | None -> resolve_abi env fd.extern_abi);
   }
 
 let check_global env (gd : global_def) =

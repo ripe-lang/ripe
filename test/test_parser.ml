@@ -825,13 +825,11 @@ let%expect_test "parse: modifiers on a type alias" =
 
 let%expect_test "parse: modifier before extern" =
   run_src {|pub extern "C" func puts(s: cstr) i32|};
-  [%expect
-    {|
-    error: expected declaration
-      at <test>:1:5
-        pub extern "C" func puts(s: cstr) i32
-            ^~~~~~ found `extern`
-    |}]
+  [%expect {| ok |}]
+
+let%expect_test "parse: modifier after extern" =
+  run_src {|extern "C" pub func puts(s: cstr) i32|};
+  [%expect {| ok |}]
 
 let%expect_test "parse: stray token at top level" =
   run_src "return 1";
@@ -1268,6 +1266,120 @@ func main() i32 { return 0 }
                ^~~~~~ this ABI is not supported here
     |}]
 
+let%expect_test "parse: extern function with a body" =
+  run_src {|extern "C" func add(a: i32, b: i32) i32 { return a + b }|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: Ripe extern function with a body" =
+  run_src {|extern "Ripe" func add(a: i32, b: i32) i32 { return a + b }|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: extern alone" =
+  run_src {|extern
+func main() i32 { return 0 }
+|};
+  [%expect
+    {|
+    error: expected ABI name
+      at <test>:2:1
+        func main() i32 { return 0 }
+        ^~~~ found `func`
+    |}]
+
+let%expect_test "parse: extern at the end of the file" =
+  run_src {|func main() i32 { return 0 }
+extern|};
+  [%expect
+    {|
+    error: expected ABI name
+      at <test>:2:7
+        extern
+              ^ found <eof>
+    |}]
+
+let%expect_test "parse: ABI on a struct" =
+  run_src {|extern "C" struct S { x: i32 }|};
+  [%expect
+    {|
+    error: expected `func`
+      at <test>:1:12
+        extern "C" struct S { x: i32 }
+                   ^~~~~~ found `struct`
+    |}]
+
+let%expect_test "parse: ABI on a global" =
+  run_src {|extern "C" var n: i32 = 0|};
+  [%expect
+    {|
+    error: expected `func`
+      at <test>:1:12
+        extern "C" var n: i32 = 0
+                   ^~~ found `var`
+    |}]
+
+let%expect_test "parse: missing ABI before a struct" =
+  run_src {|extern struct S { x: i32 }|};
+  [%expect
+    {|
+    error: expected ABI name
+      at <test>:1:8
+        extern struct S { x: i32 }
+               ^~~~~~ found `struct`
+    |}]
+
+let%expect_test "parse: extern inside a body" =
+  run_src {|func f() i32 {
+  extern "C" func g(a: i32) i32
+  return 0
+}|};
+  [%expect
+    {|
+    error: `extern` must be at the top level
+      at <test>:2:3
+          extern "C" func g(a: i32) i32
+          ^~~~~~
+    |}]
+
+let%expect_test "parse: extern definition inside a body" =
+  run_src
+    {|func f() i32 {
+  pub extern "C" func g(a: i32) i32 { return a }
+  return 0
+}|};
+  [%expect
+    {|
+    error: `extern` must be at the top level
+      at <test>:2:7
+          pub extern "C" func g(a: i32) i32 { return a }
+              ^~~~~~
+    |}]
+
+let%expect_test "parse: variadic declaration" =
+  run_src {|extern "C" func printf(fmt: cstr, ...) i32|};
+  [%expect {| ok |}]
+
+let%expect_test "parse: variadic with a body" =
+  run_src {|extern "C" func printf(fmt: cstr, ...) i32 { return 0 }|};
+  [%expect
+    {|
+    error: a function with a body cannot be variadic
+      at <test>:1:35
+        extern "C" func printf(fmt: cstr, ...) i32 { return 0 }
+                                          ^~~
+    help: `...` only works on a declaration with no body
+    |}]
+
+let%expect_test "parse: plain function with a variadic body" =
+  run_src {|func f(a: i32, ...) i32 { return a }|};
+  [%expect
+    {|
+    error: a function with a body cannot be variadic
+      at <test>:1:16
+        func f(a: i32, ...) i32 { return a }
+                       ^~~
+    help: `...` only works on a declaration with no body
+    |}]
+
 let%expect_test "parse: multiple parameters" =
   run_src "func f(a: i32, b: i32, c: i32) i32 { return a + b + c }";
   [%expect {| ok |}]
@@ -1505,6 +1617,11 @@ func main() i32 { return f(1, 2) }|};
         func f(a: i32 ...; b: i32) i32 { return a }
                       ^~~
     help: separate parameters with `,`
+    error: a function with a body cannot be variadic
+      at <test>:1:15
+        func f(a: i32 ...; b: i32) i32 { return a }
+                      ^~~
+    help: `...` only works on a declaration with no body
     error: `...` must be the last parameter
       at <test>:1:18
         func f(a: i32 ...; b: i32) i32 { return a }

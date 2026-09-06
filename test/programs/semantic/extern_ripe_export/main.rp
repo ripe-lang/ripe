@@ -1,0 +1,13 @@
+struct Pair { a: i32; b: i32 }
+
+pub extern "Ripe" func make_pair(x: i32) Pair {
+  return Pair { a: x, b: x * 2 }
+}
+
+pub extern "Ripe" func total(p: Pair) i32 {
+  return p.a + p.b
+}
+
+func main() i32 {
+  return total(make_pair(7))
+}
