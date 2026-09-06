@@ -54,7 +54,24 @@ def func_decl(i, n):
     return text, [f"var r{i} = f{i}({args})"], [f"r{i}"]
 
 
-BUILDERS = (struct_decl, enum_decl, func_decl)
+def extern_decl(i, n):
+    picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
+    ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
+    args = ", ".join(lit for _, lit in picks)
+    text = f'pub extern "C" func e{i}({ps}) i32 {{\n  return 0\n}}'
+
+    return text, [f"var r{i} = e{i}({args})"], [f"r{i}"]
+
+
+# Main never calls this one because the linker has no symbol to find
+def import_decl(i, n):
+    picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
+    ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
+
+    return f'extern "C" func x{i}({ps}) i32', [], []
+
+
+BUILDERS = (struct_decl, enum_decl, func_decl, extern_decl, import_decl)
 
 
 def del_delim(rng, lines):

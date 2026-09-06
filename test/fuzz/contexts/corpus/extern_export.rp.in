@@ -1,0 +1,9 @@
+pub extern "C" func doubled(x: i32) i32 {
+  return x * 2
+}
+
+extern "C" func printf(fmt: cstr, ...) i32
+
+func main() i32 {
+  return doubled(printf("n"))
+}
