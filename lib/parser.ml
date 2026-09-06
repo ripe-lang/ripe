@@ -1276,7 +1276,7 @@ and parse_stmt ?(no_pair = false) st =
       let body = parse_block st in
       Expr (mk lo st (Block body))
   | FUNC when (peek st).token = LPAREN -> Expr (parse_simple_stmt ~no_pair st)
-  | PUBLIC | FUNC | STRUCT | TYPE | ENUM -> parse_local_decl st
+  | PUBLIC | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
   | _ -> Expr (parse_simple_stmt ~no_pair st)
 
 (* pub type small = i32 inside a body *)
@@ -1288,6 +1288,7 @@ and parse_local_decl st =
     | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
     | FUNC -> LocalFunc (fst (parse_func_def st modifiers Ast.NoAbi))
     | ENUM -> LocalEnum (parse_enum_def st modifiers)
+    | EXTERN -> fail st "`extern` must be at the top level"
     | _ -> fail_found st "expected local declaration"
   in
   Decl decl

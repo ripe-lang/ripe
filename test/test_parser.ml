@@ -1327,6 +1327,33 @@ let%expect_test "parse: missing ABI before a struct" =
                ^~~~~~ found `struct`
     |}]
 
+let%expect_test "parse: extern inside a body" =
+  run_src {|func f() i32 {
+  extern "C" func g(a: i32) i32
+  return 0
+}|};
+  [%expect
+    {|
+    error: `extern` must be at the top level
+      at <test>:2:3
+          extern "C" func g(a: i32) i32
+          ^~~~~~
+    |}]
+
+let%expect_test "parse: extern definition inside a body" =
+  run_src
+    {|func f() i32 {
+  pub extern "C" func g(a: i32) i32 { return a }
+  return 0
+}|};
+  [%expect
+    {|
+    error: `extern` must be at the top level
+      at <test>:2:7
+          pub extern "C" func g(a: i32) i32 { return a }
+              ^~~~~~
+    |}]
+
 let%expect_test "parse: variadic declaration" =
   run_src {|extern "C" func printf(fmt: cstr, ...) i32|};
   [%expect {| ok |}]
