@@ -1,0 +1,39 @@
+struct Point { x: i32; y: i32 }
+struct Wide { a: i64; b: i64 }
+struct Big { a: i64; b: i64; c: i64 }
+struct Vec2 { x: f32; y: f32 }
+struct Mixed { n: i32; f: f64 }
+struct Held { v: [4]i32 }
+
+pub extern "C" func shift(p: Point, d: i32) Point {
+  return Point{x: p.x + d, y: p.y + d}
+}
+
+pub extern "C" func widen(w: Wide) Wide {
+  return Wide{a: w.a * 2, b: w.b * 2}
+}
+
+pub extern "C" func grow(b: Big, d: i64) Big {
+  return Big{a: b.a + d, b: b.b + d, c: b.c + d}
+}
+
+pub extern "C" func scale(v: Vec2, k: f32) Vec2 {
+  return Vec2{x: v.x * k, y: v.y * k}
+}
+
+pub extern "C" func blend(m: Mixed) Mixed {
+  return Mixed{n: m.n + 1, f: m.f + 0.5}
+}
+
+pub extern "C" func total(h: Held) i32 {
+  var sum: i32 = 0
+  for i in 0..4 {
+    sum = sum + h.v[i]
+  }
+  return sum
+}
+
+pub extern "C" func bump(w: *Wide) {
+  w.a = w.a + 1
+  w.b = w.b + 1
+}

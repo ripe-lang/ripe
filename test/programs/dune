@@ -4,9 +4,17 @@
   (package ripe)
   run.py
   (glob_files_rec *.rp)
+  (glob_files_rec *.c)
   (glob_files_rec %{workspace_root}/std/*.rp)
   (glob_files_rec out.txt)
   (glob_files_rec compilererr.txt)
-  (glob_files_rec flags.txt))
+  (glob_files_rec flags.txt)
+  %{workspace_root}/runtime/panic.o)
  (action
-  (run python3 %{dep:run.py} --ripec %{bin:ripec})))
+  (run
+   python3
+   %{dep:run.py}
+   --ripec
+   %{bin:ripec}
+   --runtime
+   %{workspace_root}/runtime/panic.o)))
