@@ -1,0 +1,8 @@
+point 15 25
+wide 200 400
+big 11 12 13
+vec2 6 10
+mixed 8 0.75
+total 10
+bump 42 52
+exit: 0

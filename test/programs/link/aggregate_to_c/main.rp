@@ -1,0 +1,64 @@
+import std.io
+
+struct Point { x: i32; y: i32 }
+struct Wide { a: i64; b: i64 }
+struct Big { a: i64; b: i64; c: i64 }
+struct Pair { x: f64; y: f64 }
+struct Mixed { n: i32; f: f64 }
+
+extern "C" func c_shift(p: Point, d: i32) Point
+extern "C" func c_widen(w: Wide) Wide
+extern "C" func c_grow(b: Big, d: i64) Big
+extern "C" func c_scale(p: Pair, k: f64) Pair
+extern "C" func c_blend(m: Mixed) Mixed
+extern "C" func c_bump(w: *Wide)
+
+func label(text: str) {
+  io.print_raw(text)
+}
+
+func field(value: i64) {
+  io.print_raw(" ")
+  io.print_int_raw(value)
+}
+
+func main() i32 {
+  var p: Point = c_shift(Point{x: 10, y: 20}, 5)
+  label("point")
+  field(i64(p.x))
+  field(i64(p.y))
+  io.print_line()
+
+  var w: Wide = c_widen(Wide{a: 100, b: 200})
+  label("wide")
+  field(w.a)
+  field(w.b)
+  io.print_line()
+
+  var b: Big = c_grow(Big{a: 1, b: 2, c: 3}, 10)
+  label("big")
+  field(b.a)
+  field(b.b)
+  field(b.c)
+  io.print_line()
+
+  var f: Pair = c_scale(Pair{x: 1.5, y: 2.5}, 4.0)
+  label("pair")
+  field(i64(f.x))
+  field(i64(f.y))
+  io.print_line()
+
+  var m: Mixed = c_blend(Mixed{n: 7, f: 0.25})
+  label("mixed")
+  field(i64(m.n))
+  field(i64(m.f * 100.0))
+  io.print_line()
+
+  var own: Wide = Wide{a: 41, b: 51}
+  c_bump(&own)
+  label("bump")
+  field(own.a)
+  field(own.b)
+  io.print_line()
+  return 0
+}

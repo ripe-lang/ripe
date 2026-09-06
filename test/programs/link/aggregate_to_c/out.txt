@@ -1,0 +1,7 @@
+point 15 25
+wide 200 400
+big 11 12 13
+pair 6 10
+mixed 8 75
+bump 42 52
+exit: 0
