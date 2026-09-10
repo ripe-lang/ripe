@@ -103,7 +103,7 @@ type expr_desc =
   | RangeFull
   | Path of path
   | FieldAccess of expr * name * span
-  | BitCast of expr * typ
+  | Cast of typ * expr
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr

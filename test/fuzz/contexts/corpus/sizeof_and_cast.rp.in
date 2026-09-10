@@ -1,0 +1,9 @@
+func main() i32 {
+  var n: i32 = 1
+  var u: u32 = u32(n)
+  var p: *i32 = &n
+  var q: *u32 = (*u32)(p)
+  var a: usize = usize(q)
+  if a == 0 { return 1 }
+  return i32(sizeof(i32)) + i32(u) + *p
+}

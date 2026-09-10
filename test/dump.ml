@@ -72,7 +72,7 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | FieldAccess (e, f, _) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
-  | BitCast (e, t) -> "(bitcast " ^ dump_expr e ^ " " ^ dump_typ t ^ ")"
+  | Cast (t, e) -> "(cast " ^ dump_typ t ^ " " ^ dump_expr e ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
       "(array"

@@ -107,8 +107,8 @@ let fail_found st headline = raise (ParseError (found_error st headline))
 
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACKET
-  | UNDEFINED | IF | LBRACE | LOOP | MATCH | ERROR _ ->
+  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
+  | IF | LBRACE | LOOP | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -147,8 +147,8 @@ let diagnose_dropped_continuation st token span expr =
 let is_stmt_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE
-  | TRUE | FALSE | NULL | SIZEOF | BITCAST | LPAREN | LBRACE | LBRACKET
-  | UNDEFINED | LOOP | MATCH | ERROR _ ->
+  | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACE | LBRACKET | UNDEFINED | LOOP
+  | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -172,6 +172,39 @@ let starts_member st =
 let opens_struct_lit st =
   let tok = (peek st).token in
   not (is_stmt_start tok && not (is_expr_start tok))
+
+let starts_element_type = function
+  | IDENT _ | STAR | FUNC | EXTERN -> true
+  | _ -> false
+
+let rec after_bracket_group st n depth =
+  match (peek_nth st n).token with
+  | EOF -> None
+  | LBRACKET -> after_bracket_group st (n + 1) (depth + 1)
+  | RBRACKET when depth = 1 -> Some (n + 1)
+  | RBRACKET -> after_bracket_group st (n + 1) (depth - 1)
+  | _ -> after_bracket_group st (n + 1) depth
+
+let rec after_bracket_groups st n =
+  match after_bracket_group st n 1 with
+  | Some next when (peek_nth st next).token = LBRACKET ->
+      after_bracket_groups st (next + 1)
+  | found -> found
+
+(* A cast names a type and []i32 or *[2]i32 can't be read as an expression *)
+let opens_type st =
+  let rec after_stars n =
+    match (peek_nth st n).token with STAR -> after_stars (n + 1) | tok -> tok
+  in
+  match st.tok with
+  | FUNC | EXTERN -> true
+  | STAR -> (
+      match after_stars 0 with LBRACKET | FUNC | EXTERN -> true | _ -> false)
+  | LBRACKET -> (
+      match after_bracket_groups st 0 with
+      | Some n -> starts_element_type (peek_nth st n).token
+      | None -> false)
+  | _ -> false
 
 let is_param_start st =
   match st.tok with
@@ -1049,6 +1082,23 @@ and parse_primary ?(no_struct_lit = false) st =
         advance st;
         mk lo st Unit
       end
+      else if opens_type st then begin
+        let t = parse_typ st in
+        expect st RPAREN;
+        expect st LPAREN;
+        let args = parse_comma_list st RPAREN in
+        expect st RPAREN;
+        match args with
+        | [ arg ] -> mk lo st (Cast (t, arg))
+        | _ ->
+            let d =
+              Diagnostic.arity
+                (make_span st lo st.prev_end)
+                ~expected:"expected 1 argument" ~found:(List.length args)
+            in
+            emit_parse_error st d;
+            error_expr st d
+      end
       else
         let e = parse_expr st 1 in
         expect st RPAREN;
@@ -1066,14 +1116,6 @@ and parse_primary ?(no_struct_lit = false) st =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
-  (* bitcast(t) x *)
-  | BITCAST ->
-      advance st;
-      expect st LPAREN;
-      let t = parse_typ st in
-      expect st RPAREN;
-      let operand = parse_prefix ~no_struct_lit st in
-      mk lo st (BitCast (operand, t))
   | IDENT name when (peek st).token = COLON ->
       parse_labeled_loop st (Interner.intern name)
   | IDENT name ->

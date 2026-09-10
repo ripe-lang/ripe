@@ -135,16 +135,8 @@ let cast_class t =
       Aggregate
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
-(* Both sides need the same width so not floats *)
-let bitcast_ok src tgt =
-  match (cast_class src, cast_class tgt) with
-  | Aggregate, _ | _, Aggregate -> false
-  | _ ->
-      (not (is_float src))
-      && (not (is_float tgt))
-      && resolve_ty src <> TBool
-      && resolve_ty tgt <> TBool
-      && is_wide_ty src = is_wide_ty tgt
+let holds_address t =
+  match resolve_ty t with TInt _ -> is_wide_ty t | _ -> false
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =
@@ -152,7 +144,9 @@ let cast_ok src tgt =
     match (cast_class src, cast_class tgt) with
     | Aggregate, _ | _, Aggregate -> ty_equal src tgt
     | Numeric, Numeric -> true
-    | (Numeric | Ptr), (Numeric | Ptr) -> false
+    | Ptr, Ptr -> true
+    | Numeric, Ptr -> holds_address src
+    | Ptr, Numeric -> holds_address tgt
   in
   match (resolve_ty src, resolve_ty tgt) with
   | TError, _ | _, TError -> true

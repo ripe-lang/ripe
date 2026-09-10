@@ -321,6 +321,69 @@ func f() {
           ^ this has type i32
     |}]
 
+let%expect_test "typecheck: a value shadowing a type is not a conversion" =
+  run_src
+    {|
+struct point { x: i32; y: i32 }
+func f() {
+  var point: i32 = 5
+  var _p = (point)(3)
+}
+|};
+  [%expect
+    {|
+    error: not callable
+      at <test>:5:13
+          var _p = (point)(3)
+                    ^~~~~ this has type i32
+      at <test>:2:8
+        struct point { x: i32; y: i32 }
+               ^~~~~ shadowed by the value
+    help: rename the value to use this type as a conversion
+    |}]
+
+let%expect_test "typecheck: a value shadowing a func is not a call" =
+  run_src {|
+func f() {
+  func point() {}
+  var point: i32 = 5
+  point(1)
+}
+|};
+  [%expect
+    {|
+    error: not callable
+      at <test>:5:3
+          point(1)
+          ^~~~~ this has type i32
+      at <test>:3:8
+          func point() {}
+               ^~~~~ shadowed by the value
+    help: rename the value to call this function
+    |}]
+
+let%expect_test "typecheck: a shadowed func wins the note over a type" =
+  run_src
+    {|
+func f() {
+  struct point { x: i32; y: i32 }
+  func point() {}
+  var point: i32 = 5
+  point(1)
+}
+|};
+  [%expect
+    {|
+    error: not callable
+      at <test>:6:3
+          point(1)
+          ^~~~~ this has type i32
+      at <test>:4:8
+          func point() {}
+               ^~~~~ shadowed by the value
+    help: rename the value to call this function
+    |}]
+
 let%expect_test "typecheck: fn ptr as parameter" =
   run_src
     {|
@@ -940,19 +1003,18 @@ let%expect_test "typecheck: sizeof has usize type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cast bool to ptr rejected" =
-  run_src "func f() { var p: *i32 = bitcast(*i32) true }";
+  run_src "func f() { var p: *i32 = (*i32)(true) }";
   [%expect
     {|
     warning: unused variable: p
       at <test>:1:16
-        func f() { var p: *i32 = bitcast(*i32) true }
+        func f() { var p: *i32 = (*i32)(true) }
                        ^
     help: prefix with an underscore: _p
-    error: invalid bitcast
-      at <test>:1:26
-        func f() { var p: *i32 = bitcast(*i32) true }
-                                 ^~~~~~~~~~~~~~~~~~ cannot reinterpret bool as *i32
-    help: both sides need the same width and neither may be a float
+    error: invalid conversion
+      at <test>:1:27
+        func f() { var p: *i32 = (*i32)(true) }
+                                  ^~~~~~~~~~~ cannot convert bool to *i32
     |}]
 
 let%expect_test "typecheck: cast cstr to float rejected" =
@@ -3176,7 +3238,7 @@ let%expect_test "typecheck: *opaque needs a cast back to a typed pointer" =
     |}]
 
 let%expect_test "typecheck: *opaque casts back to a typed pointer" =
-  run_src "func f(a: *opaque) *i32 { return bitcast(*i32) a }";
+  run_src "func f(a: *opaque) *i32 { return (*i32)(a) }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cannot dereference *opaque" =

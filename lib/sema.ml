@@ -473,7 +473,7 @@ let common_ty current candidate =
       Option.value (common_numeric_ty current candidate) ~default:current
 
 let is_unused_operation (e : expr) =
-  match e.desc with BinOp _ | UnOp _ | BitCast _ -> true | _ -> false
+  match e.desc with BinOp _ | UnOp _ -> true | _ -> false
 
 let warn_discarded_operation env e (te : Tast.texpr) =
   if
@@ -645,7 +645,8 @@ let synth_struct_field env span te ty fname fspan =
               dummy_texpr))
 
 let synth_conversion env span (te : Tast.texpr) ty =
-  if not (cast_ok te.ty ty) then begin
+  let refused = not (cast_ok te.ty ty) in
+  if refused then begin
     let d =
       Diagnostic.error "invalid conversion"
       |> Diagnostic.at span
@@ -666,7 +667,7 @@ let synth_conversion env span (te : Tast.texpr) ty =
       |> Diagnostic.at span
       |> Diagnostic.label (Printf.sprintf "already %s" (show_ty env ty))
       |> Diagnostic.help "remove the cast");
-  if te.ty = Types.TError || ty = Types.TError then dummy_texpr
+  if refused || te.ty = Types.TError || ty = Types.TError then dummy_texpr
   else Tast.mk ty (Tast.TCast te)
 
 (* An untyped literal takes the wanted type and checks its base *)
@@ -830,22 +831,8 @@ and synth_desc env e =
   | Path p -> synth_path env e.span p
   | FieldAccess (inner_e, fname, fspan) ->
       synth_field env e.span inner_e fname fspan
-  | BitCast (operand, t) ->
-      let te = synth_operand env operand in
-      let ty = ty_of_ast env t in
-      if
-        te.ty <> Types.TError && ty <> Types.TError && not (bitcast_ok te.ty ty)
-      then
-        emit env
-          (Diagnostic.error "invalid bitcast"
-          |> Diagnostic.at e.span
-          |> Diagnostic.label
-               (Printf.sprintf "cannot reinterpret %s as %s" (show_ty env te.ty)
-                  (show_ty env ty))
-          |> Diagnostic.help
-               "both sides need the same width and neither may be a float");
-      if te.ty = Types.TError || ty = Types.TError then dummy_texpr
-      else Tast.mk ty (Tast.TCast te)
+  | Cast (t, inner) ->
+      synth_conversion env e.span (synth_operand env inner) (ty_of_ast env t)
   | SizeOf t -> synth_size_of env t
   | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
   | RangeFull ->
@@ -1780,10 +1767,22 @@ and synth_value_path env p =
       in
       Some (List.fold_left step root fields)
 
+and cast_typ_of_callee env (e : expr) =
+  let named desc =
+    if Symbol.Table.mem env.ctx.type_defs (key_at env e.span) then
+      Some { tdesc = desc; tspan = e.span }
+    else None
+  in
+  match e.desc with
+  | UnOp (Ast.Deref, inner) ->
+      let pointer t = { tdesc = Pointer t; tspan = e.span } in
+      Option.map pointer (cast_typ_of_callee env inner)
+  | Ident name -> named (Named ([], name))
+  | Path p -> named (Named (Ast.path_names p, fst p.member))
+  | _ -> None
+
 (* A type in call position converts its one argument *)
-and synth_type_call env span (callee : expr) args =
-  let sym = Resolve.sym_at env.ctx.symbols callee.span in
-  let ty = named_ty env callee.span sym.Symbol.name in
+and synth_type_call env span ty args =
   match args with
   | [ arg ] -> synth_conversion env span (synth_operand env arg) ty
   | _ ->
@@ -1808,26 +1807,46 @@ and synth_call env span callee args =
       in
       Tast.mk fsig.ret_ty (Tast.TCall (callee_texpr, targs, fixed_count))
   | None when Symbol.Table.mem env.ctx.type_defs (key_at env callee.span) ->
-      synth_type_call env span callee args
+      let sym = Resolve.sym_at env.ctx.symbols callee.span in
+      synth_type_call env span (named_ty env callee.span sym.Symbol.name) args
   | _ -> (
-      (* The callee is a value holding a fn ptr so call through it *)
-      let callee_texpr = synth env callee in
-      match resolve_ty callee_texpr.ty with
-      | Types.TError -> dummy_texpr
-      | Types.TFunc (param_tys, ret_ty, abi) ->
-          let fsig =
-            { param_tys; ret_ty; variadic = false; abi; param_hole = false }
-          in
-          let targs = check_args env span fsig args in
-          Tast.mk ret_ty (Tast.TCall (callee_texpr, targs, None))
-      | _ ->
-          emit env
-            (Diagnostic.error "not callable"
-            |> Diagnostic.at callee.span
-            |> Diagnostic.label
-                 (Printf.sprintf "this has type %s"
-                    (show_ty env callee_texpr.ty)));
-          dummy_texpr)
+      match cast_typ_of_callee env callee with
+      | Some t -> synth_type_call env span (ty_of_ast env t) args
+      | None -> synth_indirect_call env span callee args)
+
+(* The callee is a value holding a fn ptr so call through it *)
+and synth_indirect_call env span (callee : expr) args =
+  let callee_texpr = synth env callee in
+  match resolve_ty callee_texpr.ty with
+  | Types.TError -> dummy_texpr
+  | Types.TFunc (param_tys, ret_ty, abi) ->
+      let fsig =
+        { param_tys; ret_ty; variadic = false; abi; param_hole = false }
+      in
+      let targs = check_args env span fsig args in
+      Tast.mk ret_ty (Tast.TCall (callee_texpr, targs, None))
+  | _ ->
+      let d =
+        Diagnostic.error "not callable"
+        |> Diagnostic.at callee.span
+        |> Diagnostic.label
+             (Printf.sprintf "this has type %s" (show_ty env callee_texpr.ty))
+      in
+      let d =
+        match Resolve.shadowed_at env.ctx.symbols callee.span with
+        | Some sym ->
+            let fix =
+              if Symbol.is_func sym.Symbol.kind then
+                "rename the value to call this function"
+              else "rename the value to use this type as a conversion"
+            in
+            d
+            |> Diagnostic.secondary sym.Symbol.name_span "shadowed by the value"
+            |> Diagnostic.help fix
+        | None -> d
+      in
+      emit env d;
+      dummy_texpr
 
 and synth_index env span base idx =
   let tbase = synth env base in
