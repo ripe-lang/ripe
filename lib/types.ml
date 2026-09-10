@@ -107,10 +107,17 @@ let rec show_ty_with show_name t =
   | TSlice t -> "[]" ^ show_ty t
   | TAlias (name, _) -> show_name name
   | TEnum name -> show_name name
-  | TFunc (ps, r, _) ->
+  | TFunc (ps, r, abi) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TUnit -> " ()" | t -> " " ^ show_ty t in
-      Printf.sprintf "func (%s)%s" p_str r_str
+      (* The ABI is part of the type so two funcs must not read the same *)
+      let abi_str =
+        match abi with
+        | Ripe -> ""
+        | C -> "extern \"C\" "
+        | AbiError -> "extern "
+      in
+      Printf.sprintf "%sfunc (%s)%s" abi_str p_str r_str
   | TError -> "<error>"
   | TUnit -> "()"
 

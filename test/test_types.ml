@@ -31,7 +31,7 @@ let%expect_test "types: a type prints the way it is written" =
     Point
     Word
     func (i32, str) bool
-    func () ()
+    extern "C" func () ()
     <error>
     never
     null

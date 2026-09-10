@@ -142,8 +142,8 @@ let%expect_test "typred: a func matches on abi, params and result" =
   [%expect
     {|
     Ripe func (i32) () accepts Ripe func (i32) () = true
-    Ripe func (i32) () accepts C func (i32) () = false
-    Ripe func (i32) () accepts AbiError func (i32) () = true
+    Ripe func (i32) () accepts C extern "C" func (i32) () = false
+    Ripe func (i32) () accepts AbiError extern func (i32) () = true
     Ripe func (i32) () accepts Ripe func () () = false
     Ripe func () i32 accepts Ripe func () i64 = false
     |}]
