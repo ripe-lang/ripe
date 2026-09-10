@@ -270,7 +270,7 @@ let rec sync_to_item st depth =
   match st.tok with
   | EOF -> ()
   | RBRACE when depth > 0 && st.tok_depth <= depth -> ()
-  | _ when resumes_item st -> ()
+  | _ when resumes_item st && st.tok_depth <= depth -> ()
   | _ ->
       advance st;
       sync_to_item st depth
@@ -355,6 +355,17 @@ let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 let recovery_span st d =
   Option.value (Diagnostic.primary d) ~default:(cur_span st)
 
+(* A body that ended early leaves the next var or const to the file *)
+let rec sync_to_next_item st depth =
+  if st.tok = EOF || (depth = 0 && starts_item st) then ()
+  else
+    match st.tok with
+    | RBRACE when depth > 0 && st.tok_depth <= depth -> ()
+    | _ when resumes_item st -> ()
+    | _ ->
+        advance st;
+        sync_to_next_item st depth
+
 (* The blamed token is junk unless it owns itself like a closer does *)
 let sync_past st depth d =
   (match Diagnostic.primary d with
@@ -434,7 +445,8 @@ let recover st ~depth ~stop ~parse ~fallback =
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
-    emit_parse_error st d;
+    (* The block reports the missing closer so eof is its news to tell *)
+    if st.tok <> EOF then emit_parse_error st d;
     sync_to_depth_token st depth line stop;
     fallback st d
 
@@ -454,7 +466,7 @@ let parse_braced st parse =
         Some items
       with ParseError d ->
         emit_parse_error st d;
-        sync_to_item st depth;
+        sync_to_next_item st depth;
         None)
 
 let is_stray_closer st = is_closer st.tok && unclosed st st.tok = None

@@ -1,0 +1,6 @@
+func twice(n: i32) i32 { return n * 2 }
+struct main() i32 {
+  var f: func (i32) i32 = twice
+  var g: extern "C" func (i32) i32 = twice
+  return f(1)
+}
