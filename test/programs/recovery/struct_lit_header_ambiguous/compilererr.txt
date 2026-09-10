@@ -1,0 +1,31 @@
+error: expected a value and found a type
+  at main.rp:3:6
+      if point { 1 }.x == 1 { return 1 }
+         ^~~~~
+help: wrap a struct literal in parentheses here
+error: expected `;`
+  at main.rp:3:17
+      if point { 1 }.x == 1 { return 1 }
+                    ^ found .
+error: expected a value and found a type
+  at main.rp:4:9
+      while point { }.x == 1 { return 2 }
+            ^~~~~
+help: wrap a struct literal in parentheses here
+error: expected `;`
+  at main.rp:4:18
+      while point { }.x == 1 { return 2 }
+                     ^ found .
+error: expected a value and found a type
+  at main.rp:5:15
+      for i in 0..point { x: loop { break 1 }, y: 0 }.x { return i }
+                  ^~~~~
+help: wrap a struct literal in parentheses here
+error: expected `;`
+  at main.rp:5:42
+      for i in 0..point { x: loop { break 1 }, y: 0 }.x { return i }
+                                             ^ found ,
+error: expected `;`
+  at main.rp:5:50
+      for i in 0..point { x: loop { break 1 }, y: 0 }.x { return i }
+                                                     ^ found .
