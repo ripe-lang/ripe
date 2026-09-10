@@ -15,4 +15,3 @@ val widens_to : ty -> ty -> bool
 val common_numeric_ty : ty -> ty -> ty option
 val binop_accepts : Ast.binop -> ty -> bool
 val unop_accepts : Ast.unop -> ty -> bool
-val bitcast_ok : ty -> ty -> bool

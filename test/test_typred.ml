@@ -254,7 +254,7 @@ let%expect_test "typred: a char only crosses to an integer" =
     char casts to *i8 = false
     |}]
 
-let%expect_test "typred: a pointer and a number stay on their own side" =
+let%expect_test "typred: a pointer crosses to a number but never to a float" =
   let show = pred2 "casts to" Typred.cast_ok in
   show (TInt I32) (TFloat F64);
   show (TFloat F64) (TInt I64);
@@ -266,9 +266,9 @@ let%expect_test "typred: a pointer and a number stay on their own side" =
     {|
     i32 casts to f64 = true
     f64 casts to i64 = true
-    *i8 casts to *opaque = false
-    *i8 casts to i64 = false
-    i64 casts to *i8 = false
+    *i8 casts to *opaque = true
+    *i8 casts to i64 = true
+    i64 casts to *i8 = true
     f64 casts to *i8 = false
     |}]
 
@@ -286,26 +286,28 @@ let%expect_test "typred: an aggregate only casts to itself" =
     [2]i32 casts to []i32 = false
     |}]
 
-let%expect_test "typred: a bitcast needs one width and no floats" =
-  let show = pred2 "bitcasts to" Typred.bitcast_ok in
+let%expect_test "typred: an address needs an integer wide enough to hold it" =
+  let show = pred2 "casts to" Typred.cast_ok in
   show (TInt I64) byte_ptr;
   show byte_ptr (TInt I64);
   show (TInt I32) byte_ptr;
   show (TInt Usize) TOpaquePtr;
-  show (TInt I64) (TFloat F64);
-  show (TInt I64) TBool;
-  show (TInt I32) (TInt U32);
-  show point (TInt I64);
+  show TOpaquePtr byte_ptr;
+  show byte_ptr (TFloat F64);
+  show byte_ptr TBool;
+  show byte_ptr TChar;
+  show point byte_ptr;
   [%expect
     {|
-    i64 bitcasts to *i8 = true
-    *i8 bitcasts to i64 = true
-    i32 bitcasts to *i8 = false
-    usize bitcasts to *opaque = true
-    i64 bitcasts to f64 = false
-    i64 bitcasts to bool = false
-    i32 bitcasts to u32 = true
-    Point bitcasts to i64 = false
+    i64 casts to *i8 = true
+    *i8 casts to i64 = true
+    i32 casts to *i8 = false
+    usize casts to *opaque = true
+    *opaque casts to *i8 = true
+    *i8 casts to f64 = false
+    *i8 casts to bool = false
+    *i8 casts to char = false
+    Point casts to *i8 = false
     |}]
 
 let%expect_test "typred: arithmetic takes numbers and bit work takes integers" =

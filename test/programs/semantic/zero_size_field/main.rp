@@ -14,11 +14,11 @@ func main() i32 {
   var s: sep = sep { x: 1, u: (), e: empty {}, y: 2 }
   s.y = s.y + 40
 
-  var base: usize = bitcast(usize) &s.x
+  var base: usize = usize(&s.x)
   printf("%d %d %d %d %d\n", s.x, s.y,
-         i32(bitcast(usize) &s.u - base),
-         i32(bitcast(usize) &s.z - base),
-         i32(bitcast(usize) &s.y - base))
+         i32(usize(&s.u) - base),
+         i32(usize(&s.z) - base),
+         i32(usize(&s.y) - base))
   printf("%d %d %d\n", i32(sizeof(sep)), i32(sizeof(padding)), i32(sizeof(empty)))
   printf("%d %d\n", i32(sizeof(())), i32(sizeof([0]u32)))
 

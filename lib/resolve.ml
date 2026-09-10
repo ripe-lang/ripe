@@ -21,6 +21,8 @@ type scope = {
 
 type t = {
   syms : Symbol.t Span.Table.t;
+  (* What a callee would have found if the value hadn't taken the name *)
+  shadowed : Symbol.t Span.Table.t;
   module_paths : (Symbol.module_id, string list) Hashtbl.t;
   (* Sorted by base so a position finds its module by search *)
   mutable file_modules : (int * Symbol.module_id) array;
@@ -84,6 +86,7 @@ let make_output modules =
   let out =
     {
       syms = Span.Table.create 16;
+      shadowed = Span.Table.create 16;
       module_paths = Hashtbl.create modules;
       file_modules = [||];
       imports = Hashtbl.create modules;
@@ -120,6 +123,7 @@ let sym_at r span =
   | None -> Diagnostic.ice ~span "no symbol resolved here"
 
 let sym_at_opt r span = Span.Table.find_opt r.syms span
+let shadowed_at r span = Span.Table.find_opt r.shadowed span
 
 let qname_of r s =
   let path = Hashtbl.find r.module_paths s.Symbol.module_id in
@@ -245,6 +249,18 @@ let rec find_value scope name =
   | Some sym -> Some sym
   | None -> Option.bind scope.parent (fun parent -> find_value parent name)
 
+(* Top level funcs sit in values and the local ones sit in items *)
+let rec find_func_in_scope scope name =
+  let here =
+    match Names.find_opt scope.values name with
+    | Some sym when Symbol.is_func sym.Symbol.kind -> Some sym
+    | _ -> Names.find_opt scope.items name
+  in
+  match here with
+  | Some _ -> here
+  | None ->
+      Option.bind scope.parent (fun parent -> find_func_in_scope parent name)
+
 let is_item_value sym =
   match sym.Symbol.kind with
   | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
@@ -350,10 +366,20 @@ let use st ~what name span =
       Diagnostic.emit st.diags (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
 
-let use_callee st name span =
+let use_callee st ?(what = "function") name span =
   match (lookup st name, find_type st [] name) with
   | None, Some sym -> use_symbol st span sym
-  | _ -> use st ~what:"function" name span
+  | value, ty ->
+      (match value with
+      | Some sym when not (Symbol.is_func sym.Symbol.kind) ->
+          let lost =
+            match find_func_in_scope st.scope name with
+            | Some _ as f -> f
+            | None -> ty
+          in
+          Option.iter (Span.Table.replace st.out.shadowed span) lost
+      | Some _ | None -> ());
+      use st ~what name span
 
 (* Body binders can redeclare but params can't repeat *)
 let declare_param st p =
@@ -442,6 +468,15 @@ let rec resolve_path st p span =
     then resolve_expr st prefix
   end
 
+and resolve_deref_callee st e =
+  match e.desc with
+  | UnOp (Deref, inner) -> resolve_deref_callee st inner
+  | Ident name -> use_callee st ~what:"variable" name e.span
+  | Path segs ->
+      if not (use_qualified_callee st segs e.span) then
+        resolve_path st segs e.span
+  | _ -> resolve_expr st e
+
 and resolve_expr st e =
   match e.desc with
   | ErrorExpr -> ()
@@ -452,6 +487,9 @@ and resolve_expr st e =
   | Call (({ desc = Path segs; _ } as callee), args) ->
       if not (use_qualified_callee st segs callee.span) then
         resolve_path st segs callee.span;
+      List.iter (resolve_expr st) args
+  | Call (({ desc = UnOp (Deref, _); _ } as callee), args) ->
+      resolve_deref_callee st callee;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
       resolve_expr st callee;
@@ -467,9 +505,9 @@ and resolve_expr st e =
   | RangeFull -> ()
   | Path segs -> resolve_path st segs e.span
   | FieldAccess (inner, _, _) -> resolve_expr st inner
-  | BitCast (inner, ty) ->
-      resolve_expr st inner;
-      resolve_typ st ty
+  | Cast (ty, inner) ->
+      resolve_typ st ty;
+      resolve_expr st inner
   | SizeOf ty -> resolve_typ st ty
   | Index (base, idx) ->
       resolve_expr st base;
