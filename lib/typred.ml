@@ -57,21 +57,28 @@ let root_binding te =
   | Some _ | None -> None
 
 let is_numeric t =
-  match resolve_ty t with TInt _ | TFloat _ | TError -> true | _ -> false
+  if has_error t then true
+  else match resolve_ty t with TInt _ | TFloat _ -> true | _ -> false
 
 (* A pointer is just an address so p < q asks which one sits earlier in memory *)
 let is_ordered t =
   match resolve_ty t with TPointer _ | TChar -> true | _ -> is_numeric t
 
 let is_integer t =
-  match resolve_ty t with TInt _ | TError -> true | _ -> false
+  if has_error t then true
+  else match resolve_ty t with TInt _ -> true | _ -> false
 
-let rec is_comparable = function
-  | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr | TNull
-  | TError | TEnum _ ->
-      true
-  | TAlias (_, base) -> is_comparable base
-  | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit -> false
+let rec is_comparable t =
+  if has_error t then true
+  else
+    match t with
+    | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr
+    | TNull | TEnum _ ->
+        true
+    | TAlias (_, base) -> is_comparable base
+    | TError | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit
+      ->
+        false
 
 let binop_accepts op =
   match op with
@@ -148,10 +155,11 @@ let cast_ok src tgt =
     | Numeric, Ptr -> holds_address src
     | Ptr, Numeric -> holds_address tgt
   in
-  match (resolve_ty src, resolve_ty tgt) with
-  | TError, _ | _, TError -> true
-  | s, TBool -> s = TBool
-  | TChar, TChar -> true
-  | TChar, TInt _ | TInt _, TChar -> true
-  | TChar, _ | _, TChar -> false
-  | _ -> cast_classes_ok ()
+  if has_error src || has_error tgt then true
+  else
+    match (resolve_ty src, resolve_ty tgt) with
+    | s, TBool -> s = TBool
+    | TChar, TChar -> true
+    | TChar, TInt _ | TInt _, TChar -> true
+    | TChar, _ | _, TChar -> false
+    | _ -> cast_classes_ok ()

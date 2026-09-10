@@ -118,7 +118,7 @@ let rec show_ty_with show_name t =
         | AbiError -> "extern "
       in
       Printf.sprintf "%sfunc (%s)%s" abi_str p_str r_str
-  | TError -> "<error>"
+  | TError -> "<unknown type>"
   | TUnit -> "()"
 
 let show_ty t = show_ty_with Qname.show t
@@ -126,6 +126,14 @@ let show_ty t = show_ty_with Qname.show t
 (* A reader inside the module a name belongs to doesn't need its path *)
 let show_ty_in current t = show_ty_with (Qname.show_in current) t
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
+
+let rec has_error = function
+  | TError -> true
+  | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
+  | TStruct (_, args) -> List.exists has_error args
+  | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
+  | _ -> false
+
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
 let int_kind_unsigned = function
@@ -166,9 +174,11 @@ let is_aggregate t =
 
 (* A const can only use types comptime evaluation knows how to compute *)
 let is_scalar t =
-  match resolve_ty t with
-  | TInt _ | TFloat _ | TBool | TChar | TError -> true
-  | _ -> false
+  if has_error t then true
+  else
+    match resolve_ty t with
+    | TInt _ | TFloat _ | TBool | TChar -> true
+    | _ -> false
 
 (* Wide values use 8 bytes so comptime eval uses a 64 bit result *)
 let is_wide_ty t =
@@ -188,14 +198,7 @@ let rec erase_aliases = function
   | TSlice t -> TSlice (erase_aliases t)
   | t -> t
 
-let rec has_error = function
-  | TError -> true
-  | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
-  | TStruct (_, args) -> List.exists has_error args
-  | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
-  | _ -> false
-
 let ty_equal a b =
   match (erase_aliases a, erase_aliases b) with
-  | TError, _ | _, TError -> true
+  | x, y when has_error x || has_error y -> true
   | x, y -> x = y

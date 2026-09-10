@@ -77,6 +77,13 @@ let%expect_test "mir verifier: every local has a type" =
     (func_with_block ~locals:[| local Ripe.Types.TError |] (term M.Unreachable));
   [%expect {| f: local has no type |}]
 
+let%expect_test "mir verifier: a local is broken by an error inside it" =
+  verify_func
+    (func_with_block
+       ~locals:[| local (Ripe.Types.TPointer Ripe.Types.TError) |]
+       (term M.Unreachable));
+  [%expect {| f: local has no type |}]
+
 let%expect_test "mir verifier: every place projection is valid" =
   let bad_place = place 0 [ M.Deref ] in
   let value : M.value =

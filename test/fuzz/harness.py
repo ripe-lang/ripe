@@ -38,7 +38,7 @@ CASCADE_LIMIT = 8
 ERROR_PREFIX = "error:"
 ICE_MARK = "internal compiler error"
 CRASH_MARK = "Fatal error"
-POISON_MARK = "<error>"
+POISON_MARKS = ("<unknown type>", "<error>")
 
 SHOWN_FAILURES = 6
 SHOWN_OUTPUT = 400
@@ -135,7 +135,7 @@ def fatal(code, out):
     if CRASH_MARK in out or code not in CLEAN_EXITS:
         return "CRASH"
 
-    if POISON_MARK in out:
+    if any(mark in out for mark in POISON_MARKS):
         return "POISON"
 
     return None

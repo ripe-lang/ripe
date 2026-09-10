@@ -1,0 +1,16 @@
+func main() i32 {
+  var p: *nosuch = null
+  var a: [1]nosuch = undefined
+  var f: func () nosuch = undefined
+  var _x = p.field
+  var _y = *p
+  var _z = f()
+  var _w = a[0]
+  var _v = i32(p)
+  var _u = -p
+  var _t = a.ptr
+  var _s = a[0..1]
+  var _r = [p, p]
+  var _q = &p
+  return 0
+}

@@ -1,0 +1,12 @@
+error: undefined type
+  at main.rp:2:11
+      var p: *nosuch = null
+              ^~~~~~
+error: undefined type
+  at main.rp:3:13
+      var a: [1]nosuch = undefined
+                ^~~~~~
+error: undefined type
+  at main.rp:4:18
+      var f: func () nosuch = undefined
+                     ^~~~~~

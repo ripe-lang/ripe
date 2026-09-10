@@ -391,7 +391,7 @@ let zero_init_ty env span ty =
   else ty
 
 let lift_ty (f : ty -> ty) ty =
-  match ty with Types.TError -> Types.TError | ty -> f ty
+  if Types.has_error ty then Types.TError else f ty
 
 let resolve_named_abi env name span =
   match Types.func_abi_of_name name with
@@ -488,7 +488,7 @@ let warn_discarded_operation env e (te : Tast.texpr) =
       |> Diagnostic.help "use `var _ = ...` when this is intentional")
 
 let verify_unit_result env span = function
-  | Expect want when resolve_ty want <> Types.TUnit ->
+  | Expect want when not (Types.ty_equal (resolve_ty want) Types.TUnit) ->
       emit env
         (Diagnostic.type_mismatch span ~expected:(show_ty env want)
            ~found:(show_ty env Types.TUnit))
@@ -667,7 +667,7 @@ let synth_conversion env span (te : Tast.texpr) ty =
       |> Diagnostic.at span
       |> Diagnostic.label (Printf.sprintf "already %s" (show_ty env ty))
       |> Diagnostic.help "remove the cast");
-  if refused || te.ty = Types.TError || ty = Types.TError then dummy_texpr
+  if refused || Types.has_error ty then dummy_texpr
   else Tast.mk ty (Tast.TCast te)
 
 (* An untyped literal takes the wanted type and checks its base *)
@@ -733,15 +733,17 @@ let rec ty_of_ast env t =
       let rt =
         match ret with Some t -> ty_of_ast env t | None -> Types.TUnit
       in
-      match (resolve_abi env abi, rt, List.mem Types.TError pts) with
+      match (resolve_abi env abi, rt, List.exists Types.has_error pts) with
       | Types.AbiError, _, _ -> Types.TError
-      | abi, rt, false when rt <> Types.TError -> Types.TFunc (pts, rt, abi)
+      | abi, rt, false when not (Types.has_error rt) ->
+          Types.TFunc (pts, rt, abi)
       | _ -> Types.TError)
   | UnitType -> Types.TUnit
 
 and array_ty_of_ast env size element =
   match (ty_of_ast env element, size.desc) with
-  | Types.TError, _ | _, ErrorExpr -> Types.TError
+  | _, ErrorExpr -> Types.TError
+  | ty, _ when Types.has_error ty -> Types.TError
   | ty, _ -> Types.TArray (ty, eval_array_size env size)
 
 (* An array size may name a global not collected yet so type it now *)
@@ -986,7 +988,8 @@ and synth_array_lit env first rest =
         Types.TError
     | t -> t
   in
-  Tast.mk (Types.TArray (elem, List.length tes)) (Tast.TArrayLit tes)
+  let ty = lift_ty (fun t -> Types.TArray (t, List.length tes)) elem in
+  Tast.mk ty (Tast.TArrayLit tes)
 
 and named_fields env span info
     (inits : (Ast.name option * Ast.span * expr) list) =
@@ -1741,7 +1744,9 @@ and synth_unop env op e =
       | _ ->
           if te.ty <> Types.TError && not (is_lvalue te) then
             add_error env e.span "cannot take address of expression");
-      Tast.mk (Types.TPointer te.ty) (Tast.TUnOp (op, te))
+      Tast.mk
+        (lift_ty (fun ty -> Types.TPointer ty) te.ty)
+        (Tast.TUnOp (op, te))
 
 and synth_field env span e fname fspan =
   synth_typed_field env span (synth env e) fname fspan
