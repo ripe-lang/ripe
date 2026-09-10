@@ -1,0 +1,7 @@
+struct point { x: i32; y: i32 }
+func main() i32 {
+  if point { 1 }.x == 1 { return 1 }
+  while point { }.x == 1 { return 2 }
+  for i in 0..point { x: loop { break 1 }, y: 0 }.x { return i }
+  return 0
+}

@@ -1,0 +1,20 @@
+error: a struct literal can't go in a header
+  at main.rp:4:12
+      if point { x: 5, y: 4 }.x > 2 { n = 1 }
+               ^ this `{` starts the body
+help: wrap the literal in parentheses
+error: a struct literal can't go in a header
+  at main.rp:5:19
+      while n < point { x: 3, y: 0 }.x { n = n + 1 }
+                      ^ this `{` starts the body
+help: wrap the literal in parentheses
+error: a struct literal can't go in a header
+  at main.rp:6:21
+      for i in 0..point { x: 2, y: 0 }.x { n = n + i }
+                        ^ this `{` starts the body
+help: wrap the literal in parentheses
+error: a struct literal can't go in a header
+  at main.rp:11:22
+      return match point { 1, 2 }.y { 2 => n; _ => 0 }
+                         ^ this `{` starts the body
+help: wrap the literal in parentheses

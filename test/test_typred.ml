@@ -87,9 +87,9 @@ let%expect_test "typred: an error type swallows any mismatch" =
   show (TPointer TError) (TPointer TStr);
   [%expect
     {|
-    <error> accepts i32 = true
-    i32 accepts <error> = true
-    *<error> accepts *str = true
+    <unknown type> accepts i32 = true
+    i32 accepts <unknown type> = true
+    *<unknown type> accepts *str = true
     |}]
 
 let%expect_test "typred: a pointer needs the same pointee" =
@@ -142,8 +142,8 @@ let%expect_test "typred: a func matches on abi, params and result" =
   [%expect
     {|
     Ripe func (i32) () accepts Ripe func (i32) () = true
-    Ripe func (i32) () accepts C func (i32) () = false
-    Ripe func (i32) () accepts AbiError func (i32) () = true
+    Ripe func (i32) () accepts C extern "C" func (i32) () = false
+    Ripe func (i32) () accepts AbiError extern func (i32) () = true
     Ripe func (i32) () accepts Ripe func () () = false
     Ripe func () i32 accepts Ripe func () i64 = false
     |}]
@@ -278,12 +278,16 @@ let%expect_test "typred: an aggregate only casts to itself" =
   show point other;
   show TStr (TSlice (TInt U8));
   show (TArray (TInt I32, 2)) (TSlice (TInt I32));
+  show (TPointer TError) (TInt I32);
+  show (TInt I32) (TArray (TError, 2));
   [%expect
     {|
     Point casts to Point = true
     Point casts to Other = false
     str casts to []u8 = false
     [2]i32 casts to []i32 = false
+    *<unknown type> casts to i32 = true
+    i32 casts to [2]<unknown type> = true
     |}]
 
 let%expect_test "typred: an address needs an integer wide enough to hold it" =
@@ -435,6 +439,7 @@ let%expect_test "typred: only integers and errors count as integer" =
   show (TInt I8);
   show (TInt Usize);
   show TError;
+  show (TPointer TError);
   show (TFloat F32);
   show TBool;
   show TChar;
@@ -443,7 +448,8 @@ let%expect_test "typred: only integers and errors count as integer" =
     {|
     integer i8 = true
     integer usize = true
-    integer <error> = true
+    integer <unknown type> = true
+    integer *<unknown type> = true
     integer f32 = false
     integer bool = false
     integer char = false

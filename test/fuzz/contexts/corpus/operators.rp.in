@@ -1,0 +1,8 @@
+func main() i32 {
+  var n: i32 = 17
+  var q: i32 = n / 5 % 3
+  var bits: i32 = (n | 1) ^ (n << 2) >> 1 & ~0
+  var b: bool = !(n <= 2) && (n >= 3 || n != 4)
+  if b { return q + bits }
+  return 0
+}

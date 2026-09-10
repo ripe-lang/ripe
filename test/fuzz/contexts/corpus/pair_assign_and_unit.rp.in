@@ -1,0 +1,13 @@
+func nothing() () {}
+struct empty { }
+func main() i32 {
+  var a: i32 = 1
+  var b: i32 = 2
+  a, b = b, a
+  nothing()
+  var _e = empty { }
+  var g: [2][2]i32 = [[1, 2], [3, 4]]
+  var n: i32
+  n = loop { break 5 }
+  return a + g[1][0] + n
+}

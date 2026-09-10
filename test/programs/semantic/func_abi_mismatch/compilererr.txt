@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:3:38
+      var g: extern "C" func (i32) i32 = twice
+                                         ^~~~~ expected extern "C" func (i32) i32, found func (i32) i32

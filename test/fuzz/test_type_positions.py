@@ -15,17 +15,28 @@ SHAPES = (
     ("[2]*i32", "[null, null]"),
     ("never", "spin()"),
     ('extern "C" func (i32) i32', "hc"),
+    ("**i32", "null"),
+    ("*opaque", "null"),
+    ("bool", "true"),
+    ("char", "'a'"),
+    ("f64", "1.0"),
+    ("cstr", '"s"'),
+    ("pt", "pt { x: 0 }"),
+    ("word", "0"),
 )
 
 PRELUDE = (
     "func h0(a: i32) i32 { return a }\n"
     'extern "C" func hc(a: i32) i32 { return a }\n'
     "func spin() never { loop {} }\n"
+    "struct pt { x: i32 }\n"
+    "type word = i32\n"
 )
 
 SKIP = {
     ("ret", "never"),
     ("local_ret", "never"),
+    ("cast_paren", "[2]*i32"),
 }
 
 CORRUPTIONS = {

@@ -1,0 +1,9 @@
+func main() i32 {
+  var h: i32 = 0xff
+  var b: i32 = 0b1010
+  var w: i64 = 5i64
+  var f: f32 = 1.5f32
+  var c: char = 'A'
+  var _s: str = "a\tb\n"
+  return h + b + i32(w) + i32(f) + i32(c)
+}

@@ -1,0 +1,8 @@
+func main() i32 {
+  var n: i32 = outer: loop { loop { break :outer 7 } }
+  inner: for _i in 0..3 {
+    for _j in 0..3 { continue :inner }
+    n += 1
+  }
+  return n
+}

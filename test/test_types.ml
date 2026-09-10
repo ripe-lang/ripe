@@ -31,8 +31,8 @@ let%expect_test "types: a type prints the way it is written" =
     Point
     Word
     func (i32, str) bool
-    func () ()
-    <error>
+    extern "C" func () ()
+    <unknown type>
     never
     null
     |}]
@@ -83,14 +83,18 @@ let%expect_test "types: an alias equals the type behind it" =
   show word (TInt I32);
   show TError (TInt I32);
   show (TInt I32) TError;
+  show (TPointer TError) (TInt I32);
+  show (TArray (TError, 2)) (TInt I32);
   show point (TStruct (qname 1 "Point", []));
   [%expect
     {|
     Word equals i64 = true
     *Word equals *i64 = true
     Word equals i32 = false
-    <error> equals i32 = true
-    i32 equals <error> = true
+    <unknown type> equals i32 = true
+    i32 equals <unknown type> = true
+    *<unknown type> equals i32 = true
+    [2]<unknown type> equals i32 = true
     Point equals Point = true
     |}]
 
@@ -107,14 +111,14 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
   show (TPointer (TInt I32));
   [%expect
     {|
-    has_error <error> = true
-    has_error *<error> = true
-    has_error [2]<error> = true
-    has_error []<error> = true
+    has_error <unknown type> = true
+    has_error *<unknown type> = true
+    has_error [2]<unknown type> = true
+    has_error []<unknown type> = true
     has_error Bad = true
-    has_error func (i32) <error> = true
-    has_error func (<error>) () = true
-    has_error Point[<error>] = true
+    has_error func (i32) <unknown type> = true
+    has_error func (<unknown type>) () = true
+    has_error Point[<unknown type>] = true
     has_error *i32 = false
     |}]
 
@@ -171,7 +175,7 @@ let%expect_test "types: a const may only use a scalar" =
     scalar f32 = true
     scalar bool = true
     scalar char = true
-    scalar <error> = true
+    scalar <unknown type> = true
     scalar str = false
     scalar Point = false
     scalar () = false

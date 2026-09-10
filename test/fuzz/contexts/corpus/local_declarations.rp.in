@@ -1,7 +1,9 @@
 func main() i32 {
   struct pair { a: i32; b: i32 }
   type small = i32
+  enum side { Left; Right }
   func helper(n: small) i32 { return n + 1 }
   var v = pair { 1, 2 }
-  return helper(v.a) + v.b
+  var s = side.Right
+  return helper(v.a) + v.b + match s { side.Left => 0; _ => 1 }
 }

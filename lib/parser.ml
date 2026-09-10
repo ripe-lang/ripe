@@ -173,6 +173,29 @@ let opens_struct_lit st =
   let tok = (peek st).token in
   not (is_stmt_start tok && not (is_expr_start tok))
 
+(* The x: 1 of point { x: 1 } rather than a label *)
+let opens_named_field st =
+  match (peek st).token with
+  | IDENT _ -> (
+      (peek_nth st 1).token = COLON
+      &&
+      match (peek_nth st 2).token with
+      | WHILE | FOR | LOOP -> false
+      | _ -> true)
+  | _ -> false
+
+(* A block can't hold the comma of point { 1, 2 } *)
+let opens_positional_field st =
+  is_expr_start (peek st).token && (peek_nth st 1).token = COMMA
+
+let opens_struct_field st = opens_named_field st || opens_positional_field st
+
+let struct_lit_in_header span =
+  Diagnostic.error "a struct literal can't go in a header"
+  |> Diagnostic.at span
+  |> Diagnostic.label "this `{` starts the body"
+  |> Diagnostic.help "wrap the literal in parentheses"
+
 let starts_element_type = function
   | IDENT _ | STAR | FUNC | EXTERN -> true
   | _ -> false
@@ -247,7 +270,7 @@ let rec sync_to_item st depth =
   match st.tok with
   | EOF -> ()
   | RBRACE when depth > 0 && st.tok_depth <= depth -> ()
-  | _ when resumes_item st -> ()
+  | _ when resumes_item st && st.tok_depth <= depth -> ()
   | _ ->
       advance st;
       sync_to_item st depth
@@ -332,6 +355,17 @@ let mkt lo st tdesc = { tdesc; tspan = make_span st lo st.prev_end }
 let recovery_span st d =
   Option.value (Diagnostic.primary d) ~default:(cur_span st)
 
+(* A body that ended early leaves the next var or const to the file *)
+let rec sync_to_next_item st depth =
+  if st.tok = EOF || (depth = 0 && starts_item st) then ()
+  else
+    match st.tok with
+    | RBRACE when depth > 0 && st.tok_depth <= depth -> ()
+    | _ when resumes_item st -> ()
+    | _ ->
+        advance st;
+        sync_to_next_item st depth
+
 (* The blamed token is junk unless it owns itself like a closer does *)
 let sync_past st depth d =
   (match Diagnostic.primary d with
@@ -411,7 +445,8 @@ let recover st ~depth ~stop ~parse ~fallback =
   let line = st.tok_line in
   try parse ()
   with ParseError d ->
-    emit_parse_error st d;
+    (* The block reports the missing closer so eof is its news to tell *)
+    if st.tok <> EOF then emit_parse_error st d;
     sync_to_depth_token st depth line stop;
     fallback st d
 
@@ -431,7 +466,7 @@ let parse_braced st parse =
         Some items
       with ParseError d ->
         emit_parse_error st d;
-        sync_to_item st depth;
+        sync_to_next_item st depth;
         None)
 
 let is_stray_closer st = is_closer st.tok && unclosed st st.tok = None
@@ -1001,7 +1036,7 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
               member = !member;
             }
           in
-          if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then begin
+          let literal () =
             advance st;
             let fields = parse_struct_lit_fields st in
             expect st RBRACE;
@@ -1009,6 +1044,12 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
             let path_span = (path_expr path).span in
             continue_with
               (mk lo st (StructLit (path_names path, base, path_span, fields)))
+          in
+          if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then
+            literal ()
+          else if at st LBRACE && no_struct_lit && opens_struct_field st then begin
+            emit_parse_error st (struct_lit_in_header (cur_span st));
+            literal ()
           end
           else continue_with (path_expr path)
       | _ -> continue_with (mk lo st (FieldAccess (lhs, name, name_span))))
@@ -1122,11 +1163,17 @@ and parse_primary ?(no_struct_lit = false) st =
       let name = Interner.intern name in
       let nspan = st.tok_span in
       advance st;
-      if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then begin
+      let literal () =
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
         mk lo st (StructLit ([], name, nspan, fields))
+      in
+      if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then
+        literal ()
+      else if at st LBRACE && no_struct_lit && opens_struct_field st then begin
+        emit_parse_error st (struct_lit_in_header (cur_span st));
+        literal ()
       end
       else mk lo st (Ident name)
   | STRING s ->

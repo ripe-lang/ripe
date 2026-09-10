@@ -1677,7 +1677,7 @@ let verify_func program func =
   let ctx = { program; func; errors = ref [] } in
   Array.iter
     (fun (local : local) ->
-      if local.ty = Types.TError then add ctx local.span "local has no type")
+      if Types.has_error local.ty then add ctx local.span "local has no type")
     func.locals;
   List.iter (fun id -> ignore (local ctx func.span id)) func.params;
   Array.iteri (verify_block ctx) func.blocks;

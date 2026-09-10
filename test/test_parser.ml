@@ -2042,6 +2042,33 @@ let%expect_test "parse: a struct literal still wins over a block" =
   parse_expr "Point { x: 1 }";
   [%expect {| (struct Point (x 1)) |}]
 
+let%expect_test "parse: a struct literal in an if header points at the brace" =
+  run_src "struct Point { x: i32 }\nfunc f() { if Point { x: 1 }.x == 1 { } }";
+  [%expect
+    {|
+    error: a struct literal can't go in a header
+      at <test>:2:21
+        func f() { if Point { x: 1 }.x == 1 { } }
+                            ^ this `{` starts the body
+    help: wrap the literal in parentheses
+    |}]
+
+let%expect_test
+    "parse: a struct literal in a match scrutinee points at the brace" =
+  run_src "struct Point { x: i32 }\nfunc f() { match Point { x: 1 }.x { } }";
+  [%expect
+    {|
+    error: a struct literal can't go in a header
+      at <test>:2:24
+        func f() { match Point { x: 1 }.x { } }
+                               ^ this `{` starts the body
+    help: wrap the literal in parentheses
+    |}]
+
+let%expect_test "parse: a label in a header body is not a struct literal" =
+  parse_body "func f() { if g() { outer: loop { break :outer } } }";
+  [%expect {| (block (if ((call g) (block (loop (block (break))))))) |}]
+
 let%expect_test "parse: break takes a value" =
   parse_body "func f() { loop { break 42 } }";
   [%expect {| (block (loop (block (break 42)))) |}]

@@ -1,0 +1,4 @@
+func main() i32 {
+  var _p = (*{i32)(usize(0))
+  return 0
+}
