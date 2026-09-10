@@ -1,0 +1,12 @@
+struct point { x: i32; y: i32 }
+func main() i32 {
+  var n: i32 = 0
+  if point { x: 5, y: 4 }.x > 2 { n = 1 }
+  while n < point { x: 3, y: 0 }.x { n = n + 1 }
+  for i in 0..point { x: 2, y: 0 }.x { n = n + i }
+  outer: loop {
+    n = n + point { x: 1, y: 0 }.x
+    break :outer
+  }
+  return match point { 1, 2 }.y { 2 => n; _ => 0 }
+}

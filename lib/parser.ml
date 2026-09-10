@@ -173,6 +173,29 @@ let opens_struct_lit st =
   let tok = (peek st).token in
   not (is_stmt_start tok && not (is_expr_start tok))
 
+(* The x: 1 of point { x: 1 } rather than a label *)
+let opens_named_field st =
+  match (peek st).token with
+  | IDENT _ -> (
+      (peek_nth st 1).token = COLON
+      &&
+      match (peek_nth st 2).token with
+      | WHILE | FOR | LOOP -> false
+      | _ -> true)
+  | _ -> false
+
+(* A block can't hold the comma of point { 1, 2 } *)
+let opens_positional_field st =
+  is_expr_start (peek st).token && (peek_nth st 1).token = COMMA
+
+let opens_struct_field st = opens_named_field st || opens_positional_field st
+
+let struct_lit_in_header span =
+  Diagnostic.error "a struct literal can't go in a header"
+  |> Diagnostic.at span
+  |> Diagnostic.label "this `{` starts the body"
+  |> Diagnostic.help "wrap the literal in parentheses"
+
 let starts_element_type = function
   | IDENT _ | STAR | FUNC | EXTERN -> true
   | _ -> false
@@ -1001,7 +1024,7 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
               member = !member;
             }
           in
-          if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then begin
+          let literal () =
             advance st;
             let fields = parse_struct_lit_fields st in
             expect st RBRACE;
@@ -1009,6 +1032,12 @@ and parse_postfix ?(no_struct_lit = false) st (lhs : expr) =
             let path_span = (path_expr path).span in
             continue_with
               (mk lo st (StructLit (path_names path, base, path_span, fields)))
+          in
+          if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then
+            literal ()
+          else if at st LBRACE && no_struct_lit && opens_struct_field st then begin
+            emit_parse_error st (struct_lit_in_header (cur_span st));
+            literal ()
           end
           else continue_with (path_expr path)
       | _ -> continue_with (mk lo st (FieldAccess (lhs, name, name_span))))
@@ -1122,11 +1151,17 @@ and parse_primary ?(no_struct_lit = false) st =
       let name = Interner.intern name in
       let nspan = st.tok_span in
       advance st;
-      if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then begin
+      let literal () =
         advance st;
         let fields = parse_struct_lit_fields st in
         expect st RBRACE;
         mk lo st (StructLit ([], name, nspan, fields))
+      in
+      if at st LBRACE && (not no_struct_lit) && opens_struct_lit st then
+        literal ()
+      else if at st LBRACE && no_struct_lit && opens_struct_field st then begin
+        emit_parse_error st (struct_lit_in_header (cur_span st));
+        literal ()
       end
       else mk lo st (Ident name)
   | STRING s ->
