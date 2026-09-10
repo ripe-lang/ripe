@@ -1,0 +1,6 @@
+func main() i32 {
+  var n: i32 = undefined
+  n = 0
+  for i in 0..=3 { n += i }
+  return n
+}

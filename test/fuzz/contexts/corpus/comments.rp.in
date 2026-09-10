@@ -1,0 +1,7 @@
+// A line comment
+func main() i32 {
+  /* A block comment
+     across lines */
+  var n: i32 = 1 // trailing
+  return n
+}

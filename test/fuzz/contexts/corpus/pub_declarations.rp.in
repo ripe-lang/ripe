@@ -1,0 +1,9 @@
+pub struct pt { x: i32 }
+pub type word = i32
+pub enum col { Red; Green }
+pub var total: word = 1
+func main() i32 {
+  var p: pt = pt { x: 2 }
+  var c = col.Red
+  return total + p.x + match c { col.Red => 0; _ => 1 }
+}
