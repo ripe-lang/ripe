@@ -239,7 +239,6 @@ and read_string st = parse
         st.token_queue;
       read_string st lexbuf
     }
-  (* FIXME(2151): raw newlines stay for now *)
   | newline {
       if st.string_resume = None then
         st.string_resume <- Some (start_pos lexbuf, st.line);
@@ -251,7 +250,6 @@ and read_string st = parse
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
-  (* A quote that never closed only ever meant the line it was opened on *)
   | eof {
       Buffer.clear st.buf;
       (match st.string_resume with
