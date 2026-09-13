@@ -16,10 +16,28 @@ BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
 FLAGS_FILE = "flags.txt"
 CC = "cc"
+RESET = "\033[0m"
+CYAN = "\033[36m"
+GREEN = "\033[32m"
+RED = "\033[31m"
 
 
 def indented(text):
     return " " + text.rstrip("\n").replace("\n", "\n ") + "\n"
+
+
+def color_diff_line(line):
+    if line.startswith(("---", "+++", "@@")):
+        color = CYAN
+    elif line.startswith("+"):
+        color = GREEN
+    elif line.startswith("-"):
+        color = RED
+    else:
+        return line
+    newline = "\n" if line.endswith("\n") else ""
+    body = line[:-1] if newline else line
+    return color + body + RESET + newline
 
 
 def find_ripec(explicit):
@@ -67,6 +85,10 @@ def diff(want, actual, golden):
         fromfile=golden,
         tofile="actual",
     )
+
+    if sys.stdout.isatty():
+        lines = map(color_diff_line, lines)
+
     return indented("".join(lines))
 
 
