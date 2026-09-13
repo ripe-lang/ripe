@@ -2172,3 +2172,61 @@ let%expect_test "parse: a binding may be named with an underscore" =
   var _ = 2
 }|};
   [%expect {| (block (var _ 1) (var _ 2)) |}]
+
+let%expect_test "parse: a local enum body keeps the brace it was given" =
+  run_src
+    {|func f() i32 {
+  enum side  Left; Right }
+  var s = side.Right
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected `{`
+      at <test>:2:14
+          enum side  Left; Right }
+                     ^~~~ found Left
+    |}]
+
+let%expect_test "parse: a binding with two names keeps the second" =
+  run_src {|func f() i32 {
+  var q n: i32 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q n: i32 = 1
+                ^ found n
+    |}]
+
+let%expect_test "parse: a run of names leaves only the annotated one" =
+  run_src {|func f() i32 {
+  var q f x: i32 = 1
+  return x
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q f x: i32 = 1
+                ^ found f
+    |}]
+
+let%expect_test "parse: an extra name and a missing colon are both said once" =
+  run_src {|func f() i32 {
+  var q n i32 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q n i32 = 1
+                ^ found n
+    error: expected `:`
+      at <test>:2:11
+          var q n i32 = 1
+                  ^~~ found i32
+    |}]

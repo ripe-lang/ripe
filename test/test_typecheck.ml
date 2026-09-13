@@ -3635,7 +3635,7 @@ let%expect_test "typecheck: pair assignment rejects an expression target" =
     error: cannot assign to expression
       at <test>:1:27
         func f(a: i32, b: i32) { (a + 1), b = b, a }
-                                  ^~~~~
+                                  ^~~~~ on i32
     |}]
 
 let%expect_test "typecheck: pair assignment allows different target types" =
@@ -5002,4 +5002,16 @@ let%expect_test "typecheck: pattern is not a literal" =
         func f(a: [2]i32) i32 { return match a { [1, 2] => 1; _ => 0 } }
                                                  ^~~~~~
     help: an arm names a literal or an enum variant
+    |}]
+
+let%expect_test "typecheck: a compound assign to a value stops at the target" =
+  run_src {|func f() {
+  "s" += 1
+}|};
+  [%expect
+    {|
+    error: cannot assign to expression
+      at <test>:2:3
+          "s" += 1
+          ^~~ on *i8
     |}]

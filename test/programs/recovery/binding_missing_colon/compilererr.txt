@@ -1,0 +1,8 @@
+error: expected `:`
+  at main.rp:1:7
+    var g i32 = 3
+          ^~~ found i32
+error: expected `:`
+  at main.rp:3:9
+      var n i32 = 1
+            ^~~ found i32

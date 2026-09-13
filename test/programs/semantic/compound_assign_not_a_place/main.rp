@@ -1,0 +1,5 @@
+func main() i32 {
+  var n: i32 = 8
+  "s" += 1
+  return n
+}
