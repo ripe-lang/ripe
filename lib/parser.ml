@@ -142,32 +142,31 @@ let opens_struct_field st =
   | _ -> false
 
 (* A cast names a type and []i32 or *[2]i32 can't be read as an expression *)
+let rec array_type st depth index =
+  let info = peek_nth st index in
+  match info.token with
+  | EOF -> false
+  | LBRACKET -> array_type st (depth + 1) (index + 1)
+  | RBRACKET when depth = 1 -> (
+      let next = peek_nth st (index + 1) in
+      match next.token with
+      | LBRACKET -> array_type st 1 (index + 2)
+      | IDENT _ | STAR | FUNC | EXTERN -> true
+      | _ -> false)
+  | RBRACKET -> array_type st (depth - 1) (index + 1)
+  | _ -> array_type st depth (index + 1)
+
+let rec after_stars st index =
+  match (peek_nth st index).token with
+  | STAR -> after_stars st (index + 1)
+  | LBRACKET | FUNC | EXTERN -> true
+  | _ -> false
+
 let opens_type st =
-  let rec array_type depth index =
-    let info = peek_nth st index in
-    match info.token with
-    | EOF -> false
-    | LBRACKET -> array_type (depth + 1) (index + 1)
-    | RBRACKET when depth = 1 -> (
-        let next = peek_nth st (index + 1) in
-        match next.token with
-        | LBRACKET -> array_type 1 (index + 2)
-        | IDENT _ | STAR | FUNC | EXTERN -> true
-        | _ -> false)
-    | RBRACKET -> array_type (depth - 1) (index + 1)
-    | _ -> array_type depth (index + 1)
-  in
   match cur_token st with
   | FUNC | EXTERN -> true
-  | STAR ->
-      let rec after_stars index =
-        match (peek_nth st index).token with
-        | STAR -> after_stars (index + 1)
-        | LBRACKET | FUNC | EXTERN -> true
-        | _ -> false
-      in
-      after_stars 0
-  | LBRACKET -> array_type 1 0
+  | STAR -> after_stars st 0
+  | LBRACKET -> array_type st 1 0
   | _ -> false
 
 let has_abi st = match peek_token st with STRING _ -> true | _ -> false
@@ -203,6 +202,13 @@ let skip_line st line stops =
   do
     advance st
   done
+
+let skip_to_close st =
+  while not (at st EOF || at st RPAREN || at st LBRACE) do
+    advance st
+  done
+
+let has_arm st = not (at st RBRACE || at st EOF)
 
 let report st d =
   let duplicate =
@@ -670,11 +676,6 @@ and parse_param st =
 (* (a: i32, b: i32), (fmt: cstr, ...) *)
 and parse_params st =
   expect st LPAREN;
-  let skip_to_close () =
-    while not (at st EOF || at st RPAREN || at st LBRACE) do
-      advance st
-    done
-  in
   let rec go params =
     match cur_token st with
     | RPAREN -> (List.rev params, None)
@@ -684,7 +685,7 @@ and parse_params st =
         if not (at st RPAREN) then begin
           Diagnostic.error (cur_span st) "`...` must be the last parameter"
           |> report st;
-          skip_to_close ()
+          skip_to_close st
         end;
         (List.rev params, Some span)
     | _ -> (
@@ -719,7 +720,7 @@ and parse_params st =
               go params
             end
             else begin
-              skip_to_close ();
+              skip_to_close st;
               (List.rev params, None)
             end)
   in
@@ -1236,8 +1237,7 @@ and parse_match st context =
 and parse_arms st lo scrutinee =
   expect st LBRACE;
   let arms = ref [] in
-  let has_arm () = not (at st RBRACE || at st EOF) in
-  while has_arm () do
+  while has_arm st do
     try
       arms := parse_arm st :: !arms;
       expect_decl_sep st ~what:"arm"
