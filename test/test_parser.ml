@@ -2230,3 +2230,77 @@ let%expect_test "parse: an extra name and a missing colon are both said once" =
           var q n i32 = 1
                   ^~~ found i32
     |}]
+
+let%expect_test "parse: a missing colon before a dotted type is said once" =
+  run_src {|func f() i32 {
+  var n m.t = 1
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected `:`
+      at <test>:2:9
+          var n m.t = 1
+                ^ found m
+    error: undefined type
+      at <test>:2:9
+          var n m.t = 1
+                ^~~
+    |}]
+
+let%expect_test "parse: a value as a binding type keeps the initializer" =
+  run_src {|func f() i32 {
+  var n: 5 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:2:10
+          var n: 5 = 1
+                 ^ found 5
+    |}]
+
+let%expect_test "parse: a wrong alias separator is said once" =
+  run_src {|type t: i32
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: expected `=`
+      at <test>:1:7
+        type t: i32
+              ^ found :
+    |}]
+
+let%expect_test "parse: a value as an alias type is said once" =
+  run_src {|type t = 5
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:1:10
+        type t = 5
+                 ^ found 5
+    |}]
+
+let%expect_test "parse: a broken statement keeps the rest of a value block" =
+  run_src
+    {|func main() i32 {
+  var x: i32 = {
+    var a = nope
+    )
+    1
+  }
+  return x
+}|};
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:3:13
+            var a = nope
+                    ^~~~
+    error: expected expression
+      at <test>:4:5
+            )
+            ^ found )
+    |}]
