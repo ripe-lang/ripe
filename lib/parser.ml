@@ -127,7 +127,7 @@ let skip_semi st =
 
 (* The next field must keep its name *)
 let starts_member st =
-  match cur_token st with IDENT _ -> peek_token st == COLON | _ -> false
+  match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
 
 (* A broken field should not turn a literal into a block *)
 let opens_struct_lit st =
@@ -135,10 +135,11 @@ let opens_struct_lit st =
   not (is_stmt_start tok && not (is_expr_start tok))
 
 let opens_struct_field st =
-  match peek_token st with
-  | IDENT _ when (peek_nth st 1).token == COLON -> (
+  match (peek_token st, (peek_nth st 1).token) with
+  | IDENT _, COLON -> (
       match (peek_nth st 2).token with WHILE | FOR | LOOP -> false | _ -> true)
-  | tok -> is_expr_start tok && (peek_nth st 1).token == COMMA
+  | tok, COMMA -> is_expr_start tok
+  | _ -> false
 
 (* A cast names a type and []i32 or *[2]i32 can't be read as an expression *)
 let opens_type st =
@@ -370,8 +371,8 @@ and binding_name st context =
   | _ -> expect_ident_span st
 
 and binding_annotation st =
-  match cur_token st with
-  | COLON ->
+  match (cur_token st, peek_token st) with
+  | COLON, _ ->
       let line = cur_line st in
       Some
         (try typ_after st COLON
@@ -379,12 +380,9 @@ and binding_annotation st =
            report st d;
            skip_line st line [ ASSIGN ];
            error_typ (recovery_span st d))
-  | IDENT _ -> (
-      match peek_token st with
-      | ASSIGN | SEMI | AUTOSEMI | RBRACE | EOF | DOT ->
-          Diagnostic.error (cur_span st) "expected `:`" |> found st |> report st;
-          Some (parse_typ st)
-      | _ -> None)
+  | IDENT _, (ASSIGN | SEMI | AUTOSEMI | RBRACE | EOF | DOT) ->
+      Diagnostic.error (cur_span st) "expected `:`" |> found st |> report st;
+      Some (parse_typ st)
   | _ -> None
 
 and binding_initializer st =
@@ -1041,8 +1039,8 @@ and parse_comma_list st stop = comma_sep st stop (fun st -> parse_expr st)
 and parse_struct_lit_fields st =
   skip_semi st;
   let field_form () =
-    match cur_token st with
-    | IDENT _ when peek_token st == COLON -> NamedField
+    match (cur_token st, peek_token st) with
+    | IDENT _, COLON -> NamedField
     | _ -> PositionalField
   in
   let form = field_form () in
