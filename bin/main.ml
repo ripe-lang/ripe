@@ -78,6 +78,7 @@ let command =
 let is_help arg = arg = "-h" || arg = "--help"
 
 let () =
+  (* Gc.set { (Gc.get ()) with minor_heap_size = 4 * 1024 * 1024 }; *)
   let args = match Array.to_list Sys.argv with _ :: rest -> rest | [] -> [] in
   if List.is_empty args || List.exists is_help args then (
     print_endline usage_msg;
