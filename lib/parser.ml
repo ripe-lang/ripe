@@ -1413,15 +1413,15 @@ let parse_module st =
   skip_semi st;
   go ~first:true None [] []
 
-let parse ~diags (read : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf
-    =
-  let read () =
-    match read lexbuf with
-    | ERROR msg, span, line ->
-        Diagnostic.emit diags (Diagnostic.error span "%s" msg);
-        { token = ERROR msg; span; line }
-    | token, span, line -> { token; span; line }
-  in
+let read_token diags lex lexbuf () =
+  match lex lexbuf with
+  | ERROR msg, span, line ->
+      Diagnostic.emit diags (Diagnostic.error span "%s" msg);
+      { token = ERROR msg; span; line }
+  | token, span, line -> { token; span; line }
+
+let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
+  let read = read_token diags lex lexbuf in
   let current = read () in
   let st =
     { read; current; ahead = []; prev_end = Span.hi Span.dummy; diags }
