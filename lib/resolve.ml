@@ -206,7 +206,9 @@ let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
       match Names.find_opt table name with
       | Some prev ->
           Diagnostic.emit st.diags
-            (Diagnostic.redefinition ident.span ~prev:prev.Symbol.name_span)
+            (Diagnostic.error ident.span "already defined"
+            |> Diagnostic.secondary prev.Symbol.name_span
+                 "previous definition here")
       | None ->
           let link_name =
             Option.value ~default:(declaration_link_name st kind name) link_name
@@ -308,8 +310,8 @@ let captured_value st name = Option.bind st.value_boundary (captured_in name)
 
 let missing_value st ~what name span =
   match captured_value st name with
-  | Some _ -> Diagnostic.error_at span "local function cannot capture variable"
-  | None -> Diagnostic.undefined_name span what
+  | Some _ -> Diagnostic.error span "local function cannot capture variable"
+  | None -> Diagnostic.error span "undefined %s" what
 
 (* The name comes off the symbol not off the spelling at the use site *)
 let check_visibility st span sym =
@@ -318,7 +320,7 @@ let check_visibility st span sym =
     && sym.Symbol.visibility = Symbol.Private
   then
     Diagnostic.emit st.diags
-      (Diagnostic.error_at span "private declaration"
+      (Diagnostic.error span "private declaration"
       |> Diagnostic.secondary sym.Symbol.span "declared private here")
 
 let use_symbol st span sym =
@@ -351,7 +353,7 @@ let use_type st path name span =
   | None ->
       let shown = Ast.show_named path name in
       if not (failed_import st path) then
-        Diagnostic.emit st.diags (Diagnostic.undefined_name span "type");
+        Diagnostic.emit st.diags (Diagnostic.error span "undefined type");
       ignore (mint st Symbol.Error (Interner.intern shown) span)
 
 (* Semantic analysis already reports an unknown struct literal *)
@@ -392,7 +394,9 @@ let declare_param st p =
       match Names.find_opt st.scope.values name with
       | Some prev ->
           Diagnostic.emit st.diags
-            (Diagnostic.redefinition p.param_span ~prev:prev.Symbol.span);
+            (Diagnostic.error p.param_span "already defined"
+            |> Diagnostic.secondary prev.Symbol.span "previous definition here"
+            );
           Span.Table.replace st.out.syms p.param_span prev
       | None -> declare_local st Symbol.Param name p.param_span)
 
@@ -414,7 +418,7 @@ let use_qualified st ~what p span =
   | Missing (module_path, member) ->
       (* The import already failed so every name under it would say the same thing twice *)
       if not (failed_import st module_path) then
-        Diagnostic.emit st.diags (Diagnostic.undefined_name span what);
+        Diagnostic.emit st.diags (Diagnostic.error span "undefined %s" what);
       (* The stages after this read a symbol back off every span they walk *)
       ignore
         (mint st Symbol.Error
@@ -452,7 +456,7 @@ let resolve_missing_value_root st name span =
       true
 
 let resolve_value_root st p =
-  let name, span = Nonempty.hd p.Ast.owner in
+  let { Ast.value = name; span } = Nonempty.hd p.Ast.owner in
   match lookup st name with
   | Some { Symbol.kind = Symbol.Module; _ } -> false
   | Some sym ->
@@ -466,9 +470,10 @@ let rec resolve_path st p span =
     && not (resolve_value_root st p)
   then begin
     let prefix = Ast.owner_expr p in
-    let init, (name, _) = Nonempty.destruct_last p.Ast.owner in
-    if not (use_type_name st ~path:(List.map fst init) ~name prefix.Ast.span)
-    then resolve_expr st prefix
+    let init, { Ast.value = name; _ } = Nonempty.destruct_last p.Ast.owner in
+    let path = List.map (fun n -> n.Ast.value) init in
+    if not (use_type_name st ~path ~name prefix.Ast.span) then
+      resolve_expr st prefix
   end
 
 and resolve_deref_callee st e =
@@ -496,8 +501,7 @@ and resolve_header st e =
     when lookup st name = None && find_type_in_scope st.scope name <> None ->
       st.header_hole := Some tail.Ast.span;
       Diagnostic.emit st.diags
-        (Diagnostic.error "expected a value and found a type"
-        |> Diagnostic.at tail.Ast.span
+        (Diagnostic.error tail.Ast.span "expected a value and found a type"
         |> Diagnostic.help "wrap a struct literal in parentheses here")
   | _ -> ());
   resolve_expr st e;
@@ -530,7 +534,7 @@ and resolve_expr st e =
   | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
   | RangeFull -> ()
   | Path segs -> resolve_path st segs e.span
-  | FieldAccess (inner, _, _) -> resolve_expr st inner
+  | FieldAccess (inner, _) -> resolve_expr st inner
   | Cast (ty, inner) ->
       resolve_typ st ty;
       resolve_expr st inner
@@ -539,10 +543,10 @@ and resolve_expr st e =
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | StructLit (path, name, name_span, fields) ->
+  | StructLit (path, { value = name; span = name_span }, fields) ->
       if List.is_empty path then use_type_if_found st name name_span
       else use_type st path name name_span;
-      List.iter (fun (_, _, e) -> resolve_expr st e) fields
+      List.iter (fun (_, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | Match (scrutinee, arms) ->
       resolve_header st scrutinee;
@@ -558,12 +562,12 @@ and resolve_expr st e =
       resolve_header st cond;
       resolve_block st body
   | Loop (_, body) -> resolve_block st body
-  | For (_, name, nspan, iter, body) ->
+  | For (_, { value = name; span = nspan }, iter, body) ->
       resolve_header st iter;
       let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
       resolve_block_contents st body
-  | Binding (kind, name, nspan, ann, e) ->
+  | Binding (kind, { value = name; span = nspan }, ann, e) ->
       Option.iter (resolve_typ st) ann;
       Option.iter (resolve_expr st) e;
       declare_local st (Symbol.Local kind) name nspan
@@ -758,7 +762,9 @@ let resolve_program ~diags program =
       match Names.find_opt st.top.values name with
       | Some prev ->
           Diagnostic.emit st.diags
-            (Diagnostic.redefinition import.Ast.span ~prev:prev.Symbol.span)
+            (Diagnostic.error import.Ast.span "already defined"
+            |> Diagnostic.secondary prev.Symbol.span "previous definition here"
+            )
       | None ->
           Hashtbl.replace out.imports
             (module_.Program.module_id, [ name ])

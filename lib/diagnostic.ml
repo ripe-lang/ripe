@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* These diagnostics came from ceramic *)
-
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
 
@@ -28,18 +26,25 @@ let make severity headline =
     suggestion = None;
   }
 
-(* Builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
-let error headline = make Error headline
-let warning headline = make Warning headline
-let at span d = { d with primary = Some span }
-let label message d = { d with primary_label = Some message }
+(* Builder pipeline: `error span msg |> label "..." |> help "..."` *)
+let error span fmt =
+  Printf.ksprintf
+    (fun headline -> { (make Error headline) with primary = Some span })
+    fmt
+
+let warning span headline = { (make Warning headline) with primary = Some span }
+let global_error headline = make Error headline
+
+let label fmt =
+  Printf.ksprintf (fun message d -> { d with primary_label = Some message }) fmt
+
+let found text d = label "found %s" text d
 
 let secondary span message d =
   { d with labels = d.labels @ [ { span; message } ] }
 
 let detail s d = { d with detail = Some s }
 let help s d = { d with suggestion = Some s }
-let error_at span msg = error msg |> at span
 
 (* Where a pass dumps diagnostics and the edge drains it to render *)
 type sink = t list ref
@@ -49,8 +54,6 @@ let headline d = d.headline
 let primary d = d.primary
 let detail_of d = d.detail
 let emit s d = s := d :: !s
-let emit_error_at s span msg = emit s (error_at span msg)
-let emit_warn_at s span msg = emit s (warning msg |> at span)
 let has_errors s = List.exists (fun d -> d.severity = Error) !s
 
 (* Sorted into source order and ties keep emission order *)
@@ -236,60 +239,14 @@ let render_with (context_at : int -> ctx) default_ctx d =
 
 let render ctx d = render_with (fun _ -> ctx) ctx d
 
-let type_mismatch span ~expected ~found =
-  error "type mismatch" |> at span
-  |> label (Printf.sprintf "expected %s, found %s" expected found)
-
-let undefined_name span kind = error ("undefined " ^ kind) |> at span
-let with_type span msg ty = error msg |> at span |> label ("on " ^ ty)
-
-let redefinition span ~prev =
-  error_at span "already defined" |> secondary prev "previous definition here"
-
-let arity span ~expected ~found =
-  error "wrong number of arguments"
-  |> at span
-  |> label (Printf.sprintf "%s, found %d" expected found)
-
-let unsupported_abi span =
-  error "unsupported ABI" |> at span |> label "this ABI is not supported here"
-
-let int_out_of_range span ~ty =
-  error "integer literal out of range"
-  |> at span
-  |> label ("does not fit in " ^ ty)
-
-let bad_operand span ~op ~ty =
-  error "invalid operand" |> at span
-  |> label (Printf.sprintf "cannot apply `%s` to %s" op ty)
-
-let break_disagree span message ~other ~other_message =
-  error "`break` values disagree"
-  |> at span |> label message
-  |> secondary other other_message
-
-let opaque_operation span action =
-  error (Printf.sprintf "cannot %s *opaque" action)
-  |> at span
-  |> help "cast to a typed pointer first"
-
-let cannot_infer span =
-  error "cannot infer type" |> at span
-  |> help "write the type or give it a value"
-
-let expected_expression span = error "expected expression" |> at span
-let expected_type span = error "expected type" |> at span
-let cyclic_constant span = error_at span "cyclic constant"
-let with_found span msg found = error msg |> at span |> label ("found " ^ found)
-
 let internal ?span msg =
   let d =
-    error "internal compiler error"
+    global_error "internal compiler error"
     |> detail (msg ^ "\n")
     |> help
          "this is a bug in ripec, please report it at \
           https://github.com/ripe-lang/ripe/issues"
   in
-  match span with Some sp -> at sp d | None -> d
+  match span with Some sp -> { d with primary = Some sp } | None -> d
 
 let ice ?span msg = raise (Errors [ internal ?span msg ])

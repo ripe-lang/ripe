@@ -161,12 +161,6 @@ let retype ty e =
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
   | _ -> VInt (e, if is_wide_ty ty then I64 else I32)
 
-let unsupported_const span =
-  Diagnostic.(
-    error "unsupported constant expression"
-    |> at span
-    |> help "constant initializers must evaluate at compile time")
-
 (* Only the arith lands here since a comp is not an int *)
 let int_binop op a b =
   try

@@ -12,41 +12,21 @@ val detail_of : t -> string option
 type sink
 type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
-val error : string -> t
-val warning : string -> t
-val at : Ast.span -> t -> t
-val label : string -> t -> t
+val error : Ast.span -> ('a, unit, string, t) format4 -> 'a
+val warning : Ast.span -> string -> t
+val global_error : string -> t
+val label : ('a, unit, string, t -> t) format4 -> 'a
+val found : string -> t -> t
 val secondary : Ast.span -> string -> t -> t
 val detail : string -> t -> t
 val help : string -> t -> t
-val error_at : Ast.span -> string -> t
 val sink : unit -> sink
 val emit : sink -> t -> unit
-val emit_error_at : sink -> Ast.span -> string -> unit
-val emit_warn_at : sink -> Ast.span -> string -> unit
 val has_errors : sink -> bool
 val drain : sink -> t list
 val take : sink -> t list
 val severity_label : bool -> severity -> string
 val render_with : (int -> ctx) -> ctx -> t -> string
 val render : ctx -> t -> string
-val type_mismatch : Ast.span -> expected:string -> found:string -> t
-val undefined_name : Ast.span -> string -> t
-val with_type : Ast.span -> string -> string -> t
-val redefinition : Ast.span -> prev:Ast.span -> t
-val arity : Ast.span -> expected:string -> found:int -> t
-val unsupported_abi : Ast.span -> t
-val int_out_of_range : Ast.span -> ty:string -> t
-val bad_operand : Ast.span -> op:string -> ty:string -> t
-
-val break_disagree :
-  Ast.span -> string -> other:Ast.span -> other_message:string -> t
-
-val opaque_operation : Ast.span -> string -> t
-val cannot_infer : Ast.span -> t
-val cyclic_constant : Ast.span -> t
-val expected_expression : Ast.span -> t
-val expected_type : Ast.span -> t
-val with_found : Ast.span -> string -> string -> t
 val internal : ?span:Ast.span -> string -> t
 val ice : ?span:Ast.span -> string -> 'a
