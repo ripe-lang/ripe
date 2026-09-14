@@ -11,14 +11,20 @@ USAGE = "test_no_regression.py <rev> [--show <message>]"
 BASE_TREE = os.path.join(harness.WORK, "base")
 BASE_RIPEC = os.path.join(BASE_TREE, "_build/install/default/bin/ripec")
 
-BASE_ARGV = [BASE_RIPEC, "--emit", "check", harness.MAIN]
-NEW_ARGV = [harness.RIPEC, "--emit", "check", harness.MAIN]
+BASE_ARGV = [BASE_RIPEC] + harness.IMPORT + ["--emit", "check", harness.MAIN]
+NEW_ARGV = [harness.RIPEC] + harness.IMPORT + ["--emit", "check", harness.MAIN]
 
 SHOWN_HIDDEN = 20
 SHOWN_DIFF = 700
 
 
 def build_base(rev):
+    # A run that died before its teardown leaves the tree behind
+    subprocess.run(
+        ["git", "worktree", "remove", BASE_TREE, "--force"],
+        cwd=harness.REPO_ROOT,
+        capture_output=True,
+    )
     subprocess.run(
         ["git", "worktree", "add", "--detach", BASE_TREE, rev],
         cwd=harness.REPO_ROOT,
@@ -35,29 +41,38 @@ def kinds(out):
     return set(front) | set(down)
 
 
+def both(job):
+    _lab, src, extra, _argv = job
+
+    return _lab, src, extra, harness.run(src, BASE_ARGV), harness.run(src, NEW_ARGV)
+
+
 def compare():
     hidden = []
     quieter = []
     total = 0
 
-    for n, t in harness.contexts("corpus"):
-        for lab, src, _hit in m.edits(t):
-            total += 1
-            ocode, oout = harness.run(src, BASE_ARGV)
-            ncode, nout = harness.run(src, NEW_ARGV)
+    cases = (
+        ("%s: %s" % (n, lab), src, None)
+        for n, t in harness.contexts("corpus")
+        for lab, src, _hit in m.edits(t)
+    )
 
-            if ocode is None or ncode is None:
-                continue
+    for tag, src, _x, old, new in harness.each(cases, work=both):
+        ocode, oout = old
+        ncode, nout = new
+        total += 1
 
-            tag = "%s: %s" % (n, lab)
+        if ocode is None or ncode is None:
+            continue
 
-            if ocode == 1 and ncode == 0:
-                hidden.append((tag, src, oout))
-                continue
+        if ocode == 1 and ncode == 0:
+            hidden.append((tag, src, oout))
+            continue
 
-            lost = kinds(oout) - kinds(nout)
-            if lost and ncode == 1:
-                quieter.append((tag, sorted(lost), src, oout, nout))
+        lost = kinds(oout) - kinds(nout)
+        if lost and ncode == 1:
+            quieter.append((tag, sorted(lost), src, oout, nout))
 
     return hidden, quieter, total
 

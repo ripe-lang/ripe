@@ -15,7 +15,7 @@ USAGE = "test_gen_goldens.py <dir> [<dir> ...] [--write]"
 
 def golden_for(testdir, write):
     b = subprocess.run(
-        [harness.RIPEC, "-I", harness.REPO_ROOT, "-o", BINARY, "main.rp"],
+        [harness.RIPEC] + harness.IMPORT + ["-o", BINARY, "main.rp"],
         cwd=testdir,
         capture_output=True,
         text=True,
