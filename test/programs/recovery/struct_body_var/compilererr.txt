@@ -1,15 +1,4 @@
-error: expected `}`
+error: expected identifier
   at main.rp:3:3
       var g: extern "C" func (i32) i32 = twice
       ^~~ found `var`
-  at main.rp:2:12
-    struct box {
-               ^ to match this `{`
-error: type mismatch
-  at main.rp:3:38
-      var g: extern "C" func (i32) i32 = twice
-                                         ^~~~~ expected extern "C" func (i32) i32, found func (i32) i32
-error: unexpected closing delimiter
-  at main.rp:4:1
-    }
-    ^

@@ -8,10 +8,13 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: expected `)`
+    error: mismatched closing delimiter
       at <test>:1:15
         func f() { g( }
-                      ^ found }
+                      ^ expected `)`
+      at <test>:1:13
+        func f() { g( }
+                    ^ to match this `(`
     |}]
 
 let%expect_test "parse: stray token" =
@@ -32,13 +35,6 @@ let%expect_test "parse: unterminated string" =
       at <test>:1:20
         func f() { var s = "oops
                            ^~~~~
-    error: expected `}`
-      at <test>:1:25
-        func f() { var s = "oops
-                                ^ found <eof>
-      at <test>:1:10
-        func f() { var s = "oops
-                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -185,10 +181,6 @@ func g() i32 { return true }|};
       at <test>:2:10
           var x: = /
                  ^ found =
-    error: expected expression
-      at <test>:2:12
-          var x: = /
-                   ^ found /
     error: type mismatch
       at <test>:5:23
         func g() i32 { return true }
@@ -1100,10 +1092,13 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: expected expression
+    error: mismatched closing delimiter
       at <test>:1:12
         func f() { ) }
-                   ^ found )
+                   ^ expected `}`
+      at <test>:1:10
+        func f() { ) }
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -1810,13 +1805,10 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
   run_src "func f() { ( [";
   [%expect
     {|
-    error: expected `}`
-      at <test>:1:15
-        func f() { ( [
-                      ^ found <eof>
+    error: unclosed delimiter
       at <test>:1:14
         func f() { ( [
-                     ^ to match this `[`
+                     ^
       at <test>:1:12
         func f() { ( [
                    ^ to match this `(`
@@ -2295,12 +2287,11 @@ let%expect_test "parse: a broken statement keeps the rest of a value block" =
 }|};
   [%expect
     {|
-    error: undefined variable
-      at <test>:3:13
-            var a = nope
-                    ^~~~
-    error: expected expression
+    error: mismatched closing delimiter
       at <test>:4:5
             )
-            ^ found )
+            ^ expected `}`
+      at <test>:2:16
+          var x: i32 = {
+                       ^ to match this `{`
     |}]

@@ -1,19 +1,20 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let parse_module ?(file = 0) src =
+let parse_src ~diags file src =
   let st = Ripe.Lexer.make_state file in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
-  fst
-    (Diag.run_stage (fun diags ->
-         Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf))
+  try Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf
+  with Ripe.Parser.Unbalanced ->
+    { Ripe.Ast.header = None; imports = []; decls = [] }
+
+let parse_module ?(file = 0) src =
+  fst (Diag.run_stage (fun diags -> parse_src ~diags file src))
 
 let parse ?(file = 0) src = (parse_module ~file src).decls
 
 let front_src module_id src =
-  let st = Ripe.Lexer.make_state 0 in
-  let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let diags = Ripe.Diagnostic.sink () in
-  let module_ = Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf in
+  let module_ = parse_src ~diags 0 src in
   let decls = module_.decls in
   let uses = Ripe.Resolve.resolve ~diags ~module_id decls in
   (decls, uses, diags)
