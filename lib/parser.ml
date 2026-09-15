@@ -48,8 +48,8 @@ let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | LPAREN | LBRACKET | UNDEFINED
-  | IF | LBRACE | LOOP | MATCH | ERROR _ ->
+  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET
+  | UNDEFINED | IF | LBRACE | LOOP | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -148,34 +148,6 @@ let opens_struct_field st =
   | IDENT _, COLON -> (
       match (peek_nth st 2).token with WHILE | FOR | LOOP -> false | _ -> true)
   | tok, COMMA -> is_expr_start tok
-  | _ -> false
-
-(* A cast names a type and []i32 or *[2]i32 can't be read as an expression *)
-let rec array_type st depth index =
-  let info = peek_nth st index in
-  match info.token with
-  | EOF -> false
-  | LBRACKET -> array_type st (depth + 1) (index + 1)
-  | RBRACKET when depth = 1 -> (
-      let next = peek_nth st (index + 1) in
-      match next.token with
-      | LBRACKET -> array_type st 1 (index + 2)
-      | IDENT _ | STAR | FUNC | EXTERN -> true
-      | _ -> false)
-  | RBRACKET -> array_type st (depth - 1) (index + 1)
-  | _ -> array_type st depth (index + 1)
-
-let rec after_stars st index =
-  match (peek_nth st index).token with
-  | STAR -> after_stars st (index + 1)
-  | LBRACKET | FUNC | EXTERN -> true
-  | _ -> false
-
-let opens_type st =
-  match cur_token st with
-  | FUNC | EXTERN -> true
-  | STAR -> after_stars st 0
-  | LBRACKET -> array_type st 1 0
   | _ -> false
 
 let has_abi st = match peek_token st with STRING _ -> true | _ -> false
@@ -921,28 +893,13 @@ and parse_postfix st (lhs : expr) =
       parse_postfix st (mk lo st (Call (lhs, args)))
   | _ -> lhs
 
-(* (), (x), (i32)(x) *)
+(* (), (x) *)
 and parse_paren st =
   let lo = cur_pos st in
   expect st LPAREN;
   if at st RPAREN then begin
     advance st;
     mk lo st Unit
-  end
-  else if opens_type st then begin
-    let t = parse_typ st in
-    expect st RPAREN;
-    expect st LPAREN;
-    let args = parse_comma_list st RPAREN in
-    expect st RPAREN;
-    match args with
-    | [ arg ] -> mk lo st (Cast (t, arg))
-    | _ ->
-        let d =
-          Diagnostic.error (span_from lo st) "wrong number of arguments"
-          |> Diagnostic.label "expected 1 argument, found %d" (List.length args)
-        in
-        recover_expr st d
   end
   else
     let e = parse_expr st in
@@ -988,6 +945,15 @@ and parse_primary st context =
       let t = parse_typ st in
       expect st RPAREN;
       mk lo st (SizeOf t)
+  (* cast(i64, x) *)
+  | CAST ->
+      advance st;
+      expect st LPAREN;
+      let t = parse_typ st in
+      expect st COMMA;
+      let e = parse_expr st in
+      expect st RPAREN;
+      mk lo st (Cast (t, e))
   | IDENT _ when peek_token st == COLON -> parse_labeled_loop st
   | IDENT name ->
       let name = Interner.intern name in

@@ -1,8 +1,4 @@
-error: expected `;`
+error: expected type
   at main.rp:2:18
-      var _p = (*{i32)(usize(0))
-                     ^ found )
-error: expected `}`
-  at main.rp:4:3
-    }
-      ^ found <eof>
+      var _p = cast(*{i32, cast(usize, 0))
+                     ^ found {

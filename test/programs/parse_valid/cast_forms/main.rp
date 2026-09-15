@@ -2,26 +2,26 @@ func h(a: i32) i32 { return a }
 struct pt { x: i32; y: i32 }
 type word = i32
 func main() i32 {
-  var n: i32 = i32(u32(3))
+  var n: i32 = cast(i32, cast(u32, 3))
   var m: u32 = 3
-  var w: i32 = (i32)(m)
-  var b: u8 = u8(300)
-  var f: f64 = f64(3)
-  var c: char = char(65)
-  var a: word = word(1)
+  var w: i32 = cast(i32, m)
+  var b: u8 = cast(u8, 300)
+  var f: f64 = cast(f64, 3)
+  var c: char = cast(char, 65)
+  var a: word = cast(word, 1)
   var p: *i32 = &n
-  var q: *u32 = (*u32)(p)
+  var q: *u32 = cast(*u32, p)
   var pp: **i32 = &p
-  var qq: **u32 = (**u32)(pp)
-  var o: *opaque = (*opaque)(p)
-  var z: *i32 = (*i32)(usize(0))
+  var qq: **u32 = cast(**u32, pp)
+  var o: *opaque = cast(*opaque, p)
+  var z: *i32 = cast(*i32, cast(usize, 0))
   var fp: func (i32) i32 = h
-  var ep: extern "C" func (i32) i32 = (extern "C" func (i32) i32)(fp)
+  var ep: extern "C" func (i32) i32 = cast(extern "C" func (i32) i32, fp)
   var hp: *func (i32) i32 = &fp
-  if usize(p) == 0 { return 1 }
+  if cast(usize, p) == 0 { return 1 }
   if z != null { return 2 }
-  var scalars: i32 = n + w + i32(b) + i32(f) + i32(c) + a + i32(true)
-  var reads: i32 = i32(*q) + i32(**qq) + *(*i32)(o)
+  var scalars: i32 = n + w + cast(i32, b) + cast(i32, f) + cast(i32, c) + a + cast(i32, true)
+  var reads: i32 = cast(i32, *q) + cast(i32, **qq) + *cast(*i32, o)
   var calls: i32 = fp(1) + (fp)(1) + (*hp)(1) + ep(1)
   return scalars + reads + calls
 }

@@ -374,15 +374,12 @@ let use st ~what name span =
 let use_callee st ?(what = "function") name span =
   match (lookup st name, find_type st [] name) with
   | None, Some sym -> use_symbol st span sym
-  | value, ty ->
+  | value, _ ->
       (match value with
       | Some sym when not (Symbol.is_func sym.Symbol.kind) ->
-          let lost =
-            match find_func_in_scope st.scope name with
-            | Some _ as f -> f
-            | None -> ty
-          in
-          Option.iter (Span.Table.replace st.out.shadowed span) lost
+          Option.iter
+            (Span.Table.replace st.out.shadowed span)
+            (find_func_in_scope st.scope name)
       | Some _ | None -> ());
       use st ~what name span
 
@@ -476,15 +473,6 @@ let rec resolve_path st p span =
       resolve_expr st prefix
   end
 
-and resolve_deref_callee st e =
-  match e.desc with
-  | UnOp (Deref, inner) -> resolve_deref_callee st inner
-  | Ident name -> use_callee st ~what:"variable" name e.span
-  | Path segs ->
-      if not (use_qualified_callee st segs e.span) then
-        resolve_path st segs e.span
-  | _ -> resolve_expr st e
-
 (* The name a header ends on is the one a struct literal would have opened *)
 and rightmost e =
   match e.Ast.desc with
@@ -517,9 +505,6 @@ and resolve_expr st e =
   | Call (({ desc = Path segs; _ } as callee), args) ->
       if not (use_qualified_callee st segs callee.span) then
         resolve_path st segs callee.span;
-      List.iter (resolve_expr st) args
-  | Call (({ desc = UnOp (Deref, _); _ } as callee), args) ->
-      resolve_deref_callee st callee;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
       resolve_expr st callee;

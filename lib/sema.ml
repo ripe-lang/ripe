@@ -1792,31 +1792,6 @@ and synth_value_path env p =
       in
       Some (List.fold_left step root fields)
 
-and cast_typ_of_callee env (e : expr) =
-  let named desc =
-    if Symbol.Table.mem env.ctx.type_defs (key_at env e.span) then
-      Some { tdesc = desc; tspan = e.span }
-    else None
-  in
-  match e.desc with
-  | UnOp (Ast.Deref, inner) ->
-      let pointer t = { tdesc = Pointer t; tspan = e.span } in
-      Option.map pointer (cast_typ_of_callee env inner)
-  | Ident name -> named (Named ([], name))
-  | Path p -> named (Named (Ast.path_names p, p.member.value))
-  | _ -> None
-
-(* A type in call position converts its one argument *)
-and synth_type_call env span ty args =
-  match args with
-  | [ arg ] -> synth_conversion env span (synth_operand env arg) ty
-  | _ ->
-      emit env
-        (Diagnostic.error span "wrong number of arguments"
-        |> Diagnostic.label "expected 1 argument, found %d" (List.length args));
-      List.iter (fun a -> ignore (synth env a)) args;
-      Tast.mk ty Tast.TErrorExpr
-
 and synth_call env span callee args =
   match direct_callee env callee with
   | Some fn_sym ->
@@ -1833,11 +1808,13 @@ and synth_call env span callee args =
       Tast.mk fsig.ret_ty (Tast.TCall (callee_texpr, targs, fixed_count))
   | None when Symbol.Table.mem env.ctx.type_defs (key_at env callee.span) ->
       let sym = Resolve.sym_at env.ctx.symbols callee.span in
-      synth_type_call env span (named_ty env callee.span sym.Symbol.name) args
-  | _ -> (
-      match cast_typ_of_callee env callee with
-      | Some t -> synth_type_call env span (ty_of_ast env t) args
-      | None -> synth_indirect_call env span callee args)
+      emit env
+        (Diagnostic.error callee.span "cannot call a type"
+        |> Diagnostic.help
+             (Printf.sprintf "convert with `cast(%s, value)`" sym.Symbol.name));
+      List.iter (fun a -> ignore (synth env a)) args;
+      dummy_texpr
+  | None -> synth_indirect_call env span callee args
 
 (* The callee is a value holding a fn ptr so call through it *)
 and synth_indirect_call env span (callee : expr) args =
@@ -1858,14 +1835,9 @@ and synth_indirect_call env span (callee : expr) args =
       let d =
         match Resolve.shadowed_at env.ctx.symbols callee.span with
         | Some sym ->
-            let fix =
-              if Symbol.is_func sym.Symbol.kind then
-                "rename the value to call this function"
-              else "rename the value to use this type as a conversion"
-            in
             d
             |> Diagnostic.secondary sym.Symbol.name_span "shadowed by the value"
-            |> Diagnostic.help fix
+            |> Diagnostic.help "rename the value to call this function"
         | None -> d
       in
       emit env d;

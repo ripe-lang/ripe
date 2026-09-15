@@ -218,7 +218,7 @@ let%expect_test "lexer: keyword versus identifier" =
 let%expect_test "lexer: all keywords" =
   dump_tokens
     {|var const var return if else while for in true false break continue sizeof null extern struct pub func type undefined
-import module loop
+import module loop cast
 |};
   [%expect
     {|
@@ -247,6 +247,7 @@ import module loop
     KW import
     KW module
     KW loop
+    KW cast
     EOF
     |}]
 

@@ -1,12 +1,12 @@
 struct pair { n: i64; f: f64 }
 
 func take(a: i64, b: f64) i64 {
-  return a + (i64(b))
+  return a + (cast(i64, b))
 }
 
 func main() i32 {
   var p: pair = pair { n: 4, f: 2.5 }
   var sizes: i32 = sizeof(i64) + sizeof(f64)
-  var same = i32(sizeof(i64) == sizeof(i64) && sizeof(f64) == sizeof(f64))
-  return sizes + same + (i32(take(p.n, p.f)))
+  var same = cast(i32, sizeof(i64) == sizeof(i64) && sizeof(f64) == sizeof(f64))
+  return sizes + same + (cast(i32, take(p.n, p.f)))
 }

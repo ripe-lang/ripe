@@ -623,6 +623,28 @@ let%expect_test "parse: sizeof" =
   parse_expr "sizeof(*i32)";
   [%expect {| (sizeof *i32) |}]
 
+let%expect_test "parse: cast" =
+  parse_expr "cast(*[2]i32, p) + cast(i64, (x))";
+  [%expect {| (+ (cast *[2]i32 p) (cast i64 x)) |}]
+
+let%expect_test "parse: cast to a function pointer type" =
+  parse_expr {|cast(extern "C" func (i32) i32, f)(1)|};
+  [%expect {| (call (cast (i32) i32 f) 1) |}]
+
+let%expect_test "parse: cast without a comma" =
+  parse_expr "cast(i32 x)";
+  [%expect
+    {|
+    error: expected `,`
+      at <test>:1:29
+        func _f() { return cast(i32 x) }
+                                    ^ found x
+    |}]
+
+let%expect_test "parse: the old paren cast is a call" =
+  parse_expr "(*i32)(p)";
+  [%expect {| (call (* i32) p) |}]
+
 let%expect_test "parse: range" =
   parse_expr "0..n";
   [%expect {| (.. 0 n) |}]
