@@ -6,7 +6,7 @@ func main() i32 {
   var _y = *p
   var _z = f()
   var _w = a[0]
-  var _v = i32(p)
+  var _v = cast(i32, p)
   var _u = -p
   var _t = a.ptr
   var _s = a[0..1]

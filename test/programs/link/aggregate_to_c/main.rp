@@ -25,8 +25,8 @@ func field(value: i64) {
 func main() i32 {
   var p: Point = c_shift(Point{x: 10, y: 20}, 5)
   label("point")
-  field(i64(p.x))
-  field(i64(p.y))
+  field(cast(i64, p.x))
+  field(cast(i64, p.y))
   io.print_line()
 
   var w: Wide = c_widen(Wide{a: 100, b: 200})
@@ -44,14 +44,14 @@ func main() i32 {
 
   var f: Pair = c_scale(Pair{x: 1.5, y: 2.5}, 4.0)
   label("pair")
-  field(i64(f.x))
-  field(i64(f.y))
+  field(cast(i64, f.x))
+  field(cast(i64, f.y))
   io.print_line()
 
   var m: Mixed = c_blend(Mixed{n: 7, f: 0.25})
   label("mixed")
-  field(i64(m.n))
-  field(i64(m.f * 100.0))
+  field(cast(i64, m.n))
+  field(cast(i64, m.f * 100.0))
   io.print_line()
 
   var own: Wide = Wide{a: 41, b: 51}

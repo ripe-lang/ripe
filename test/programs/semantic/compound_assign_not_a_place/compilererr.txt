@@ -1,0 +1,4 @@
+error: cannot assign to expression
+  at main.rp:3:3
+      "s" += 1
+      ^~~ on *i8

@@ -9,7 +9,7 @@ and find_in_item = function Ast.Expr e -> find_in_expr e | Ast.Decl _ -> None
 and find_in_expr e =
   match e.Ast.desc with
   | Ast.While (label, _, body) | Ast.Loop (label, body) -> Some (label, body)
-  | Ast.For (label, _, _, _, body) -> Some (label, body)
+  | Ast.For (label, _, _, body) -> Some (label, body)
   | Ast.Block body -> find_loop body
   | Ast.If (branches, else_body) ->
       let in_branch (_, { Ast.value = b; _ }) = find_loop b in

@@ -1,5 +1,5 @@
 func main() i32 {
   var a: [3]i32 = [1, 2, 3]
   var s: []i32 = a[4..]
-  return i32(s.len)
+  return cast(i32, s.len)
 }

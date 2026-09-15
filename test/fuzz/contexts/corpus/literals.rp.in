@@ -5,5 +5,5 @@ func main() i32 {
   var f: f32 = 1.5f32
   var c: char = 'A'
   var _s: str = "a\tb\n"
-  return h + b + i32(w) + i32(f) + i32(c)
+  return h + b + cast(i32, w) + cast(i32, f) + cast(i32, c)
 }

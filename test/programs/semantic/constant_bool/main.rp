@@ -18,7 +18,7 @@ func pick(b: bool) i32 {
 func main() i32 {
   var taken: i32 = 0
   if BOTH { taken = 1 } else { taken = 2 }
-  printf("%d %d %d %d %d %d\n", i32(YES), i32(NO), i32(BOTH),
-         i32(EITHER), taken, pick(true))
+  printf("%d %d %d %d %d %d\n", cast(i32, YES), cast(i32, NO), cast(i32, BOTH),
+         cast(i32, EITHER), taken, pick(true))
   return 0
 }

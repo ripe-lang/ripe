@@ -2,7 +2,7 @@ func twice(n: i32) i32 { return n * 2 }
 func main() i32 {
   var f: func (i32) i32 = twice
   var h: *func (i32) i32 = &f
-  var g: extern "C" func (i32) i32 = (extern "C" func (i32) i32)(f)
-  var n: i32 = i32(u32(3))
+  var g: extern "C" func (i32) i32 = cast(extern "C" func (i32) i32, f)
+  var n: i32 = cast(i32, cast(u32, 3))
   return f(n) + (f)(1) + (*h)(1) + g(1)
 }

@@ -16,7 +16,7 @@ func classify(c: char) i32 {
 
 func main() i32 {
   var runtime: char = 'Z'
-  printf("%d %d %d %d %d\n", i32(LETTER), i32(NEWLINE),
+  printf("%d %d %d %d %d\n", cast(i32, LETTER), cast(i32, NEWLINE),
          classify(runtime), classify('\n'), classify('a'))
   return 0
 }

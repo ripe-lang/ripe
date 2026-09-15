@@ -6,8 +6,7 @@ open Diag
 
 let%expect_test "single caret from a zero-width span" =
   let src = "main() {\n    break\n}\n" in
-  render src
-    Diagnostic.(error "invalid break statement" |> at (point src "break"));
+  render src Diagnostic.(error (point src "break") "invalid break statement");
   [%expect
     {|
     error: invalid break statement
@@ -18,7 +17,7 @@ let%expect_test "single caret from a zero-width span" =
 
 let%expect_test "wide caret over a span" =
   let src = "record 12345\n" in
-  render src Diagnostic.(error "expected identifier" |> at (span src "12345"));
+  render src Diagnostic.(error (span src "12345") "expected identifier");
   [%expect
     {|
     error: expected identifier
@@ -31,9 +30,7 @@ let%expect_test "inline label after the caret" =
   let src = "wrap() = needsInt(oops)\n" in
   render src
     Diagnostic.(
-      error "type mismatch"
-      |> at (span src "oops")
-      |> label "expected Int, found Str");
+      error (span src "oops") "type mismatch" |> label "expected Int, found Str");
   [%expect
     {|
     error: type mismatch
@@ -45,8 +42,7 @@ let%expect_test "inline label after the caret" =
 let%expect_test "help suggestion line" =
   let src = "var x = 1 hi\n" in
   render src
-    Diagnostic.(
-      error "expected `;`" |> at (point src "hi") |> help "add `;` here");
+    Diagnostic.(error (point src "hi") "expected `;`" |> help "add `;` here");
   [%expect
     {|
     error: expected `;`
@@ -58,7 +54,7 @@ let%expect_test "help suggestion line" =
 
 let%expect_test "caret aligns past a leading tab" =
   let src = "main() {\n\tvar x = 1\n}\n" in
-  render src Diagnostic.(error "bad" |> at (span src "x"));
+  render src Diagnostic.(error (span src "x") "bad");
   [%expect
     {|
     error: bad
@@ -69,7 +65,7 @@ let%expect_test "caret aligns past a leading tab" =
 
 let%expect_test "warning renders with its own label" =
   let src = "var x = 1\n" in
-  render src Diagnostic.(warning "unused variable" |> at (span src "x"));
+  render src Diagnostic.(warning (span src "x") "unused variable");
   [%expect
     {|
     warning: unused variable
@@ -83,8 +79,7 @@ let%expect_test "a secondary span points at the earlier place" =
   let first = span src "func f" in
   render src
     Diagnostic.(
-      error "redefinition"
-      |> at (span "\nfunc f() {}\n" "func f")
+      error (span "\nfunc f() {}\n" "func f") "redefinition"
       |> secondary first "first defined here");
   [%expect
     {|
@@ -101,8 +96,7 @@ let%expect_test "a detail block follows the caret" =
   let src = "import a\n" in
   render src
     Diagnostic.(
-      error "import cycle"
-      |> at (span src "import a")
+      error (span src "import a") "import cycle"
       |> detail "  module a\n    imports b\n");
   [%expect
     {|
@@ -118,8 +112,7 @@ let%expect_test "a label, a detail and a help stack in order" =
   let src = "let x = y\n" in
   render src
     Diagnostic.(
-      error "unknown name"
-      |> at (span src "y")
+      error (span src "y") "unknown name"
       |> label "not found"
       |> detail "  looked in this module\n"
       |> help "did you mean `x`?");
@@ -134,12 +127,13 @@ let%expect_test "a label, a detail and a help stack in order" =
     |}]
 
 let%expect_test "a diagnostic with no span still renders" =
-  render "" Diagnostic.(error "no source to point at");
+  render "" Diagnostic.(error_no_span "no source to point at");
   [%expect {| error: no source to point at |}]
 
 let%expect_test "the headline drops the severity and keeps the message" =
-  print_endline (Diagnostic.headline (Diagnostic.error "bad thing"));
-  print_endline (Diagnostic.headline (Diagnostic.warning "odd thing"));
+  print_endline (Diagnostic.headline (Diagnostic.error_no_span "bad thing"));
+  print_endline
+    (Diagnostic.headline (Diagnostic.warning Span.dummy "odd thing"));
   [%expect {|
     bad thing
     odd thing
@@ -147,9 +141,7 @@ let%expect_test "the headline drops the severity and keeps the message" =
 
 let%expect_test "the primary span and detail come back out" =
   let src = "abc\n" in
-  let d =
-    Diagnostic.(error "x" |> at (span src "abc") |> detail "the reason\n")
-  in
+  let d = Diagnostic.(error (span src "abc") "x" |> detail "the reason\n") in
   let show d =
     Printf.printf "%s %S\n"
       (match Diagnostic.primary d with
@@ -158,7 +150,7 @@ let%expect_test "the primary span and detail come back out" =
       (Option.value (Diagnostic.detail_of d) ~default:"none")
   in
   show d;
-  show (Diagnostic.error "y");
+  show (Diagnostic.error_no_span "y");
   [%expect {|
     (0,3) "the reason\n"
     none "none"
@@ -167,9 +159,9 @@ let%expect_test "the primary span and detail come back out" =
 let%expect_test "a sink counts errors but not warnings" =
   let sink = Diagnostic.sink () in
   Printf.printf "empty %b\n" (Diagnostic.has_errors sink);
-  Diagnostic.emit sink (Diagnostic.warning "just a warning");
+  Diagnostic.emit sink (Diagnostic.warning Span.dummy "just a warning");
   Printf.printf "after warning %b\n" (Diagnostic.has_errors sink);
-  Diagnostic.emit sink (Diagnostic.error "a real error");
+  Diagnostic.emit sink (Diagnostic.error_no_span "a real error");
   Printf.printf "after error %b\n" (Diagnostic.has_errors sink);
   [%expect
     {|
@@ -180,8 +172,8 @@ let%expect_test "a sink counts errors but not warnings" =
 
 let%expect_test "draining reads the sink without emptying it" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error "first");
-  Diagnostic.emit sink (Diagnostic.error "second");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
+  Diagnostic.emit sink (Diagnostic.error_no_span "second");
   let first = List.length (Diagnostic.drain sink) in
   let again = List.length (Diagnostic.drain sink) in
   Printf.printf "%d then %d\n" first again;
@@ -189,8 +181,8 @@ let%expect_test "draining reads the sink without emptying it" =
 
 let%expect_test "taking the sink leaves it empty" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error "first");
-  Diagnostic.emit sink (Diagnostic.error "second");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
+  Diagnostic.emit sink (Diagnostic.error_no_span "second");
   let first = List.length (Diagnostic.take sink) in
   let again = List.length (Diagnostic.take sink) in
   Printf.printf "%d then %d\n" first again;
@@ -198,9 +190,9 @@ let%expect_test "taking the sink leaves it empty" =
 
 let%expect_test "spanless diagnostics keep the order they were made" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error "first");
-  Diagnostic.emit sink (Diagnostic.warning "second");
-  Diagnostic.emit sink (Diagnostic.error "third");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
+  Diagnostic.emit sink (Diagnostic.warning Span.dummy "second");
+  Diagnostic.emit sink (Diagnostic.error_no_span "third");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
     (Diagnostic.drain sink);
@@ -213,10 +205,10 @@ let%expect_test "spanless diagnostics keep the order they were made" =
 let%expect_test "diagnostics come back sorted by where they point" =
   let src = "one two three\n" in
   let sink = Diagnostic.sink () in
-  Diagnostic.emit_error_at sink (span src "three") "at three";
-  Diagnostic.emit_error_at sink (span src "one") "at one";
-  Diagnostic.emit_warn_at sink (span src "two") "at two";
-  Diagnostic.emit sink (Diagnostic.error "nowhere");
+  Diagnostic.emit sink (Diagnostic.error (span src "three") "at three");
+  Diagnostic.emit sink (Diagnostic.error (span src "one") "at one");
+  Diagnostic.emit sink (Diagnostic.warning (span src "two") "at two");
+  Diagnostic.emit sink (Diagnostic.error_no_span "nowhere");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
     (Diagnostic.drain sink);
@@ -231,7 +223,7 @@ let%expect_test "the rendered text picks up color when asked" =
   let src = "abc\n" in
   let colored =
     Diagnostic.render (ctx ~color:true src)
-      Diagnostic.(error "boom" |> at (span src "abc"))
+      Diagnostic.(error (span src "abc") "boom")
   in
   Printf.printf "%S\n" colored;
   [%expect

@@ -1,25 +1,25 @@
 error: invalid conversion
-  at main.rp:6:21
-      var _a: *point = (*point)(narrow)
-                        ^~~~~~~~~~~~~~~ cannot convert i32 to *point
+  at main.rp:6:20
+      var _a: *point = cast(*point, narrow)
+                       ^~~~~~~~~~~~~~~~~~~~ cannot convert i32 to *point
 error: invalid conversion
   at main.rp:7:17
-      var _b: f64 = f64(&p)
-                    ^~~~~~~ cannot convert *point to f64
+      var _b: f64 = cast(f64, &p)
+                    ^~~~~~~~~~~~~ cannot convert *point to f64
 error: invalid conversion
   at main.rp:8:18
-      var _c: bool = bool(&p)
-                     ^~~~~~~~ cannot convert *point to bool
+      var _c: bool = cast(bool, &p)
+                     ^~~~~~~~~~~~~~ cannot convert *point to bool
 help: compare with zero instead e.g. `x != 0`
 error: invalid conversion
-  at main.rp:9:21
-      var _d: *point = (*point)(true)
-                        ^~~~~~~~~~~~~ cannot convert bool to *point
+  at main.rp:9:20
+      var _d: *point = cast(*point, true)
+                       ^~~~~~~~~~~~~~~~~~ cannot convert bool to *point
 error: invalid conversion
   at main.rp:10:19
-      var _e: []i32 = ([]i32)(&p)
-                      ^~~~~~~~~~~ cannot convert *point to []i32
+      var _e: []i32 = cast([]i32, &p)
+                      ^~~~~~~~~~~~~~~ cannot convert *point to []i32
 error: invalid conversion
   at main.rp:11:23
-      var _f: [2][2]i32 = ([2][2]i32)(&p)
-                          ^~~~~~~~~~~~~~~ cannot convert *point to [2][2]i32
+      var _f: [2][2]i32 = cast([2][2]i32, &p)
+                          ^~~~~~~~~~~~~~~~~~~ cannot convert *point to [2][2]i32

@@ -14,16 +14,16 @@ func main() i32 {
   var s: sep = sep { x: 1, u: (), e: empty {}, y: 2 }
   s.y = s.y + 40
 
-  var base: usize = usize(&s.x)
+  var base: usize = cast(usize, &s.x)
   printf("%d %d %d %d %d\n", s.x, s.y,
-         i32(usize(&s.u) - base),
-         i32(usize(&s.z) - base),
-         i32(usize(&s.y) - base))
-  printf("%d %d %d\n", i32(sizeof(sep)), i32(sizeof(padding)), i32(sizeof(empty)))
-  printf("%d %d\n", i32(sizeof(())), i32(sizeof([0]u32)))
+         cast(i32, cast(usize, &s.u) - base),
+         cast(i32, cast(usize, &s.z) - base),
+         cast(i32, cast(usize, &s.y) - base))
+  printf("%d %d %d\n", cast(i32, sizeof(sep)), cast(i32, sizeof(padding)), cast(i32, sizeof(empty)))
+  printf("%d %d\n", cast(i32, sizeof(())), cast(i32, sizeof([0]u32)))
 
   var r: divres = div(17, 5)
-  printf("%d %d %d\n", r.quot, r.rem, i32(sizeof(divres)))
+  printf("%d %d %d\n", r.quot, r.rem, cast(i32, sizeof(divres)))
 
   var pu: *() = null
   var _u: () = *pu

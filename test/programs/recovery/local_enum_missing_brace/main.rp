@@ -1,0 +1,7 @@
+func main() i32 {
+  type small = i32
+  enum side  Left; Right }
+  func helper(n: small) i32 { return n + 1 }
+  var s = side.Right
+  return helper(1) + match s { side.Left => 0; _ => 1 }
+}

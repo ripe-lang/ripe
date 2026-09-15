@@ -8,10 +8,13 @@ let%expect_test "parse: missing rparen" =
   run_src "func f() { g( }";
   [%expect
     {|
-    error: expected `)`
+    error: mismatched closing delimiter
       at <test>:1:15
         func f() { g( }
-                      ^ found }
+                      ^ expected `)`
+      at <test>:1:13
+        func f() { g( }
+                    ^ to match this `(`
     |}]
 
 let%expect_test "parse: stray token" =
@@ -32,13 +35,6 @@ let%expect_test "parse: unterminated string" =
       at <test>:1:20
         func f() { var s = "oops
                            ^~~~~
-    error: expected `}`
-      at <test>:1:25
-        func f() { var s = "oops
-                                ^ found <eof>
-      at <test>:1:10
-        func f() { var s = "oops
-                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: hex/binary literals" =
@@ -185,10 +181,6 @@ func g() i32 { return true }|};
       at <test>:2:10
           var x: = /
                  ^ found =
-    error: expected expression
-      at <test>:2:12
-          var x: = /
-                   ^ found /
     error: type mismatch
       at <test>:5:23
         func g() i32 { return true }
@@ -630,6 +622,28 @@ let%expect_test "parse: field access" =
 let%expect_test "parse: sizeof" =
   parse_expr "sizeof(*i32)";
   [%expect {| (sizeof *i32) |}]
+
+let%expect_test "parse: cast" =
+  parse_expr "cast(*[2]i32, p) + cast(i64, (x))";
+  [%expect {| (+ (cast *[2]i32 p) (cast i64 x)) |}]
+
+let%expect_test "parse: cast to a function pointer type" =
+  parse_expr {|cast(extern "C" func (i32) i32, f)(1)|};
+  [%expect {| (call (cast (i32) i32 f) 1) |}]
+
+let%expect_test "parse: cast without a comma" =
+  parse_expr "cast(i32 x)";
+  [%expect
+    {|
+    error: expected `,`
+      at <test>:1:29
+        func _f() { return cast(i32 x) }
+                                    ^ found x
+    |}]
+
+let%expect_test "parse: the old paren cast is a call" =
+  parse_expr "(*i32)(p)";
+  [%expect {| (call (* i32) p) |}]
 
 let%expect_test "parse: range" =
   parse_expr "0..n";
@@ -1100,10 +1114,13 @@ let%expect_test "parse: stray closing paren" =
   run_src "func f() { ) }";
   [%expect
     {|
-    error: expected expression
+    error: mismatched closing delimiter
       at <test>:1:12
         func f() { ) }
-                   ^ found )
+                   ^ expected `}`
+      at <test>:1:10
+        func f() { ) }
+                 ^ to match this `{`
     |}]
 
 let%expect_test "parse: comment at eof with no trailing newline" =
@@ -1810,13 +1827,10 @@ let%expect_test "parse: multiple unclosed delimiters at eof" =
   run_src "func f() { ( [";
   [%expect
     {|
-    error: expected `}`
-      at <test>:1:15
-        func f() { ( [
-                      ^ found <eof>
+    error: unclosed delimiter
       at <test>:1:14
         func f() { ( [
-                     ^ to match this `[`
+                     ^
       at <test>:1:12
         func f() { ( [
                    ^ to match this `(`
@@ -2172,3 +2186,134 @@ let%expect_test "parse: a binding may be named with an underscore" =
   var _ = 2
 }|};
   [%expect {| (block (var _ 1) (var _ 2)) |}]
+
+let%expect_test "parse: a local enum body keeps the brace it was given" =
+  run_src
+    {|func f() i32 {
+  enum side  Left; Right }
+  var s = side.Right
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected `{`
+      at <test>:2:14
+          enum side  Left; Right }
+                     ^~~~ found Left
+    |}]
+
+let%expect_test "parse: a binding with two names keeps the second" =
+  run_src {|func f() i32 {
+  var q n: i32 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q n: i32 = 1
+                ^ found n
+    |}]
+
+let%expect_test "parse: a run of names leaves only the annotated one" =
+  run_src {|func f() i32 {
+  var q f x: i32 = 1
+  return x
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q f x: i32 = 1
+                ^ found f
+    |}]
+
+let%expect_test "parse: an extra name and a missing colon are both said once" =
+  run_src {|func f() i32 {
+  var q n i32 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:2:9
+          var q n i32 = 1
+                ^ found n
+    error: expected `:`
+      at <test>:2:11
+          var q n i32 = 1
+                  ^~~ found i32
+    |}]
+
+let%expect_test "parse: a missing colon before a dotted type is said once" =
+  run_src {|func f() i32 {
+  var n m.t = 1
+  return 0
+}|};
+  [%expect
+    {|
+    error: expected `:`
+      at <test>:2:9
+          var n m.t = 1
+                ^ found m
+    error: undefined type
+      at <test>:2:9
+          var n m.t = 1
+                ^~~
+    |}]
+
+let%expect_test "parse: a value as a binding type keeps the initializer" =
+  run_src {|func f() i32 {
+  var n: 5 = 1
+  return n
+}|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:2:10
+          var n: 5 = 1
+                 ^ found 5
+    |}]
+
+let%expect_test "parse: a wrong alias separator is said once" =
+  run_src {|type t: i32
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: expected `=`
+      at <test>:1:7
+        type t: i32
+              ^ found :
+    |}]
+
+let%expect_test "parse: a value as an alias type is said once" =
+  run_src {|type t = 5
+func main() i32 { return 0 }|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:1:10
+        type t = 5
+                 ^ found 5
+    |}]
+
+let%expect_test "parse: a broken statement keeps the rest of a value block" =
+  run_src
+    {|func main() i32 {
+  var x: i32 = {
+    var a = nope
+    )
+    1
+  }
+  return x
+}|};
+  [%expect
+    {|
+    error: mismatched closing delimiter
+      at <test>:4:5
+            )
+            ^ expected `}`
+      at <test>:2:16
+          var x: i32 = {
+                       ^ to match this `{`
+    |}]

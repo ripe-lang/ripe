@@ -3,11 +3,11 @@ struct point { x: i32; y: i32 }
 func main() i32 {
   var p: point = point { x: 1, y: 2 }
   var narrow: i32 = 8
-  var _a: *point = (*point)(narrow)
-  var _b: f64 = f64(&p)
-  var _c: bool = bool(&p)
-  var _d: *point = (*point)(true)
-  var _e: []i32 = ([]i32)(&p)
-  var _f: [2][2]i32 = ([2][2]i32)(&p)
+  var _a: *point = cast(*point, narrow)
+  var _b: f64 = cast(f64, &p)
+  var _c: bool = cast(bool, &p)
+  var _d: *point = cast(*point, true)
+  var _e: []i32 = cast([]i32, &p)
+  var _f: [2][2]i32 = cast([2][2]i32, &p)
   return 0
 }

@@ -3,5 +3,5 @@ struct holder {
 }
 
 func main() i32 {
-  return i32(sizeof(holder))
+  return cast(i32, sizeof(holder))
 }

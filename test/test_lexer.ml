@@ -218,7 +218,7 @@ let%expect_test "lexer: keyword versus identifier" =
 let%expect_test "lexer: all keywords" =
   dump_tokens
     {|var const var return if else while for in true false break continue sizeof null extern struct pub func type undefined
-import module loop
+import module loop cast
 |};
   [%expect
     {|
@@ -247,6 +247,7 @@ import module loop
     KW import
     KW module
     KW loop
+    KW cast
     EOF
     |}]
 
@@ -373,6 +374,13 @@ let%expect_test "lexer: unterminated string yields an error token" =
     EOF
     |}]
 
+let%expect_test "lexer: a backslash at the end of an unterminated string" =
+  dump_tokens {|"abc\|};
+  [%expect {|
+    ERROR unterminated string
+    EOF
+    |}]
+
 let%expect_test "lexer: unknown escape is an error" =
   dump_tokens {|"a\qb"|};
   [%expect {|
@@ -459,10 +467,18 @@ let%expect_test "lexer: unknown char escape is an error" =
 
 let%expect_test "lexer: unterminated char literal is an error" =
   dump_tokens "'a\n";
+  [%expect {|
+    ERROR unterminated character literal
+    EOF
+    |}]
+
+let%expect_test "lexer: an unterminated char literal stops before a closer" =
+  dump_tokens "('a)";
   [%expect
     {|
+    (
     ERROR unterminated character literal
-    IDENT a
+    )
     AUTOSEMI
     EOF
     |}]

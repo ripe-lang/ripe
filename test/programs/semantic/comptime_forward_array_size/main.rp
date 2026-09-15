@@ -10,7 +10,7 @@ const M: i32 = N + 1
 
 func main() i32 {
   for i in 0..6 {
-    WIDE[i] = i32(i * 2)
+    WIDE[i] = cast(i32, i * 2)
   }
   printf("%d %d %d %d\n", TABLE[2], WIDE[5], N, M)
   return 0

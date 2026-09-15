@@ -71,13 +71,13 @@ let%expect_test "the map hands back the text it was built from" =
   Printf.printf "%S\n" (Ripe.Sourcemap.src sm);
   [%expect {| "one\ntwo\n" |}]
 
-let%expect_test "a trailing newline counts the empty line after it" =
+let%expect_test "a trailing newline ends the last line" =
   let count src =
     Ripe.Sourcemap.line_count (Ripe.Sourcemap.create ~base:0 src)
   in
   Printf.printf "%d %d %d %d %d\n" (count "") (count "a") (count "a\n")
     (count "a\nb") (count "a\nb\n");
-  [%expect {| 1 1 2 2 3 |}]
+  [%expect {| 1 1 1 2 2 |}]
 
 let%expect_test "a global offset comes back relative to the file" =
   let sm = Ripe.Sourcemap.create ~base:100 "one\ntwo\n" in

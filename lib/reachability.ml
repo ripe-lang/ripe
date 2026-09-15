@@ -28,12 +28,11 @@ and expr_has_break ~own target e =
       || List.exists
            (fun (_, { Ast.value = b; _ }) -> block_has_break ~own target b)
            branches
-  | Binding (_, _, _, _, init) ->
-      Option.exists (expr_has_break ~own target) init
+  | Binding (_, _, _, init) -> Option.exists (expr_has_break ~own target) init
   | Return e -> Option.exists (expr_has_break ~own target) e
   | While (label, _, body) | Loop (label, body) ->
       nested_has_break target label body
-  | For (label, _, _, _, body) -> nested_has_break target label body
+  | For (label, _, _, body) -> nested_has_break target label body
   | PairAssign _ -> false
   | _ -> false
 
