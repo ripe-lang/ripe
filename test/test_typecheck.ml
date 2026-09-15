@@ -5027,3 +5027,37 @@ let%expect_test "typecheck: a value in the type slot of a cast" =
         func f(a: u8) i32 { return cast(a, a) }
                                         ^
     |}]
+
+let%expect_test "typecheck: a call on a repeated enum name" =
+  run_src "enum color {}\nenum color {}\nfunc f() { color.d() }";
+  [%expect
+    {|
+    error: already defined
+      at <test>:2:6
+        enum color {}
+             ^~~~~
+      at <test>:1:6
+        enum color {}
+             ^~~~~ previous definition here
+    error: no variant
+      at <test>:3:18
+        func f() { color.d() }
+                         ^ on enum color
+    |}]
+
+let%expect_test "typecheck: an unknown return type hides the missing value" =
+  run_src
+    "func f() nope { if true { return 1 } }\n\
+     func g() nope { loop { break } }\n\
+     func h() { var _p = *f }";
+  [%expect
+    {|
+    error: undefined type
+      at <test>:1:10
+        func f() nope { if true { return 1 } }
+                 ^~~~
+    error: undefined type
+      at <test>:2:10
+        func g() nope { loop { break } }
+                 ^~~~
+    |}]

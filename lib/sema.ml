@@ -663,7 +663,7 @@ let synth_conversion env span (te : Tast.texpr) ty =
     in
     emit env d
   end
-  else if te.ty = ty then
+  else if te.ty = ty && not (Types.has_error ty) then
     emit env
       (Diagnostic.warning span "cast has no effect"
       |> Diagnostic.label "already %s" (show_ty env ty)
@@ -1198,6 +1198,7 @@ and check_loop_expr env span label body want =
     | FlexibleLoopResult (t, _, _), _ | RigidLoopResult (t, _, _), _ -> t
     | (InferLoopResult | ExpectLoopResult _), None -> Types.TNever
     | InferLoopResult, Some _ -> Types.TUnit
+    | ExpectLoopResult want, Some _ when Types.has_error want -> Types.TError
     | ExpectLoopResult want, Some break_span ->
         emit env
           (Diagnostic.error break_span "type mismatch"
@@ -1352,7 +1353,7 @@ and check_if env span (branches : (expr * block Ast.spanned) list) else_body
         | Some { Ast.value = body; span = bspan } ->
             Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
-            if resolve_ty w <> Types.TUnit then
+            if resolve_ty w <> Types.TUnit && not (Types.has_error w) then
               emit env
                 (Diagnostic.error span "type mismatch"
                 |> Diagnostic.label "expected %s, found %s" (show_ty env w)
@@ -1742,7 +1743,7 @@ and synth_unop env op e =
       let te = synth env e in
       match resolve_ty te.ty with
       | Types.TPointer inner -> Tast.mk inner (Tast.TUnOp (op, te))
-      | Types.TError -> dummy_texpr
+      | t when Types.has_error t -> dummy_texpr
       | Types.TOpaquePtr ->
           emit env
             (Diagnostic.error e.span "cannot dereference *opaque"
@@ -2001,7 +2002,9 @@ let collect_func env fd =
     { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole }
 
 (* A repeat name is already reported with both spans by the resolver *)
-let type_name_taken ctx span = Symbol.Table.mem ctx.type_defs (key_in ctx span)
+let type_name_taken ctx span =
+  let key = key_in ctx span in
+  key = Symbol.unresolved_key || Symbol.Table.mem ctx.type_defs key
 
 (* The reserved name enables forward field types *)
 let reserve_struct_name ctx sd =
