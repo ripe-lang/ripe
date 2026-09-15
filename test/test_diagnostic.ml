@@ -127,11 +127,11 @@ let%expect_test "a label, a detail and a help stack in order" =
     |}]
 
 let%expect_test "a diagnostic with no span still renders" =
-  render "" Diagnostic.(global_error "no source to point at");
+  render "" Diagnostic.(error_no_span "no source to point at");
   [%expect {| error: no source to point at |}]
 
 let%expect_test "the headline drops the severity and keeps the message" =
-  print_endline (Diagnostic.headline (Diagnostic.global_error "bad thing"));
+  print_endline (Diagnostic.headline (Diagnostic.error_no_span "bad thing"));
   print_endline
     (Diagnostic.headline (Diagnostic.warning Span.dummy "odd thing"));
   [%expect {|
@@ -150,7 +150,7 @@ let%expect_test "the primary span and detail come back out" =
       (Option.value (Diagnostic.detail_of d) ~default:"none")
   in
   show d;
-  show (Diagnostic.global_error "y");
+  show (Diagnostic.error_no_span "y");
   [%expect {|
     (0,3) "the reason\n"
     none "none"
@@ -161,7 +161,7 @@ let%expect_test "a sink counts errors but not warnings" =
   Printf.printf "empty %b\n" (Diagnostic.has_errors sink);
   Diagnostic.emit sink (Diagnostic.warning Span.dummy "just a warning");
   Printf.printf "after warning %b\n" (Diagnostic.has_errors sink);
-  Diagnostic.emit sink (Diagnostic.global_error "a real error");
+  Diagnostic.emit sink (Diagnostic.error_no_span "a real error");
   Printf.printf "after error %b\n" (Diagnostic.has_errors sink);
   [%expect
     {|
@@ -172,8 +172,8 @@ let%expect_test "a sink counts errors but not warnings" =
 
 let%expect_test "draining reads the sink without emptying it" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.global_error "first");
-  Diagnostic.emit sink (Diagnostic.global_error "second");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
+  Diagnostic.emit sink (Diagnostic.error_no_span "second");
   let first = List.length (Diagnostic.drain sink) in
   let again = List.length (Diagnostic.drain sink) in
   Printf.printf "%d then %d\n" first again;
@@ -181,8 +181,8 @@ let%expect_test "draining reads the sink without emptying it" =
 
 let%expect_test "taking the sink leaves it empty" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.global_error "first");
-  Diagnostic.emit sink (Diagnostic.global_error "second");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
+  Diagnostic.emit sink (Diagnostic.error_no_span "second");
   let first = List.length (Diagnostic.take sink) in
   let again = List.length (Diagnostic.take sink) in
   Printf.printf "%d then %d\n" first again;
@@ -190,9 +190,9 @@ let%expect_test "taking the sink leaves it empty" =
 
 let%expect_test "spanless diagnostics keep the order they were made" =
   let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.global_error "first");
+  Diagnostic.emit sink (Diagnostic.error_no_span "first");
   Diagnostic.emit sink (Diagnostic.warning Span.dummy "second");
-  Diagnostic.emit sink (Diagnostic.global_error "third");
+  Diagnostic.emit sink (Diagnostic.error_no_span "third");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
     (Diagnostic.drain sink);
@@ -208,7 +208,7 @@ let%expect_test "diagnostics come back sorted by where they point" =
   Diagnostic.emit sink (Diagnostic.error (span src "three") "at three");
   Diagnostic.emit sink (Diagnostic.error (span src "one") "at one");
   Diagnostic.emit sink (Diagnostic.warning (span src "two") "at two");
-  Diagnostic.emit sink (Diagnostic.global_error "nowhere");
+  Diagnostic.emit sink (Diagnostic.error_no_span "nowhere");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
     (Diagnostic.drain sink);

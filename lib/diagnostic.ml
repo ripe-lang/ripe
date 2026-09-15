@@ -33,7 +33,7 @@ let error span fmt =
     fmt
 
 let warning span headline = { (make Warning headline) with primary = Some span }
-let global_error headline = make Error headline
+let error_no_span headline = make Error headline
 
 let label fmt =
   Printf.ksprintf (fun message d -> { d with primary_label = Some message }) fmt
@@ -241,7 +241,7 @@ let render ctx d = render_with (fun _ -> ctx) ctx d
 
 let internal ?span msg =
   let d =
-    global_error "internal compiler error"
+    error_no_span "internal compiler error"
     |> detail (msg ^ "\n")
     |> help
          "this is a bug in ripec, please report it at \

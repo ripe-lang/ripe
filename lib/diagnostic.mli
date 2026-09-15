@@ -14,7 +14,7 @@ type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
 val error : Ast.span -> ('a, unit, string, t) format4 -> 'a
 val warning : Ast.span -> string -> t
-val global_error : string -> t
+val error_no_span : string -> t
 val label : ('a, unit, string, t -> t) format4 -> 'a
 val found : string -> t -> t
 val secondary : Ast.span -> string -> t -> t
