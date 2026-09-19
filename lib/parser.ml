@@ -192,6 +192,22 @@ let skip_to_close st opens =
     advance st
   done
 
+(* The lines under a header with no brace are still its body *)
+let skip_braceless_body st =
+  let opens = st.opens in
+  let at_boundary () =
+    match cur_token st with
+    | EOF -> true
+    | RBRACE -> st.opens == opens
+    | AUTOSEMI | SEMI ->
+        let next = peek_token st in
+        is_item_start next && not (is_stmt_start next)
+    | _ -> false
+  in
+  while not (at_boundary ()) do
+    advance st
+  done
+
 let has_arm st = not (at st RBRACE || at st EOF)
 
 let report st d =
@@ -551,6 +567,7 @@ and parse_fields st =
 and parse_struct_body st =
   if not (at st LBRACE) then begin
     Diagnostic.error (cur_span st) "expected `{`" |> found st |> report st;
+    skip_braceless_body st;
     None
   end
   else begin
@@ -595,6 +612,7 @@ and parse_variants st =
 and parse_enum_body st =
   if not (at st LBRACE) then begin
     Diagnostic.error (cur_span st) "expected `{`" |> found st |> report st;
+    skip_braceless_body st;
     None
   end
   else begin
@@ -736,7 +754,9 @@ and parse_func_body st =
   if at st LBRACE then (parse_block st).value
   else begin
     let d = Diagnostic.error (cur_span st) "expected `{`" |> found st in
-    [ Expr (recover_expr st d) ]
+    let e = recover_expr st d in
+    skip_braceless_body st;
+    [ Expr e ]
   end
 
 (* func add(a: i32, b: i32) i32 { ... }, extern "C" func puts(s: cstr) i32 *)
