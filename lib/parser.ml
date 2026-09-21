@@ -514,9 +514,10 @@ and parse_abi st =
       advance st;
       NamedAbi (spanned name span)
   | _ ->
-      Diagnostic.error (cur_span st) "expected ABI name"
-      |> found st |> report st;
-      if not (at st EOF || starts_item st) then advance st;
+      let d = Diagnostic.error (cur_span st) "expected ABI name" |> found st in
+      if at st EOF then fail d;
+      report st d;
+      if not (starts_item st) then advance st;
       AbiError
 
 (* pub *)
