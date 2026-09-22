@@ -15,89 +15,85 @@ let%expect_test "single caret from a zero-width span" =
             ^
     |}]
 
-let%expect_test "wide caret over a span" =
-  let src = "record 12345\n" in
-  render src Diagnostic.(error (span src "12345") "expected identifier");
+let%expect_test "an unterminated string underlines the remaining source" =
+  Pipeline.run_src "func main() i32 {\n  return \"unterminated";
   [%expect
     {|
-    error: expected identifier
-      at <test>:1:8
-        record 12345
-               ^~~~~
+    error: unterminated string
+      at <test>:2:10
+          return "unterminated
+                 ^~~~~~~~~~~~~
     |}]
 
-let%expect_test "inline label after the caret" =
-  let src = "wrap() = needsInt(oops)\n" in
-  render src
-    Diagnostic.(
-      error (span src "oops") "type mismatch" |> label "expected Int, found Str");
+let%expect_test "a return type mismatch shows the expected and actual types" =
+  Pipeline.run_src "func main() i32 {\n  return true\n}\n";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:19
-        wrap() = needsInt(oops)
-                          ^~~~ expected Int, found Str
+      at <test>:2:10
+          return true
+                 ^~~~ expected i32, found bool
     |}]
 
-let%expect_test "help suggestion line" =
-  let src = "var x = 1 hi\n" in
-  render src
-    Diagnostic.(error (point src "hi") "expected `;`" |> help "add `;` here");
+let%expect_test "a parser error shows the token it found" =
+  Pipeline.run_src "func main() i32 {\n  var = 1\n  return 0\n}\n";
   [%expect
     {|
-    error: expected `;`
-      at <test>:1:11
-        var x = 1 hi
-                  ^
-    help: add `;` here
+    error: expected identifier
+      at <test>:2:7
+          var = 1
+              ^ found =
     |}]
 
-let%expect_test "caret aligns past a leading tab" =
-  let src = "main() {\n\tvar x = 1\n}\n" in
-  render src Diagnostic.(error (span src "x") "bad");
+let%expect_test "an undefined name after a tab keeps its caret aligned" =
+  Pipeline.run_src "func main() i32 {\n\treturn missing\n}\n";
   [%expect
     {|
-    error: bad
-      at <test>:2:13
-                var x = 1
-                    ^
+    error: undefined variable
+      at <test>:2:16
+                return missing
+                       ^~~~~~~
     |}]
 
-let%expect_test "warning renders with its own label" =
-  let src = "var x = 1\n" in
-  render src Diagnostic.(warning (span src "x") "unused variable");
+let%expect_test "an unused variable warning includes the suggested name" =
+  Pipeline.run_src "func main() i32 {\n  var value = 1\n  return 0\n}\n";
   [%expect
     {|
-    warning: unused variable
-      at <test>:1:5
-        var x = 1
-            ^
+    warning: unused variable: value
+      at <test>:2:7
+          var value = 1
+              ^~~~~
+    help: prefix with an underscore: _value
+    ok
     |}]
 
-let%expect_test "a secondary span points at the earlier place" =
-  let src = "func f() {}\nfunc f() {}\n" in
-  let first = span src "func f" in
-  render src
-    Diagnostic.(
-      error (span "\nfunc f() {}\n" "func f") "redefinition"
-      |> secondary first "first defined here");
+let%expect_test "a duplicate definition points to both declarations" =
+  Pipeline.run_src
+    {|func value() i32 { return 1 }
+func value() i32 { return 2 }
+func main() i32 { return value() }
+|};
   [%expect
     {|
-    error: redefinition
-      at <test>:1:2
-        func f() {}
-         ^~~~~~
-      at <test>:1:1
-        func f() {}
-        ^~~~~~ first defined here
+    error: already defined
+      at <test>:2:6
+        func value() i32 { return 2 }
+             ^~~~~
+      at <test>:1:6
+        func value() i32 { return 1 }
+             ^~~~~ previous definition here
     |}]
 
-let%expect_test "a detail block follows the caret" =
-  let src = "import a\n" in
-  render src
-    Diagnostic.(
-      error (span src "import a") "import cycle"
-      |> detail "  module a\n    imports b\n");
+let%expect_test "an import cycle prints its path after the source" =
+  let program, diags =
+    Pipeline.load_tree
+      [
+        ("main.rp", "import a\nfunc main() i32 { return 0 }");
+        ("a.rp", "import b\npub func fa() {}");
+        ("b.rp", "import a\npub func fb() {}");
+      ]
+  in
+  List.iter (render_in program) (Diagnostic.drain diags);
   [%expect
     {|
     error: import cycle
@@ -105,25 +101,22 @@ let%expect_test "a detail block follows the caret" =
         import a
         ^~~~~~~~
       module a
-        imports b
+        imports b from a.rp
+        imports a from b.rp
     |}]
 
-let%expect_test "a label, a detail and a help stack in order" =
-  let src = "let x = y\n" in
+let%expect_test "an internal error prints its detail and reporting URL" =
+  let src = "func main() i32 { return 0 }" in
   render src
-    Diagnostic.(
-      error (span src "y") "unknown name"
-      |> label "not found"
-      |> detail "  looked in this module\n"
-      |> help "did you mean `x`?");
+    (Diagnostic.internal ~span:(span src "main") "test invariant failed");
   [%expect
     {|
-    error: unknown name
-      at <test>:1:9
-        let x = y
-                ^ not found
-      looked in this module
-    help: did you mean `x`?
+    error: internal compiler error
+      at <test>:1:6
+        func main() i32 { return 0 }
+             ^~~~
+    test invariant failed
+    help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
     |}]
 
 let%expect_test "a diagnostic with no span still renders" =
@@ -247,4 +240,66 @@ let%expect_test "the severity word gains color only when asked" =
     {|
     "error" "\027[1;31merror\027[0m"
     "warning" "\027[1;33mwarning\027[0m"
+    |}]
+
+let%expect_test "a mismatched delimiter points to the opening delimiter" =
+  Pipeline.run_src "func main() i32 { return value( }";
+  [%expect
+    {|
+    error: mismatched closing delimiter
+      at <test>:1:33
+        func main() i32 { return value( }
+                                        ^ expected `)`
+      at <test>:1:31
+        func main() i32 { return value( }
+                                      ^ to match this `(`
+    |}]
+
+let%expect_test "an undefined name after UTF text keeps its caret aligned" =
+  Pipeline.run_src "func main() i32 {\n  var _s = \"é\"; return missing\n}\n";
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:24
+          var _s = "é"; return missing
+                               ^~~~~~~
+    |}]
+
+let%expect_test "a long undefined name stops at the preview edge" =
+  Pipeline.run_src
+    {|func main() i32 {
+  return a_name_that_is_longer_than_the_whole_source_preview
+}
+|};
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:10
+          return a_name_that_is_longer_than_t...
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    |}]
+
+let%expect_test
+    "an undefined name near the end of a long expression stays visible" =
+  Pipeline.run_src
+    {|func main() i32 {
+  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + missing
+}
+|};
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:42
+        ...+ 2 + 3 + 4 + 5 + 6 + 7 + 8 + missing
+                                         ^~~~~~~
+    |}]
+
+let%expect_test "an unfinished function points to its opening brace" =
+  Pipeline.run_src "func main() i32 {\n  return";
+  [%expect
+    {|
+    error: unclosed delimiter
+      at <test>:1:17
+        func main() i32 {
+                        ^
     |}]
