@@ -896,7 +896,6 @@ let emit_mir_func ctx global_types (func : Mir.func) =
         (fun (_, ty, tmp) -> qbe_param_ty ctx func.Mir.abi ty ^ " " ^ tmp)
         params
   in
-  let is_main = func.Mir.entry_point && func.Mir.return_ty = TInt I32 in
   let return_text =
     if
       func.Mir.return_ty = TUnit
@@ -906,7 +905,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
     else qbe_abi_ty ctx func.Mir.return_ty ^ " "
   in
   emit ctx "%sfunction %s$%s(%s) {\n"
-    (if is_main || func.Mir.public then "export " else "")
+    (if func.Mir.public then "export " else "")
     return_text func.Mir.name
     (String.concat ", " params_text);
   emit_label ctx "@start";
@@ -939,6 +938,21 @@ let emit_mir_func ctx global_types (func : Mir.func) =
       | Some terminator -> emit_mir_terminator mctx terminator
       | None -> Diagnostic.ice "unterminated verified MIR block")
     func.Mir.blocks;
+  emit ctx "}\n\n"
+
+(* The C runtime wants an int from main even if ripe's main gives nothing *)
+let emit_entry_wrapper ctx (func : Mir.func) =
+  emit ctx "export function w $main() {\n";
+  emit_label ctx "@start";
+  if func.Mir.return_ty = TInt I32 then begin
+    let code = fresh ctx in
+    emit ctx "%s =w call $%s()\n" code func.Mir.name;
+    emit ctx "ret %s\n" code
+  end
+  else begin
+    emit ctx "call $%s()\n" func.Mir.name;
+    emit ctx "ret 0\n"
+  end;
   emit ctx "}\n\n"
 
 let rec emit_mir_global_fields ctx expected = function
@@ -1057,6 +1071,8 @@ let emit ~source_of program =
   List.iter (emit_mir_global ctx) program.Mir.globals;
   if not (List.is_empty program.Mir.globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.functions;
+  List.find_opt (fun func -> func.Mir.entry_point) program.Mir.functions
+  |> Option.iter (emit_entry_wrapper ctx);
   (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
   (match Panictable.sites ctx.panics with
   | [] -> ()
