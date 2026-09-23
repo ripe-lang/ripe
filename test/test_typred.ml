@@ -2,7 +2,7 @@
 
 open Ripe
 open Types
-open Fake
+open! Fake
 
 let point = struct_ty 1 "Point"
 let other = struct_ty 2 "Other"

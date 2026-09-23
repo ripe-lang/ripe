@@ -30,10 +30,8 @@
   climate
   dune-site
   ppx_deriving
-  ocamlformat
-  ppx_expect
-  ppx_inline_test)
+  (ocamlformat :with-dev-setup)
+  (ppx_expect :with-test)
+  (ppx_inline_test :with-test))
  (tags
   ("compiler" "language" "systems" "qbe")))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html

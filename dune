@@ -1,1 +1,6 @@
 (dirs :standard \ vendor)
+
+(env
+ (_
+  (flags
+   (:standard -w +a-4-40-42-70 -warn-error +a-4-30-40-42-70))))
