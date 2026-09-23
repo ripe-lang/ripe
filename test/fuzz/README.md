@@ -8,20 +8,7 @@ typo should give you one error and not twenty.
 $ dune build
 $ python3 test/fuzz/test_delim_perms.py
 ran 5760 delimiter arrangements
-75 FAILURES Counter({'POISON': 75})
-
---- POISON ctx=params sub='(){}[]'
-func f(a: i32 (){}[]) i32 { return a }
-func main() i32 { return 0 }
-
-error: expected `)`
-  at main.rp:1:15
-    func f(a: i32 (){}[]) i32 { return a }
-                  ^ found (
-error: type mismatch
-  at main.rp:1:15
-    func f(a: i32 (){}[]) i32 { return a }
-                  ^~ expected <unknown type>, found ()
+no failures
 ```
 
 A script exits 0 when nothing failed and you can set `JOBS` to change how many
@@ -41,7 +28,7 @@ processes it runs on or `RIPEC` to point at a different build.
 | `test_no_regression.py` | `<rev>` `--show TEXT` | Compares this build against an older one |
 | `test_gen_goldens.py` | `<dir>` `--write` | Updates the saved output files in `test/programs` |
 
-## Where it stands
+## Results
 
 | Script | Cases | Failures | Worst |
 | --- | --- | --- | --- |
@@ -55,7 +42,7 @@ processes it runs on or `RIPEC` to point at a different build.
 
 ## Contexts
 
-The programs live in `contexts/<script>/` as `.rp.in` files and each one is a
-single construct with `%%D%%` where the script writes. The `corpus`
+The programs live in `contexts/<script>/` as `.rp.in` files and each one is
+a small piece of code with `%%D%%` where the script writes. The `corpus`
 directory is a bit different because those are working programs, one per
 language feature.
