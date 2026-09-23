@@ -30,6 +30,7 @@ jobs:
         with:
           submodules: recursive
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -45,7 +46,7 @@ jobs:
               - 'ripe.opam.locked'
               - 'vendor/**'
       - if: steps.filter.outputs.code == 'true'
-        run: opam install . --deps-only --locked --yes
+        run: opam install . --deps-only --locked --with-test --with-dev-setup --yes
       - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune build
       - if: steps.filter.outputs.code == 'true'
