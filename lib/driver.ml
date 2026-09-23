@@ -356,6 +356,7 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
         raise Exit
     end;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
+    let mir = Deadcode.strip mir in
 
     let source_at = Program.source_at program in
     let source_of pos =
