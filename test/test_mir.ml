@@ -231,7 +231,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    func main() i32 {
+    func _R4main() i32 {
       local %0 n: i32 user
       local %1: i32 temp
       local %2: bool temp
@@ -288,7 +288,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    func main() i32 {
+    func _R4main() i32 {
       local %0 i: i32 user
       local %1 found: i32 user
       local %2 j: i32 user

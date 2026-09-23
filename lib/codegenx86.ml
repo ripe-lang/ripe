@@ -191,5 +191,5 @@ let emit ~source_of:_ program =
   if main.return_ty <> Types.TInt Types.I32 then
     unsupported "the x86 backend needs main to return i32";
 
-  let text, globals = assemble [ (main.name, lower_main main) ] in
+  let text, globals = assemble [ ("main", lower_main main) ] in
   Elf64.object_file ~text ~globals

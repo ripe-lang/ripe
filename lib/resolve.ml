@@ -162,11 +162,12 @@ let module_path_at r span =
 let main_name = Interner.intern "main"
 let is_entry st kind name = kind = Symbol.Func && st.is_root && name = main_name
 
-(* The entry point is named by something outside the compiler *)
+(* The C main is a generated wrapper so the entry point needs its own name *)
 let declaration_link_name st kind name =
   let text = Interner.text name in
-  if (not st.qualify) || is_entry st kind name then text
-  else Mangle.declaration st.module_path text
+  if st.qualify || is_entry st kind name then
+    Mangle.declaration st.module_path text
+  else text
 
 let mint ?(visibility = Symbol.Private) ?link_name ?name_span st kind name span
     =

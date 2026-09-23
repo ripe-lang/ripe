@@ -2773,7 +2773,7 @@ let%expect_test "typecheck: non-i32 main rejected" =
     error: type mismatch
       at <test>:1:13
         func main() f64 { return 0.0 }
-                    ^~~ expected i32, found f64
+                    ^~~ expected () or i32, found f64
     |}]
 
 let%expect_test "typecheck: type alias is transparent to its base" =

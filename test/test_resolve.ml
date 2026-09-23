@@ -177,10 +177,16 @@ func main() i32 {
     ret 7
     }
 
-    export function w $main() {
+    function w $_R4main() {
     @start
     %_p =l copy $g
     ret 0
+    }
+
+    export function w $main() {
+    @start
+    %t0 =w call $_R4main()
+    ret %t0
     }
     |}]
 
@@ -568,7 +574,7 @@ pub func main() {}
   in
   List.iter show resolved.Ripe.Resolve.decls;
   [%expect {|
-    main -> main
+    main -> _R4main4main
     main -> _R4math4main
     |}]
 
@@ -602,7 +608,7 @@ pub func plain(x: i32) i32 { return x }
   List.iter show resolved.Ripe.Resolve.decls;
   [%expect
     {|
-    main -> main
+    main -> _R4main4main
     puts -> puts
     exported -> exported
     unmangled -> unmangled

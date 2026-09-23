@@ -1986,11 +1986,7 @@ let params_are_unsure (fd : func_def) =
 (* A list that never closed swallowed whatever result type came after it *)
 let ret_ty_of env fd =
   if params_have_a_hole fd then Types.TError
-  else
-    match fd.ret with
-    | Some t -> ty_of_ast env t
-    | None when is_entry env fd.func_span -> Types.TInt I32
-    | None -> Types.TUnit
+  else match fd.ret with Some t -> ty_of_ast env t | None -> Types.TUnit
 
 (* The signature pass enables forward calls *)
 let collect_func env fd =
@@ -2265,15 +2261,17 @@ let check_func ?(is_extern = false) env fd =
     match collected with Some s -> s.ret_ty | None -> ret_ty_of env fd
   in
 
-  (* The C entry point must return a 32 bit integer *)
+  (* The wrapper only knows how to turn nothing or an i32 into an exit code *)
   let invalid_entry_return =
-    is_entry_point && ret_ty <> Types.TError && ret_ty <> Types.TInt I32
+    is_entry_point && ret_ty <> Types.TError && ret_ty <> Types.TUnit
+    && ret_ty <> Types.TInt I32
   in
   if invalid_entry_return then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.func_span in
     emit env
       (Diagnostic.error span "type mismatch"
-      |> Diagnostic.label "expected %s, found %s"
+      |> Diagnostic.label "expected %s or %s, found %s"
+           (show_ty env Types.TUnit)
            (show_ty env (Types.TInt I32))
            (show_ty env ret_ty))
   end;
