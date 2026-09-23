@@ -1,0 +1,5 @@
+func main() i32 {
+  var %%D%%
+  var m: i32 = 2
+  return n + m
+}
