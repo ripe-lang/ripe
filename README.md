@@ -13,9 +13,6 @@ A systems programming language.
 > [!WARNING]
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
-> [!NOTE]
-> I'm pausing new feature work for a while so I can build things with Ripe as it is. I want to figure out what the language needs instead of deciding every feature in advance. My main goals are that Ripe should compile quickly, stay low level, and feel easy to write, with the compiler handling routine bookkeeping while leaving control to the programmer. I'll still be doing a bunch of refactoring until then.
-
 ```go
 import std.io
 
