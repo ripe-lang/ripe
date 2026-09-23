@@ -1,8 +1,6 @@
 # Fuzz
 
-These scripts look for bad error messages by taking a program that works and
-breaking one spot in it, then counting what the compiler printed, because one
-typo should give you one error and not twenty.
+These scripts look for bad error messages by taking a program that works and breaking one spot in it, then counting what the compiler printed, because one typo should give you one error and not twenty.
 
 ```
 $ dune build
@@ -11,8 +9,7 @@ ran 5760 delimiter arrangements
 no failures
 ```
 
-A script exits 0 when nothing failed and you can set `JOBS` to change how many
-processes it runs on or `RIPEC` to point at a different build.
+A script exits 0 when nothing failed and you can set `JOBS` to change how many processes it runs on or `RIPEC` to point at a different build.
 
 ## Scripts
 
@@ -42,7 +39,4 @@ processes it runs on or `RIPEC` to point at a different build.
 
 ## Contexts
 
-The programs live in `contexts/<script>/` as `.rp.in` files and each one is
-a small piece of code with `%%D%%` where the script writes. The `corpus`
-directory is a bit different because those are working programs, one per
-language feature.
+The programs live in `contexts/<script>/` as `.rp.in` files and each one is a small piece of code with `%%D%%` where the script writes. The `corpus` directory is a bit different because those are working programs, one per language feature.

@@ -12,10 +12,6 @@ let%expect_test "lexer: semicolon inserted after expression newline" =
     |}]
 ```
 
-You can use `fuzz` to break working programs and look for bad error messages
-and `programs` to run whole programs and check what they print against a saved
-copy.
-
 ```
 $ dune test
 ```
