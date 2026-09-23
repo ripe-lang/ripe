@@ -1,0 +1,25 @@
+import std.io
+
+extern "C" func not_defined_anywhere() i32
+
+func never_called() i32 {
+  return not_defined_anywhere()
+}
+
+func through_pointer() {
+  io.print("through pointer")
+}
+
+func through_global() {
+  io.print("through global")
+}
+
+var unused_handler: func() i32 = never_called
+var handler: func() = through_global
+
+func main() i32 {
+  var f: func() = through_pointer
+  f()
+  handler()
+  return 0
+}
