@@ -15,9 +15,7 @@ recovery/alias_type_eats_next/
                               ^
 ```
 
-Some tests also pass extra flags to `ripec` with a `flags.txt`, link in `*.c`
-files, or import other `*.rp` modules. A `// BROKEN: <reason>` line at the top
-of `main.rp` means the test is known to fail.
+Some tests also pass extra flags to `ripec` with a `flags.txt`, link in `*.c` files, or import other `*.rp` modules. A `// BROKEN: <reason>` line at the top of `main.rp` means the test is known to fail.
 
 ```
 $ python3 test/programs/run.py recovery
