@@ -268,30 +268,30 @@ let%expect_test "an undefined name after UTF text keeps its caret aligned" =
 let%expect_test "a long undefined name stops at the preview edge" =
   Pipeline.run_src
     {|func main() i32 {
-  return a_name_that_is_longer_than_the_whole_source_preview
+  return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more
 }
 |};
   [%expect
     {|
     error: undefined variable
       at <test>:2:10
-          return a_name_that_is_longer_than_t...
-                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+          return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more...
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     |}]
 
 let%expect_test
     "an undefined name near the end of a long expression stays visible" =
   Pipeline.run_src
     {|func main() i32 {
-  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + missing
+  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
 }
 |};
   [%expect
     {|
     error: undefined variable
-      at <test>:2:42
-        ...+ 2 + 3 + 4 + 5 + 6 + 7 + 8 + missing
-                                         ^~~~~~~
+      at <test>:2:101
+        ... + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
+                                                                                                 ^~~~~~~
     |}]
 
 let%expect_test "an unfinished function points to its opening brace" =
