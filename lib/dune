@@ -1,45 +1,8 @@
 (library
  (name ripe)
- (modules
-  platform
-  config
-  target
-  span
-  interner
-  nonempty
-  ast
-  sourcemap
-  diagnostic
-  tokens
-  lexer
-  parser
-  symbol
-  program
-  qname
-  mangle
-  types
-  resolve
-  typred
-  reachability
-  sema
-  tast
-  mir
-  constant
-  codegenqbe
-  elf64
-  codegenx86
-  ripesites
-  panictable
-  driver
-  layout)
  (libraries unix dune-site)
  (preprocess
   (pps ppx_deriving.show)))
-
-(env
- (_
-  (flags
-   (:standard -w +a-4-42-70 -warn-error +a-4-30-42-70))))
 
 (generate_sites_module
  (module ripesites)

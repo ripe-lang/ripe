@@ -1,6 +1,5 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-open Spanutils
 open Dump
 open Pipeline
 
