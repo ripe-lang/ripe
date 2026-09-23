@@ -33,7 +33,7 @@ jobs:
           submodules: recursive
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: apt-get update && apt-get install --yes gh
-      - run: opam install . --deps-only --locked --yes
+      - run: opam install . --deps-only --locked --with-test --with-dev-setup --yes
       - run: make -C vendor/qbe
       - run: opam exec -- dune build @install
       - run: opam exec -- dune runtest
