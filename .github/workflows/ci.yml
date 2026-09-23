@@ -30,6 +30,7 @@ jobs:
         with:
           submodules: recursive
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
