@@ -15,6 +15,8 @@ RIPEC = os.environ.get(
     "RIPEC", os.path.join(REPO_ROOT, "_build/install/default/bin/ripec")
 )
 
+IMPORT = ["-I", REPO_ROOT]
+
 WORK = os.path.join(FUZZ_DIR, "fuzzwork")
 OWNER = os.getpid()
 RUN = os.path.join(WORK, str(OWNER))
@@ -83,7 +85,7 @@ def run(src, argv=None):
 
     try:
         r = subprocess.run(
-            argv or [RIPEC, "--emit", "check", MAIN],
+            argv or [RIPEC] + IMPORT + ["--emit", "check", MAIN],
             cwd=d,
             capture_output=True,
             text=True,
@@ -102,15 +104,15 @@ def one(job):
     return lab, src, extra, code, out
 
 
-def each(cases, argv=None):
+def each(cases, argv=None, work=one):
     jobs = ((lab, src, extra, argv) for lab, src, extra in cases)
 
     if JOBS == 1:
-        yield from map(one, jobs)
+        yield from map(work, jobs)
         return
 
     with multiprocessing.Pool(JOBS) as pool:
-        yield from pool.imap(one, jobs, CHUNK)
+        yield from pool.imap(work, jobs, CHUNK)
 
 
 def substitute(name, subs):

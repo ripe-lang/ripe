@@ -239,7 +239,7 @@ let check_has_main diags tdecls =
   in
   if not (List.exists is_main tdecls) then
     Diagnostic.emit diags
-      (Diagnostic.error "no `main` function found"
+      (Diagnostic.error_no_span "no `main` function found"
       |> Diagnostic.help "add a `func main() i32` entry point")
 
 (* The token dump never follows an import so it reads the root file itself *)

@@ -1,15 +1,4 @@
-error: expected identifier
+error: unclosed delimiter
   at main.rp:1:6
     func ( nothing() () {}
-         ^ found (
-error: expected `:`
-  at main.rp:1:15
-    func ( nothing() () {}
-                  ^ found (
-error: expected `)`
-  at main.rp:1:21
-    func ( nothing() () {}
-                        ^ found {
-  at main.rp:1:6
-    func ( nothing() () {}
-         ^ to match this `(`
+         ^

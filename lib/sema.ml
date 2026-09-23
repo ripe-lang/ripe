@@ -37,13 +37,12 @@ type result_use = Infer | Expect of ty | Discard
 type coverage = Covered | Missing of string list | Unbounded | Unknown
 type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
 
-let cyclic_constant span = Diagnostic.Errors [ Diagnostic.cyclic_constant span ]
-
 (* The running mark catches a value that asks for itself *)
 let force_deferred span cell ~(on_error : 'a) (compute : unit -> 'a) =
   match !cell with
   | Completed v -> v
-  | Running -> raise (cyclic_constant span)
+  | Running ->
+      raise (Diagnostic.Errors [ Diagnostic.error span "cyclic constant" ])
   | Unstarted -> (
       cell := Running;
       try
@@ -178,17 +177,8 @@ let dummy_value = Constant.VInt (Constant.zero, Types.I32)
 let sym env span = Resolve.sym_at env.ctx.symbols span
 let diagnostic_sink env = Option.value env.probe_diags ~default:env.ctx.diags
 let emit env d = Diagnostic.emit (diagnostic_sink env) d
-
-let add_error env span msg =
-  Diagnostic.emit_error_at (diagnostic_sink env) span msg
-
-let add_error_in ctx span msg = Diagnostic.emit_error_at ctx.diags span msg
 let dummy_texpr = Tast.mk Types.TError Tast.TErrorExpr
 let is_poisoned (te : Tast.texpr) = Types.has_error te.ty
-
-let add_warning env span msg =
-  if not env.suppress_warnings then
-    Diagnostic.emit_warn_at (diagnostic_sink env) span msg
 
 (* An unsigned literal past i64 max is stored as a negative bit pattern *)
 let unsigned_to_float n =
@@ -238,8 +228,8 @@ let warn_unused_in_scope env =
           let shown = Interner.text info.name in
           if (not !(info.used)) && shown.[0] <> '_' then
             emit env
-              (Diagnostic.warning (Printf.sprintf "unused variable: %s" shown)
-              |> Diagnostic.at info.span
+              (Diagnostic.warning info.span
+                 (Printf.sprintf "unused variable: %s" shown)
               |> Diagnostic.help
                    (Printf.sprintf "prefix with an underscore: _%s" shown)))
         scope
@@ -309,7 +299,7 @@ let lookup_func env span =
   match Symbol.Table.find_opt env.ctx.func_sigs (key_at env span) with
   | Some s -> s
   | None ->
-      emit env (Diagnostic.undefined_name span "function");
+      emit env (Diagnostic.error span "undefined function");
       {
         param_tys = [];
         ret_ty = Types.TError;
@@ -331,14 +321,15 @@ let is_const_symbol env s =
 let verify_const_scalar env span t =
   if not (is_scalar t) then
     emit env
-      (Diagnostic.with_type span "const must be a scalar" (show_ty env t)
+      (Diagnostic.error span "const must be a scalar"
+      |> Diagnostic.label "on %s" (show_ty env t)
       |> Diagnostic.help "use var for values that need storage")
 
 let lookup_struct env span name =
   match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
   | Some (Struct_type { contents = Completed info }) -> Some info
   | _ ->
-      emit env (Diagnostic.undefined_name span "struct");
+      emit env (Diagnostic.error span "undefined struct");
       None
 
 let known_fields info = Option.value ~default:[] info.field_tys
@@ -386,7 +377,8 @@ let is_uninhabited env ty =
 let zero_init_ty env span ty =
   if is_uninhabited env ty then (
     emit env
-      (Diagnostic.with_type span "cannot zero init this type" (show_ty env ty));
+      (Diagnostic.error span "cannot zero init this type"
+      |> Diagnostic.label "on %s" (show_ty env ty));
     Types.TError)
   else ty
 
@@ -397,7 +389,9 @@ let resolve_named_abi env name span =
   match Types.func_abi_of_name name with
   | Some abi -> abi
   | None ->
-      emit env (Diagnostic.unsupported_abi span);
+      emit env
+        (Diagnostic.error span "unsupported ABI"
+        |> Diagnostic.label "this ABI is not supported here");
       Types.AbiError
 
 (* A signature without an ABI written on it is a plain Ripe function *)
@@ -405,7 +399,7 @@ let resolve_abi env a =
   match a with
   | NoAbi -> Types.Ripe
   | AbiError -> Types.AbiError
-  | NamedAbi (name, span) -> resolve_named_abi env name span
+  | NamedAbi { value = name; span } -> resolve_named_abi env name span
 
 let unresolved_named_ty env span =
   match Resolve.sym_at_opt env.ctx.symbols span with
@@ -417,8 +411,7 @@ let named_ty env span shown =
   | Some (Builtin_type BOpaque) ->
       emit env
         Diagnostic.(
-          error "opaque is only valid as a pointee"
-          |> at span
+          error span "opaque is only valid as a pointee"
           |> help "use *opaque for an untyped pointer");
       Types.TError
   | Some (Builtin_type (BTy ty)) -> ty
@@ -483,15 +476,15 @@ let warn_discarded_operation env e (te : Tast.texpr) =
     && te.ty <> Types.TError
   then
     emit env
-      (Diagnostic.warning "discarded operation result"
-      |> Diagnostic.at te.span
+      (Diagnostic.warning te.span "discarded operation result"
       |> Diagnostic.help "use `var _ = ...` when this is intentional")
 
 let verify_unit_result env span = function
   | Expect want when not (Types.ty_equal (resolve_ty want) Types.TUnit) ->
       emit env
-        (Diagnostic.type_mismatch span ~expected:(show_ty env want)
-           ~found:(show_ty env Types.TUnit))
+        (Diagnostic.error span "type mismatch"
+        |> Diagnostic.label "expected %s, found %s" (show_ty env want)
+             (show_ty env Types.TUnit))
   | Infer | Discard | Expect _ -> ()
 
 let block_item_span = function
@@ -514,8 +507,9 @@ let find_loop env label =
 let find_loop_or_error env span headline label =
   let found = find_loop env label in
   (match (found, label) with
-  | None, None -> add_error env span headline
-  | None, Some l -> emit env (Diagnostic.undefined_name l.Ast.span "loop label")
+  | None, None -> emit env (Diagnostic.error span "%s" headline)
+  | None, Some l ->
+      emit env (Diagnostic.error l.Ast.span "undefined loop label")
   | Some _, _ -> ());
   found
 
@@ -525,8 +519,10 @@ let verify_bare_break env span lc =
   | InferLoopResult | ExpectLoopResult _ -> ()
   | FlexibleLoopResult (t, first, _) | RigidLoopResult (t, first, _) ->
       emit env
-        (Diagnostic.break_disagree span "no value here" ~other:first
-           ~other_message:(Printf.sprintf "breaks with %s" (show_ty env t)))
+        (Diagnostic.error span "`break` values disagree"
+        |> Diagnostic.label "no value here"
+        |> Diagnostic.secondary first
+             (Printf.sprintf "breaks with %s" (show_ty env t)))
 
 (* An array already holds the data needed by a slice *)
 let adopt_slice want (te : Tast.texpr) =
@@ -541,17 +537,21 @@ let adopt_slice want (te : Tast.texpr) =
 let verify_shift_count env span (tr : Tast.texpr) =
   if not (is_integer tr.ty) then
     emit env
-      (Diagnostic.with_found span "shift count must be an integer"
-         (show_ty env tr.ty))
+      (Diagnostic.error span "shift count must be an integer"
+      |> Diagnostic.found (show_ty env tr.ty))
 
 let no_such_field env span ty =
-  emit env (Diagnostic.with_type span "no field" (show_ty env ty));
+  emit env
+    (Diagnostic.error span "no field"
+    |> Diagnostic.label "on %s" (show_ty env ty));
   dummy_texpr
 
 let verify_operands env span op t =
   if not (binop_accepts op t) then
     emit env
-      (Diagnostic.bad_operand span ~op:(show_binop_sym op) ~ty:(show_ty env t))
+      (Diagnostic.error span "invalid operand"
+      |> Diagnostic.label "cannot apply `%s` to %s" (show_binop_sym op)
+           (show_ty env t))
 
 (* An aggregate parameter is copied before a write *)
 let verify_param_copy_write env span tl =
@@ -563,7 +563,7 @@ let verify_param_copy_write env span tl =
          | Types.TArray _ | Types.TStruct _ -> true
          | _ -> false ->
       emit env
-        (Diagnostic.error_at span "cannot assign to a by value parameter"
+        (Diagnostic.error span "cannot assign to a by value parameter"
         |> Diagnostic.label "the caller keeps its own copy"
         |> Diagnostic.help
              (Printf.sprintf "take a pointer to write through it: %s: *%s"
@@ -573,7 +573,14 @@ let verify_param_copy_write env span tl =
 let find_global_fact env span key =
   match Symbol.Table.find_opt env.ctx.global_facts key with
   | Some st -> st
-  | None -> raise (Diagnostic.Errors [ Constant.unsupported_const span ])
+  | None ->
+      raise
+        (Diagnostic.Errors
+           [
+             Diagnostic.error span "unsupported constant expression"
+             |> Diagnostic.help
+                  "constant initializers must evaluate at compile time";
+           ])
 
 let adopt_int_literal env span want target ~neg n =
   let signed = if neg then Int64.neg n else n in
@@ -584,10 +591,8 @@ let adopt_int_literal env span want target ~neg n =
       let exact = if neg then -.magnitude else magnitude in
       if Int64.unsigned_compare n (float_kind_exact_limit kind) > 0 then
         emit env
-          (Diagnostic.error "integer literal loses precision"
-          |> Diagnostic.at span
-          |> Diagnostic.label
-               (Printf.sprintf "becomes %.0f" (round_to_float_kind kind exact))
+          (Diagnostic.error span "integer literal loses precision"
+          |> Diagnostic.label "becomes %.0f" (round_to_float_kind kind exact)
           |> Diagnostic.help
                (Printf.sprintf "write %s%Lu.0 to accept the rounding"
                   (if neg then "-" else "")
@@ -605,9 +610,8 @@ let synth_variant env (inner : expr) info fname fspan =
   | None when not info.variants_known -> dummy_texpr
   | None ->
       emit env
-        (Diagnostic.error_at fspan "no variant"
-        |> Diagnostic.label
-             (Printf.sprintf "on enum %s" (show_ty env (Types.TEnum name))));
+        (Diagnostic.error fspan "no variant"
+        |> Diagnostic.label "on enum %s" (show_ty env (Types.TEnum name)));
       dummy_texpr
 
 let synth_struct_field env span te ty fname fspan =
@@ -621,15 +625,16 @@ let synth_struct_field env span te ty fname fspan =
   | None when resolve_ty ty = Types.TError -> dummy_texpr
   | None ->
       let shown = show_ty env ty in
-      emit env (Diagnostic.with_type span "type has no fields" shown);
+      emit env
+        (Diagnostic.error span "type has no fields"
+        |> Diagnostic.label "on %s" shown);
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
       let hint =
         Printf.sprintf "dereference first: `(*p).%s`" (Interner.text fname)
       in
       emit env
-        (Diagnostic.error_at span "too many pointer levels"
-        |> Diagnostic.help hint);
+        (Diagnostic.error span "too many pointer levels" |> Diagnostic.help hint);
       dummy_texpr
   | Some (sname, _) -> (
       match lookup_struct env span sname with
@@ -639,20 +644,17 @@ let synth_struct_field env span te ty fname fspan =
           | Some (field_id, ft) -> Tast.mk ft (Tast.TFieldAccess (te, field_id))
           | None ->
               emit env
-                (Diagnostic.error_at fspan "no field"
-                |> Diagnostic.label
-                     (Printf.sprintf "on struct %s" (Qname.show sname)));
+                (Diagnostic.error fspan "no field"
+                |> Diagnostic.label "on struct %s" (Qname.show sname));
               dummy_texpr))
 
 let synth_conversion env span (te : Tast.texpr) ty =
   let refused = not (cast_ok te.ty ty) in
   if refused then begin
     let d =
-      Diagnostic.error "invalid conversion"
-      |> Diagnostic.at span
-      |> Diagnostic.label
-           (Printf.sprintf "cannot convert %s to %s" (show_ty env te.ty)
-              (show_ty env ty))
+      Diagnostic.error span "invalid conversion"
+      |> Diagnostic.label "cannot convert %s to %s" (show_ty env te.ty)
+           (show_ty env ty)
     in
     let d =
       if resolve_ty ty = Types.TBool then
@@ -661,11 +663,10 @@ let synth_conversion env span (te : Tast.texpr) ty =
     in
     emit env d
   end
-  else if te.ty = ty then
+  else if te.ty = ty && not (Types.has_error ty) then
     emit env
-      (Diagnostic.warning "cast has no effect"
-      |> Diagnostic.at span
-      |> Diagnostic.label (Printf.sprintf "already %s" (show_ty env ty))
+      (Diagnostic.warning span "cast has no effect"
+      |> Diagnostic.label "already %s" (show_ty env ty)
       |> Diagnostic.help "remove the cast");
   if refused || Types.has_error ty then dummy_texpr
   else Tast.mk ty (Tast.TCast te)
@@ -677,8 +678,8 @@ let check_int_literal env (e : expr) want target value =
   | None when Types.has_error want -> dummy_texpr
   | None ->
       emit env
-        (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-           ~found:"i32");
+        (Diagnostic.error e.span "type mismatch"
+        |> Diagnostic.label "expected %s, found i32" (show_ty env want));
       Tast.mk (Types.TInt I32) (Tast.TInt value)
 
 let check_float_literal env (e : expr) want target value =
@@ -687,8 +688,8 @@ let check_float_literal env (e : expr) want target value =
   | _ when Types.has_error want -> dummy_texpr
   | _ ->
       emit env
-        (Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-           ~found:"f64");
+        (Diagnostic.error e.span "type mismatch"
+        |> Diagnostic.label "expected %s, found f64" (show_ty env want));
       Tast.mk (Types.TFloat F64) (Tast.TFloat value)
 
 (* This figures out the type of a field access *)
@@ -706,7 +707,9 @@ let synth_typed_field env span (te : Tast.texpr) fname fspan =
       Tast.mk (Types.TPointer elem) (Tast.TDataPtr te)
   | (Types.TArray _ | Types.TSlice _), _ -> no_such_field env fspan ty
   | Types.TOpaquePtr, _ ->
-      emit env (Diagnostic.opaque_operation span "access a field of");
+      emit env
+        (Diagnostic.error span "cannot access a field of *opaque"
+        |> Diagnostic.help "cast to a typed pointer first");
       dummy_texpr
   | _, _ -> synth_struct_field env span te ty fname fspan
 
@@ -776,7 +779,7 @@ and lookup_non_local env span =
           | Some fsig when fsig.param_hole -> Types.TError
           | Some fsig -> Types.TFunc (fsig.param_tys, fsig.ret_ty, fsig.abi)
           | None ->
-              emit env (Diagnostic.undefined_name span "variable");
+              emit env (Diagnostic.error span "undefined variable");
               Types.TError))
 
 (* This pass does the bidirectional type checking *)
@@ -794,7 +797,10 @@ and const_value_or env default (te : Tast.texpr) =
     | Tast.TBool b -> Constant.VBool b
     | Tast.TChar c -> Constant.VChar c
     | _ ->
-        emit env (Constant.unsupported_const te.span);
+        emit env
+          (Diagnostic.error te.span "unsupported constant expression"
+          |> Diagnostic.help
+               "constant initializers must evaluate at compile time");
         default
 
 and stamp span (te : Tast.texpr) = { te with span }
@@ -821,7 +827,7 @@ and synth_desc env e =
       let s = sym env e.span in
       if s.Symbol.kind = Symbol.Error then dummy_texpr
       else if s.Symbol.kind = Symbol.Module then (
-        add_error env e.span "module requires a member";
+        emit env (Diagnostic.error e.span "module requires a member");
         dummy_texpr)
       else
         let t = lookup_var env e.span in
@@ -831,24 +837,26 @@ and synth_desc env e =
   | Assign (base, l, r) -> synth_assign env base l r
   | UnOp (op, e) -> synth_unop env op e
   | Path p -> synth_path env e.span p
-  | FieldAccess (inner_e, fname, fspan) ->
+  | FieldAccess (inner_e, { value = fname; span = fspan }) ->
       synth_field env e.span inner_e fname fspan
   | Cast (t, inner) ->
       synth_conversion env e.span (synth_operand env inner) (ty_of_ast env t)
   | SizeOf t -> synth_size_of env t
   | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
   | RangeFull ->
-      add_error env e.span "range is only valid in a for loop or slice";
+      emit env
+        (Diagnostic.error e.span "range is only valid in a for loop or slice");
       dummy_texpr
   | ArrayLit [] ->
-      add_error env e.span "cannot infer type of empty array literal";
+      emit env
+        (Diagnostic.error e.span "cannot infer type of empty array literal");
       dummy_texpr
   | ArrayLit (first :: rest) -> synth_array_lit env first rest
   | Index (base, idx) -> synth_index env e.span base idx
   | Undefined ->
-      add_error env e.span "cannot infer type of undefined";
+      emit env (Diagnostic.error e.span "cannot infer type of undefined");
       dummy_texpr
-  | StructLit (path, name, name_span, inits) ->
+  | StructLit (path, { value = name; span = name_span }, inits) ->
       synth_struct_lit env e.span path name name_span inits
   | Block body ->
       let tb, ty = check_scoped_block env e.span body Infer in
@@ -868,9 +876,9 @@ and synth_desc env e =
       Tast.mk
         (if diverges then Types.TNever else Types.TUnit)
         (Tast.TWhile (label, tc, tb))
-  | For (label, name, nspan, iter, body) ->
+  | For (label, { value = name; span = nspan }, iter, body) ->
       synth_for env e.span label name nspan iter body
-  | Binding (kind, name, nspan, ann, init) ->
+  | Binding (kind, { value = name; span = nspan }, ann, init) ->
       snd (check_binding env kind name nspan ann init)
   | Return init -> synth_return env e.span init
   | Break (label, value) -> synth_break env e.span label value
@@ -883,14 +891,14 @@ and synth_desc env e =
 
 and synth_path_type env span p =
   let inner = Ast.owner_expr p in
-  let name, name_span = p.Ast.member in
+  let { Ast.value = name; span = name_span } = p.Ast.member in
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env inner.span) with
   | Some (Enum_type { contents = Completed info }) ->
       synth_variant env inner info name name_span
   | Some (Enum_type { contents = Unstarted | Running }) -> dummy_texpr
   | Some (Struct_type _ | Alias_type _ | Builtin_type _) ->
       emit env
-        (Diagnostic.error_at inner.span "expected a value"
+        (Diagnostic.error inner.span "expected a value"
         |> Diagnostic.label "this names a type");
       dummy_texpr
   | None -> synth_field env span inner name name_span
@@ -917,7 +925,7 @@ and synth_struct_lit env span path name name_span inits =
   | Some (Struct_type { contents = Completed info }) ->
       let fields =
         match inits with
-        | (None, _, _) :: _ -> positional_fields env span info inits
+        | ({ value = None; _ }, _) :: _ -> positional_fields env span info inits
         | _ -> named_fields env span info inits
       in
       let qname = qname_at env name_span (Ast.show_named path name) in
@@ -926,7 +934,7 @@ and synth_struct_lit env span path name name_span inits =
       ( Struct_type { contents = Unstarted | Running }
       | Builtin_type _ | Alias_type _ | Enum_type _ )
   | None ->
-      emit env (Diagnostic.undefined_name name_span "struct");
+      emit env (Diagnostic.error name_span "undefined struct");
       dummy_texpr
 
 (* A quiet probe lets a sibling anchor the block type *)
@@ -983,27 +991,26 @@ and synth_array_lit env first rest =
     match elem with
     | (Types.TUnit | Types.TNever) as t ->
         emit env
-          (Diagnostic.with_type first.span "array element cannot have this type"
-             (show_ty env t));
+          (Diagnostic.error first.span "array element cannot have this type"
+          |> Diagnostic.label "on %s" (show_ty env t));
         Types.TError
     | t -> t
   in
   let ty = lift_ty (fun t -> Types.TArray (t, List.length tes)) elem in
   Tast.mk ty (Tast.TArrayLit tes)
 
-and named_fields env span info
-    (inits : (Ast.name option * Ast.span * expr) list) =
+and named_fields env span info (inits : (Ast.name option spanned * expr) list) =
   let seen = Hashtbl.create 4 in
-  let check_named_field (fname, fspan, e) =
+  let check_named_field ({ Ast.value = fname; span = fspan }, e) =
     match fname with
     | None -> None
     | Some fname -> (
         match find_field info fname with
         | None ->
-            emit env (Diagnostic.error_at fspan "no field");
+            emit env (Diagnostic.error fspan "no field");
             None
         | Some _ when Hashtbl.mem seen fname ->
-            emit env (Diagnostic.error_at fspan "duplicate field");
+            emit env (Diagnostic.error fspan "duplicate field");
             None
         | Some (field_id, ft) ->
             Hashtbl.replace seen fname ();
@@ -1030,29 +1037,27 @@ and named_fields env span info
 
 (* A positional literal must define every field *)
 and positional_fields env span info
-    (inits : (Ast.name option * Ast.span * expr) list) =
+    (inits : (Ast.name option spanned * expr) list) =
   let expected = List.length (known_fields info) in
   let found = List.length inits in
   (* A hole shifts every field behind it so no count or pairing proves anything *)
   if fields_have_a_hole info then (
-    walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
+    walk_unpaired_args env (List.map (fun (_, init) -> init) inits);
     [])
   else begin
     if Option.is_some info.field_tys && found <> expected then
       emit env
-        (Diagnostic.error "wrong number of fields"
-        |> Diagnostic.at span
-        |> Diagnostic.label
-             (Printf.sprintf "expected %d, found %d" expected found));
+        (Diagnostic.error span "wrong number of fields"
+        |> Diagnostic.label "expected %d, found %d" expected found);
     let rec zip field_id fields inits =
       match (fields, inits) with
       | [], inits ->
-          walk_unpaired_args env (List.map (fun (_, _, init) -> init) inits);
+          walk_unpaired_args env (List.map (fun (_, init) -> init) inits);
           []
       | (_, ft) :: fields, [] ->
           (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
           :: zip (field_id + 1) fields []
-      | (_, ft) :: fields, (_, _, init) :: inits ->
+      | (_, ft) :: fields, (_, init) :: inits ->
           (field_id, check env init ft) :: zip (field_id + 1) fields inits
     in
     zip 0 (known_fields info) inits
@@ -1099,11 +1104,14 @@ and check_block env span body use =
         (* A dead tail keeps only its warning and its type need not match *)
         let tail_use = if diverged then Infer else use in
         if diverged then
-          add_warning env (block_item_span last) "unreachable code";
+          if not env.suppress_warnings then
+            emit env
+              (Diagnostic.warning (block_item_span last) "unreachable code");
         let env, te = check_elem env last tail_use in
         (env, List.rev (te :: acc))
     | e :: rest ->
-        if diverged then add_warning env (block_item_span e) "unreachable code";
+        if diverged && not env.suppress_warnings then
+          emit env (Diagnostic.warning (block_item_span e) "unreachable code");
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
         go env (diverged || te.ty = Types.TNever) (te :: acc) rest
@@ -1115,7 +1123,9 @@ and check_elem env item use : local_env * Tast.texpr =
   | Decl _ ->
       verify_unit_result env (block_item_span item) use;
       (env, Tast.mk Types.TUnit Tast.TLocalDecl)
-  | Expr ({ desc = Binding (kind, name, nspan, ann, init); _ } as e) ->
+  | Expr
+      ({ desc = Binding (kind, { value = name; span = nspan }, ann, init); _ }
+       as e) ->
       let env', tbind = check_binding env kind name nspan ann init in
       if tbind.ty <> Types.TNever then verify_unit_result env e.span use;
       (env', tbind)
@@ -1147,7 +1157,9 @@ and check_binding env kind name nspan ann init =
         let want = zero_init_ty env a.tspan (ty_of_ast env a) in
         (want, Tast.mk want Tast.TZero)
     | None, None ->
-        emit env (Diagnostic.cannot_infer nspan);
+        emit env
+          (Diagnostic.error nspan "cannot infer type"
+          |> Diagnostic.help "write the type or give it a value");
         (* A real type here would cause unrelated later mismatches *)
         (Types.TError, dummy_texpr)
   in
@@ -1162,13 +1174,13 @@ and check_binding env kind name nspan ann init =
 
 and synth_return env span init =
   if env.ret_ty = Types.TNever then
-    add_error env span "a never function cannot return";
+    emit env (Diagnostic.error span "a never function cannot return");
   match init with
   | None ->
       if
         env.ret_ty <> Types.TNever && env.ret_ty <> Types.TUnit
         && not env.entry_function
-      then add_error env span "empty return in non-unit function";
+      then emit env (Diagnostic.error span "empty return in non-unit function");
       Tast.mk Types.TNever (Tast.TReturn None)
   | Some e when env.ret_ty = Types.TNever ->
       Tast.mk Types.TNever (Tast.TReturn (Some (synth env e)))
@@ -1186,10 +1198,11 @@ and check_loop_expr env span label body want =
     | FlexibleLoopResult (t, _, _), _ | RigidLoopResult (t, _, _), _ -> t
     | (InferLoopResult | ExpectLoopResult _), None -> Types.TNever
     | InferLoopResult, Some _ -> Types.TUnit
+    | ExpectLoopResult want, Some _ when Types.has_error want -> Types.TError
     | ExpectLoopResult want, Some break_span ->
         emit env
-          (Diagnostic.type_mismatch break_span ~expected:(show_ty env want)
-             ~found:"()");
+          (Diagnostic.error break_span "type mismatch"
+          |> Diagnostic.label "expected %s, found ()" (show_ty env want));
         Types.TUnit
   in
   Tast.mk ty (Tast.TLoop (label, tb))
@@ -1202,9 +1215,9 @@ and check_valued_break env lc ve =
   let report_bare ty =
     let report first =
       emit env
-        (Diagnostic.break_disagree ve.span
-           (Printf.sprintf "breaks with %s" (show_ty env ty))
-           ~other:first ~other_message:"no value here")
+        (Diagnostic.error ve.span "`break` values disagree"
+        |> Diagnostic.label "breaks with %s" (show_ty env ty)
+        |> Diagnostic.secondary first "no value here")
     in
     Option.iter report lc.bare_break
   in
@@ -1261,8 +1274,7 @@ and synth_break env span label value =
     | Some ve, None -> Some (synth env ve)
     | Some ve, Some lc when not lc.valued ->
         emit env
-          (Diagnostic.error "`break` with a value outside a `loop`"
-          |> Diagnostic.at ve.span
+          (Diagnostic.error ve.span "`break` with a value outside a `loop`"
           |> Diagnostic.help "use `loop` when the loop produces a value");
         Some (synth env ve)
     | Some ve, Some lc -> Some (check_valued_break env lc ve)
@@ -1285,7 +1297,8 @@ and synth_for env span label name nspan iter body =
         | Types.TArray (elem, _) | Types.TSlice elem -> (ti, elem)
         | t ->
             emit env
-              (Diagnostic.with_type iter.span "cannot iterate" (show_ty env t));
+              (Diagnostic.error iter.span "cannot iterate"
+              |> Diagnostic.label "on %s" (show_ty env t));
             (ti, Types.TInt I32))
   in
   let loop = new_loop label ~valued:false in
@@ -1340,10 +1353,11 @@ and check_if env span (branches : (expr * block Ast.spanned) list) else_body
         | Some { Ast.value = body; span = bspan } ->
             Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
-            if resolve_ty w <> Types.TUnit then
+            if resolve_ty w <> Types.TUnit && not (Types.has_error w) then
               emit env
-                (Diagnostic.type_mismatch span ~expected:(show_ty env w)
-                   ~found:(show_ty env Types.TUnit));
+                (Diagnostic.error span "type mismatch"
+                |> Diagnostic.label "expected %s, found %s" (show_ty env w)
+                     (show_ty env Types.TUnit));
             None
       in
       let ty = if_result_ty tbranches telse ~fallback_ty:w in
@@ -1366,14 +1380,14 @@ and check_pattern env sty pat =
       (* TODO(43f6): comparing these needs more than the integer test an arm emits *)
       let not_comparable () =
         emit env
-          (Diagnostic.error_at pat.pspan "pattern is not comparable"
-          |> Diagnostic.label ("cannot test " ^ show_ty env te.ty));
+          (Diagnostic.error pat.pspan "pattern is not comparable"
+          |> Diagnostic.label "cannot test %s" (show_ty env te.ty));
         (env, None)
       in
       (* TODO(766b): a named constant and a range should both work as patterns *)
       let not_a_literal () =
         emit env
-          (Diagnostic.error_at pat.pspan "pattern is not a literal"
+          (Diagnostic.error pat.pspan "pattern is not a literal"
           |> Diagnostic.help "an arm names a literal or an enum variant");
         (env, None)
       in
@@ -1436,13 +1450,13 @@ and report_coverage env (ts : Tast.texpr) = function
         | _ -> "add an arm for each, or `_ => { }`"
       in
       emit env
-        (Diagnostic.error_at ts.span "match is not exhaustive"
-        |> Diagnostic.label (String.concat ", " names ^ " not covered")
+        (Diagnostic.error ts.span "match is not exhaustive"
+        |> Diagnostic.label "%s not covered" (String.concat ", " names)
         |> Diagnostic.help fix)
   | Unbounded ->
       emit env
-        (Diagnostic.error_at ts.span "match is not exhaustive"
-        |> Diagnostic.label (Printf.sprintf "on %s" (show_ty env ts.ty))
+        (Diagnostic.error ts.span "match is not exhaustive"
+        |> Diagnostic.label "on %s" (show_ty env ts.ty)
         |> Diagnostic.help "add `_ => { }`")
 
 and check_match_arms env ts arms want =
@@ -1451,12 +1465,13 @@ and check_match_arms env ts arms want =
   let seen = Hashtbl.create 8 in
   let caught_all = ref false in
   let record pat tpat =
-    if !caught_all then add_error env pat.pspan "arm never runs"
+    if !caught_all then emit env (Diagnostic.error pat.pspan "arm never runs")
     else
       match tpat with
       | Tast.TPatWild | Tast.TPatBind _ -> caught_all := true
       | Tast.TPatConst n ->
-          if Hashtbl.mem seen n then add_error env pat.pspan "duplicate pattern"
+          if Hashtbl.mem seen n then
+            emit env (Diagnostic.error pat.pspan "duplicate pattern")
           else Hashtbl.add seen n ()
   in
   let check_arm a =
@@ -1509,11 +1524,9 @@ and check_size_literal env (e : expr) want target typ =
       | Types.TInt kind
         when not (Constant.representable kind (Constant.of_magnitude size)) ->
           emit env
-            (Diagnostic.error "size does not fit"
-            |> Diagnostic.at e.span
-            |> Diagnostic.label
-                 (Printf.sprintf "%Ld does not fit in %s" size
-                    (show_ty env target)))
+            (Diagnostic.error e.span "size does not fit"
+            |> Diagnostic.label "%Ld does not fit in %s" size
+                 (show_ty env target))
       | _ -> ());
       Tast.mk want (Tast.TSizeOf ty)
 
@@ -1527,9 +1540,9 @@ and check_array_literal env (e : expr) want elements =
   | Types.TArray (element, length) ->
       if List.compare_length_with elements length <> 0 then
         emit env
-          (Diagnostic.arity e.span
-             ~expected:(Printf.sprintf "expected %d elements" length)
-             ~found:(List.length elements));
+          (Diagnostic.error e.span "wrong number of arguments"
+          |> Diagnostic.label "expected %d elements, found %d" length
+               (List.length elements));
       let typed = List.map (fun source -> check env source element) elements in
       Tast.mk (Types.TArray (element, length)) (Tast.TArrayLit typed)
   | _ -> check_by_synth env e want
@@ -1578,8 +1591,9 @@ and coerce_expr env e want te =
   else if widens_to got want then Tast.mk ~span:e.span want (Tast.TCast te)
   else begin
     let mismatch =
-      Diagnostic.type_mismatch e.span ~expected:(show_ty env want)
-        ~found:(show_ty env got)
+      Diagnostic.error e.span "type mismatch"
+      |> Diagnostic.label "expected %s, found %s" (show_ty env want)
+           (show_ty env got)
     in
     let mismatch =
       match (e.desc, resolve_ty want) with
@@ -1597,7 +1611,7 @@ and check_matching_operands env l r =
 and check_range_bounds env lo hi =
   let tlo, thi, t = check_matching_operands env lo hi in
   if not (is_integer t) then
-    add_error env lo.span "range bounds must be integers";
+    emit env (Diagnostic.error lo.span "range bounds must be integers");
   (tlo, thi, t)
 
 (* A bad count drops the args so walk them or their errors never show *)
@@ -1615,9 +1629,9 @@ and check_args env span fsig args =
   else if fsig.variadic then
     if n_args < n_params then (
       emit env
-        (Diagnostic.arity span
-           ~expected:("expected at least " ^ expected_args)
-           ~found:n_args);
+        (Diagnostic.error span "wrong number of arguments"
+        |> Diagnostic.label "expected at least %s, found %d" expected_args
+             n_args);
       walk_unpaired_args env args;
       [])
     else
@@ -1634,9 +1648,8 @@ and check_args env span fsig args =
       List.map2 (check env) fixed fsig.param_tys @ List.map promote_vararg rest
   else if n_params <> n_args then (
     emit env
-      (Diagnostic.arity span
-         ~expected:("expected " ^ expected_args)
-         ~found:n_args);
+      (Diagnostic.error span "wrong number of arguments"
+      |> Diagnostic.label "expected %s, found %d" expected_args n_args);
     walk_unpaired_args env args;
     [])
   else List.map2 (check env) args fsig.param_tys
@@ -1678,21 +1691,24 @@ and check_comparison_operands env l r =
 
 and check_assign_operands env base l r =
   let tl = synth env l in
-  if tl.ty <> Types.TError && not (is_lvalue tl) then
-    add_error env l.span "cannot assign to expression";
+  let no_place = tl.ty <> Types.TError && not (is_lvalue tl) in
+  if no_place then
+    emit env
+      (Diagnostic.error l.span "cannot assign to expression"
+      |> Diagnostic.label "on %s" (show_ty env tl.ty));
   verify_param_copy_write env l.span tl;
   (match tl.desc with
   | Tast.TIdent s when Symbol.is_func s.Symbol.kind ->
-      add_error env l.span "cannot assign to function"
+      emit env (Diagnostic.error l.span "cannot assign to function")
   | Tast.TIdent _ | Tast.TFieldAccess _ | Tast.TIndex _ -> (
       (* This catches writes to any immutable binding *)
       match root_binding tl with
       | Some s when Symbol.is_immutable s.Symbol.kind || is_const_symbol env s
         ->
-          add_error env l.span "cannot assign to immutable"
+          emit env (Diagnostic.error l.span "cannot assign to immutable")
       | _ -> ())
   | _ -> ());
-  let t = tl.ty in
+  let t = if no_place then Types.TError else tl.ty in
   Option.iter (fun op -> verify_operands env l.span op t) base;
   let tr =
     match base with
@@ -1716,8 +1732,9 @@ and synth_unop env op e =
       let t = te.ty in
       if not (unop_accepts op t) then
         emit env
-          (Diagnostic.bad_operand e.span ~op:(show_unop_sym op)
-             ~ty:(show_ty env t));
+          (Diagnostic.error e.span "invalid operand"
+          |> Diagnostic.label "cannot apply `%s` to %s" (show_unop_sym op)
+               (show_ty env t));
       Tast.mk t (Tast.TUnOp (op, te))
   | Not ->
       let te = check env e Types.TBool in
@@ -1726,24 +1743,28 @@ and synth_unop env op e =
       let te = synth env e in
       match resolve_ty te.ty with
       | Types.TPointer inner -> Tast.mk inner (Tast.TUnOp (op, te))
-      | Types.TError -> dummy_texpr
+      | t when Types.has_error t -> dummy_texpr
       | Types.TOpaquePtr ->
-          emit env (Diagnostic.opaque_operation e.span "dereference");
+          emit env
+            (Diagnostic.error e.span "cannot dereference *opaque"
+            |> Diagnostic.help "cast to a typed pointer first");
           dummy_texpr
       | t ->
           emit env
-            (Diagnostic.with_type e.span "cannot dereference" (show_ty env t));
+            (Diagnostic.error e.span "cannot dereference"
+            |> Diagnostic.label "on %s" (show_ty env t));
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
       (match te.desc with
       | Tast.TIdent s when is_const_symbol env s ->
           emit env
-            (Diagnostic.error_at e.span "cannot take address of a constant"
+            (Diagnostic.error e.span "cannot take address of a constant"
             |> Diagnostic.help "a const has no storage, use var")
       | _ ->
           if te.ty <> Types.TError && not (is_lvalue te) then
-            add_error env e.span "cannot take address of expression");
+            emit env
+              (Diagnostic.error e.span "cannot take address of expression"));
       Tast.mk
         (lift_ty (fun ty -> Types.TPointer ty) te.ty)
         (Tast.TUnOp (op, te))
@@ -1752,7 +1773,7 @@ and synth_field env span e fname fspan =
   synth_typed_field env span (synth env e) fname fspan
 
 and synth_value_path env p =
-  let _, root_span = Nonempty.hd p.owner in
+  let root_span = (Nonempty.hd p.owner).span in
   match Resolve.sym_at_opt env.ctx.symbols root_span with
   | Some { Symbol.kind = Symbol.Module | Symbol.Type | Symbol.LocalType; _ }
   | None ->
@@ -1766,36 +1787,11 @@ and synth_value_path env p =
               (Tast.mk (lookup_var env root_span) (Tast.TIdent symbol))
       in
       let fields = List.tl (Nonempty.to_list p.owner) @ [ p.member ] in
-      let step typed (field_name, field_span) =
+      let step typed { Ast.value = field_name; span = field_span } =
         let span = Span.make (Span.lo root_span) (Span.hi field_span) in
         stamp span (synth_typed_field env span typed field_name field_span)
       in
       Some (List.fold_left step root fields)
-
-and cast_typ_of_callee env (e : expr) =
-  let named desc =
-    if Symbol.Table.mem env.ctx.type_defs (key_at env e.span) then
-      Some { tdesc = desc; tspan = e.span }
-    else None
-  in
-  match e.desc with
-  | UnOp (Ast.Deref, inner) ->
-      let pointer t = { tdesc = Pointer t; tspan = e.span } in
-      Option.map pointer (cast_typ_of_callee env inner)
-  | Ident name -> named (Named ([], name))
-  | Path p -> named (Named (Ast.path_names p, fst p.member))
-  | _ -> None
-
-(* A type in call position converts its one argument *)
-and synth_type_call env span ty args =
-  match args with
-  | [ arg ] -> synth_conversion env span (synth_operand env arg) ty
-  | _ ->
-      emit env
-        (Diagnostic.arity span ~expected:"expected 1 argument"
-           ~found:(List.length args));
-      List.iter (fun a -> ignore (synth env a)) args;
-      Tast.mk ty Tast.TErrorExpr
 
 and synth_call env span callee args =
   match direct_callee env callee with
@@ -1813,11 +1809,13 @@ and synth_call env span callee args =
       Tast.mk fsig.ret_ty (Tast.TCall (callee_texpr, targs, fixed_count))
   | None when Symbol.Table.mem env.ctx.type_defs (key_at env callee.span) ->
       let sym = Resolve.sym_at env.ctx.symbols callee.span in
-      synth_type_call env span (named_ty env callee.span sym.Symbol.name) args
-  | _ -> (
-      match cast_typ_of_callee env callee with
-      | Some t -> synth_type_call env span (ty_of_ast env t) args
-      | None -> synth_indirect_call env span callee args)
+      emit env
+        (Diagnostic.error callee.span "cannot call a type"
+        |> Diagnostic.help
+             (Printf.sprintf "convert with `cast(%s, value)`" sym.Symbol.name));
+      List.iter (fun a -> ignore (synth env a)) args;
+      dummy_texpr
+  | None -> synth_indirect_call env span callee args
 
 (* The callee is a value holding a fn ptr so call through it *)
 and synth_indirect_call env span (callee : expr) args =
@@ -1832,22 +1830,15 @@ and synth_indirect_call env span (callee : expr) args =
       Tast.mk ret_ty (Tast.TCall (callee_texpr, targs, None))
   | _ ->
       let d =
-        Diagnostic.error "not callable"
-        |> Diagnostic.at callee.span
-        |> Diagnostic.label
-             (Printf.sprintf "this has type %s" (show_ty env callee_texpr.ty))
+        Diagnostic.error callee.span "not callable"
+        |> Diagnostic.label "this has type %s" (show_ty env callee_texpr.ty)
       in
       let d =
         match Resolve.shadowed_at env.ctx.symbols callee.span with
         | Some sym ->
-            let fix =
-              if Symbol.is_func sym.Symbol.kind then
-                "rename the value to call this function"
-              else "rename the value to use this type as a conversion"
-            in
             d
             |> Diagnostic.secondary sym.Symbol.name_span "shadowed by the value"
-            |> Diagnostic.help fix
+            |> Diagnostic.help "rename the value to call this function"
         | None -> d
       in
       emit env d;
@@ -1883,14 +1874,19 @@ and synth_index env span base idx =
       | _ ->
           let tidx = synth env idx in
           if not (is_integer tidx.ty) then
-            add_error env idx.span "array index must be an integer";
+            emit env
+              (Diagnostic.error idx.span "array index must be an integer");
           Tast.mk elem (Tast.TIndex (tbase, tidx)))
   | Types.TError -> dummy_texpr
   | Types.TOpaquePtr ->
-      emit env (Diagnostic.opaque_operation span "index");
+      emit env
+        (Diagnostic.error span "cannot index *opaque"
+        |> Diagnostic.help "cast to a typed pointer first");
       dummy_texpr
   | t ->
-      emit env (Diagnostic.with_type span "cannot index" (show_ty env t));
+      emit env
+        (Diagnostic.error span "cannot index"
+        |> Diagnostic.label "on %s" (show_ty env t));
       dummy_texpr
 
 (* An array size can want a const before that decl is checked so values
@@ -1929,7 +1925,9 @@ and global_ty env (gd : global_def) =
       in
       te.ty
   | None, None ->
-      emit env (Diagnostic.cannot_infer gd.name.span);
+      emit env
+        (Diagnostic.error gd.name.span "cannot infer type"
+        |> Diagnostic.help "write the type or give it a value");
       Types.TError
 
 (* The running initializer state catches recursive demand *)
@@ -1943,12 +1941,18 @@ and type_global_init env span = function
   | { init = Some e; typ = Some t; _ } -> check env e (ty_of_ast env t)
   | { init = Some e; typ = None; _ } -> synth env e
   | { init = None; _ } ->
-      raise (Diagnostic.Errors [ Constant.unsupported_const span ])
+      raise
+        (Diagnostic.Errors
+           [
+             Diagnostic.error span "unsupported constant expression"
+             |> Diagnostic.help
+                  "constant initializers must evaluate at compile time";
+           ])
 
 (* The folded size fixes dropped suffixes and silent wraps on huge counts *)
 and eval_array_size env e =
   let bad msg =
-    add_error env e.span msg;
+    emit env (Diagnostic.error e.span "%s" msg);
     0
   in
   let te = synth env e in
@@ -1998,7 +2002,9 @@ let collect_func env fd =
     { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole }
 
 (* A repeat name is already reported with both spans by the resolver *)
-let type_name_taken ctx span = Symbol.Table.mem ctx.type_defs (key_in ctx span)
+let type_name_taken ctx span =
+  let key = key_in ctx span in
+  key = Symbol.unresolved_key || Symbol.Table.mem ctx.type_defs key
 
 (* The reserved name enables forward field types *)
 let reserve_struct_name ctx sd =
@@ -2009,7 +2015,8 @@ let reserve_struct_name ctx sd =
       | None -> ()
       | Some name ->
           if Hashtbl.mem seen name then
-            add_error_in ctx f.field_name.span "duplicate field"
+            Diagnostic.emit ctx.diags
+              (Diagnostic.error f.field_name.span "duplicate field")
           else Hashtbl.add seen name ()
     in
     Option.iter (List.iter check_duplicate) sd.fields;
@@ -2098,7 +2105,7 @@ let verify_type_cycles ctx =
   let report_cycle = function
     | Struct sd when Symbol.Table.mem cyclic (key_in ctx sd.struct_span) ->
         Diagnostic.emit ctx.diags
-          (Diagnostic.error_at sd.struct_name.span
+          (Diagnostic.error sd.struct_name.span
              "recursive struct has infinite size")
     | Struct _ | Func _ | Extern _ | Global _ | TypeAlias _ | Enum _ -> ()
   in
@@ -2116,7 +2123,8 @@ let reserve_enum_name ctx ed =
       | None -> Int64.succ next
       | Some name ->
           if Hashtbl.mem variants_by_name name then begin
-            add_error_in ctx v.span "duplicate variant";
+            Diagnostic.emit ctx.diags
+              (Diagnostic.error v.span "duplicate variant");
             next
           end
           else begin
@@ -2170,7 +2178,9 @@ let resolve_type_bodies ctx =
         | Some (Alias_type body) -> (
             match !body with
             | Completed _ -> ()
-            | Running -> add_error_in ctx td.alias_name.span "recursive type"
+            | Running ->
+                Diagnostic.emit ctx.diags
+                  (Diagnostic.error td.alias_name.span "recursive type")
             | Unstarted ->
                 body := Running;
                 List.iter
@@ -2194,7 +2204,7 @@ let collect_global env (gd : global_def) =
      match gd.kind with
      | Var -> ()
      | Const ->
-         emit env (Diagnostic.error_at gd.name.span "const without initializer"));
+         emit env (Diagnostic.error gd.name.span "const without initializer"));
   let key = key_at env gd.span in
   let t =
     match Symbol.Table.find_opt env.ctx.global_facts key with
@@ -2262,9 +2272,10 @@ let check_func ?(is_extern = false) env fd =
   if invalid_entry_return then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.func_span in
     emit env
-      (Diagnostic.type_mismatch span
-         ~expected:(show_ty env (Types.TInt I32))
-         ~found:(show_ty env ret_ty))
+      (Diagnostic.error span "type mismatch"
+      |> Diagnostic.label "expected %s, found %s"
+           (show_ty env (Types.TInt I32))
+           (show_ty env ret_ty))
   end;
 
   let func_env =
@@ -2338,8 +2349,7 @@ let check_global env (gd : global_def) =
     | Some { desc = Undefined; span } when gd.kind = Const ->
         emit env
           Diagnostic.(
-            error "const cannot be undefined"
-            |> at span
+            error span "const cannot be undefined"
             |> help "use var for values that need storage");
         None
     | Some { desc = Undefined; _ } -> None
@@ -2438,7 +2448,7 @@ let analyze ~diags uses decls =
   register_globals ctx;
   reserve_type_names ctx;
   resolve_type_bodies ctx;
-  collect_decls ctx;
   fill_struct_layouts ctx;
+  collect_decls ctx;
   verify_type_cycles ctx;
   check_decls ctx

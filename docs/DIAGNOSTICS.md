@@ -44,7 +44,7 @@ cannot zero init this type
 
 ```text
 previous definition here
-unclosed `{`
+to match this `{`
 declared private here
 ```
 

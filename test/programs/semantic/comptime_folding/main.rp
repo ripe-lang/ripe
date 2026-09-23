@@ -18,7 +18,7 @@ func main() i32 {
     const step: i32 = 2
     sum = sum + step
   }
-  printf("%d %d %d %d %d %d %d\n", N, M, LATER, STORED, i32(SIZE), local, sum)
+  printf("%d %d %d %d %d %d %d\n", N, M, LATER, STORED, cast(i32, SIZE), local, sum)
   if M == 9 && local == 90 && LATER == 99 {
     return 0
   }

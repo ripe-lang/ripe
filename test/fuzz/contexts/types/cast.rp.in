@@ -1,2 +1,2 @@
-func main() i32 { var _p = (*%%T%%)(usize(0))
+func main() i32 { var _v = cast(%%T%%, %%L%%)
   return 0 }

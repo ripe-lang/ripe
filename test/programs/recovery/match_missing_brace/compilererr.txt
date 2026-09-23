@@ -2,7 +2,3 @@ error: expected `{`
   at main.rp:3:17
       return match x
                     ^ found ;
-error: unexpected closing delimiter
-  at main.rp:7:1
-    }
-    ^

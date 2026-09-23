@@ -36,7 +36,7 @@ PRELUDE = (
 SKIP = {
     ("ret", "never"),
     ("local_ret", "never"),
-    ("cast_paren", "[2]*i32"),
+    ("cast", "[2]*i32"),
 }
 
 CORRUPTIONS = {

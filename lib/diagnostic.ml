@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* These diagnostics came from ceramic *)
-
 type severity = Error | Warning | Note | Help
 type span_label = { span : Ast.span; message : string }
 
@@ -17,6 +15,10 @@ type t = {
 
 exception Errors of t list
 
+let headline d = d.headline
+let primary d = d.primary
+let detail_of d = d.detail
+
 let make severity headline =
   {
     severity;
@@ -28,52 +30,73 @@ let make severity headline =
     suggestion = None;
   }
 
-(* Builder pipeline: `error msg |> at span |> label "..." |> help "..."` *)
-let error headline = make Error headline
-let warning headline = make Warning headline
-let at span d = { d with primary = Some span }
-let label message d = { d with primary_label = Some message }
+(* error: type mismatch *)
+let error span fmt =
+  Printf.ksprintf
+    (fun headline -> { (make Error headline) with primary = Some span })
+    fmt
 
-let secondary span message d =
-  { d with labels = d.labels @ [ { span; message } ] }
+(* warning: unused variable *)
+let warning span headline = { (make Warning headline) with primary = Some span }
 
+(* error: no source to point at *)
+let error_no_span headline = make Error headline
+
+(* ^~~~ expected i32, found bool *)
+let label fmt =
+  Printf.ksprintf (fun message d -> { d with primary_label = Some message }) fmt
+
+(* ^ found = *)
+let found text d = label "found %s" text d
+
+(* ^ previous definition here *)
+let secondary span message d = { d with labels = { span; message } :: d.labels }
+
+(*   looked in this module *)
 let detail s d = { d with detail = Some s }
+
+(* help: add `;` here *)
 let help s d = { d with suggestion = Some s }
-let error_at span msg = error msg |> at span
+
+(* error: internal compiler error *)
+let internal ?span msg =
+  let d =
+    error_no_span "internal compiler error"
+    |> detail (msg ^ "\n")
+    |> help
+         "this is a bug in ripec, please report it at \
+          https://github.com/ripe-lang/ripe/issues"
+  in
+  match span with Some sp -> { d with primary = Some sp } | None -> d
+
+let ice ?span msg = raise (Errors [ internal ?span msg ])
 
 (* Where a pass dumps diagnostics and the edge drains it to render *)
-type sink = t list ref
+type sink = { mutable pending : t list; mutable errors : bool }
 
-let sink () = ref []
-let headline d = d.headline
-let primary d = d.primary
-let detail_of d = d.detail
-let emit s d = s := d :: !s
-let emit_error_at s span msg = emit s (error_at span msg)
-let emit_warn_at s span msg = emit s (warning msg |> at span)
-let has_errors s = List.exists (fun d -> d.severity = Error) !s
+let sink () = { pending = []; errors = false }
+
+let emit s d =
+  s.pending <- d :: s.pending;
+  s.errors <- s.errors || d.severity = Error
+
+let has_errors s = s.errors
 
 (* Sorted into source order and ties keep emission order *)
 let drain s =
   let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
-  List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev !s)
+  List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev s.pending)
 
 (* The next stage would report these all over again if the sink kept them *)
 let take s =
   let all = drain s in
-  s := [];
+  s.pending <- [];
+  s.errors <- false;
   all
 
 (* Rendering *)
 
 type ctx = { sm : Sourcemap.t; filename : string; color : bool }
-
-let tab_width = 8
-
-(* Fixed rather than read from the terminal so expect tests stay reproducible *)
-let snippet_width = 100
-let snippet_indent = 4
-let ellipsis = "..."
 
 let severity_word (severity : severity) =
   match severity with
@@ -82,122 +105,133 @@ let severity_word (severity : severity) =
   | Note -> "note"
   | Help -> "help"
 
-let severity_ansi (severity : severity) =
-  match severity with
-  | Error -> "\027[1;31m" (* red *)
-  | Warning -> "\027[1;33m" (* yellow *)
-  | Note -> "\027[1;36m" (* cyan *)
-  | Help -> "\027[1;32m" (* green *)
+let severity_ansi (severity : severity) text =
+  let color =
+    match severity with
+    | Error -> "\027[1;31m" (* red *)
+    | Warning -> "\027[1;33m" (* yellow *)
+    | Note -> "\027[1;36m" (* cyan *)
+    | Help -> "\027[1;32m" (* green *)
+  in
+  color ^ text ^ "\027[0m" (* reset *)
 
-let reset = "\027[0m"
-let colored ctx sev s = if ctx.color then severity_ansi sev ^ s ^ reset else s
+let colored ctx sev s = if ctx.color then severity_ansi sev s else s
 
 let severity_label color sev =
-  if color then severity_ansi sev ^ severity_word sev ^ reset
-  else severity_word sev
+  if color then severity_ansi sev (severity_word sev) else severity_word sev
+
+let tab_width = 8
+let snippet_width = 100
+let snippet_indent = 4
+let ellipsis = "..."
 
 (* UTF8 continuation bytes don't advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
-(* A byte offset isn't a column once tabs and multibyte characters show up *)
-let visual_col src line_start pos =
-  let col = ref 0 in
-  for i = line_start to pos - 1 do
-    let c = src.[i] in
-    if c = '\t' then col := ((!col / tab_width) + 1) * tab_width
-    else if is_cont c then ()
-    else incr col
+(* The cache must not keep old source files alive *)
+module Columns = Ephemeron.K1.Make (struct
+  type t = Sourcemap.t
+
+  let equal a b = a == b
+
+  (* The source text would make every cache hit scan the file again *)
+  let hash sm =
+    Hashtbl.hash (Sourcemap.rel sm 0, String.length (Sourcemap.src sm))
+end)
+
+let columns = Columns.create 16
+
+let line_columns src start stop =
+  (* The final newline still counts toward the EOF column *)
+  let limit = min (String.length src) (stop + 1) in
+  let cols = Array.make (limit - start + 1) 0 in
+  for i = start to limit - 1 do
+    let col = cols.(i - start) in
+    let next =
+      if src.[i] = '\t' then ((col / tab_width) + 1) * tab_width
+      else if is_cont src.[i] then col
+      else col + 1
+    in
+    cols.(i - start + 1) <- next
   done;
-  !col
+  cols
 
-let render_location ctx buf span =
-  let line, _ = Sourcemap.lookup ctx.sm (Span.lo span) in
-  let src = Sourcemap.src ctx.sm in
-  let lo = Sourcemap.rel ctx.sm (Span.lo span) in
-  let line_start, _ = Sourcemap.line_bounds ctx.sm (Span.lo span) in
-  let col = visual_col src line_start lo + 1 in
-  Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line col
-
-(* One entry per visual column so a window can be cut without splitting a character *)
-let cells_of_line src line_start line_end =
-  let out = Dynarray.create () in
-  let i = ref line_start in
-  while !i < line_end do
-    if src.[!i] = '\t' then begin
-      let stop = ((Dynarray.length out / tab_width) + 1) * tab_width in
-      while Dynarray.length out < stop do
-        Dynarray.add_last out " "
+let line_cells src start stop cols =
+  let byte = ref start in
+  Array.init
+    cols.(stop - start)
+    (fun column ->
+      while cols.(!byte - start + 1) <= column do
+        incr byte
       done;
-      incr i
-    end
-    else begin
-      let start = !i in
-      incr i;
-      while !i < line_end && is_cont src.[!i] do
-        incr i
-      done;
-      Dynarray.add_last out (String.sub src start (!i - start))
-    end
-  done;
-  out
+      if src.[!byte] = '\t' then " "
+      else begin
+        let first = !byte in
+        incr byte;
+        while !byte < stop && is_cont src.[!byte] do
+          incr byte
+        done;
+        String.sub src first (!byte - first)
+      end)
 
-(* A long line still has to show its caret so the window slides to it *)
-let window_of (cells : string Dynarray.t) caret_lo =
-  let total = Dynarray.length cells in
-  let budget = snippet_width - snippet_indent in
-  let buf = Buffer.create budget in
-  let add lo hi =
-    for i = lo to hi - 1 do
-      Buffer.add_string buf (Dynarray.get cells i)
-    done
+let cached_line sm start stop =
+  let lines =
+    match Columns.find_opt columns sm with
+    | Some lines -> lines
+    | None ->
+        let lines = Hashtbl.create 16 in
+        Columns.add columns sm lines;
+        lines
   in
-  if total <= budget then begin
-    add 0 total;
-    (Buffer.contents buf, 0)
-  end
-  else begin
-    let start = max 0 (min (caret_lo - (budget / 2)) (total - budget)) in
-    let cut = String.length ellipsis in
-    let left = start > 0 and right = start + budget < total in
-    if left then Buffer.add_string buf ellipsis;
-    add
-      (start + if left then cut else 0)
-      (start + budget - if right then cut else 0);
-    if right then Buffer.add_string buf ellipsis;
-    (Buffer.contents buf, start)
-  end
+  match Hashtbl.find_opt lines start with
+  | Some line -> line
+  | None ->
+      let src = Sourcemap.src sm in
+      let cols = line_columns src start stop in
+      let line = (cols, line_cells src start stop cols) in
+      Hashtbl.add lines start line;
+      line
+
+(* ... + value + value + value ... *)
+let window_of cells total caret_lo =
+  let budget = snippet_width - snippet_indent in
+  let start = max 0 (min (caret_lo - (budget / 2)) (total - budget)) in
+  let edge = min total (start + budget) in
+  let left = if start > 0 then ellipsis else "" in
+  let right = if edge < total then ellipsis else "" in
+  let lo = start + String.length left and hi = edge - String.length right in
+  let shown =
+    Array.sub cells lo (hi - lo) |> Array.to_list |> String.concat ""
+  in
+  (left ^ shown ^ right, start, edge)
 
 (* Offsets here index into the raw source so they have to be file relative *)
 let render_snippet ctx buf span label severity =
   let src = Sourcemap.src ctx.sm in
   let lo = Sourcemap.rel ctx.sm (Span.lo span) in
   let line_start, line_end = Sourcemap.line_bounds ctx.sm (Span.lo span) in
-  let cells = cells_of_line src line_start line_end in
-  let caret_lo = visual_col src line_start lo in
-  let shown, offset = window_of cells caret_lo in
-  Buffer.add_string buf (String.make snippet_indent ' ');
-  Buffer.add_string buf shown;
-  Buffer.add_char buf '\n';
-  Buffer.add_string buf (String.make snippet_indent ' ');
-  let pad = caret_lo - offset in
-  Buffer.add_string buf (String.make pad ' ');
+  let cols, cells = cached_line ctx.sm line_start line_end in
+  let col pos = cols.(pos - line_start) in
+  let caret_lo = col lo in
+  let line, _ = Sourcemap.lookup ctx.sm (Span.lo span) in
+  Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line (caret_lo + 1);
+
+  let stop = ref (min line_end (lo + (4 * snippet_width) + 4)) in
+  while !stop < line_end && is_cont src.[!stop] do
+    incr stop
+  done;
+  let shown, offset, edge = window_of cells (col !stop) caret_lo in
+  Printf.bprintf buf "%*s%s\n" snippet_indent "" shown;
+
+  let pad = snippet_indent + caret_lo - offset in
   let hi = min (Sourcemap.rel ctx.sm (Span.hi span)) line_end in
-  let markers =
-    if hi <= lo then "^"
-    else
-      let w = visual_col src line_start hi - caret_lo in
-      let w = if w < 1 then 1 else w in
-      (* A span running off the window stops at its edge *)
-      let w = min w (Dynarray.length cells - offset - pad) in
-      let w = if w < 1 then 1 else w in
-      "^" ^ String.make (w - 1) '~'
+  (* A span running off the window stops at its edge *)
+  let width =
+    if hi <= lo then 1 else min (col hi - caret_lo) (edge - caret_lo)
   in
-  Buffer.add_string buf (colored ctx severity markers);
-  (match label with
-  | Some l ->
-      Buffer.add_char buf ' ';
-      Buffer.add_string buf l
-  | None -> ());
+  let markers = "^" ^ String.make (max 0 (width - 1)) '~' in
+  Printf.bprintf buf "%*s%s" pad "" (colored ctx severity markers);
+  Option.iter (Printf.bprintf buf " %s") label;
   Buffer.add_char buf '\n'
 
 let render_with (context_at : int -> ctx) default_ctx d =
@@ -207,89 +241,23 @@ let render_with (context_at : int -> ctx) default_ctx d =
     | Some span -> context_at (Span.lo span)
     | None -> default_ctx
   in
-  Buffer.add_string buf (colored ctx d.severity (severity_word d.severity));
-  Buffer.add_string buf ": ";
-  Buffer.add_string buf d.headline;
-  Buffer.add_char buf '\n';
+  Printf.bprintf buf "%s: %s\n" (severity_label ctx.color d.severity) d.headline;
+
   (match d.primary with
-  | Some span ->
-      render_location ctx buf span;
-      render_snippet ctx buf span d.primary_label d.severity
+  | Some span -> render_snippet ctx buf span d.primary_label d.severity
   | None -> ());
+
   List.iter
     (fun label ->
       let label_ctx = context_at (Span.lo label.span) in
-      render_location label_ctx buf label.span;
       render_snippet label_ctx buf label.span (Some label.message) Note)
-    d.labels;
-  (match d.detail with
-  | Some detail -> Buffer.add_string buf detail
-  | None -> ());
-  (match d.suggestion with
-  | Some suggestion ->
-      Buffer.add_string buf (colored default_ctx Help (severity_word Help));
-      Buffer.add_string buf ": ";
-      Buffer.add_string buf suggestion;
-      Buffer.add_char buf '\n'
-  | None -> ());
+    (List.rev d.labels);
+
+  Option.iter (Buffer.add_string buf) d.detail;
+
+  Option.iter
+    (Printf.bprintf buf "%s: %s\n" (severity_label default_ctx.color Help))
+    d.suggestion;
   Buffer.contents buf
 
 let render ctx d = render_with (fun _ -> ctx) ctx d
-
-let type_mismatch span ~expected ~found =
-  error "type mismatch" |> at span
-  |> label (Printf.sprintf "expected %s, found %s" expected found)
-
-let undefined_name span kind = error ("undefined " ^ kind) |> at span
-let with_type span msg ty = error msg |> at span |> label ("on " ^ ty)
-
-let redefinition span ~prev =
-  error_at span "already defined" |> secondary prev "previous definition here"
-
-let arity span ~expected ~found =
-  error "wrong number of arguments"
-  |> at span
-  |> label (Printf.sprintf "%s, found %d" expected found)
-
-let unsupported_abi span =
-  error "unsupported ABI" |> at span |> label "this ABI is not supported here"
-
-let int_out_of_range span ~ty =
-  error "integer literal out of range"
-  |> at span
-  |> label ("does not fit in " ^ ty)
-
-let bad_operand span ~op ~ty =
-  error "invalid operand" |> at span
-  |> label (Printf.sprintf "cannot apply `%s` to %s" op ty)
-
-let break_disagree span message ~other ~other_message =
-  error "`break` values disagree"
-  |> at span |> label message
-  |> secondary other other_message
-
-let opaque_operation span action =
-  error (Printf.sprintf "cannot %s *opaque" action)
-  |> at span
-  |> help "cast to a typed pointer first"
-
-let cannot_infer span =
-  error "cannot infer type" |> at span
-  |> help "write the type or give it a value"
-
-let expected_expression span = error "expected expression" |> at span
-let expected_type span = error "expected type" |> at span
-let cyclic_constant span = error_at span "cyclic constant"
-let with_found span msg found = error msg |> at span |> label ("found " ^ found)
-
-let internal ?span msg =
-  let d =
-    error "internal compiler error"
-    |> detail (msg ^ "\n")
-    |> help
-         "this is a bug in ripec, please report it at \
-          https://github.com/ripe-lang/ripe/issues"
-  in
-  match span with Some sp -> at sp d | None -> d
-
-let ice ?span msg = raise (Errors [ internal ?span msg ])

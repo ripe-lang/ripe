@@ -68,10 +68,11 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Path p ->
       let segs = Ripe.Ast.path_segments p in
       "(. "
-      ^ String.concat " " (List.map (fun (n, _) -> Ripe.Interner.text n) segs)
+      ^ String.concat " "
+          (List.map (fun n -> Ripe.Interner.text n.Ripe.Ast.value) segs)
       ^ ")"
-  | FieldAccess (e, f, _) ->
-      "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f ^ ")"
+  | FieldAccess (e, f) ->
+      "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f.value ^ ")"
   | Cast (t, e) -> "(cast " ^ dump_typ t ^ " " ^ dump_expr e ^ ")"
   | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
   | ArrayLit elems ->
@@ -80,13 +81,13 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
   | Undefined -> "undefined"
-  | StructLit (path, name, _, fields) ->
+  | StructLit (path, name, fields) ->
       "(struct "
-      ^ Ripe.Ast.show_named path name
+      ^ Ripe.Ast.show_named path name.value
       ^ String.concat ""
           (List.map
-             (fun (f, _, e) ->
-               match f with
+             (fun ((f : _ Ripe.Ast.spanned), e) ->
+               match f.value with
                | Some f -> " (" ^ Ripe.Interner.text f ^ " " ^ dump_expr e ^ ")"
                | None -> " " ^ dump_expr e)
              fields)
@@ -104,11 +105,13 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | While (_, c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
   | Loop (_, body) -> "(loop " ^ dump_block body ^ ")"
-  | For (_, name, _, iter, body) ->
-      "(for " ^ Ripe.Interner.text name ^ " " ^ dump_expr iter ^ " "
-      ^ dump_block body ^ ")"
-  | Binding (_, name, _, _, init) ->
-      "(var " ^ Ripe.Interner.text name
+  | For (_, name, iter, body) ->
+      "(for "
+      ^ Ripe.Interner.text name.value
+      ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
+  | Binding (_, name, _, init) ->
+      "(var "
+      ^ Ripe.Interner.text name.value
       ^ (match init with Some e -> " " ^ dump_expr e | None -> "")
       ^ ")"
   | Return e ->

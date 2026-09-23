@@ -102,18 +102,18 @@ type expr_desc =
   | RangeToInclusive of expr
   | RangeFull
   | Path of path
-  | FieldAccess of expr * name * span
+  | FieldAccess of expr * name spanned
   | Cast of typ * expr
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of name list * name * span * (name option * span * expr) list
+  | StructLit of name list * name spanned * (name option spanned * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
-  | For of loop_label option * name * span * expr * block
-  | Binding of binding_kind * name * span * typ option * expr option
+  | For of loop_label option * name spanned * expr * block
+  | Binding of binding_kind * name spanned * typ option * expr option
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
@@ -126,7 +126,7 @@ type expr_desc =
 and expr = { desc : expr_desc; span : span }
 
 (* This carries roots like math.Vec and value.field through every phase *)
-and path = { owner : (name * span) Nonempty.t; member : name * span }
+and path = { owner : name spanned Nonempty.t; member : name spanned }
 [@@deriving show { with_path = false }]
 
 and block = block_item list [@@deriving show { with_path = false }]
@@ -147,7 +147,7 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 [@@deriving show { with_path = false }]
 
-and abi = NoAbi | NamedAbi of string * span | AbiError
+and abi = NoAbi | NamedAbi of string spanned | AbiError
 [@@deriving show { with_path = false }]
 
 and field = { field_name : ident; field_typ : typ }
@@ -214,20 +214,21 @@ and local_decl =
 
 let show_path path = String.concat "." (List.map Interner.text path)
 let show_named path name = show_path (path @ [ name ])
+let error_typ span = { tdesc = ErrorType; tspan = span }
 
 let path_expr p =
-  let _, first = Nonempty.hd p.owner in
-  let _, last = p.member in
+  let first = (Nonempty.hd p.owner).span in
+  let last = p.member.span in
   { desc = Path p; span = Span.make (Span.lo first) (Span.hi last) }
 
 let owner_expr p =
   match Nonempty.destruct_last p.owner with
-  | [], (name, span) -> { desc = Ident name; span }
+  | [], { value; span } -> { desc = Ident value; span }
   | first :: rest, last ->
       path_expr { owner = Nonempty.make first rest; member = last }
 
-let path_names p = List.map fst (Nonempty.to_list p.owner)
-let path_split p = (path_names p, fst p.member)
+let path_names p = List.map (fun n -> n.value) (Nonempty.to_list p.owner)
+let path_split p = (path_names p, p.member.value)
 let path_segments p = Nonempty.to_list p.owner @ [ p.member ]
 
 type global_def = {

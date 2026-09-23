@@ -75,11 +75,9 @@ let parse_source ~diags ~base filename src =
   let source = { base; filename; source_map = Sourcemap.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state base) in
-  (* The bracket error is already in the sink so the payload would double it *)
-  let ast =
-    try Parser.parse ~diags read lexbuf with Diagnostic.Errors _ -> empty_ast
-  in
-  (source, ast)
+  match Parser.parse ~diags read lexbuf with
+  | ast -> (source, ast, false)
+  | exception Parser.Unbalanced -> (source, empty_ast, true)
 
 let file_of_path source_root path =
   List.fold_left Filename.concat source_root path ^ ".rp"
@@ -177,8 +175,8 @@ let check_header ~diags path merged unit_ =
         else None
       in
       let diagnostic =
-        Diagnostic.error_at header.Ast.span "module name mismatch"
-        |> Diagnostic.label ("expected " ^ expected)
+        Diagnostic.error header.Ast.span "module name mismatch"
+        |> Diagnostic.label "expected %s" expected
       in
       let diagnostic =
         match parent_import with
@@ -190,9 +188,10 @@ let check_header ~diags path merged unit_ =
   | Some _ -> ()
   | None when merged ->
       Diagnostic.emit diags
-        (Diagnostic.error "missing module header"
-        |> Diagnostic.at (Span.make unit_.source.base unit_.source.base)
-        |> Diagnostic.label ("expected `module " ^ expected ^ "`")
+        (Diagnostic.error
+           (Span.make unit_.source.base unit_.source.base)
+           "missing module header"
+        |> Diagnostic.label "expected `module %s`" expected
         |> Diagnostic.help
              "every file beside a module header needs the same header")
   | None -> ()
@@ -238,12 +237,12 @@ let read_unit loader filename =
   let src = loader.read_file filename in
   (* The lexer walks bytes so it would split a character in half *)
   if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
-  let source, ast =
+  let source, ast, unbalanced =
     parse_source ~diags:loader.diags
       ~base:(fresh_base loader filename (String.length src))
       filename src
   in
-  { source; ast }
+  ({ source; ast }, unbalanced)
 
 let tried_paths loader path =
   let show index root =
@@ -262,8 +261,7 @@ let rec load_module loader stack origin path =
             show_import_cycle (import_cycle (List.rev stack) path) path
           in
           Diagnostic.emit loader.diags
-            (Diagnostic.error "import cycle"
-            |> Diagnostic.at import.Ast.span
+            (Diagnostic.error import.Ast.span "import cycle"
             |> Diagnostic.detail detail)
       end;
       module_id
@@ -284,13 +282,12 @@ and load_new_module loader stack origin module_id path =
     match (origin, located) with
     | Imported import, Not_found ->
         record_failed_module loader module_id path
-          (Diagnostic.error "module not found"
-          |> Diagnostic.at import.Ast.span
+          (Diagnostic.error import.Ast.span "module not found"
           |> Diagnostic.detail (tried_paths loader path))
     | Imported import, Clash ->
         record_failed_module loader module_id path
-          (Diagnostic.error "module is both a file and a directory"
-          |> Diagnostic.at import.Ast.span)
+          (Diagnostic.error import.Ast.span
+             "module is both a file and a directory")
     | _, Single filename ->
         load_units loader stack module_id path false [ filename ]
     | _, Merged filenames ->
@@ -302,16 +299,18 @@ and load_new_module loader stack origin module_id path =
     | Root -> raise (Invalid_utf8 filename)
     | Imported import ->
         record_failed_module loader module_id path
-          (Diagnostic.error ("not valid UTF-8: " ^ filename)
-          |> Diagnostic.at import.Ast.span))
+          (Diagnostic.error import.Ast.span "not valid UTF-8: %s" filename))
 
 and load_units loader stack module_id path merged filenames =
-  let units = List.map (read_unit loader) filenames in
+  let read = List.map (read_unit loader) filenames in
+  let units = List.map fst read in
+  (* An unbalanced file has no declarations so importers would see only misses *)
+  let failed = List.exists snd read in
   List.iter (check_header ~diags:loader.diags path merged) units;
   let dependencies =
     units |> List.concat_map (load_imports loader stack path)
   in
-  record_module loader module_id path units dependencies
+  record_module loader module_id path ~failed units dependencies
 
 and load_imports loader stack path unit_ =
   let load_import import =

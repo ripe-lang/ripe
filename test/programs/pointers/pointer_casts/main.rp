@@ -9,30 +9,30 @@ func add(a: i32, b: i32) i32 { return a + b }
 
 func main() i32 {
   var raw: *opaque = malloc(sizeof(point))
-  var p: *point = (*point)(raw)
+  var p: *point = cast(*point, raw)
   p.x = 40
   p.y = 2
 
-  var address: usize = usize(p)
-  var back: *point = (*point)(address)
-  var wide: u64 = u64(p)
-  var signed: isize = isize(p)
+  var address: usize = cast(usize, p)
+  var back: *point = cast(*point, address)
+  var wide: u64 = cast(u64, p)
+  var signed: isize = cast(isize, p)
 
-  var bytes: *u8 = (*u8)(p)
-  var deep: **u8 = (**u8)(p)
-  var rows: *[2]i32 = (*[2]i32)(p)
-  var fp: *BinOp = (*BinOp)(p)
-  var indirect: *func (i32, i32) i32 = (*func (i32, i32) i32)(p)
+  var bytes: *u8 = cast(*u8, p)
+  var deep: **u8 = cast(**u8, p)
+  var rows: *[2]i32 = cast(*[2]i32, p)
+  var fp: *BinOp = cast(*BinOp, p)
+  var indirect: *func (i32, i32) i32 = cast(*func (i32, i32) i32, p)
   var erased: *opaque = p
 
   var op: BinOp = add
   var call_through: *BinOp = &op
 
-  printf("%d %d %d\n", back.x, back.y, i32(*bytes))
-  printf("%d %d %d\n", i32(usize(deep) - address), i32(wide - u64(address)),
-         i32(usize(signed) - address))
+  printf("%d %d %d\n", back.x, back.y, cast(i32, *bytes))
+  printf("%d %d %d\n", cast(i32, cast(usize, deep) - address), cast(i32, wide - cast(u64, address)),
+         cast(i32, cast(usize, signed) - address))
   printf("%d %d\n", (*rows)[0], (*rows)[1])
-  printf("%d %d\n", i32(usize(fp) - address), i32(usize(indirect) - address))
-  printf("%d %d\n", i32(usize(erased) - address), (*call_through)(1, 2))
+  printf("%d %d\n", cast(i32, cast(usize, fp) - address), cast(i32, cast(usize, indirect) - address))
+  printf("%d %d\n", cast(i32, cast(usize, erased) - address), (*call_through)(1, 2))
   return back.x + back.y
 }

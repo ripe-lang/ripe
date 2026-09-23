@@ -4,11 +4,11 @@ extern "C" func printf(fmt: cstr, ...) i32
 
 const HALF: f64 = 0.5
 const DOUBLED: f64 = HALF * 4.0
-const TRUNCATED: i32 = i32(3.9)
-const WIDENED: f64 = f64(TRUNCATED)
+const TRUNCATED: i32 = cast(i32, 3.9)
+const WIDENED: f64 = cast(f64, TRUNCATED)
 const NARROW: f32 = 1.5
 
 func main() i32 {
-  printf("%f %f %d %f %f\n", HALF, DOUBLED, TRUNCATED, WIDENED, f64(NARROW))
+  printf("%f %f %d %f %f\n", HALF, DOUBLED, TRUNCATED, WIDENED, cast(f64, NARROW))
   return 0
 }

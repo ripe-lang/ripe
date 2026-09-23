@@ -33,6 +33,6 @@ func main() i32 {
   explicit_return()
   assign()
   indirect(pass)
-  return i32(sizeof(())) + i32(sizeof((()))) + i32(sizeof(((((())))))) +
-    i32(sizeof((i32))) + number() + block_value() + addressable()
+  return cast(i32, sizeof(())) + cast(i32, sizeof((()))) + cast(i32, sizeof(((((())))))) +
+    cast(i32, sizeof((i32))) + number() + block_value() + addressable()
 }

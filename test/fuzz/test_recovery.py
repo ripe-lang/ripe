@@ -18,7 +18,6 @@ JUNK = (
     "&",
     "'AA'",
     "99999999999999999999",
-    '"unterminated',
 )
 CLOSERS = (")", "}", "]", ")]", "}}")
 NAMES = "abcdefghijklmnopqrstuvwxyz"
@@ -102,6 +101,17 @@ def type_is_member(rng, lines):
     return True
 
 
+def extra_names(rng, lines):
+    at = [i for i, ln in enumerate(lines) if ln.startswith("  ") and ": " in ln]
+    if not at:
+        return False
+
+    i = rng.choice(at)
+    lines[i] = "  " + "q " * rng.randrange(1, 4) + lines[i].lstrip()
+
+    return True
+
+
 def corrupt(rng, text):
     lines = text.split("\n")
 
@@ -110,6 +120,9 @@ def corrupt(rng, text):
 
     if rng.random() < 0.25 and type_is_member(rng, lines):
         return "\n".join(lines), "junk"
+
+    if rng.random() < 0.2 and extra_names(rng, lines):
+        return "\n".join(lines), "keeps"
 
     i = rng.randrange(1, len(lines) - 1) if len(lines) > 2 else 0
     how = rng.randrange(4)
@@ -188,7 +201,7 @@ def cases(rng, runs):
 def main():
     seed, runs = harness.args(RUNS)
     rng = random.Random(seed)
-    argv = [harness.RIPEC, harness.MAIN, "-o", harness.PROG]
+    argv = [harness.RIPEC] + harness.IMPORT + [harness.MAIN, "-o", harness.PROG]
 
     ran = 0
     bad = []

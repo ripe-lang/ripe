@@ -23,7 +23,7 @@ func put_int(fd: i32, value: i64) {
     if digit < 0 { digit = -digit }
 
     i = i - 1
-    buf[i] = u8(48 + digit)
+    buf[i] = cast(u8, 48 + digit)
     n = n / 10
   }
 

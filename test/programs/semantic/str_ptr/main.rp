@@ -10,5 +10,5 @@ func main() i32 {
   write(1, annotated.ptr, annotated.len)
   var first: u8 = *annotated.ptr
   var empty: str = ""
-  return i32(first) - i32(empty.len)
+  return cast(i32, first) - cast(i32, empty.len)
 }
