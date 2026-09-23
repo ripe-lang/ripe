@@ -1,4 +1,4 @@
-error: expected identifier
+error: unclosed delimiter
   at main.rp:1:6
     func ( nothing() () {}
-         ^ found (
+         ^

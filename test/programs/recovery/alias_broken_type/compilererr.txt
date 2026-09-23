@@ -1,7 +1,4 @@
-error: expected `)`
-  at main.rp:1:17
-    type pair = (i32, i32
-                    ^ found ,
+error: unclosed delimiter
   at main.rp:1:13
     type pair = (i32, i32
-                ^ to match this `(`
+                ^

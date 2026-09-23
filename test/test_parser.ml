@@ -107,10 +107,13 @@ let%expect_test "parse: multiline call requires a trailing comma" =
   run_src "func g(_x: i32) {}\nfunc f() {\n  g(\n    1\n  )\n}";
   [%expect
     {|
-    error: missing `,` before newline
+    error: expected `)`
       at <test>:4:6
             1
-             ^
+             ^ found ;
+      at <test>:3:4
+          g(
+           ^ to match this `(`
     |}]
 
 let%expect_test "parse: multiline call with a trailing comma" =

@@ -1,4 +1,4 @@
-error: expected identifier
-  at main.rp:5:3
-      var a: i32 = 1
-      ^~~ found `var`
+error: unclosed delimiter
+  at main.rp:1:17
+    func main() i32 {
+                    ^

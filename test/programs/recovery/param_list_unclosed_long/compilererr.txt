@@ -1,4 +1,4 @@
-error: expected identifier
-  at main.rp:1:13
+error: unclosed delimiter
+  at main.rp:1:12
     func helper(else i32 { return 0 }
-                ^~~~ found `else`
+               ^
