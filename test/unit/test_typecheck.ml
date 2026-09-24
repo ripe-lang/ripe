@@ -3935,6 +3935,54 @@ let%expect_test "typecheck: write to a copy of an array parameter" =
   run_src "func f(a: [3]i32) { var local: [3]i32 = a; local[0] = 9 }";
   [%expect {| ok |}]
 
+let%expect_test "typecheck: write to a scalar parameter" =
+  run_src "func f(x: i32) { x = 56 }";
+  [%expect
+    {|
+    error: cannot assign to immutable
+      at <test>:1:18
+        func f(x: i32) { x = 56 }
+                         ^
+    |}]
+
+let%expect_test "typecheck: compound write to a scalar parameter" =
+  run_src "func f(x: i32) { x += 1 }";
+  [%expect
+    {|
+    error: cannot assign to immutable
+      at <test>:1:18
+        func f(x: i32) { x += 1 }
+                         ^
+    |}]
+
+let%expect_test "typecheck: pair assignment to two parameters" =
+  run_src "func f(a: i32, b: i32) { a, b = b, a }";
+  [%expect
+    {|
+    error: cannot assign to immutable
+      at <test>:1:26
+        func f(a: i32, b: i32) { a, b = b, a }
+                                 ^
+    error: cannot assign to immutable
+      at <test>:1:29
+        func f(a: i32, b: i32) { a, b = b, a }
+                                    ^
+    |}]
+
+let%expect_test "typecheck: pair assignment to an expression and a parameter" =
+  run_src "func f(a: i32, b: i32) { (a + 1), b = b, a }";
+  [%expect
+    {|
+    error: cannot assign to expression
+      at <test>:1:27
+        func f(a: i32, b: i32) { (a + 1), b = b, a }
+                                  ^~~~~ on i32
+    error: cannot assign to immutable
+      at <test>:1:35
+        func f(a: i32, b: i32) { (a + 1), b = b, a }
+                                          ^
+    |}]
+
 let%expect_test "typecheck: discarded if arms need not agree" =
   run_src
     {|
