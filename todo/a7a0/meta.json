@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-24 16:46:43.874455",
+  "depends": [],
+  "id": "a7a0",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "Bare --emit should list the stages",
+  "updated_at": "2026-09-24 16:46:43.874466"
+}
