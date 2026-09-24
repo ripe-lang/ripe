@@ -78,7 +78,7 @@ let%expect_test "symbol: is_immutable covers what cannot be assigned" =
     Type false
     (Local Const) true
     (Local Var) false
-    Param false
+    Param true
     ForVar true
     MatchBind true
     Error false
