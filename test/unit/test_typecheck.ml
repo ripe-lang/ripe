@@ -809,7 +809,13 @@ let%expect_test "typecheck: array size literal suffix still range checks" =
   run_src {|
 var a: [300u8]i32 = undefined
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:2:9
+        var a: [300u8]i32 = undefined
+                ^~~~~ does not fit in u8
+    |}]
 
 let%expect_test "typecheck: float array size" =
   run_src {|
@@ -2658,7 +2664,10 @@ func main() i32 {
           var x: u8 = 300
               ^
     help: prefix with an underscore: _x
-    ok
+    error: integer literal out of range
+      at <test>:3:15
+          var x: u8 = 300
+                      ^~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: negative literal into unsigned rejected" =
@@ -2675,7 +2684,10 @@ func main() i32 {
           var x: u8 = -1
               ^
     help: prefix with an underscore: _x
-    ok
+    error: integer literal out of range
+      at <test>:3:15
+          var x: u8 = -1
+                      ^~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: int literal at type bound accepted" =
@@ -2709,7 +2721,13 @@ func main() i32 {
   return x
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:11
+          var x = 3000000000
+                  ^~~~~~~~~~ does not fit in i32
+    |}]
 
 let%expect_test "typecheck: i64 max accepted" =
   run_src
@@ -2739,7 +2757,13 @@ func main() i32 {
   return 0
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:17
+          var _x: i64 = 9223372036854775808
+                        ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+    |}]
 
 let%expect_test "typecheck: literal above u64 max rejected by lexer" =
   run_src
@@ -2764,7 +2788,13 @@ func main() i32 {
   return 0
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:17
+          var _x: u64 = -1
+                        ^~ does not fit in u64
+    |}]
 
 let%expect_test "typecheck: non-i32 main rejected" =
   run_src "func main() f64 { return 0.0 }";
@@ -2869,11 +2899,23 @@ let%expect_test "typecheck: unary plus rejects bool" =
 
 let%expect_test "typecheck: suffixed unary plus range includes operator" =
   run_src "func f() { var _x = +128i8 }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:21
+        func f() { var _x = +128i8 }
+                            ^~~~~~ does not fit in i8
+    |}]
 
 let%expect_test "typecheck: explicit positive literal reports full span" =
   run_src "func f() { var _x: i8 = +128 }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:25
+        func f() { var _x: i8 = +128 }
+                                ^~~~ does not fit in i8
+    |}]
 
 let%expect_test "typecheck: type alias keeps every comparison of its base" =
   run_src
@@ -3048,16 +3090,22 @@ let%expect_test "typecheck: int literal suffix that mismatches the target" =
 
 let%expect_test "typecheck: int literal suffix out of range" =
   run_src "func f() u8 { return 256u8 }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:22
+        func f() u8 { return 256u8 }
+                             ^~~~~ does not fit in u8
+    |}]
 
 let%expect_test "typecheck: negative unsigned suffix" =
   run_src "func f() i8 { return -1u8 }";
   [%expect
     {|
-    error: type mismatch
+    error: integer literal out of range
       at <test>:1:22
         func f() i8 { return -1u8 }
-                             ^~~~ expected i8, found u8
+                             ^~~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: assignment in condition is not a value" =
@@ -3942,7 +3990,13 @@ let%expect_test "typecheck: f64 is not f32" =
 
 let%expect_test "typecheck: literal too big for i64" =
   run_src "func f() { var _a: i64 = 9223372036854775808 }";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:1:26
+        func f() { var _a: i64 = 9223372036854775808 }
+                                 ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+    |}]
 
 let%expect_test "typecheck: type alias" =
   run_src "type small = i32\nfunc f() i32 { var a: small = 1\n  return a }";
@@ -4799,7 +4853,13 @@ func f(wide: u64) u64 {
   return loop { if false { break -1 }; break wide }
 }
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: integer literal out of range
+      at <test>:3:34
+          return loop { if false { break -1 }; break wide }
+                                         ^~ does not fit in u64
+    |}]
 
 let%expect_test "typecheck: explicit widening stays legal" =
   run_src "func f(value: u8) i64 { return cast(i64, value) }";
