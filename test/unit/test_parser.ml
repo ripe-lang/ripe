@@ -1867,7 +1867,7 @@ import math.vector
     |}]
 
 let%expect_test "parse: pair assignment" =
-  run_src "func f(a: i32, b: i32) { a, b = b, a }";
+  run_src "func f() { var a = 1; var b = 2; a, b = b, a }";
   [%expect {| ok |}]
 
 let%expect_test "parse: pair assignment rejects a third target" =
@@ -1891,7 +1891,7 @@ let%expect_test "parse: pair assignment rejects a third value" =
     |}]
 
 let%expect_test "parse: regular assignment remains accepted" =
-  run_src "func f(a: i32, b: i32) { a = b }";
+  run_src "func f(b: i32) { var a = 1; a = b }";
   [%expect {| ok |}]
 
 let%expect_test "parse: a module header" =

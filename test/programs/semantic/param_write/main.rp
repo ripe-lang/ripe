@@ -1,0 +1,18 @@
+func set(x: i32) {
+  x = 56
+}
+
+func bump(x: i32) {
+  x += 1
+}
+
+func swap(a: i32, b: i32) {
+  a, b = b, a
+}
+
+func main() i32 {
+  set(34)
+  bump(34)
+  swap(1, 2)
+  return 0
+}

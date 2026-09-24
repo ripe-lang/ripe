@@ -553,23 +553,6 @@ let verify_operands env span op t =
       |> Diagnostic.label "cannot apply `%s` to %s" (show_binop_sym op)
            (show_ty env t))
 
-(* An aggregate parameter is copied before a write *)
-let verify_param_copy_write env span tl =
-  match root_lvalue tl with
-  | Some { desc = Tast.TIdent s; ty; _ }
-    when s.Symbol.kind = Symbol.Param
-         &&
-         match resolve_ty ty with
-         | Types.TArray _ | Types.TStruct _ -> true
-         | _ -> false ->
-      emit env
-        (Diagnostic.error span "cannot assign to a by value parameter"
-        |> Diagnostic.label "the caller keeps its own copy"
-        |> Diagnostic.help
-             (Printf.sprintf "take a pointer to write through it: %s: *%s"
-                s.Symbol.name (show_ty env ty)))
-  | Some _ | None -> ()
-
 let find_global_fact env span key =
   match Symbol.Table.find_opt env.ctx.global_facts key with
   | Some st -> st
@@ -1702,7 +1685,6 @@ and check_assign_operands env base l r =
     emit env
       (Diagnostic.error l.span "cannot assign to expression"
       |> Diagnostic.label "on %s" (show_ty env tl.ty));
-  verify_param_copy_write env l.span tl;
   (match tl.desc with
   | Tast.TIdent s when Symbol.is_func s.Symbol.kind ->
       emit env (Diagnostic.error l.span "cannot assign to function")

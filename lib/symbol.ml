@@ -56,7 +56,7 @@ let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 let is_global = function Global _ -> true | _ -> false
 
 let is_immutable = function
-  | Local Ast.Const | ForVar | Module | MatchBind -> true
+  | Local Ast.Const | ForVar | Module | MatchBind | Param -> true
   | _ -> false
 
 let is_const = function
