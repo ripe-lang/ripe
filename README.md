@@ -22,7 +22,7 @@ func norm(p: Point) i32 {
   p.x * p.x + p.y * p.y
 }
 
-func main() i32 {
+func main() {
   var points: [2]Point = [
     Point { x: 1, y: 2 },
     Point { x: 8, y: 0 },
@@ -30,7 +30,6 @@ func main() i32 {
   for p in points {
     io.print_int(norm(p)) // 5 then 64
   }
-  return 0
 }
 ```
 
