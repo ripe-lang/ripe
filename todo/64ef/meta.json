@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-24 04:26:40.569260",
+  "depends": [],
+  "id": "64ef",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "codegen"
+  ],
+  "title": "Finalize wrapping after the LLVM switch",
+  "updated_at": "2026-09-24 04:26:48.628470"
+}
