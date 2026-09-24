@@ -585,6 +585,12 @@ let find_global_fact env span key =
 let adopt_int_literal env span want target ~neg n =
   let signed = if neg then Int64.neg n else n in
   match target with
+  | Types.TInt kind
+    when not (Constant.representable kind (Constant.of_magnitude ~neg n)) ->
+      emit env
+        (Diagnostic.error span "integer literal out of range"
+        |> Diagnostic.label "does not fit in %s" (show_ty env want));
+      Some dummy_texpr
   | Types.TInt _ -> Some (Tast.mk want (Tast.TInt signed))
   | Types.TFloat kind ->
       let magnitude = unsigned_to_float n in
@@ -810,12 +816,12 @@ and synth_desc env e =
   | ErrorExpr -> dummy_texpr
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
-      Tast.mk (Types.TInt kind) (Tast.TInt n)
+      check_int_literal env e (Types.TInt kind) (Types.TInt kind) n
   | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
       synth_desc env { operand with span = e.span }
   | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
-      Tast.mk (Types.TInt kind) (Tast.TInt (Int64.neg n))
+      check_neg_int_literal env e (Types.TInt kind) (Types.TInt kind) n
   | Float (f, suf) ->
       let kind = match suf with Some s -> float_suffix_kind s | None -> F64 in
       Tast.mk (Types.TFloat kind) (Tast.TFloat f)
