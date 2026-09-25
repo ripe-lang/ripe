@@ -421,6 +421,14 @@ let check_arithmetic state op ~operand_ty right span =
       negative_shift state right span
   | _ -> ()
 
+let slot_if_valued state span ty =
+  if ty = Types.TUnit || ty = Types.TNever then None
+  else Some (local_place span (add_local state Temp ty span))
+
+let slot_value span ty = function
+  | Some slot -> copy span ty slot
+  | None -> const_operand span ty Undef
+
 let rec block_value state expr body =
   match List.rev body with
   | [] -> constant expr Undef
@@ -455,22 +463,13 @@ and lower_short_circuit state (expr : Tast.texpr) left right short_value =
   switch state join_block;
   copy expr.span Types.TBool (local_place expr.span result)
 
-(* A branch expr only needs a slot when it hands a value back *)
-and branch_result state (expr : Tast.texpr) =
-  if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
-  else
-    let id = add_local state Temp expr.ty expr.span in
-    Some (local_place expr.span id)
-
 and join_result state (expr : Tast.texpr) result join =
   switch state join;
   if expr.ty = Types.TNever then terminate state Unreachable expr.span;
-  match result with
-  | Some result -> copy expr.span expr.ty result
-  | None -> constant expr Undef
+  slot_value expr.span expr.ty result
 
-and lower_if state expr branches else_body =
-  let result = branch_result state expr in
+and lower_if state (expr : Tast.texpr) branches else_body =
+  let result = slot_if_valued state expr.span expr.ty in
   let join = lower_if_into state expr result branches else_body in
   join_result state expr result join
 
@@ -503,7 +502,7 @@ and pattern_plan (place : place) (ty : ty) (pat : Tast.tpattern) =
 
 (* One test per arm because a jump table only pays off on a dense range *)
 and lower_match state (expr : Tast.texpr) (scrutinee : Tast.texpr) arms =
-  let result = branch_result state expr in
+  let result = slot_if_valued state expr.span expr.ty in
   let join = lower_match_into state expr result scrutinee arms in
   join_result state expr result join
 
@@ -704,17 +703,9 @@ and lower_each_for state span label symbol elem_ty iter body =
     body
 
 and lower_loop state span label ty body =
-  let result =
-    match ty with
-    | Types.TUnit | Types.TNever -> None
-    | _ ->
-        let id = add_local state Temp ty span in
-        Some (local_place span id)
-  in
+  let result = slot_if_valued state span ty in
   lower_loop_into state span label ty result body;
-  match result with
-  | Some result -> copy span ty result
-  | None -> const_operand span ty Undef
+  slot_value span ty result
 
 and lower_loop_into state span label ty result body =
   let body_block = new_block state in
@@ -893,15 +884,14 @@ and lower_expr state expr =
   | Tast.TSizeOf ty -> temp_value state expr.ty expr.span (SizeOf ty)
   | Tast.TRange _ | Tast.TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.span "range outside a for loop"
-  | Tast.TArrayLit elements -> lower_array_literal state expr elements
+  | Tast.TArrayLit _ | Tast.TSliceExpr _ | Tast.TStructLit _ ->
+      filled_temp state expr
   | Tast.TLen inner ->
       let inner = lower_expr state inner |> materialize state in
       temp_value state expr.ty expr.span (Len inner)
-  | Tast.TSliceExpr (base, lo, hi) -> lower_slice state expr base lo hi
   | Tast.TDataPtr inner ->
       let inner = lower_expr state inner |> materialize state in
       temp_value state expr.ty expr.span (DataPtr inner)
-  | Tast.TStructLit (_, fields) -> lower_struct_literal state expr fields
   | Tast.TLocalDecl -> constant expr Undef
   | Tast.TLoop (label, body) -> lower_loop state expr.span label expr.ty body
   | Tast.TBlock body -> block_value state expr body
@@ -920,16 +910,9 @@ and lower_expr state expr =
   | Tast.TUnit -> constant expr Undef
 
 and lower_call state expr callee args variadic_start =
-  let destination =
-    if expr.ty = Types.TUnit || expr.ty = Types.TNever then None
-    else
-      let id = add_local state Temp expr.ty expr.span in
-      Some (local_place expr.span id)
-  in
+  let destination = slot_if_valued state expr.span expr.ty in
   emit_call state destination expr callee args variadic_start;
-  match destination with
-  | Some destination -> copy expr.span expr.ty destination
-  | None -> constant expr Undef
+  slot_value expr.span expr.ty destination
 
 and emit_call state destination expr callee args variadic_start =
   let args = map_operands state args in
@@ -1010,6 +993,11 @@ and lower_fresh_into state destination expr =
       lower_loop_into state expr.span label expr.ty (Some destination) body
   | _ -> lower_expr_into state destination expr
 
+and filled_temp state (expr : Tast.texpr) =
+  let slot = local_place expr.span (add_local state Temp expr.ty expr.span) in
+  lower_fresh_into state slot expr;
+  copy expr.span expr.ty slot
+
 and lower_place state expr =
   match expr.desc with
   | Tast.TIdent symbol -> symbol_place state expr.span symbol
@@ -1067,12 +1055,6 @@ and fill_array_literal state destination (expr : Tast.texpr) elements =
         assign state target { assigned with ty = element_ty })
     elements
 
-and lower_array_literal state expr elements =
-  let id = add_local state Temp expr.ty expr.span in
-  let destination = local_place expr.span id in
-  fill_array_literal state destination expr elements;
-  copy expr.span expr.ty destination
-
 and fill_struct_literal state destination expr fields =
   emit state
     (Assign (destination, { desc = Use (constant expr Zero); ty = expr.ty }))
@@ -1084,12 +1066,6 @@ and fill_struct_literal state destination expr fields =
       else assign state target (lower_expr state value))
     fields
 
-and lower_struct_literal state expr fields =
-  let id = add_local state Temp expr.ty expr.span in
-  let destination = local_place expr.span id in
-  fill_struct_literal state destination expr fields;
-  copy expr.span expr.ty destination
-
 and fill_slice state destination expr base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
@@ -1097,12 +1073,6 @@ and fill_slice state destination expr base lo hi =
   let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
   check_slice_bounds state lo hi length expr.span;
   emit state (Slice (destination, base, lo, hi)) expr.span
-
-and lower_slice state expr base lo hi =
-  let id = add_local state Temp expr.ty expr.span in
-  let destination = local_place expr.span id in
-  fill_slice state destination expr base lo hi;
-  copy expr.span expr.ty destination
 
 and lower_compound_assign state (expr : Tast.texpr) op (left : Tast.texpr) right
     =
