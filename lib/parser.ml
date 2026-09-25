@@ -138,6 +138,9 @@ let names_decl tok name =
 
 let starts_item st = names_decl (cur_token st) (peek_token st)
 
+let starts_member st =
+  match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
+
 let at_value_end st =
   is_semi (cur_token st) || at st RBRACE || at st EOF || at st COMMA
 
@@ -145,14 +148,17 @@ let at_decl line st =
   cur_line st > line && starts_item st && not (is_stmt_keyword (cur_token st))
 
 let at_semi st = is_semi (cur_token st)
+let at_param_break st = at st COMMA || starts_member st
+
+let at_stmt_break line st =
+  is_semi (cur_token st) || (cur_line st > line && is_block_start (cur_token st))
+
+let never _ = false
 
 let skip_semi st =
   while is_semi (cur_token st) do
     advance st
   done
-
-let starts_member st =
-  match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
 
 let opens_struct_lit st =
   let tok = peek_token st in
@@ -472,7 +478,7 @@ and parse_func_ptr st lo abi =
     try Some (comma_sep st RPAREN parse_typ)
     with ParserError d ->
       report st d;
-      resync st opens (fun _ -> false);
+      resync st opens never;
       None
   in
   expect st RPAREN;
@@ -649,7 +655,6 @@ and parse_param st =
 and parse_params st =
   expect st LPAREN;
   let opens = st.opens in
-  let never _ = false in
   let params = ref [] in
   let variadic = ref None in
   while not (at st RPAREN || at st EOF) do
@@ -685,7 +690,7 @@ and parse_params st =
           param_span = span;
         }
         :: !params;
-      resync st opens (fun st -> at st COMMA || starts_member st);
+      resync st opens at_param_break;
       if at st COMMA then advance st
   done;
   expect st RPAREN;
@@ -1061,11 +1066,7 @@ and parse_block st =
 (* stmt; stmt *)
 and parse_stmts st =
   let opens = st.opens in
-  let recover_statement line =
-    resync st opens (fun st ->
-        is_semi (cur_token st)
-        || (cur_line st > line && is_block_start (cur_token st)))
-  in
+  let recover_statement line = resync st opens (at_stmt_break line) in
   let[@tail_mod_cons] rec go follows_auto_semi =
     if at st EOF || at st RBRACE then []
     else
