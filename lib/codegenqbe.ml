@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* Https://c9x.me/compile/doc/il.html *)
+(* https://c9x.me/compile/doc/il.html *)
 open Types
 
 type qbe_scalar = B | H | W | L | S | D
