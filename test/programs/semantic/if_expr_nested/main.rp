@@ -1,6 +1,6 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func tier(n: i32) i32 {
+fn tier(n: i32) i32 {
   var t = if n >= 100 {
     if n >= 200 {
       if n >= 300 {
@@ -18,7 +18,7 @@ func tier(n: i32) i32 {
   return t;
 }
 
-func main() i32 {
+fn main() i32 {
   printf("%d %d %d %d\n", tier(50), tier(150), tier(250), tier(350));
   return 0;
 }

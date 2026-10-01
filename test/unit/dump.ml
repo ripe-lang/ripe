@@ -148,8 +148,7 @@ and dump_block (body : Ripe.Ast.block) : string =
     | Decl (LocalTypeAlias td) ->
         "(local type " ^ dump_ident td.alias_name ^ ")"
     | Decl (LocalFunc fd) ->
-        "(local func " ^ dump_ident fd.func_name ^ " " ^ dump_block fd.body
-        ^ ")"
+        "(local fn " ^ dump_ident fd.func_name ^ " " ^ dump_block fd.body ^ ")"
     | Decl (LocalEnum ed) -> "(local enum " ^ dump_ident ed.enum_name ^ ")"
   in
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"

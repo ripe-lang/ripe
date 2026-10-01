@@ -1,6 +1,6 @@
 type Temp = f32;
 
-func main() i32 {
+fn main() i32 {
   var a: Temp = 3.0;
   var b: Temp = 10.0;
   var n: i32 = 0;

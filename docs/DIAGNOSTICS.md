@@ -111,7 +111,7 @@ The AST carries a name span for this, such as `func_name_span`, `struct_name_spa
 ```text
 error: already defined
   at t.rp:6:6
-    func wide(a: i32, b: i32) i32 {
+    fn wide(a: i32, b: i32) i32 {
          ^~~~
 ```
 

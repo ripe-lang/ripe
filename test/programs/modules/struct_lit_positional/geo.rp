@@ -3,6 +3,6 @@ pub struct point {
   y: i32,
 }
 
-pub func origin() point {
+pub fn origin() point {
   return point { 0, 0 };
 }

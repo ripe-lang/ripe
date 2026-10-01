@@ -1,8 +1,8 @@
-func third_is_three(p: *i32) bool {
+fn third_is_three(p: *i32) bool {
   return p != null && *p == 3;
 }
 
-func main() i32 {
+fn main() i32 {
   var x: i32 = 3;
   var hit: i32 = 0;
   if third_is_three(null) { hit += 100 }

@@ -1,15 +1,15 @@
 // BROKEN: const eval stripped
 
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 const SMALL: i32 = 1000;
 const TINY: i8 = 100;
 
-func wide(x: i64) i64 {
+fn wide(x: i64) i64 {
   return x;
 }
 
-func main() i32 {
+fn main() i32 {
   var widened: i64 = SMALL;
   var from_tiny: i32 = TINY;
   var summed: i64 = SMALL + 1;

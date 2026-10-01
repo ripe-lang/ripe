@@ -1,10 +1,10 @@
-func classify(n: i32) i32 {
+fn classify(n: i32) i32 {
   return match n {
     0 => 100,
     1 => 200,
   };
 }
 
-func main() i32 {
+fn main() i32 {
   return classify(7);
 }

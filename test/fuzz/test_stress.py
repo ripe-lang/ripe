@@ -9,7 +9,7 @@ ERRORS = 8000
 
 
 def body(inner):
-    return "func main() i32 {\n  var x = 1;\n  %s;\n  return x;\n}\n" % inner
+    return "fn main() i32 {\n  var x = 1;\n  %s;\n  return x;\n}\n" % inner
 
 
 SHAPES = {

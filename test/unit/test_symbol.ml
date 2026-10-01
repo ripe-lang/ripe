@@ -27,7 +27,7 @@ let dump_kinds pred =
     (fun kind -> Printf.printf "%s %b\n" (Symbol.show_kind kind) (pred kind))
     all_kinds
 
-let%expect_test "symbol: is_func covers only func and extern" =
+let%expect_test "symbol: is_func covers only fn and extern" =
   dump_kinds Symbol.is_func;
   [%expect
     {|

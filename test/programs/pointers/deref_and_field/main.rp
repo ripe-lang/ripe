@@ -1,18 +1,18 @@
 struct point { x: i32, y: i32 }
 
-func deref_sum(a: *i32, b: *i32) i32 {
+fn deref_sum(a: *i32, b: *i32) i32 {
   return *a + *b;
 }
 
-func deref_negate(p: *i32) i32 {
+fn deref_negate(p: *i32) i32 {
   return -*p;
 }
 
-func bump(p: *point) {
+fn bump(p: *point) {
   p.x += 1;
 }
 
-func main() i32 {
+fn main() i32 {
   var x: i32 = 10;
   var y: i32 = 32;
   var sum = deref_sum(&x, &y);

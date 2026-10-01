@@ -2,6 +2,6 @@ struct point { x: i32, y: i32 }
 
 var point = point { 3, 4 };
 
-func main() i32 {
+fn main() i32 {
   return point.x + point.y;
 }

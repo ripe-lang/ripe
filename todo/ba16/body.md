@@ -3,7 +3,7 @@ error: expected `}`
     
      ^ found <eof>
   at main.rp:1:17
-    func main() i32 {
+    fn main() i32 {
                     ^ to match this `{`
 
 Related to 615b.

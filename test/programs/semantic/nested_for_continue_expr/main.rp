@@ -1,6 +1,6 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func main() i32 {
+fn main() i32 {
   var inner = 0;
   var outer = 0;
   for _i in 0..3 {

@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var counter: i32;
   counter += 1;
   var buf: [4]u8 = undefined;

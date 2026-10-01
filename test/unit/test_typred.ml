@@ -122,7 +122,7 @@ let%expect_test "typred: a slice takes an array of the same element" =
     [4]i32 accepts [5]i32 = false
     |}]
 
-let%expect_test "typred: a func matches on abi, params and result" =
+let%expect_test "typred: a fn matches on abi, params and result" =
   let f abi ps r = TFunc (ps, r, abi) in
   let show a b =
     let spell t =
@@ -141,11 +141,11 @@ let%expect_test "typred: a func matches on abi, params and result" =
   show (f Ripe [] (TInt I32)) (f Ripe [] (TInt I64));
   [%expect
     {|
-    Ripe func (i32) () accepts Ripe func (i32) () = true
-    Ripe func (i32) () accepts C extern "C" func (i32) () = false
-    Ripe func (i32) () accepts AbiError extern func (i32) () = true
-    Ripe func (i32) () accepts Ripe func () () = false
-    Ripe func () i32 accepts Ripe func () i64 = false
+    Ripe fn (i32) () accepts Ripe fn (i32) () = true
+    Ripe fn (i32) () accepts C extern "C" fn (i32) () = false
+    Ripe fn (i32) () accepts AbiError extern fn (i32) () = true
+    Ripe fn (i32) () accepts Ripe fn () () = false
+    Ripe fn () i32 accepts Ripe fn () i64 = false
     |}]
 
 let%expect_test "typred: an alias is the type behind it" =
@@ -458,7 +458,7 @@ let%expect_test "typred: only integers and errors count as integer" =
 
 let%expect_test "typred: a signed literal is still a literal" =
   let show src =
-    let wrapped = "func _f() { return " ^ src ^ " }" in
+    let wrapped = "fn _f() { return " ^ src ^ " }" in
     match Pipeline.parse wrapped with
     | [ Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->
         Printf.printf "%s = %b\n" src (Typred.is_num_literal e)

@@ -33,7 +33,7 @@ ALPHABET = (
     "...",
     "*",
     "&",
-    "func",
+    "fn",
     "struct",
     "enum",
     "type",

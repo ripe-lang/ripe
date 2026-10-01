@@ -1,8 +1,8 @@
-func fib(n: i32) i32 {
+fn fib(n: i32) i32 {
   if n < 2 { return n }
   return fib(n - 1) + fib(n - 2);
 }
 
-func apply(fn: func (i32) i32, v: i32) i32 { return fn(v) }
+fn apply(g: fn (i32) i32, v: i32) i32 { return g(v) }
 
-func main() i32 { return apply(fib, 9) }
+fn main() i32 { return apply(fib, 9) }

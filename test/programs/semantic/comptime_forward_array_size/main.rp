@@ -1,6 +1,6 @@
 // BROKEN: const eval stripped
 
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 var TABLE: [N]i32 = [10, 20, 30];
 var WIDE: [N * 2]i32 = undefined;
@@ -8,7 +8,7 @@ var WIDE: [N * 2]i32 = undefined;
 const N = 3;
 const M: i32 = N + 1;
 
-func main() i32 {
+fn main() i32 {
   for i in 0..6 {
     WIDE[i] = cast(i32, i * 2);
   }

@@ -1,8 +1,8 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func takef(x: f32) f32 { return x }
+fn takef(x: f32) f32 { return x }
 
-func main() i32 {
+fn main() i32 {
   var a: f32 = 1;
   var b: f64 = 2;
   var c: f32 = 1.5;

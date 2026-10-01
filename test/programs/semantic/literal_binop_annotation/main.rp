@@ -2,7 +2,7 @@
 
 var A: i64 = 1 + 2;
 
-func main() i32 {
+fn main() i32 {
   var a: i64 = 1 + 2;
   if a != 3 { return 1 }
   if A != 3 { return 2 }

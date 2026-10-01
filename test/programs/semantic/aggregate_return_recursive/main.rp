@@ -3,7 +3,7 @@ struct pair {
   y: i32,
 }
 
-func descend(n: i32) pair {
+fn descend(n: i32) pair {
   if n == 0 {
     return pair { x: 1, y: 2 };
   }
@@ -11,7 +11,7 @@ func descend(n: i32) pair {
   return pair { x: previous.x + 1, y: previous.y + 1 };
 }
 
-func main() i32 {
+fn main() i32 {
   var value = descend(3);
   return value.x + value.y;
 }

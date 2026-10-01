@@ -1,6 +1,6 @@
 // BROKEN: const eval stripped
 
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 const N: i32 = 4;
 const M: i32 = N * 2 + 1;
@@ -11,7 +11,7 @@ var STORED: i32 = M + 1;
 struct pt { x: i32, y: i32 }
 const SIZE: usize = sizeof(pt);
 
-func main() i32 {
+fn main() i32 {
   const local: i32 = M * 10;
   var sum: i32 = 0;
   for _i in 0..N {

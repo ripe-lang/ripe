@@ -1,2 +1,2 @@
-func f() i32 { return (1 %%D%% 2) }
-func main() i32 { return f() }
+fn f() i32 { return (1 %%D%% 2) }
+fn main() i32 { return f() }

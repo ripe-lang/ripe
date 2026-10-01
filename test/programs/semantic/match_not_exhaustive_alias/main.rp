@@ -2,12 +2,12 @@ enum Color { Red, Green, Blue }
 
 type Shade = Color;
 
-func describe(s: Shade) i32 {
+fn describe(s: Shade) i32 {
   return match s {
     Color.Red => 1,
   };
 }
 
-func main() i32 {
+fn main() i32 {
   return describe(Color.Red);
 }

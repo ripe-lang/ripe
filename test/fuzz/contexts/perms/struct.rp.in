@@ -1,2 +1,2 @@
 struct s { x: i32 %%D%% }
-func main() i32 { return 0 }
+fn main() i32 { return 0 }

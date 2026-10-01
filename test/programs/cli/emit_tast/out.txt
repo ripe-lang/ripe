@@ -3,12 +3,12 @@
      entry_point = false;
      params =
      [({ id = 2; module_id = 0; name = "a"; link_name = "a"; kind = Param;
-         visibility = Private; entry_point = false; span = (9,15);
-         name_span = (9,15) },
+         visibility = Private; entry_point = false; span = (7,13);
+         name_span = (7,13) },
        (TInt I32));
        ({ id = 3; module_id = 0; name = "b"; link_name = "b"; kind = Param;
-          visibility = Private; entry_point = false; span = (17,23);
-          name_span = (17,23) },
+          visibility = Private; entry_point = false; span = (15,21);
+          name_span = (15,21) },
         (TInt I32))
        ];
      ret_ty = (TInt I32);
@@ -22,18 +22,18 @@
                            { id = 2; module_id = 0; name = "a";
                              link_name = "a"; kind = Param;
                              visibility = Private; entry_point = false;
-                             span = (9,15); name_span = (9,15) });
-                        ty = (TInt I32); span = (40,41) },
+                             span = (7,13); name_span = (7,13) });
+                        ty = (TInt I32); span = (38,39) },
                       { desc =
                         (TIdent
                            { id = 3; module_id = 0; name = "b";
                              link_name = "b"; kind = Param;
                              visibility = Private; entry_point = false;
-                             span = (17,23); name_span = (17,23) });
-                        ty = (TInt I32); span = (44,45) }
+                             span = (15,21); name_span = (15,21) });
+                        ty = (TInt I32); span = (42,43) }
                       ));
-                   ty = (TInt I32); span = (40,45) }));
-        ty = TNever; span = (33,45) }
+                   ty = (TInt I32); span = (38,43) }));
+        ty = TNever; span = (31,43) }
        ];
      modifiers = []; variadic = false; abi = Ripe })
 (TFunc
@@ -49,15 +49,15 @@
                            { id = 0; module_id = 0; name = "add";
                              link_name = "_R4main3add"; kind = Func;
                              visibility = Private; entry_point = false;
-                             span = (0,48); name_span = (5,8) });
+                             span = (0,46); name_span = (3,6) });
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
                         span = (-1,-1) },
-                      [{ desc = (TInt 1L); ty = (TInt I32); span = (81,82) };
-                        { desc = (TInt 2L); ty = (TInt I32); span = (84,85) }
+                      [{ desc = (TInt 1L); ty = (TInt I32); span = (77,78) };
+                        { desc = (TInt 2L); ty = (TInt I32); span = (80,81) }
                         ],
                       None));
-                   ty = (TInt I32); span = (77,86) }));
-        ty = TNever; span = (70,86) }
+                   ty = (TInt I32); span = (73,82) }));
+        ty = TNever; span = (66,82) }
        ];
      modifiers = []; variadic = false; abi = Ripe })

@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var x: i64 = 5;
   var y = if true { x } else { 10 };
   return cast(i32, y);

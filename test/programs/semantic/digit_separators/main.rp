@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var a: i64 = 1_000_000;
   var b: i64 = 1000_000;
   var c: i32 = 0xff_ff;

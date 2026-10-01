@@ -1,6 +1,6 @@
-extern "C" func strlen(s: cstr) i32;
+extern "C" fn strlen(s: cstr) i32;
 
-func main() i32 {
+fn main() i32 {
   var empty: cstr = "";
   var hello: cstr = "hello";
   return strlen(empty) + strlen(hello);

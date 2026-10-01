@@ -27,10 +27,10 @@ let show ?search_roots files = dump (load ?search_roots files)
 
 (* The root is boilerplate so a test shows only what it imports *)
 let importing what =
-  ("main.rp", Printf.sprintf "import %s;\nfunc main() i32 { return 0 }" what)
+  ("main.rp", Printf.sprintf "import %s;\nfn main() i32 { return 0 }" what)
 
 let%expect_test "program: a lone root file is one module" =
-  show [ ("main.rp", {|func main() i32 { return 0 }|}) ];
+  show [ ("main.rp", {|fn main() i32 { return 0 }|}) ];
   [%expect {|
     module 0 main
       unit main.rp base 0 decls 1
@@ -40,8 +40,8 @@ let%expect_test "program: an import brings in a second module" =
   show
     [
       ("main.rp", {|import math;
-func main() i32 { return math.add(1) }|});
-      ("math.rp", {|pub func add(a: i32) i32 { return a }|});
+fn main() i32 { return math.add(1) }|});
+      ("math.rp", {|pub fn add(a: i32) i32 { return a }|});
     ];
   [%expect
     {|
@@ -49,7 +49,7 @@ func main() i32 { return math.add(1) }|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math.rp base 52 decls 1
+      unit math.rp base 50 decls 1
     |}]
 
 let%expect_test "program: two files sharing an import load it once" =
@@ -57,12 +57,12 @@ let%expect_test "program: two files sharing an import load it once" =
     [
       ("main.rp", {|import left;
 import right;
-func main() i32 { return 0 }|});
+fn main() i32 { return 0 }|});
       ("left.rp", {|import shared;
-pub func l() {}|});
+pub fn l() {}|});
       ("right.rp", {|import shared;
-pub func r() {}|});
-      ("shared.rp", {|pub func s() {}|});
+pub fn r() {}|});
+      ("shared.rp", {|pub fn s() {}|});
     ];
   [%expect
     {|
@@ -71,12 +71,12 @@ pub func r() {}|});
       imports module 1
       imports module 3
     module 1 left
-      unit left.rp base 56 decls 1
+      unit left.rp base 54 decls 1
       imports module 2
     module 2 shared
-      unit shared.rp base 87 decls 1
+      unit shared.rp base 83 decls 1
     module 3 right
-      unit right.rp base 103 decls 1
+      unit right.rp base 97 decls 1
       imports module 2
     |}]
 
@@ -85,9 +85,9 @@ let%expect_test "program: a directory of files merges into one module" =
     [
       importing "math";
       ("math/add.rp", {|module math;
-pub func add() {}|});
+pub fn add() {}|});
       ("math/sub.rp", {|module math;
-pub func sub() {}|});
+pub fn sub() {}|});
     ];
   [%expect
     {|
@@ -95,8 +95,8 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 42 decls 1
-      unit math/sub.rp base 73 decls 1
+      unit math/add.rp base 40 decls 1
+      unit math/sub.rp base 69 decls 1
     |}]
 
 let%expect_test "program: a merged module concatenates the decls of its files" =
@@ -105,10 +105,10 @@ let%expect_test "program: a merged module concatenates the decls of its files" =
       [
         importing "math";
         ("math/add.rp", {|module math;
-pub func add() {}|});
+pub fn add() {}|});
         ("math/sub.rp", {|module math;
-pub func sub() {}
-pub func neg() {}|});
+pub fn sub() {}
+pub fn neg() {}|});
       ]
   in
   Printf.printf "%d\n" (List.length (Program.module_decls program.modules.(1)));
@@ -119,9 +119,9 @@ let%expect_test "program: a module that is both a file and a directory clashes"
   show
     [
       importing "math";
-      ("math.rp", {|pub func add() {}|});
+      ("math.rp", {|pub fn add() {}|});
       ("math/extra.rp", {|module math;
-pub func sub() {}|});
+pub fn sub() {}|});
     ];
   [%expect
     {|
@@ -133,7 +133,7 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math failed
-      unit math.rp base 42 decls 0
+      unit math.rp base 40 decls 0
     |}]
 
 let%expect_test "program: a missing module lists every root it tried" =
@@ -151,19 +151,19 @@ let%expect_test "program: a missing module lists every root it tried" =
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math failed
-      unit math.rp base 42 decls 0
+      unit math.rp base 40 decls 0
     |}]
 
 let%expect_test "program: a search root supplies a module beside the source" =
   show ~search_roots:[ "vendor" ]
-    [ importing "math"; ("vendor/math.rp", {|pub func add() {}|}) ];
+    [ importing "math"; ("vendor/math.rp", {|pub fn add() {}|}) ];
   [%expect
     {|
     module 0 main
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit vendor/math.rp base 42 decls 1
+      unit vendor/math.rp base 40 decls 1
     |}]
 
 let%expect_test "program: an import cycle names the hops it went through" =
@@ -171,9 +171,9 @@ let%expect_test "program: an import cycle names the hops it went through" =
     [
       importing "a";
       ("a.rp", {|import b;
-pub func fa() {}|});
+pub fn fa() {}|});
       ("b.rp", {|import a;
-pub func fb() {}|});
+pub fn fb() {}|});
     ];
   [%expect
     {|
@@ -188,16 +188,16 @@ pub func fb() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 a
-      unit a.rp base 39 decls 1
+      unit a.rp base 37 decls 1
       imports module 2
     module 2 b
-      unit b.rp base 66 decls 1
+      unit b.rp base 62 decls 1
       imports module 1
     |}]
 
 let%expect_test "program: a module importing itself is a cycle" =
   show [ importing "a"; ("a.rp", {|import a;
-pub func fa() {}|}) ];
+pub fn fa() {}|}) ];
   [%expect
     {|
     error: import cycle
@@ -210,7 +210,7 @@ pub func fa() {}|}) ];
       unit main.rp base 0 decls 1
       imports module 1
     module 1 a
-      unit a.rp base 39 decls 1
+      unit a.rp base 37 decls 1
       imports module 1
     |}]
 
@@ -219,9 +219,9 @@ let%expect_test "program: a header naming the wrong module is reported" =
     [
       importing "math";
       ("math/add.rp", {|module math;
-pub func add() {}|});
+pub fn add() {}|});
       ("math/sub.rp", {|module arithmetic;
-pub func sub() {}|});
+pub fn sub() {}|});
     ];
   [%expect
     {|
@@ -233,8 +233,8 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 42 decls 1
-      unit math/sub.rp base 73 decls 1
+      unit math/add.rp base 40 decls 1
+      unit math/sub.rp base 69 decls 1
     |}]
 
 let%expect_test "program: a header naming the parent points at the parent" =
@@ -242,9 +242,9 @@ let%expect_test "program: a header naming the parent points at the parent" =
     [
       importing "math.vec";
       ("math/vec/one.rp", {|module vec;
-pub func one() {}|});
+pub fn one() {}|});
       ("math/vec/two.rp", {|module math;
-pub func two() {}|});
+pub fn two() {}|});
     ];
   [%expect
     {|
@@ -257,8 +257,8 @@ pub func two() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math.vec
-      unit math/vec/one.rp base 46 decls 1
-      unit math/vec/two.rp base 76 decls 1
+      unit math/vec/one.rp base 44 decls 1
+      unit math/vec/two.rp base 72 decls 1
     |}]
 
 let%expect_test "program: a merged file with no header is reported" =
@@ -266,43 +266,43 @@ let%expect_test "program: a merged file with no header is reported" =
     [
       importing "math";
       ("math/add.rp", {|module math;
-pub func add() {}|});
-      ("math/sub.rp", {|pub func sub() {}|});
+pub fn add() {}|});
+      ("math/sub.rp", {|pub fn sub() {}|});
     ];
   [%expect
     {|
     error: missing module header
       at <test>:1:1
-        pub func sub() {}
+        pub fn sub() {}
         ^ expected `module math`
     help: every file beside a module header needs the same header
     module 0 main
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 42 decls 1
-      unit math/sub.rp base 73 decls 1
+      unit math/add.rp base 40 decls 1
+      unit math/sub.rp base 69 decls 1
     |}]
 
 let%expect_test "program: a single file module needs no header" =
-  show [ importing "math"; ("math.rp", {|pub func add() {}|}) ];
+  show [ importing "math"; ("math.rp", {|pub fn add() {}|}) ];
   [%expect
     {|
     module 0 main
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math.rp base 42 decls 1
+      unit math.rp base 40 decls 1
     |}]
 
 let%expect_test "program: every file gets its own slice of the offset space" =
-  let program = load [ importing "math"; ("math.rp", {|pub func add() {}|}) ] in
+  let program = load [ importing "math"; ("math.rp", {|pub fn add() {}|}) ] in
   let at pos = (Program.source_at program pos).Program.filename in
-  Printf.printf "%s %s %s %s\n" (at 0) (at 41) (at 42) (at 1000);
+  Printf.printf "%s %s %s %s\n" (at 0) (at 39) (at 40) (at 1000);
   [%expect {| main.rp main.rp math.rp math.rp |}]
 
 let%expect_test
     "program: an offset before the first file falls back to the root" =
-  let program = load [ ("main.rp", {|func main() i32 { return 0 }|}) ] in
+  let program = load [ ("main.rp", {|fn main() i32 { return 0 }|}) ] in
   print_endline (Program.source_at program (-1)).Program.filename;
   [%expect {| main.rp |}]

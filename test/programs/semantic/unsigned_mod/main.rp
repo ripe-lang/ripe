@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var a: u32 = 4294967295;
   return cast(i32, a % 10);
 }

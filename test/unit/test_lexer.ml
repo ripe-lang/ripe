@@ -146,7 +146,7 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    {|var const var return if else while for in true false break continue sizeof null extern struct pub func type undefined
+    {|var const var return if else while for in true false break continue sizeof null extern struct pub fn type undefined
 import module loop cast
 |};
   [%expect
@@ -169,7 +169,7 @@ import module loop cast
     KW extern
     KW struct
     KW pub
-    KW func
+    KW fn
     KW type
     KW undefined
     KW import
@@ -396,9 +396,9 @@ let%expect_test "lexer: an unterminated char literal stops before a closer" =
     |}]
 
 let%expect_test "lexer: leading UTF 8 BOM is ignored" =
-  dump_tokens "\xEF\xBB\xBFfunc main() {}\n";
+  dump_tokens "\xEF\xBB\xBFfn main() {}\n";
   [%expect {|
-    KW func
+    KW fn
     IDENT main
     (
     )

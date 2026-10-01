@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var one: u8 = 1;
   var over: u8 = 33;
   if one << over != 0 { return 10 }

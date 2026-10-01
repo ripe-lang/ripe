@@ -1,6 +1,6 @@
 const GLOBAL: i32 = 40;
 
-func main() i32 {
+fn main() i32 {
   const local: i32 = 2;
   local = 3;
   GLOBAL = 5;

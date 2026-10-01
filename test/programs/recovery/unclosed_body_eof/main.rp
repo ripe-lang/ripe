@@ -1,2 +1,2 @@
-func f() i32 {
+fn f() i32 {
   return 1;

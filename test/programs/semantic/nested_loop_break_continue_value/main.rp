@@ -1,4 +1,4 @@
-func search() i32 {
+fn search() i32 {
   var found: i32 = -1;
   for i in 0..5 {
     for j in 0..5 {
@@ -9,4 +9,4 @@ func search() i32 {
   }
   return found;
 }
-func main() i32 { return search() }
+fn main() i32 { return search() }

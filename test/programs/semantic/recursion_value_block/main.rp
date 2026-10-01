@@ -1,4 +1,4 @@
-func collatz_steps(n: i32) i32 {
+fn collatz_steps(n: i32) i32 {
   if n == 1 {
     0
   } else {
@@ -8,4 +8,4 @@ func collatz_steps(n: i32) i32 {
     1 + collatz_steps(next)
   }
 }
-func main() i32 { return collatz_steps(6) }
+fn main() i32 { return collatz_steps(6) }

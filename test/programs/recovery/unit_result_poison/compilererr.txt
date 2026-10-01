@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:6
-    func ( nothing() () {}
-         ^
+  at main.rp:1:4
+    fn ( nothing() () {}
+       ^

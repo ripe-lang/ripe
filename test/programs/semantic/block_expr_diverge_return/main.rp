@@ -1,4 +1,4 @@
-func f() i32 {
+fn f() i32 {
   var x = {
     return 7;
     99
@@ -6,6 +6,6 @@ func f() i32 {
   return x;
 }
 
-func main() i32 {
+fn main() i32 {
   return f();
 }

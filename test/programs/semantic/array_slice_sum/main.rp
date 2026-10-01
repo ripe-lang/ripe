@@ -1,4 +1,4 @@
-func sum(xs: []i32) i32 {
+fn sum(xs: []i32) i32 {
   var total: i32 = 0;
   for x in xs {
     total += x;
@@ -6,7 +6,7 @@ func sum(xs: []i32) i32 {
   return total;
 }
 
-func main() i32 {
+fn main() i32 {
   var a: [5]i32 = [1, 2, 3, 4, 5];
   a[0] = 10;
   var doubled: i32 = 0;

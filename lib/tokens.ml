@@ -100,7 +100,7 @@ let keywords =
     ("extern", EXTERN);
     ("struct", STRUCT);
     ("pub", PUBLIC);
-    ("func", FUNC);
+    ("fn", FUNC);
     ("type", TYPE);
     ("undefined", UNDEFINED);
     ("import", IMPORT);

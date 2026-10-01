@@ -1,6 +1,6 @@
 type Meters = i32;
 
-func main() i32 {
+fn main() i32 {
   var a: Meters = 5;
   var b: i32 = 3;
   var c: Meters = a + b;

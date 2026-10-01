@@ -1,4 +1,4 @@
-func first_ge(threshold: i32) i32 {
+fn first_ge(threshold: i32) i32 {
   var i: i32 = 0;
   while i < 100 {
     var keep: i32 = if i >= threshold { i } else { i = i + 1; continue };
@@ -6,4 +6,4 @@ func first_ge(threshold: i32) i32 {
   }
   return -1;
 }
-func main() i32 { return first_ge(7) }
+fn main() i32 { return first_ge(7) }

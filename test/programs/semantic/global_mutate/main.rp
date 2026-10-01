@@ -1,8 +1,8 @@
 var counter: i32 = 5;
 
-func bump() { counter += 3 }
+fn bump() { counter += 3 }
 
-func main() i32 {
+fn main() i32 {
   bump();
   bump();
   return counter;

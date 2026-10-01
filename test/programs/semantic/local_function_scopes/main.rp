@@ -1,11 +1,11 @@
-func main() i32 {
+fn main() i32 {
   var first = {
-    func value() i32 { 8 }
+    fn value() i32 { 8 }
     value()
   };
 
   var second = {
-    func value() i32 { 10 }
+    fn value() i32 { 10 }
     value()
   };
 

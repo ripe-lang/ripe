@@ -1,6 +1,6 @@
-func spin() never { loop {} }
+fn spin() never { loop {} }
 
-func main() i32 {
+fn main() i32 {
   if false { spin() }
   return 42;
 }

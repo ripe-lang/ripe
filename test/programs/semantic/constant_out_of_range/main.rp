@@ -3,7 +3,7 @@
 const K: i8 = 100;
 const OVER: i8 = 100 + 100;
 
-func main() i32 {
+fn main() i32 {
   var runtime: u8 = 7;
   var _a: i8 = 100 + 100;
   var _b: u8 = 200 + 100;

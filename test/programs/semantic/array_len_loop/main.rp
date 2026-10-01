@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var a: [3]i32 = [4, 5, 6];
   var s: i32 = 0;
   for i in 0..a.len { s += a[i] }

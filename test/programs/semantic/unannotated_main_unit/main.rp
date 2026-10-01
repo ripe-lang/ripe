@@ -1,9 +1,9 @@
-extern "C" func write(fd: i32, buf: *u8, n: usize) i64;
+extern "C" fn write(fd: i32, buf: *u8, n: usize) i64;
 
-func announce(s: str) {
+fn announce(s: str) {
   write(1, s.ptr, s.len);
 }
 
-func main() {
+fn main() {
   announce("done\n");
 }

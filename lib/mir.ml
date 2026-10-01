@@ -1277,7 +1277,7 @@ let show_function (func : func) =
   let return_type =
     match func.return_ty with Types.TUnit -> "" | ty -> " " ^ Types.show_ty ty
   in
-  Printf.bprintf buffer "func %s(%s)%s {\n" func.name params return_type;
+  Printf.bprintf buffer "fn %s(%s)%s {\n" func.name params return_type;
   Array.iteri
     (fun id (local : local) ->
       let name = match local.name with None -> "" | Some name -> " " ^ name in
@@ -1526,7 +1526,7 @@ let verify_block ctx id (block : block) =
   | None ->
       add ctx ctx.func.span (Printf.sprintf "block %d has no terminator" id)
 
-(* func add(%0: i32, %1: i32) i32 { ... } *)
+(* fn add(%0: i32, %1: i32) i32 { ... } *)
 let verify_func program func =
   let ctx = { program; func; errors = ref [] } in
   Array.iter

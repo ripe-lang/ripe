@@ -1,2 +1,2 @@
-extern 99 func puts(s: cstr) i32;
-func main() i32 { return puts("hi") }
+extern 99 fn puts(s: cstr) i32;
+fn main() i32 { return puts("hi") }

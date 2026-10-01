@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var total: i32 = 0;
   for i in 0..4 {
     var contrib: i32 = if i % 2 == 0 { i * 10 } else { i };

@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var grid: [3][3]i32 = [
     [1, 2, 3],
     [4, 5, 6],

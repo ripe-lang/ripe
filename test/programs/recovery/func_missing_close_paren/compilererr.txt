@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:11
-    func scale(n: i32 i32 {
-              ^
+  at main.rp:1:9
+    fn scale(n: i32 i32 {
+            ^

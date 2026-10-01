@@ -1,2 +1,2 @@
 const %%D%%;
-func main() i32 { return n }
+fn main() i32 { return n }

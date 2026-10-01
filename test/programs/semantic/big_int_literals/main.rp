@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var max_i: i64 = 9223372036854775807;
   var max_u: u64 = 18446744073709551615;
   var diff: i64 = max_i - 9223372036854775800;

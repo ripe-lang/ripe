@@ -1,11 +1,11 @@
 import std.io;
 
-func show(value: i64) {
+fn show(value: i64) {
   io.print_int_raw(value);
   io.print_raw("|");
 }
 
-func main() i32 {
+fn main() i32 {
   show(0);
   show(9);
   show(10);

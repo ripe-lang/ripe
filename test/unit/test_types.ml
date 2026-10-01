@@ -30,8 +30,8 @@ let%expect_test "types: a type prints the way it is written" =
     [3][]char
     Point
     Word
-    func (i32, str) bool
-    extern "C" func () ()
+    fn (i32, str) bool
+    extern "C" fn () ()
     <unknown type>
     never
     null
@@ -72,7 +72,7 @@ let%expect_test "types: erasing aliases reaches inside a compound type" =
     *i64
     [2]i64
     []i64
-    func (i64) i64
+    fn (i64) i64
     Point[i64]
     |}]
 
@@ -116,8 +116,8 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
     has_error [2]<unknown type> = true
     has_error []<unknown type> = true
     has_error Bad = true
-    has_error func (i32) <unknown type> = true
-    has_error func (<unknown type>) () = true
+    has_error fn (i32) <unknown type> = true
+    has_error fn (<unknown type>) () = true
     has_error Point[<unknown type>] = true
     has_error *i32 = false
     |}]
@@ -208,7 +208,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
     wide *opaque = true
     wide null = true
     wide cstr = true
-    wide func () () = true
+    wide fn () () = true
     wide f64 = false
     wide Word = true
     |}]

@@ -117,7 +117,7 @@ let rec show_ty_with show_name t =
         | C -> "extern \"C\" "
         | AbiError -> "extern "
       in
-      Printf.sprintf "%sfunc (%s)%s" abi_str p_str r_str
+      Printf.sprintf "%sfn (%s)%s" abi_str p_str r_str
   | TError -> "<unknown type>"
   | TUnit -> "()"
 

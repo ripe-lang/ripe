@@ -19,7 +19,7 @@ HEADS = (
     ("no_init", "n: i32", True),
     ("no_name", ": i32 = 1", False),
     ("number_name", "99: i32 = 1", False),
-    ("keyword_name", "func: i32 = 1", False),
+    ("keyword_name", "fn: i32 = 1", False),
 )
 
 BOUND = 2
