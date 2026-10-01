@@ -14,9 +14,9 @@ A systems programming language.
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
 ```go
-import std.io
+import std.io;
 
-struct Point { x: i32; y: i32 }
+struct Point { x: i32, y: i32 }
 
 func norm(p: Point) i32 {
   p.x * p.x + p.y * p.y
@@ -26,9 +26,9 @@ func main() {
   var points: [2]Point = [
     Point { x: 1, y: 2 },
     Point { x: 8, y: 0 },
-  ]
+  ];
   for p in points {
-    io.print_int(norm(p)) // 5 then 64
+    io.print_int(norm(p)); // 5 then 64
   }
 }
 ```

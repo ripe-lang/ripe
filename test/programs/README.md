@@ -8,10 +8,10 @@ semantic/sizeof_array/
   out.txt          exit: 10
 
 recovery/alias_type_eats_next/
-  main.rp          type a = b: i32
+  main.rp          type a = b: i32;
   compilererr.txt  error: expected type
                      at main.rp:1:8
-                       type a = b: i32
+                       type a = b: i32;
                               ^
 ```
 
