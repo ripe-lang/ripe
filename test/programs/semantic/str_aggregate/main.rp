@@ -1,10 +1,10 @@
 struct named { s: str, n: i32 }
 
-func give() str {
+fn give() str {
   return "returned";
 }
 
-func main() i32 {
+fn main() i32 {
   var box: named = named { s: "field", n: 1 };
   var arr: [2]str = ["one", "three"];
   var r: str = give();

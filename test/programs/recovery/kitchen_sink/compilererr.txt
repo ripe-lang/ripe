@@ -8,13 +8,13 @@ error: expected identifier
                  ^~ found 88
 error: expected expression
   at main.rp:8:1
-    func scale(n: i32) i32
-    ^~~~ found `func`
+    fn scale(n: i32) i32
+    ^~ found `fn`
 error: expected `{`
   at main.rp:9:3
       return n * 2;
       ^~~~~~ found `return`
 error: expected expression
-  at main.rp:11:31
-    func bad() i32 { var z: i32 = ; return z }
-                                  ^ found ;
+  at main.rp:11:29
+    fn bad() i32 { var z: i32 = ; return z }
+                                ^ found ;

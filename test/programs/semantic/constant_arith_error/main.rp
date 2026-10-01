@@ -6,6 +6,6 @@ const DIVIDE: i32 = 1 / 0;
 const REMAINDER: i32 = 1 % 0;
 const SHIFTED: i64 = 1 << 200;
 
-func main() i32 {
+fn main() i32 {
   return 0;
 }

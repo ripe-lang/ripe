@@ -1,9 +1,9 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 enum Shape { Dot, Line, Box }
 enum Size { Small, Large }
 
-func area(shape: Shape, size: Size) i32 {
+fn area(shape: Shape, size: Size) i32 {
   return match shape {
     Shape.Dot => 0,
     Shape.Line => match size {
@@ -19,7 +19,7 @@ func area(shape: Shape, size: Size) i32 {
   };
 }
 
-func main() i32 {
+fn main() i32 {
   printf("%d %d %d %d\n", area(Shape.Dot, Size.Small), area(Shape.Line, Size.Large), area(Shape.Box, Size.Small), area(Shape.Box, Size.Large));
   return 0;
 }

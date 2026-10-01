@@ -1,24 +1,24 @@
 var global: () = ();
 
-func pass(value: ()) () { value }
+fn pass(value: ()) () { value }
 
-func make() () { () }
+fn make() () { () }
 
-func number() (i32) { 4 }
+fn number() (i32) { 4 }
 
-func block_value() i32 { { var x = 5; x; } }
+fn block_value() i32 { { var x = 5; x; } }
 
-func explicit_return() () { return () }
+fn explicit_return() () { return () }
 
-func assign() {
+fn assign() {
   var value: ();
   value = ();
   pass(value);
 }
 
-func indirect(fn: func (()) ()) { fn(global) }
+fn indirect(g: fn (()) ()) { g(global) }
 
-func addressable() i32 {
+fn addressable() i32 {
   var value: () = ();
   var p: *() = &value;
   var q: *() = &value;
@@ -27,7 +27,7 @@ func addressable() i32 {
   return 1;
 }
 
-func main() i32 {
+fn main() i32 {
   var value = make();
   pass(value);
   explicit_return();

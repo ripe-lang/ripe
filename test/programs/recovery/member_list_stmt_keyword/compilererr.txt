@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:17
-    func main() i32 {
-                    ^
+  at main.rp:1:15
+    fn main() i32 {
+                  ^

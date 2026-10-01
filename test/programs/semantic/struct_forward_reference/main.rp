@@ -1,4 +1,4 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 struct holder {
   many: [3]leaf,
@@ -19,7 +19,7 @@ struct leaf {
   v: i32,
 }
 
-func main() i32 {
+fn main() i32 {
   var p = peer { back: null, n: 5 };
   var h = holder { many: [leaf { 1 }, leaf { 2 }, leaf { 3 }], link: &p, chained: mid { leaf { 4 } } };
   printf("%d %d %d %d\n", h.many[0].v, h.many[2].v, h.chained.deep.v, h.link.n);

@@ -1,4 +1,4 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 struct empty {}
 
@@ -8,9 +8,9 @@ struct padding { a: u8, u: (), b: u64 }
 
 struct divres { quot: i32, u: (), e: empty, rem: i32 }
 
-extern "C" func div(num: i32, den: i32) divres;
+extern "C" fn div(num: i32, den: i32) divres;
 
-func main() i32 {
+fn main() i32 {
   var s: sep = sep { x: 1, u: (), e: empty {}, y: 2 };
   s.y = s.y + 40;
 

@@ -1,4 +1,4 @@
 error: expected identifier
-  at main.rp:1:6
-    func 3scale(n: i32) i32 {
-         ^ found 3
+  at main.rp:1:4
+    fn 3scale(n: i32) i32 {
+       ^ found 3

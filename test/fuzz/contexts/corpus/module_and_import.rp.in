@@ -2,7 +2,7 @@ module main;
 
 import std.io;
 
-func main() i32 {
+fn main() i32 {
   io.print_int(3);
   return 0;
 }

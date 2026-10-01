@@ -1,6 +1,6 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func main() i32 {
+fn main() i32 {
   var a: [5]i32 = [1, 2, 3, 4, 5];
   var total = 0;
   for v in a {

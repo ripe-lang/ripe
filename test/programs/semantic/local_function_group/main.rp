@@ -1,17 +1,17 @@
-func main() i32 {
-  func first(value: i32) i32 {
+fn main() i32 {
+  fn first(value: i32) i32 {
     second(value)
   }
 
-  func second(value: i32) i32 {
+  fn second(value: i32) i32 {
     third(value)
   }
 
-  func third(value: i32) i32 {
+  fn third(value: i32) i32 {
     fourth(value)
   }
 
-  func fourth(value: i32) i32 {
+  fn fourth(value: i32) i32 {
     value + 1
   }
 

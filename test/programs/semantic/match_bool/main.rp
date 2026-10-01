@@ -1,7 +1,7 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 // Naming both values covers a bool so no else arm is needed
-func pick(flag: bool) i32 {
+fn pick(flag: bool) i32 {
   return match flag {
     true => 1,
     false => 0,
@@ -9,7 +9,7 @@ func pick(flag: bool) i32 {
   };
 }
 
-func main() i32 {
+fn main() i32 {
   printf("%d %d\n", pick(true), pick(false));
   return 0;
 }

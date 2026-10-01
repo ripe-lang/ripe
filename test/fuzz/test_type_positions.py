@@ -10,11 +10,11 @@ SHAPES = (
     ("i32", "0"),
     ("*i32", "null"),
     ("[2]i32", "[0, 0]"),
-    ("func (i32) i32", "h0"),
+    ("fn (i32) i32", "h0"),
     ("*[2]i32", "null"),
     ("[2]*i32", "[null, null]"),
     ("never", "spin()"),
-    ('extern "C" func (i32) i32', "hc"),
+    ('extern "C" fn (i32) i32', "hc"),
     ("**i32", "null"),
     ("*opaque", "null"),
     ("bool", "true"),
@@ -26,9 +26,9 @@ SHAPES = (
 )
 
 PRELUDE = (
-    "func h0(a: i32) i32 { return a }\n"
-    'extern "C" func hc(a: i32) i32 { return a }\n'
-    "func spin() never { loop {} }\n"
+    "fn h0(a: i32) i32 { return a }\n"
+    'extern "C" fn hc(a: i32) i32 { return a }\n'
+    "fn spin() never { loop {} }\n"
     "struct pt { x: i32 }\n"
     "type word = i32;\n"
 )

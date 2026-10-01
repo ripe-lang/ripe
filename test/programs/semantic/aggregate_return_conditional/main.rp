@@ -3,7 +3,7 @@ struct pair {
   y: i32,
 }
 
-func choose(flag: bool) pair {
+fn choose(flag: bool) pair {
   if flag {
     return pair { x: 1, y: 2 };
   } else {
@@ -11,7 +11,7 @@ func choose(flag: bool) pair {
   }
 }
 
-func main() i32 {
+fn main() i32 {
   var left = choose(true);
   var right = choose(false);
   return left.x + left.y + right.x + right.y;

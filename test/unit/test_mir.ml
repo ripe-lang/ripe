@@ -50,10 +50,10 @@ let verify (program : M.program) : unit =
 let verify_func ?structs function_ = verify (program ?structs function_)
 
 let%expect_test "mir: straight line scalar function" =
-  Pipeline.run_mir "func add(a: i32, b: i32) i32 { return a + b }";
+  Pipeline.run_mir "fn add(a: i32, b: i32) i32 { return a + b }";
   [%expect
     {|
-    func add(%0: i32, %1: i32) i32 {
+    fn add(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -139,7 +139,7 @@ let%expect_test "mir verifier: aggregate call storage has the result type" =
 let%expect_test "mir: continue uses one shared step block" =
   Pipeline.run_mir
     {|
-func f() i32 {
+fn f() i32 {
   var sum: i32 = 0;
   for i in 0..5 {
     if i == 2 { continue }
@@ -150,7 +150,7 @@ func f() i32 {
 |};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 sum: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -200,12 +200,12 @@ func f() i32 {
        {|
    const n: i32 = 2 + 3
 
-   func f() i32 {
+   fn f() i32 {
      return n + (1 + 2)
    }
    |};
      [%expect {|
-       func f() i32 {
+       fn f() i32 {
          block0:
            return 8
        };
@@ -215,9 +215,9 @@ func f() i32 {
 let%expect_test "mir: labeled break targets the outer loop" =
   Pipeline.run_mir
     {|
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func main() i32 {
+fn main() i32 {
   var n = 0;
   outer: loop {
     loop {
@@ -231,7 +231,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    func _R4main() i32 {
+    fn _R4main() i32 {
       local %0 n: i32 user
       local %1: i32 temp
       local %2: bool temp
@@ -271,9 +271,9 @@ func main() i32 {
 let%expect_test "mir: labeled break writes the outer loop value" =
   Pipeline.run_mir
     {|
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func main() i32 {
+fn main() i32 {
   var i = 0;
   var found = outer: loop {
     var j = 0;
@@ -288,7 +288,7 @@ func main() i32 {
 |};
   [%expect
     {|
-    func _R4main() i32 {
+    fn _R4main() i32 {
       local %0 i: i32 user
       local %1 found: i32 user
       local %2 j: i32 user
@@ -334,10 +334,10 @@ func main() i32 {
     |}]
 
 let%expect_test "mir: a bounds check splits the block it guards" =
-  Pipeline.run_mir "func get(a: []i32, i: usize) i32 { return a[i] }";
+  Pipeline.run_mir "fn get(a: []i32, i: usize) i32 { return a[i] }";
   [%expect
     {|
-    func get(%0: []i32, %1: usize) i32 {
+    fn get(%0: []i32, %1: usize) i32 {
       local %0 a: []i32 param
       local %1 i: usize param
       local %2: usize temp
@@ -355,10 +355,10 @@ let%expect_test "mir: a bounds check splits the block it guards" =
     |}]
 
 let%expect_test "mir: a -1 divisor skips the divide" =
-  Pipeline.run_mir "func d(a: i32, b: i32) i32 { return a / b }";
+  Pipeline.run_mir "fn d(a: i32, b: i32) i32 { return a / b }";
   [%expect
     {|
-    func d(%0: i32, %1: i32) i32 {
+    fn d(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -392,10 +392,10 @@ let%expect_test "mir: a -1 divisor skips the divide" =
     |}]
 
 let%expect_test "mir: a returned str literal goes through storage" =
-  Pipeline.run_mir {|func make() str { return "hello" }|};
+  Pipeline.run_mir {|fn make() str { return "hello" }|};
   [%expect
     {|
-    func make() str {
+    fn make() str {
       local %0 result: str result
 
       block0:
@@ -410,7 +410,7 @@ let%expect_test "mir: a returned str literal goes through storage" =
        {|
    const k: i32 = 6
 
-   func f(runtime: i32) i32 {
+   fn f(runtime: i32) i32 {
      var folded: i32 = k * 7
      var partial: i32 = k + runtime
      return folded + partial
@@ -418,7 +418,7 @@ let%expect_test "mir: a returned str literal goes through storage" =
    |};
      [%expect
        {|
-       func f(%0: i32) i32 {
+       fn f(%0: i32) i32 {
          local %0 runtime: i32 param
          local %1 folded: i32 user
          local %2 partial: i32 user
@@ -438,7 +438,7 @@ let%expect_test "mir: a positional struct literal lowers like a named one" =
     {|
 struct pair { x: i32, y: i32 }
 
-func f(a: i32, b: i32) i32 {
+fn f(a: i32, b: i32) i32 {
   var positional = pair { a, b };
   var named = pair { y: b, x: a };
   return positional.x + named.y;
@@ -446,7 +446,7 @@ func f(a: i32, b: i32) i32 {
 |};
   [%expect
     {|
-    func f(%0: i32, %1: i32) i32 {
+    fn f(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2 positional: pair user
@@ -470,22 +470,22 @@ let%expect_test "mir: struct fields run in the order they are written" =
     {|
 struct pair { x: i32, y: i32 }
 
-func side(v: i32) i32 { return v }
+fn side(v: i32) i32 { return v }
 
-func f() pair {
+fn f() pair {
   return pair { y: side(1), x: side(2) };
 }
 |};
   [%expect
     {|
-    func side(%0: i32) i32 {
+    fn side(%0: i32) i32 {
       local %0 v: i32 param
 
       block0:
         return copy %0
     }
 
-    func f() pair {
+    fn f() pair {
       local %0 result: pair result
       local %1: i32 temp
       local %2: i32 temp
@@ -501,10 +501,10 @@ func f() pair {
     |}]
 
 let%expect_test "mir: a short circuit and skips the right side" =
-  Pipeline.run_mir "func f(a: bool, b: bool) bool { return a && b }";
+  Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a && b }";
   [%expect
     {|
-    func f(%0: bool, %1: bool) bool {
+    fn f(%0: bool, %1: bool) bool {
       local %0 a: bool param
       local %1 b: bool param
       local %2: bool temp
@@ -526,10 +526,10 @@ let%expect_test "mir: a short circuit and skips the right side" =
     |}]
 
 let%expect_test "mir: a short circuit or skips the right side" =
-  Pipeline.run_mir "func f(a: bool, b: bool) bool { return a || b }";
+  Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a || b }";
   [%expect
     {|
-    func f(%0: bool, %1: bool) bool {
+    fn f(%0: bool, %1: bool) bool {
       local %0 a: bool param
       local %1 b: bool param
       local %2: bool temp
@@ -551,10 +551,10 @@ let%expect_test "mir: a short circuit or skips the right side" =
     |}]
 
 let%expect_test "mir: an if used as a value writes one result local" =
-  Pipeline.run_mir "func f(a: bool) i32 { return if a { 1 } else { 2 } }";
+  Pipeline.run_mir "fn f(a: bool) i32 { return if a { 1 } else { 2 } }";
   [%expect
     {|
-    func f(%0: bool) i32 {
+    fn f(%0: bool) i32 {
       local %0 a: bool param
       local %1: i32 temp
 
@@ -576,7 +576,7 @@ let%expect_test "mir: an if used as a value writes one result local" =
 
 let%expect_test "mir: a match lowers to a chain of tests" =
   Pipeline.run_mir
-    {|func f(n: i32) i32 {
+    {|fn f(n: i32) i32 {
   return match n {
     1 => 10,
     2 => 20,
@@ -585,7 +585,7 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 }|};
   [%expect
     {|
-    func f(%0: i32) i32 {
+    fn f(%0: i32) i32 {
       local %0 n: i32 param
       local %1: i32 temp
       local %2: bool temp
@@ -618,14 +618,14 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 
 let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var t: i32 = 0;
   for i in 0..3 { t += i }
   return t;
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 t: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -660,14 +660,14 @@ let%expect_test "mir: a range for counts without a bounds check" =
 
 let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var t: i32 = 0;
   for i in 0..=3 { t += i }
   return t;
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 t: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -707,14 +707,14 @@ let%expect_test "mir: an inclusive range stops one step later" =
 
 let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
-    {|func f(a: [3]i32) i32 {
+    {|fn f(a: [3]i32) i32 {
   var t: i32 = 0;
   for v in a { t += v }
   return t;
 }|};
   [%expect
     {|
-    func f(%0: [3]i32) i32 {
+    fn f(%0: [3]i32) i32 {
       local %0 a: [3]i32 param
       local %1 t: i32 user
       local %2: *i32 temp
@@ -757,10 +757,10 @@ let%expect_test "mir: a for over an array walks it by index" =
     |}]
 
 let%expect_test "mir: a slice expression carries a base and a length" =
-  Pipeline.run_mir "func f(a: [4]i32) []i32 { return a[1..3] }";
+  Pipeline.run_mir "fn f(a: [4]i32) []i32 { return a[1..3] }";
   [%expect
     {|
-    func f(%1: [4]i32) []i32 {
+    fn f(%1: [4]i32) []i32 {
       local %0 result: []i32 result
       local %1 a: [4]i32 param
       local %2: usize temp
@@ -780,7 +780,7 @@ let%expect_test "mir: a slice expression carries a base and a length" =
 
 let%expect_test "mir: a pair assign reads both sides before writing" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var a: i32 = 1;
   var b: i32 = 2;
   a, b = b, a;
@@ -788,7 +788,7 @@ let%expect_test "mir: a pair assign reads both sides before writing" =
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 a: i32 user
       local %1 b: i32 user
       local %2: i32 temp
@@ -807,14 +807,14 @@ let%expect_test "mir: a pair assign reads both sides before writing" =
 
 let%expect_test "mir: a compound assign reuses the place it writes" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var a: [2]i32 = [1, 2];
   a[0] += 5;
   return a[0];
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 a: [2]i32 user
       local %1: usize temp
       local %2: i32 temp
@@ -845,10 +845,10 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     |}]
 
 let%expect_test "mir: a shift guards against an out of range count" =
-  Pipeline.run_mir "func f(a: i32, b: i32) i32 { return a << b }";
+  Pipeline.run_mir "fn f(a: i32, b: i32) i32 { return a << b }";
   [%expect
     {|
-    func f(%0: i32, %1: i32) i32 {
+    fn f(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -881,11 +881,11 @@ let%expect_test "mir: a shift guards against an out of range count" =
 
 let%expect_test "mir: a variadic call marks where the fixed params stop" =
   Pipeline.run_mir
-    {|extern "C" func printf(fmt: cstr, ...) i32;
-func f() i32 { return printf("%d %d\n", 1, 2) }|};
+    {|extern "C" fn printf(fmt: cstr, ...) i32;
+fn f() i32 { return printf("%d %d\n", 1, 2) }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0: i32 temp
 
       block0:
@@ -896,13 +896,13 @@ func f() i32 { return printf("%d %d\n", 1, 2) }|};
 
 let%expect_test "mir: an array literal writes each element in order" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var a: [3]i32 = [7, 8, 9];
   return a[1];
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 a: [3]i32 user
       local %1: usize temp
 
@@ -924,7 +924,7 @@ let%expect_test "mir: an array literal writes each element in order" =
 
 let%expect_test "mir: a loop yields the value its break carries" =
   Pipeline.run_mir
-    {|func f() i32 {
+    {|fn f() i32 {
   var n = 0;
   return loop {
     n += 1;
@@ -933,7 +933,7 @@ let%expect_test "mir: a loop yields the value its break carries" =
 }|};
   [%expect
     {|
-    func f() i32 {
+    fn f() i32 {
       local %0 n: i32 user
       local %1: i32 temp
       local %2: i32 temp
@@ -968,10 +968,10 @@ let%expect_test "mir: a nested field lands on one place with two projections" =
   Pipeline.run_mir
     {|struct Inner { v: i32 }
 struct Outer { i: Inner }
-func f(o: Outer) i32 { return o.i.v }|};
+fn f(o: Outer) i32 { return o.i.v }|};
   [%expect
     {|
-    func f(%0: Outer) i32 {
+    fn f(%0: Outer) i32 {
       local %0 o: Outer param
 
       block0:
@@ -980,13 +980,13 @@ func f(o: Outer) i32 { return o.i.v }|};
     |}]
 
 let%expect_test "mir: a deref through a pointer is a place projection" =
-  Pipeline.run_mir {|func f(p: *i32) i32 {
+  Pipeline.run_mir {|fn f(p: *i32) i32 {
   *p = 4;
   return *p;
 }|};
   [%expect
     {|
-    func f(%0: *i32) i32 {
+    fn f(%0: *i32) i32 {
       local %0 p: *i32 param
 
       block0:

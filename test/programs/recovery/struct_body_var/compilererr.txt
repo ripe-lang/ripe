@@ -1,4 +1,4 @@
 error: expected identifier
   at main.rp:3:3
-      var g: extern "C" func (i32) i32 = twice,
+      var g: extern "C" fn (i32) i32 = twice,
       ^~~ found `var`

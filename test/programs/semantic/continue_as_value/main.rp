@@ -1,4 +1,4 @@
-func sum_evens(n: i32) i32 {
+fn sum_evens(n: i32) i32 {
   var total: i32 = 0;
   var i: i32 = 0;
   while i < n {
@@ -9,6 +9,6 @@ func sum_evens(n: i32) i32 {
   return total;
 }
 
-func main() i32 {
+fn main() i32 {
   return sum_evens(6);
 }

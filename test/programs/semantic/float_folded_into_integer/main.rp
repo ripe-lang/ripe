@@ -1,6 +1,6 @@
 const N = 3;
 
-func main() i32 {
+fn main() i32 {
   var x = 0;
   x += !N * 2.5;
   return x;

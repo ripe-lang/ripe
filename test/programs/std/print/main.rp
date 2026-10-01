@@ -1,6 +1,6 @@
 import std.io;
 
-func main() i32 {
+fn main() i32 {
   io.print("counting:");
   var i = 0;
   while i < 3 {

@@ -284,7 +284,7 @@ let recover_declaration st =
 
 let abi_wants_func st = function
   | NamedAbi _ ->
-      Diagnostic.error (cur_span st) "expected `func`" |> found st |> report st
+      Diagnostic.error (cur_span st) "expected `fn`" |> found st |> report st
   | NoAbi | AbiError -> ()
 
 let left prec build = Some { prec; assoc = Left; build }
@@ -360,7 +360,7 @@ and expression_statement st context lo =
   | BlockStatement when at st COMMA -> Expr (parse_pair_assign st lo first)
   | BlockStatement | MatchArmBody -> Expr first
 
-(* i32, *i32, func (i32, i32) i32 *)
+(* i32, *i32, fn (i32, i32) i32 *)
 and parse_typ st =
   let lo = cur_pos st in
   match cur_token st with
@@ -457,7 +457,7 @@ and parse_binding st context =
     let span = recovery_span st d in
     (kind, name, Some (error_typ span), Some { desc = ErrorExpr; span })
 
-(* func (i32, i32) i32, extern "C" func (i32) i32 *)
+(* fn (i32, i32) i32, extern "C" fn (i32) i32 *)
 and parse_func_ptr st lo abi =
   expect st FUNC;
   expect st LPAREN;
@@ -477,7 +477,7 @@ and parse_func_ptr st lo abi =
   | Some params -> mkt lo st (FuncPtr (abi, params, ret))
   | None -> mkt lo st ErrorType
 
-(* The "C" of extern "C" func exit(code: i32) never *)
+(* The "C" of extern "C" fn exit(code: i32) never *)
 and parse_abi st =
   match cur_token st with
   | STRING name ->
@@ -690,7 +690,7 @@ and parse_ret_type st =
   | tok when not (is_type_start tok) -> None
   | _ -> Some (parse_typ st)
 
-(* The add of func add(a: i32) i32 *)
+(* The add of fn add(a: i32) i32 *)
 and parse_func_name st =
   try expect_decl_name st
   with ParserError d ->
@@ -714,7 +714,7 @@ and parse_func_body st =
     [ Expr e ]
   end
 
-(* func add(a: i32, b: i32) i32 { ... }, extern "C" func puts(s: cstr) i32 *)
+(* fn add(a: i32, b: i32) i32 { ... }, extern "C" fn puts(s: cstr) i32 *)
 and parse_func_def st mods abi =
   let lo = cur_pos st in
   expect st FUNC;
@@ -1272,7 +1272,7 @@ let parse_global st mods =
   let name = ident name.value name.span in
   Global { name; typ; init; kind; modifiers = mods; span = span_from lo st }
 
-(* pub func f() i32 { } *)
+(* pub fn f() i32 { } *)
 let parse_decl st =
   let mods, abi = parse_decl_modifiers st in
   begin match cur_token st with
@@ -1313,7 +1313,7 @@ let parse_module_header st =
   let name = expect_ident st in
   { name; span = span_from lo st }
 
-(* module m; import a.b; func f() { } *)
+(* module m; import a.b; fn f() { } *)
 let parse_module st =
   skip_semi st;
   let start = cur_pos st in

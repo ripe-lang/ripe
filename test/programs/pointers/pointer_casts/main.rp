@@ -1,13 +1,13 @@
-extern "C" func printf(fmt: cstr, ...) i32;
-extern "C" func malloc(n: usize) *opaque;
+extern "C" fn printf(fmt: cstr, ...) i32;
+extern "C" fn malloc(n: usize) *opaque;
 
 struct point { x: i32, y: i32 }
 
-type BinOp = func (i32, i32) i32;
+type BinOp = fn (i32, i32) i32;
 
-func add(a: i32, b: i32) i32 { return a + b }
+fn add(a: i32, b: i32) i32 { return a + b }
 
-func main() i32 {
+fn main() i32 {
   var raw: *opaque = malloc(sizeof(point));
   var p: *point = cast(*point, raw);
   p.x = 40;
@@ -22,7 +22,7 @@ func main() i32 {
   var deep: **u8 = cast(**u8, p);
   var rows: *[2]i32 = cast(*[2]i32, p);
   var fp: *BinOp = cast(*BinOp, p);
-  var indirect: *func (i32, i32) i32 = cast(*func (i32, i32) i32, p);
+  var indirect: *fn (i32, i32) i32 = cast(*fn (i32, i32) i32, p);
   var erased: *opaque = p;
 
   var op: BinOp = add;

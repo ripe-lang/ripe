@@ -1,7 +1,7 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 // A bare name in a pattern binds the scrutinee and catches everything
-func describe(n: i32) i32 {
+fn describe(n: i32) i32 {
   return match n {
     0 => 100,
     other => other * 2,
@@ -9,7 +9,7 @@ func describe(n: i32) i32 {
   };
 }
 
-func main() i32 {
+fn main() i32 {
   printf("%d %d %d\n", describe(0), describe(3), describe(-4));
   return 0;
 }

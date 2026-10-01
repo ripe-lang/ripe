@@ -1,12 +1,12 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func sum(s: []i32) i32 {
+fn sum(s: []i32) i32 {
   var t: i32 = 0;
   for i in 0..s.len { t += s[i] }
   return t;
 }
 
-func main() i32 {
+fn main() i32 {
   var a: [4]i32 = [1, 2, 4, 8];
 
   printf("%d %d\n", cast(i32, a[..].len), sum(a[..]));

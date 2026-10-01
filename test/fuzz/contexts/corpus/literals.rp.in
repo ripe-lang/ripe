@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var h: i32 = 0xff;
   var b: i32 = 0b1010;
   var w: i64 = 5i64;

@@ -1,14 +1,14 @@
 // BROKEN: const eval stripped
 
-extern "C" func printf(fmt: cstr, ...) i32;
-extern "C" func malloc(n: u64) *opaque;
-extern "C" func free(p: *opaque);
+extern "C" fn printf(fmt: cstr, ...) i32;
+extern "C" fn malloc(n: u64) *opaque;
+extern "C" fn free(p: *opaque);
 
 struct pt { x: i32, y: i32 }
 
-func take(n: u8) i32 { return n }
+fn take(n: u8) i32 { return n }
 
-func main() i32 {
+fn main() i32 {
   var a: u64 = sizeof(pt);
   var b: i32 = sizeof(i32);
   var c: u8 = sizeof(pt);

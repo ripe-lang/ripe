@@ -1,8 +1,8 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 struct point { x: i32, y: i32 }
 
-func main() i32 {
+fn main() i32 {
   var p: point = point { x: 42, y: 7 };
   var q: *point = &p;
   var qq: **point = &q;

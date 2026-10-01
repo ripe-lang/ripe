@@ -4,7 +4,7 @@ Each test is a directory with a `main.rp` and the output it should give you:
 
 ```
 semantic/sizeof_array/
-  main.rp          func main() i32 { return sizeof([5]i16) }
+  main.rp          fn main() i32 { return sizeof([5]i16) }
   out.txt          exit: 10
 
 recovery/alias_type_eats_next/

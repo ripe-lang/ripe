@@ -1,10 +1,10 @@
-func square(x: i32) i32 { x * x }
+fn square(x: i32) i32 { x * x }
 
-func add(a: i32, b: i32) i32 {
+fn add(a: i32, b: i32) i32 {
   var s = a + b;
   s
 }
 
-func main() i32 {
+fn main() i32 {
   return square(5) + add(3, 4);
 }

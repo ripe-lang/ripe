@@ -1,8 +1,8 @@
 struct Pair { quot: i32, rem: i32 }
 
-extern "C" func div(numer: i32, denom: i32) Pair;
+extern "C" fn div(numer: i32, denom: i32) Pair;
 
-func main() i32 {
+fn main() i32 {
   var result = div(10, 3);
   return result.quot * 10 + result.rem;
 }

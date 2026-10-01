@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:21
-    extern "C" func puts(s: *i8 i32
-                        ^
+  at main.rp:1:19
+    extern "C" fn puts(s: *i8 i32
+                      ^

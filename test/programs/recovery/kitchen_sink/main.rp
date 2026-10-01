@@ -5,12 +5,12 @@ enum color { 88, Green }
 
 const LIMIT: i32 =
 
-func scale(n: i32) i32
+fn scale(n: i32) i32
   return n * 2;
 
-func bad() i32 { var z: i32 = ; return z }
+fn bad() i32 { var z: i32 = ; return z }
 
-func main() i32 {
+fn main() i32 {
   var p = point { 5, 4 };
   var c = color.Green;
   var s = scale(2);

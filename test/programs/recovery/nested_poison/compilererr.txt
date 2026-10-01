@@ -7,6 +7,6 @@ error: undefined type
       var a: [1]nosuch = undefined;
                 ^~~~~~
 error: undefined type
-  at main.rp:4:18
-      var f: func () nosuch = undefined;
-                     ^~~~~~
+  at main.rp:4:16
+      var f: fn () nosuch = undefined;
+                   ^~~~~~

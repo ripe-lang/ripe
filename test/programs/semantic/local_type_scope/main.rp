@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var first = {
     struct Value { number: i32 }
     var value = Value { number: 5 };

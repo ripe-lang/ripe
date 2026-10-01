@@ -1,4 +1,4 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
 struct pair {
   x: i32,
@@ -16,12 +16,12 @@ var log: i32 = 0;
 var reordered: pair = pair { y: 2, x: 1 };
 var partial: triple = triple { c: 3, a: 1 };
 
-func mark(v: i32) i32 {
+fn mark(v: i32) i32 {
   log = log * 10 + v;
   return v;
 }
 
-func main() i32 {
+fn main() i32 {
   var written = pair { y: mark(1), x: mark(2) };
   printf("order %d\n", log);
   printf("written %d %d\n", written.x, written.y);

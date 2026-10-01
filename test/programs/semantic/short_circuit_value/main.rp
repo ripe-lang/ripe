@@ -1,11 +1,11 @@
 var count: i32 = 0;
 
-func bump(v: bool) bool {
+fn bump(v: bool) bool {
   count = count + 1;
   return v;
 }
 
-func main() i32 {
+fn main() i32 {
   var a: bool = false && bump(true);
   var b: bool = true || bump(true);
   if a { return 1 }

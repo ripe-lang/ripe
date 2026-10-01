@@ -1,6 +1,6 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func main() i32 {
+fn main() i32 {
   enum Step { First, Second }
   var s = Step.Second;
   printf("%d\n", s == Step.Second);

@@ -1,6 +1,6 @@
-func main() i32 {
-  var handler: func (i32) i32 = {
-    func increment(value: i32) i32 { value + 1 }
+fn main() i32 {
+  var handler: fn (i32) i32 = {
+    fn increment(value: i32) i32 { value + 1 }
     increment
   };
 

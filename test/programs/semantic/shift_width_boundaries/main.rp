@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var seven: u64 = 7;
   var eight: u64 = 8;
   var thirtyone: u64 = 31;

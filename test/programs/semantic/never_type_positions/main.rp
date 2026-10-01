@@ -1,12 +1,12 @@
-extern "C" func printf(fmt: cstr, ...) i32;
+extern "C" fn printf(fmt: cstr, ...) i32;
 
-func spin() never { loop {} }
+fn spin() never { loop {} }
 
 struct hole { a: never }
 
 var absent: never = spin();
 
-func main() i32 {
+fn main() i32 {
   var _p: *never = null;
   var n = if false { spin() } else { 7 };
   printf("%d %d\n", n, sizeof(never));

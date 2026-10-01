@@ -1,4 +1,4 @@
-func index_of(xs: []i32, target: i32) i32 {
+fn index_of(xs: []i32, target: i32) i32 {
   for i in 0..xs.len {
     if xs[i] == target {
       return cast(i32, i);
@@ -7,7 +7,7 @@ func index_of(xs: []i32, target: i32) i32 {
   return -1;
 }
 
-func main() i32 {
+fn main() i32 {
   var data: [6]i32 = [4, 8, 15, 16, 23, 42];
   var at: i32 = index_of(data, 16);
   var missing: i32 = index_of(data, 99);

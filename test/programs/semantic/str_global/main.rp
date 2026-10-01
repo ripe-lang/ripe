@@ -5,7 +5,7 @@ var M: str = "mutable";
 var B: Box = Box { text: "boxed", value: 7 };
 var E: str = "";
 
-func main() i32 {
+fn main() i32 {
   var total: usize = G.len + M.len + B.text.len + E.len;
   M = "changed";
   total = total + M.len;

@@ -1,40 +1,40 @@
 (Func
-   { func_name = { value = (Some add); span = (5,8) };
+   { func_name = { value = (Some add); span = (3,6) };
      params =
-     [{ param_name = { value = (Some a); span = (9,10) };
-        param_typ = { tdesc = (Named ([], i32)); tspan = (12,15) };
-        param_span = (9,15) };
-       { param_name = { value = (Some b); span = (17,18) };
-         param_typ = { tdesc = (Named ([], i32)); tspan = (20,23) };
-         param_span = (17,23) }
+     [{ param_name = { value = (Some a); span = (7,8) };
+        param_typ = { tdesc = (Named ([], i32)); tspan = (10,13) };
+        param_span = (7,13) };
+       { param_name = { value = (Some b); span = (15,16) };
+         param_typ = { tdesc = (Named ([], i32)); tspan = (18,21) };
+         param_span = (15,21) }
        ];
-     ret = (Some { tdesc = (Named ([], i32)); tspan = (25,28) });
+     ret = (Some { tdesc = (Named ([], i32)); tspan = (23,26) });
      body =
      [(Expr
          { desc =
            (Return
               (Some { desc =
-                      (BinOp (Add, { desc = (Ident a); span = (40,41) },
-                         { desc = (Ident b); span = (44,45) }));
-                      span = (40,45) }));
-           span = (33,45) })
+                      (BinOp (Add, { desc = (Ident a); span = (38,39) },
+                         { desc = (Ident b); span = (42,43) }));
+                      span = (38,43) }));
+           span = (31,43) })
        ];
      func_modifiers = []; variadic = false; extern_abi = NoAbi;
-     func_span = (0,48) })
+     func_span = (0,46) })
 (Func
-   { func_name = { value = (Some main); span = (55,59) }; params = [];
-     ret = (Some { tdesc = (Named ([], i32)); tspan = (62,65) });
+   { func_name = { value = (Some main); span = (51,55) }; params = [];
+     ret = (Some { tdesc = (Named ([], i32)); tspan = (58,61) });
      body =
      [(Expr
          { desc =
            (Return
               (Some { desc =
-                      (Call ({ desc = (Ident add); span = (77,80) },
-                         [{ desc = (Int (1L, None)); span = (81,82) };
-                           { desc = (Int (2L, None)); span = (84,85) }]
+                      (Call ({ desc = (Ident add); span = (73,76) },
+                         [{ desc = (Int (1L, None)); span = (77,78) };
+                           { desc = (Int (2L, None)); span = (80,81) }]
                          ));
-                      span = (77,86) }));
-           span = (70,86) })
+                      span = (73,82) }));
+           span = (66,82) })
        ];
      func_modifiers = []; variadic = false; extern_abi = NoAbi;
-     func_span = (50,89) })
+     func_span = (48,85) })

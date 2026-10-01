@@ -1,4 +1,4 @@
 error: expected type
   at main.rp:2:1
-    func main() i32 { return 0 }
-    ^~~~ found `func`
+    fn main() i32 { return 0 }
+    ^~ found `fn`

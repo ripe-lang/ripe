@@ -1,4 +1,4 @@
-func compute() i32 {
+fn compute() i32 {
   var total: i32 = 0;
   for i in 0..3 {
     var sub: i32 = {
@@ -14,4 +14,4 @@ func compute() i32 {
   }
   return total;
 }
-func main() i32 { return compute() }
+fn main() i32 { return compute() }

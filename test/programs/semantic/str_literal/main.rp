@@ -1,8 +1,8 @@
-func take(s: str) usize {
+fn take(s: str) usize {
   return s.len;
 }
 
-func main() i32 {
+fn main() i32 {
   var a: str = "hello";
   var b: str = a;
   var empty: str = "";

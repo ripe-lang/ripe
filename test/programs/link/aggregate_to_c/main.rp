@@ -6,23 +6,23 @@ struct Big { a: i64, b: i64, c: i64 }
 struct Pair { x: f64, y: f64 }
 struct Mixed { n: i32, f: f64 }
 
-extern "C" func c_shift(p: Point, d: i32) Point;
-extern "C" func c_widen(w: Wide) Wide;
-extern "C" func c_grow(b: Big, d: i64) Big;
-extern "C" func c_scale(p: Pair, k: f64) Pair;
-extern "C" func c_blend(m: Mixed) Mixed;
-extern "C" func c_bump(w: *Wide);
+extern "C" fn c_shift(p: Point, d: i32) Point;
+extern "C" fn c_widen(w: Wide) Wide;
+extern "C" fn c_grow(b: Big, d: i64) Big;
+extern "C" fn c_scale(p: Pair, k: f64) Pair;
+extern "C" fn c_blend(m: Mixed) Mixed;
+extern "C" fn c_bump(w: *Wide);
 
-func label(text: str) {
+fn label(text: str) {
   io.print_raw(text);
 }
 
-func field(value: i64) {
+fn field(value: i64) {
   io.print_raw(" ");
   io.print_int_raw(value);
 }
 
-func main() i32 {
+fn main() i32 {
   var p: Point = c_shift(Point{x: 10, y: 20}, 5);
   label("point");
   field(cast(i64, p.x));

@@ -1,5 +1,5 @@
-func main() i32 {
-  func count(value: i32) i32 {
+fn main() i32 {
+  fn count(value: i32) i32 {
     if value == 0 { 0 } else { 1 + count(value - 1) }
   }
 

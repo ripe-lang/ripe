@@ -240,7 +240,7 @@ let check_has_main diags tdecls =
   if not (List.exists is_main tdecls) then
     Diagnostic.emit diags
       (Diagnostic.error_no_span "no `main` function found"
-      |> Diagnostic.help "add a `func main()` entry point")
+      |> Diagnostic.help "add a `fn main()` entry point")
 
 (* The token dump never follows an import so it reads the root file itself *)
 let root_tokens filename =

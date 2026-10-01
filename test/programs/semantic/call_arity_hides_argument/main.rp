@@ -1,7 +1,7 @@
-func g(a: i32) i32 {
+fn g(a: i32) i32 {
   return a;
 }
 
-func main() i32 {
+fn main() i32 {
   return g(1, cast(bool, 1.5));
 }

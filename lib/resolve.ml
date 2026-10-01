@@ -633,7 +633,7 @@ and resolve_func st fd =
   Option.iter (resolve_typ st) fd.ret;
   resolve_block_contents st fd.body
 
-(* A local func can't see the enclosing body's variables *)
+(* A local fn can't see the enclosing body's variables *)
 and resolve_local_func st fd =
   resolve_func { st with value_boundary = Some st.scope } fd
 

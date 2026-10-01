@@ -1,2 +1,2 @@
-extern "C" func puts(s: *i8 i32
-func main() i32 { return 0 }
+extern "C" fn puts(s: *i8 i32
+fn main() i32 { return 0 }

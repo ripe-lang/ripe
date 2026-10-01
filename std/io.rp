@@ -1,12 +1,12 @@
-extern "C" func write(fd: i32, buf: *u8, n: usize) i64;
+extern "C" fn write(fd: i32, buf: *u8, n: usize) i64;
 
-func put(fd: i32, s: str) {
+fn put(fd: i32, s: str) {
   write(fd, s.ptr, s.len);
 }
 
 // The standard itoa but the sign flips per digit
 // https://www.geeksforgeeks.org/c/implement-itoa/
-func put_int(fd: i32, value: i64) {
+fn put_int(fd: i32, value: i64) {
   var buf: [21]u8 = undefined;
   var i: usize = 21;
 
@@ -37,34 +37,34 @@ func put_int(fd: i32, value: i64) {
 }
 
 // The fds are spelled out until const works again
-pub func print(s: str) {
+pub fn print(s: str) {
   put(1, s);
   put(1, "\n");
 }
 
-pub func print_raw(s: str) {
+pub fn print_raw(s: str) {
   put(1, s);
 }
 
-pub func print_line() {
+pub fn print_line() {
   put(1, "\n");
 }
 
-pub func print_error(s: str) {
+pub fn print_error(s: str) {
   put(2, s);
   put(2, "\n");
 }
 
-pub func print_int(value: i64) {
+pub fn print_int(value: i64) {
   put_int(1, value);
   put(1, "\n");
 }
 
-pub func print_int_raw(value: i64) {
+pub fn print_int_raw(value: i64) {
   put_int(1, value);
 }
 
-pub func print_bool(value: bool) {
+pub fn print_bool(value: bool) {
   put(1, if value { "true" } else { "false" });
   put(1, "\n");
 }

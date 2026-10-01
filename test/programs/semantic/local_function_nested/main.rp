@@ -1,8 +1,8 @@
-func main() i32 {
-  func first(value: i32) i32 {
-    func second(value: i32) i32 {
-      func third(value: i32) i32 {
-        func fourth(value: i32) i32 {
+fn main() i32 {
+  fn first(value: i32) i32 {
+    fn second(value: i32) i32 {
+      fn third(value: i32) i32 {
+        fn fourth(value: i32) i32 {
           value + 1
         }
 

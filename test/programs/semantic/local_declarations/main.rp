@@ -1,4 +1,4 @@
-func main() i32 {
+fn main() i32 {
   var first = {
     var p = Point { x: 3 };
     struct Point { x: i32 }
@@ -11,15 +11,15 @@ func main() i32 {
     p.y
   };
 
-  func add(x: Coord, y: Coord) Coord {
+  fn add(x: Coord, y: Coord) Coord {
     plus(x, y)
   }
 
-  func plus(x: Coord, y: Coord) Coord {
+  fn plus(x: Coord, y: Coord) Coord {
     x + y
   }
 
-  func count(n: Coord) Coord {
+  fn count(n: Coord) Coord {
     if n == 0 { 0 } else { 1 + count(n - 1) }
   }
 

@@ -1,10 +1,10 @@
 error: unclosed delimiter
-  at main.rp:1:14
-    func f() { ( [
-                 ^
   at main.rp:1:12
-    func f() { ( [
-               ^ to match this `(`
+    fn f() { ( [
+               ^
   at main.rp:1:10
-    func f() { ( [
-             ^ to match this `{`
+    fn f() { ( [
+             ^ to match this `(`
+  at main.rp:1:8
+    fn f() { ( [
+           ^ to match this `{`
