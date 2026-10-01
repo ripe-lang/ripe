@@ -1,5 +1,5 @@
 func spin() never { while true {} }
 func main() i32 {
   if false { spin() }
-  return 42
+  return 42;
 }

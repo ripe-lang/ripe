@@ -1,6 +1,6 @@
 func abs(n: i32) i32 {
   if n < 0 { return -n }
-  return n
+  return n;
 }
 
 func sign(n: i32) i32 {
@@ -8,18 +8,18 @@ func sign(n: i32) i32 {
 }
 
 func sum_to(n: i32) i32 {
-  var total: i32 = 0
-  var i: i32 = 1
+  var total: i32 = 0;
+  var i: i32 = 1;
   while i <= n {
-    total += i
-    i += 1
+    total += i;
+    i += 1;
   }
-  return total
+  return total;
 }
 
 func main() i32 {
-  var a: i32 = abs(-7)
-  var s: i32 = sign(3)
-  var t: i32 = sum_to(10)
-  return t
+  var a: i32 = abs(-7);
+  var s: i32 = sign(3);
+  var t: i32 = sum_to(10);
+  return t;
 }

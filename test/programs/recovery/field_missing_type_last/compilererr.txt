@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:3:4
-      y:
-       ^
+  at main.rp:4:1
+    }
+    ^ found }

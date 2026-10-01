@@ -1,8 +1,8 @@
 func main() i32 {
-  var acc: i32 = 0
+  var acc: i32 = 0;
   for i in 0..4 {
     if i == 2 { continue }
-    acc = acc + i
+    acc = acc + i;
   }
-  return acc
+  return acc;
 }

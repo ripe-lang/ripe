@@ -1,8 +1,8 @@
-var g: i32 = 41
+var g: i32 = 41;
 
-var p: *i32 = &g
+var p: *i32 = &g;
 
 func main() i32 {
-  *p += 1
-  return g
+  *p += 1;
+  return g;
 }

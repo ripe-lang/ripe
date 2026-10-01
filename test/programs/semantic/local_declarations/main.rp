@@ -1,15 +1,15 @@
 func main() i32 {
   var first = {
-    var p = Point { x: 3 }
+    var p = Point { x: 3 };
     struct Point { x: i32 }
     p.x
-  }
+  };
 
   var second = {
-    struct Point { x: i32; y: i32 }
-    var p = Point { x: 1, y: 5 }
+    struct Point { x: i32, y: i32 }
+    var p = Point { x: 1, y: 5 };
     p.y
-  }
+  };
 
   func add(x: Coord, y: Coord) Coord {
     plus(x, y)
@@ -23,7 +23,7 @@ func main() i32 {
     if n == 0 { 0 } else { 1 + count(n - 1) }
   }
 
-  type Coord = i32
-  var offset: Coord = 4
-  return add(first + second, offset) + count(3)
+  type Coord = i32;
+  var offset: Coord = 4;
+  return add(first + second, offset) + count(3);
 }

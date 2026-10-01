@@ -1,12 +1,12 @@
-struct named { s: str; n: i32 }
+struct named { s: str, n: i32 }
 
 func give() str {
-  return "returned"
+  return "returned";
 }
 
 func main() i32 {
-  var box: named = named { s: "field", n: 1 }
-  var arr: [2]str = ["one", "three"]
-  var r: str = give()
-  return cast(i32, box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str))
+  var box: named = named { s: "field", n: 1 };
+  var arr: [2]str = ["one", "three"];
+  var r: str = give();
+  return cast(i32, box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str));
 }

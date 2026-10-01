@@ -1,4 +1,4 @@
-var global: () = ()
+var global: () = ();
 
 func pass(value: ()) () { value }
 
@@ -11,28 +11,28 @@ func block_value() i32 { { var x = 5; x; } }
 func explicit_return() () { return () }
 
 func assign() {
-  var value: ()
-  value = ()
-  pass(value)
+  var value: ();
+  value = ();
+  pass(value);
 }
 
 func indirect(fn: func (()) ()) { fn(global) }
 
 func addressable() i32 {
-  var value: () = ()
-  var p: *() = &value
-  var q: *() = &value
+  var value: () = ();
+  var p: *() = &value;
+  var q: *() = &value;
   if p == null { return 0 }
   if p != q { return 0 }
-  return 1
+  return 1;
 }
 
 func main() i32 {
-  var value = make()
-  pass(value)
-  explicit_return()
-  assign()
-  indirect(pass)
+  var value = make();
+  pass(value);
+  explicit_return();
+  assign();
+  indirect(pass);
   return cast(i32, sizeof(())) + cast(i32, sizeof((()))) + cast(i32, sizeof(((((())))))) +
-    cast(i32, sizeof((i32))) + number() + block_value() + addressable()
+    cast(i32, sizeof((i32))) + number() + block_value() + addressable();
 }

@@ -1,10 +1,10 @@
 func main() i32 {
-  var max: i64 = 9223372036854775807
-  var min: i64 = -9223372036854775808
-  var wide: i64 = max - 9223372036854775800
-  var narrow: i64 = min + 9223372036854775807
+  var max: i64 = 9223372036854775807;
+  var min: i64 = -9223372036854775808;
+  var wide: i64 = max - 9223372036854775800;
+  var narrow: i64 = min + 9223372036854775807;
   if narrow == -1 && sizeof(i64) == 8 {
-    return cast(i32, wide)
+    return cast(i32, wide);
   }
-  return 0
+  return 0;
 }

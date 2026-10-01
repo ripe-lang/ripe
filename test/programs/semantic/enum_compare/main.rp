@@ -1,12 +1,12 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
-enum Suit { Clubs; Diamonds; Hearts; Spades }
+enum Suit { Clubs, Diamonds, Hearts, Spades }
 
 func main() i32 {
-  var a = Suit.Diamonds
-  var b = Suit.Diamonds
-  printf("%d %d\n", a == b, a != Suit.Spades)
-  b = Suit.Spades
-  printf("%d %d\n", a == b, a != b)
-  return 0
+  var a = Suit.Diamonds;
+  var b = Suit.Diamonds;
+  printf("%d %d\n", a == b, a != Suit.Spades);
+  b = Suit.Spades;
+  printf("%d %d\n", a == b, a != b);
+  return 0;
 }

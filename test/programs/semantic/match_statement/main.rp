@@ -1,6 +1,6 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
-enum Level { Low; Mid; High }
+enum Level { Low, Mid, High }
 
 func announce(level: Level) {
   match level {
@@ -8,12 +8,12 @@ func announce(level: Level) {
     Level.Mid => { printf("mid\n") }
     Level.High => { printf("high\n") }
   }
-  return
+  return;
 }
 
 func main() i32 {
-  announce(Level.Mid)
-  announce(Level.High)
-  announce(Level.Low)
-  return 0
+  announce(Level.Mid);
+  announce(Level.High);
+  announce(Level.Low);
+  return 0;
 }

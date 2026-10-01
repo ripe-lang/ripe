@@ -1,4 +1,4 @@
 error: undefined variable
   at main.rp:4:4
-      *p = 6
+      *p = 6;
        ^

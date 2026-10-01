@@ -1,5 +1,5 @@
 func main() i32 {
-  var a: [3]i32 = [1, 2, 3]
-  var i: i32 = 5
-  return a[i]
+  var a: [3]i32 = [1, 2, 3];
+  var i: i32 = 5;
+  return a[i];
 }

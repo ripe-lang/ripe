@@ -125,7 +125,7 @@ let probe_header src =
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
     match read lexbuf with
-    | (Tokens.AUTOSEMI | Tokens.SEMI), _, _ -> first_item ()
+    | Tokens.SEMI, _, _ -> first_item ()
     | tok, _, _ -> tok
   in
   let module_name () =

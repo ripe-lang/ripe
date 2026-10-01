@@ -67,7 +67,6 @@ type token =
   | DOTDOTEQ
   | ELLIPSIS
   | DOT
-  | AUTOSEMI
   | SEMI
   | EOF
   | ERROR of string
@@ -173,7 +172,7 @@ let show_token = function
   | DOT -> "."
   | FATARROW -> "=>"
   | UNDERSCORE -> "_"
-  | AUTOSEMI | SEMI -> ";"
+  | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( CONST | VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK

@@ -1,17 +1,17 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var n = 0
+  var n = 0;
   for i in 0..10 {
-    printf("%d", if i == 3 { break } else { i })
-    n += 1
+    printf("%d", if i == 3 { break } else { i });
+    n += 1;
   }
 
-  var m = 0
+  var m = 0;
   for i in 0..=10 {
-    m += 1 + if i == 2 { break } else { i }
+    m += 1 + if i == 2 { break } else { i };
   }
 
-  printf(" n=%d m=%d\n", n, m)
-  return 0
+  printf(" n=%d m=%d\n", n, m);
+  return 0;
 }

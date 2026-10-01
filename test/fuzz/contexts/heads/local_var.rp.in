@@ -1,4 +1,4 @@
 func main() i32 {
-  var %%D%%
-  return n
+  var %%D%%;
+  return n;
 }

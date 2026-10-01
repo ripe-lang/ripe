@@ -1,14 +1,14 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var i = 0
+  var i = 0;
   var found = outer: loop {
-    var j = 0
+    var j = 0;
     loop {
-      j += 1
+      j += 1;
       if j == 4 { break :outer i * 100 + j }
     }
-  }
-  printf("found=%d\n", found)
-  return found
+  };
+  printf("found=%d\n", found);
+  return found;
 }

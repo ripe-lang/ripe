@@ -1,7 +1,7 @@
 func main() i32 {
   var x: i32 = {
-    var a = 20
+    var a = 20;
     a + 1
-  }
-  return x
+  };
+  return x;
 }

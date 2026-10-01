@@ -30,7 +30,7 @@ PRELUDE = (
     'extern "C" func hc(a: i32) i32 { return a }\n'
     "func spin() never { loop {} }\n"
     "struct pt { x: i32 }\n"
-    "type word = i32\n"
+    "type word = i32;\n"
 )
 
 SKIP = {

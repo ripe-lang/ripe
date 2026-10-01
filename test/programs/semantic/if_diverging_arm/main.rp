@@ -1,8 +1,8 @@
 func clamp_low(x: i32) i32 {
-  var y: i32 = if x < 0 { return 7 } else { x }
-  return y + 1
+  var y: i32 = if x < 0 { return 7 } else { x };
+  return y + 1;
 }
 
 func main() i32 {
-  return clamp_low(-4) + clamp_low(5)
+  return clamp_low(-4) + clamp_low(5);
 }

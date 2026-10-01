@@ -1,1 +1,1 @@
-type a = b: i32
+type a = b: i32;

@@ -1,8 +1,8 @@
 func main() i32 {
-  var n = 0
+  var n = 0;
   var answer = loop {
-    n += 1
+    n += 1;
     if n == 7 { break n * 6 }
-  }
-  return answer
+  };
+  return answer;
 }

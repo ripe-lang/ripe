@@ -1,7 +1,7 @@
 error: mismatched closing delimiter
   at main.rp:2:32
-      struct pair { a: i32; b: i32 )
+      struct pair { a: i32, b: i32 )
                                    ^ expected `}`
   at main.rp:2:15
-      struct pair { a: i32; b: i32 )
+      struct pair { a: i32, b: i32 )
                   ^ to match this `{`

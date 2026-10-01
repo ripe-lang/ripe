@@ -15,6 +15,6 @@ error: a struct literal can't go in a header
 help: wrap the literal in parentheses
 error: a struct literal can't go in a header
   at main.rp:11:22
-      return match point { 1, 2 }.y { 2 => n; _ => 0 }
+      return match point { 1, 2 }.y { 2 => n, _ => 0 };
                          ^ this `{` starts the body
 help: wrap the literal in parentheses

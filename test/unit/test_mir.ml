@@ -140,12 +140,12 @@ let%expect_test "mir: continue uses one shared step block" =
   Pipeline.run_mir
     {|
 func f() i32 {
-  var sum: i32 = 0
+  var sum: i32 = 0;
   for i in 0..5 {
     if i == 2 { continue }
-    sum += i
+    sum += i;
   }
-  return sum
+  return sum;
 }
 |};
   [%expect
@@ -208,25 +208,25 @@ func f() i32 {
        func f() i32 {
          block0:
            return 8
-       }
+       };
        |}]
 *)
 
 let%expect_test "mir: labeled break targets the outer loop" =
   Pipeline.run_mir
     {|
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var n = 0
+  var n = 0;
   outer: loop {
     loop {
-      n += 1
+      n += 1;
       if n == 4 { break :outer }
     }
   }
-  printf("n=%d\n", n)
-  return n
+  printf("n=%d\n", n);
+  return n;
 }
 |};
   [%expect
@@ -271,19 +271,19 @@ func main() i32 {
 let%expect_test "mir: labeled break writes the outer loop value" =
   Pipeline.run_mir
     {|
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var i = 0
+  var i = 0;
   var found = outer: loop {
-    var j = 0
+    var j = 0;
     loop {
-      j += 1
+      j += 1;
       if j == 4 { break :outer i * 100 + j }
     }
-  }
-  printf("found=%d\n", found)
-  return found
+  };
+  printf("found=%d\n", found);
+  return found;
 }
 |};
   [%expect
@@ -429,19 +429,19 @@ let%expect_test "mir: a returned str literal goes through storage" =
            %2 = 6 + copy %0
            %3 = copy %1 + copy %2
            return copy %3
-       }
+       };
        |}]
 *)
 
 let%expect_test "mir: a positional struct literal lowers like a named one" =
   Pipeline.run_mir
     {|
-struct pair { x: i32; y: i32 }
+struct pair { x: i32, y: i32 }
 
 func f(a: i32, b: i32) i32 {
-  var positional = pair { a, b }
-  var named = pair { y: b, x: a }
-  return positional.x + named.y
+  var positional = pair { a, b };
+  var named = pair { y: b, x: a };
+  return positional.x + named.y;
 }
 |};
   [%expect
@@ -468,12 +468,12 @@ func f(a: i32, b: i32) i32 {
 let%expect_test "mir: struct fields run in the order they are written" =
   Pipeline.run_mir
     {|
-struct pair { x: i32; y: i32 }
+struct pair { x: i32, y: i32 }
 
 func side(v: i32) i32 { return v }
 
 func f() pair {
-  return pair { y: side(1), x: side(2) }
+  return pair { y: side(1), x: side(2) };
 }
 |};
   [%expect
@@ -578,10 +578,10 @@ let%expect_test "mir: a match lowers to a chain of tests" =
   Pipeline.run_mir
     {|func f(n: i32) i32 {
   return match n {
-    1 => 10
-    2 => 20
-    _ => 0
-  }
+    1 => 10,
+    2 => 20,
+    _ => 0,
+  };
 }|};
   [%expect
     {|
@@ -619,9 +619,9 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
     {|func f() i32 {
-  var t: i32 = 0
+  var t: i32 = 0;
   for i in 0..3 { t += i }
-  return t
+  return t;
 }|};
   [%expect
     {|
@@ -661,9 +661,9 @@ let%expect_test "mir: a range for counts without a bounds check" =
 let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
     {|func f() i32 {
-  var t: i32 = 0
+  var t: i32 = 0;
   for i in 0..=3 { t += i }
-  return t
+  return t;
 }|};
   [%expect
     {|
@@ -708,9 +708,9 @@ let%expect_test "mir: an inclusive range stops one step later" =
 let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
     {|func f(a: [3]i32) i32 {
-  var t: i32 = 0
+  var t: i32 = 0;
   for v in a { t += v }
-  return t
+  return t;
 }|};
   [%expect
     {|
@@ -781,10 +781,10 @@ let%expect_test "mir: a slice expression carries a base and a length" =
 let%expect_test "mir: a pair assign reads both sides before writing" =
   Pipeline.run_mir
     {|func f() i32 {
-  var a: i32 = 1
-  var b: i32 = 2
-  a, b = b, a
-  return a
+  var a: i32 = 1;
+  var b: i32 = 2;
+  a, b = b, a;
+  return a;
 }|};
   [%expect
     {|
@@ -808,9 +808,9 @@ let%expect_test "mir: a pair assign reads both sides before writing" =
 let%expect_test "mir: a compound assign reuses the place it writes" =
   Pipeline.run_mir
     {|func f() i32 {
-  var a: [2]i32 = [1, 2]
-  a[0] += 5
-  return a[0]
+  var a: [2]i32 = [1, 2];
+  a[0] += 5;
+  return a[0];
 }|};
   [%expect
     {|
@@ -881,7 +881,7 @@ let%expect_test "mir: a shift guards against an out of range count" =
 
 let%expect_test "mir: a variadic call marks where the fixed params stop" =
   Pipeline.run_mir
-    {|extern "C" func printf(fmt: cstr, ...) i32
+    {|extern "C" func printf(fmt: cstr, ...) i32;
 func f() i32 { return printf("%d %d\n", 1, 2) }|};
   [%expect
     {|
@@ -897,8 +897,8 @@ func f() i32 { return printf("%d %d\n", 1, 2) }|};
 let%expect_test "mir: an array literal writes each element in order" =
   Pipeline.run_mir
     {|func f() i32 {
-  var a: [3]i32 = [7, 8, 9]
-  return a[1]
+  var a: [3]i32 = [7, 8, 9];
+  return a[1];
 }|};
   [%expect
     {|
@@ -925,11 +925,11 @@ let%expect_test "mir: an array literal writes each element in order" =
 let%expect_test "mir: a loop yields the value its break carries" =
   Pipeline.run_mir
     {|func f() i32 {
-  var n = 0
+  var n = 0;
   return loop {
-    n += 1
+    n += 1;
     if n == 3 { break n }
-  }
+  };
 }|};
   [%expect
     {|
@@ -981,8 +981,8 @@ func f(o: Outer) i32 { return o.i.v }|};
 
 let%expect_test "mir: a deref through a pointer is a place projection" =
   Pipeline.run_mir {|func f(p: *i32) i32 {
-  *p = 4
-  return *p
+  *p = 4;
+  return *p;
 }|};
   [%expect
     {|

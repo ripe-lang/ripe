@@ -57,15 +57,6 @@ let is_type_start = function
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN | ERROR _ -> true
   | _ -> false
 
-let is_semi = function AUTOSEMI | SEMI -> true | _ -> false
-
-let is_ambiguous_continuation = function
-  | PLUS | MINUS | STAR | AMP -> true
-  | _ -> false
-
-let is_dereference_assignment token e =
-  match e.desc with Assign _ -> token == STAR | _ -> false
-
 let is_stmt_keyword = function
   | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH ->
       true
@@ -80,8 +71,13 @@ let is_item_start = function
 let is_member_start = function IDENT _ -> true | _ -> false
 let is_block_start tok = is_stmt_start tok || is_item_start tok
 
-let is_next_line_start st line is_start =
-  cur_line st > line && is_start (cur_token st)
+let ends_in_block = function
+  | Expr { desc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ }
+  | Decl (LocalFunc _ | LocalStruct _ | LocalEnum _)
+  | Expr { desc = Binding (_, _, _, Some { desc = ErrorExpr; _ }); _ }
+  | Decl (LocalTypeAlias { alias_typ = { tdesc = ErrorType; _ }; _ }) ->
+      true
+  | Expr _ | Decl _ -> false
 
 let next_token st last = match last.token with EOF -> last | _ -> st.read ()
 
@@ -141,22 +137,20 @@ let starts_item st = names_decl (cur_token st) (peek_token st)
 let starts_member st =
   match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
 
-let at_value_end st =
-  is_semi (cur_token st) || at st RBRACE || at st EOF || at st COMMA
+let at_value_end st = at st SEMI || at st RBRACE || at st EOF || at st COMMA
 
 let at_decl line st =
   cur_line st > line && starts_item st && not (is_stmt_keyword (cur_token st))
 
-let at_semi st = is_semi (cur_token st)
 let at_param_break st = at st COMMA || starts_member st
 
 let at_stmt_break line st =
-  is_semi (cur_token st) || (cur_line st > line && is_block_start (cur_token st))
+  at st SEMI || (cur_line st > line && is_block_start (cur_token st))
 
 let never _ = false
 
 let skip_semi st =
-  while is_semi (cur_token st) do
+  while at st SEMI do
     advance st
   done
 
@@ -188,8 +182,7 @@ let resync st opens at_sibling =
 let skip_line st line stops =
   while
     not
-      (at st EOF || at st RBRACE
-      || is_semi (cur_token st)
+      (at st EOF || at st RBRACE || at st SEMI
       || cur_line st > line
       || List.exists (at st) stops)
   do
@@ -245,12 +238,12 @@ let expect_decl_name st =
 (* The bad separator should only be reported once *)
 let expect_decl_sep st ~what =
   match cur_token st with
-  | AUTOSEMI | SEMI -> skip_semi st
+  | COMMA -> advance st
   | RBRACE | EOF -> ()
   | tok ->
       if not (is_stmt_keyword tok) then begin
         Diagnostic.error (cur_span st) "expected %s separator" what
-        |> Diagnostic.help ("separate " ^ what ^ "s with a newline or `;`")
+        |> Diagnostic.help ("separate " ^ what ^ "s with `,`")
         |> report st;
         if not (is_member_start tok) then advance st
       end
@@ -258,8 +251,6 @@ let expect_decl_sep st ~what =
 let expect_literal_field_sep st =
   match cur_token st with
   | COMMA -> advance st
-  | AUTOSEMI | SEMI ->
-      Diagnostic.error (cur_span st) "missing `,` before newline" |> fail
   | RBRACE -> ()
   | _ ->
       Diagnostic.error (cur_span st) "expected `,` between fields"
@@ -276,7 +267,7 @@ let comma_sep st stop parse_one =
         item :: rest ()
     end
     else begin
-      if is_semi (cur_token st) then expect st stop;
+      if at st SEMI then expect st stop;
       []
     end
   in
@@ -339,10 +330,8 @@ let infix_of = function
 (* The missing type belongs to the preceding separator *)
 let rec typ_after st tok =
   let span = cur_span st in
-  let line = cur_line st in
   expect st tok;
-  if cur_line st > line || starts_member st then
-    Diagnostic.error span "expected type" |> fail;
+  if starts_member st then Diagnostic.error span "expected type" |> fail;
   parse_typ st
 
 and binding_name st context =
@@ -356,16 +345,13 @@ and binding_name st context =
 and binding_annotation st =
   match (cur_token st, peek_token st) with
   | COLON, _ -> Some (typ_after st COLON)
-  | IDENT _, (ASSIGN | SEMI | AUTOSEMI | RBRACE | EOF | DOT) ->
+  | IDENT _, (ASSIGN | SEMI | RBRACE | EOF | DOT) ->
       Diagnostic.error (cur_span st) "expected `:`" |> found st |> report st;
       Some (parse_typ st)
   | _ -> None
 
 and binding_initializer st =
-  let span = cur_span st in
-  let line = cur_line st in
   expect st ASSIGN;
-  if cur_line st > line then require_expr_start st span;
   parse_expr st
 
 and expression_statement st context lo =
@@ -524,11 +510,10 @@ and parse_decl_modifiers st =
   end
   else (mods, NoAbi)
 
-(* x: i32; y: i32 *)
+(* x: i32, y: i32 *)
 and parse_fields st =
   let opens = st.opens in
   let fields = ref [] in
-  skip_semi st;
   while not (at st RBRACE || at st EOF) do
     try
       let name = expect_decl_name st in
@@ -541,12 +526,12 @@ and parse_fields st =
       fields :=
         { field_name = missing_ident span; field_typ = error_typ span }
         :: !fields;
-      resync st opens at_semi;
-      skip_semi st
+      resync st opens (fun st -> at st COMMA);
+      if at st COMMA then advance st
   done;
   List.rev !fields
 
-(* { x: i32; y: i32 } *)
+(* { x: i32, y: i32 } *)
 and parse_struct_body st =
   if not (at st LBRACE) then begin
     Diagnostic.error (cur_span st) "expected `{`" |> found st |> report st;
@@ -560,7 +545,7 @@ and parse_struct_body st =
     Some fields
   end
 
-(* struct point { x: i32; y: i32 } *)
+(* struct point { x: i32, y: i32 } *)
 and parse_struct_def st mods =
   let lo = cur_pos st in
   expect st STRUCT;
@@ -573,11 +558,10 @@ and parse_struct_def st mods =
     struct_span = span_from lo st;
   }
 
-(* Red; Green; Blue *)
+(* Red, Green, Blue *)
 and parse_variants st =
   let opens = st.opens in
   let variants = ref [] in
-  skip_semi st;
   while not (at st RBRACE || at st EOF) do
     try
       variants := expect_decl_name st :: !variants;
@@ -585,12 +569,12 @@ and parse_variants st =
     with ParserError d ->
       report st d;
       variants := missing_ident (recovery_span st d) :: !variants;
-      resync st opens at_semi;
-      skip_semi st
+      resync st opens (fun st -> at st COMMA);
+      if at st COMMA then advance st
   done;
   List.rev !variants
 
-(* { Red; Green; Blue } *)
+(* { Red, Green, Blue } *)
 and parse_enum_body st =
   if not (at st LBRACE) then begin
     Diagnostic.error (cur_span st) "expected `{`" |> found st |> report st;
@@ -604,7 +588,7 @@ and parse_enum_body st =
     Some variants
   end
 
-(* enum Color { Red; Green; Blue } *)
+(* enum Color { Red, Green, Blue } *)
 and parse_enum_def st mods =
   let lo = cur_pos st in
   expect st ENUM;
@@ -677,7 +661,7 @@ and parse_params st =
               Diagnostic.error (cur_span st) "expected parameter separator"
               |> Diagnostic.help "separate parameters with `,`"
               |> report st;
-              if is_semi tok || tok == ELLIPSIS || starts_member st then
+              if tok == SEMI || tok == ELLIPSIS || starts_member st then
                 skip_semi st
               else resync st opens never)
     with ParserError d ->
@@ -699,7 +683,7 @@ and parse_params st =
 (* i32 *)
 and parse_ret_type st =
   match cur_token st with
-  | LBRACE | AUTOSEMI | SEMI | EOF | ASSIGN -> None
+  | LBRACE | SEMI | EOF | ASSIGN -> None
   | FUNC when is_member_start (peek_token st) -> None
   | tok when not (is_type_start tok) -> None
   | _ -> Some (parse_typ st)
@@ -1067,42 +1051,22 @@ and parse_block st =
 and parse_stmts st =
   let opens = st.opens in
   let recover_statement line = resync st opens (at_stmt_break line) in
-  let[@tail_mod_cons] rec go follows_auto_semi =
+  let[@tail_mod_cons] rec go () =
     if at st EOF || at st RBRACE then []
     else
       let line = cur_line st in
-      let start_token = cur_token st in
-      let start_span = cur_span st in
       match parse_stmt st with
       | s ->
-          if follows_auto_semi then
-            begin match s with
-            | Expr e
-              when is_ambiguous_continuation start_token
-                   && not (is_dereference_assignment start_token e) ->
-                Diagnostic.error start_span
-                  "operator starts a new statement after a newline"
-                |> Diagnostic.help "move the operator to the previous line"
-                |> report st
-            | Expr _ -> ()
-            | Decl _ -> ()
-            end;
-
           (* An inner recovery can stop inside a literal and leave it open *)
           if st.opens != opens then recover_statement line;
-          let after_auto_semi = at st AUTOSEMI in
-          if is_semi (cur_token st) then skip_semi st
-          else if
-            not
-              (at st RBRACE || at st EOF
-              || is_next_line_start st line is_block_start)
+          if not (at st SEMI || at st RBRACE || at st EOF || ends_in_block s)
           then begin
             Diagnostic.error (cur_span st) "expected `;`"
             |> found st |> report st;
-            recover_statement line;
-            skip_semi st
+            recover_statement line
           end;
-          s :: go after_auto_semi
+          skip_semi st;
+          s :: go ()
       | exception ParserError d ->
           let error =
             if at st EOF then { desc = ErrorExpr; span = recovery_span st d }
@@ -1110,10 +1074,10 @@ and parse_stmts st =
           in
           recover_statement line;
           skip_semi st;
-          Expr error :: go false
+          Expr error :: go ()
   in
   skip_semi st;
-  go false
+  go ()
 
 (* var n = 1, if c { }, return x *)
 and parse_stmt ?(context = BlockStatement) st =
@@ -1193,7 +1157,7 @@ and parse_elseifs st acc =
     | _ -> (List.rev acc, Some (parse_block st))
   end
 
-(* match c { Color.Red => 0; _ => 1 } *)
+(* match c { Color.Red => 0, _ => 1 } *)
 and parse_match st context =
   let lo = cur_pos st in
   expect st MATCH;
@@ -1202,19 +1166,28 @@ and parse_match st context =
   if context = HeaderExpression && is_error_expr scrutinee then scrutinee
   else parse_arms st lo scrutinee
 
-(* { Color.Red => 0; _ => 1 } *)
+(* { Color.Red => 0, _ => { 1 } } *)
 and parse_arms st lo scrutinee =
   expect st LBRACE;
   let opens = st.opens in
   let arms = ref [] in
   while has_arm st do
     try
-      arms := parse_arm st :: !arms;
-      expect_decl_sep st ~what:"arm"
+      let arm = parse_arm st in
+      arms := arm :: !arms;
+      if at st COMMA then advance st
+      else if
+        not
+          (at st RBRACE || at st EOF
+          || List.for_all ends_in_block arm.arm_body.value)
+      then
+        Diagnostic.error (cur_span st) "expected arm separator"
+        |> Diagnostic.help "separate arms with `,`"
+        |> fail
     with ParserError d ->
       report st d;
-      resync st opens at_semi;
-      skip_semi st
+      resync st opens (fun st -> at st COMMA);
+      if at st COMMA then advance st
   done;
   expect st RBRACE;
   mk lo st (Match (scrutinee, List.rev !arms))
@@ -1223,11 +1196,7 @@ and parse_arms st lo scrutinee =
 and parse_arm st =
   let lo = cur_pos st in
   let pat = parse_pattern st in
-  let arrow = cur_span st in
-  let line = cur_line st in
   expect st FATARROW;
-  if cur_line st > line then
-    Diagnostic.error arrow "expected expression" |> fail;
   let body_lo = cur_pos st in
   let body =
     spanned [ parse_stmt ~context:MatchArmBody st ] (span_from body_lo st)
@@ -1350,23 +1319,32 @@ let parse_module st =
   let imports = ref [] in
   let decls = ref [] in
   while not (at st EOF) do
-    let line = cur_line st in
     try
-      begin match cur_token st with
-      | MODULE when cur_pos st = start ->
-          header := Some (parse_module_header st)
-      | MODULE ->
-          Diagnostic.error (cur_span st) "`module` must be the first item"
-          |> fail
-      | IMPORT -> imports := parse_import st :: !imports
-      | _ -> decls := parse_decl st :: !decls
+      let ends_in_brace =
+        match cur_token st with
+        | MODULE when cur_pos st = start ->
+            header := Some (parse_module_header st);
+            false
+        | MODULE ->
+            Diagnostic.error (cur_span st) "`module` must be the first item"
+            |> fail
+        | IMPORT ->
+            imports := parse_import st :: !imports;
+            false
+        | _ -> (
+            let decl = parse_decl st in
+            decls := decl :: !decls;
+            match decl with
+            | Func _ | Struct _ | Enum _
+            | Global { init = Some { desc = ErrorExpr; _ }; _ }
+            | TypeAlias { alias_typ = { tdesc = ErrorType; _ }; _ } ->
+                true
+            | Extern _ | Global _ | TypeAlias _ -> false)
+      in
+      if not (ends_in_brace || at st SEMI || at st EOF) then begin
+        Diagnostic.error (cur_span st) "expected `;`" |> found st |> report st;
+        if not (starts_item st) then recover_declaration st
       end;
-      if
-        not
-          (is_semi (cur_token st)
-          || at st EOF
-          || is_next_line_start st line is_item_start)
-      then Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail;
       skip_semi st
     with ParserError d ->
       report st d;

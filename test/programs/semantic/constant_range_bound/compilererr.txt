@@ -4,5 +4,5 @@ error: integer literal out of range
                        ^~~ does not fit in u8
 error: integer literal out of range
   at main.rp:10:38
-      var _slice: []i32 = backing[START..300]
+      var _slice: []i32 = backing[START..300];
                                          ^~~ does not fit in u8

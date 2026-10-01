@@ -1,2 +1,2 @@
-const %%D%%
+const %%D%%;
 func main() i32 { return n }

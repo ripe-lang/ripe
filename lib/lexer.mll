@@ -8,7 +8,6 @@ type state = {
   base : int;
   buf : Buffer.t;
   token_queue : (Tokens.token * Span.t * int) Queue.t;
-  mutable last_token : Tokens.token;
   mutable line : int;
   mutable token_line : int;
   mutable string_resume : (int * int) option;
@@ -18,7 +17,6 @@ let make_state base = {
   base;
   buf = Buffer.create 64;
   token_queue = Queue.create ();
-  last_token = EOF;
   line = 1;
   token_line = 1;
   string_resume = None;
@@ -80,13 +78,6 @@ let char_token st lexbuf inner =
   else if Uchar.utf_decode_length d <> String.length inner then
     bad_char st lexbuf "character literal must be a single character"
   else CHAR (Uchar.to_int (Uchar.utf_decode_uchar d))
-
-let can_end_stmt = function
-  | IDENT _ | INT _ | FLOAT _ | STRING _ | CHAR _
-  | TRUE | FALSE | NULL | UNDEFINED
-  | BREAK | CONTINUE | RETURN
-  | RPAREN | RBRACE | RBRACKET | UNDERSCORE -> true
-  | _ -> false
 }
 
 let digit   = ['0'-'9']
@@ -112,11 +103,10 @@ rule read_main st = parse
     }
   | white { read_main st lexbuf }
   | "//" [^ '\n' '\r']* { read_main st lexbuf }
-  | "/*" { read_block_comment st 0 false lexbuf }
+  | "/*" { read_block_comment st 0 lexbuf }
   | newline {
       next_line st;
-      if can_end_stmt st.last_token then AUTOSEMI
-      else read_main st lexbuf
+      read_main st lexbuf
     }
   | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token st lexbuf n }
   | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token st lexbuf n }
@@ -214,9 +204,7 @@ rule read_main st = parse
       st.token_line <- str_line;
       tok
     }
-  | eof {
-      if can_end_stmt st.last_token then AUTOSEMI else EOF
-    }
+  | eof { EOF }
   | _ { ERROR "unexpected character" }
 
 
@@ -263,33 +251,27 @@ and read_string st = parse
       ERROR "unterminated string"
     }
 
-and read_block_comment st depth saw_newline = parse
-  | "/*" { read_block_comment st (depth + 1) saw_newline lexbuf }
+and read_block_comment st depth = parse
+  | "/*" { read_block_comment st (depth + 1) lexbuf }
   | "*/"    {
-      if depth = 0 then
-        if saw_newline && can_end_stmt st.last_token then AUTOSEMI
-        else read_main st lexbuf
-      else read_block_comment st (depth - 1) saw_newline lexbuf
+      if depth = 0 then read_main st lexbuf
+      else read_block_comment st (depth - 1) lexbuf
     }
   | newline {
       next_line st;
-      read_block_comment st depth true lexbuf
+      read_block_comment st depth lexbuf
     }
   | eof { ERROR "unterminated block comment" }
-  | _ { read_block_comment st depth saw_newline lexbuf }
+  | _ { read_block_comment st depth lexbuf }
 
 {
 let read st lexbuf =
-  let tok, span, line =
-    if not (Queue.is_empty st.token_queue) then Queue.pop st.token_queue
-    else begin
-      st.token_line <- 0;
-      let t = read_main st lexbuf in
-      (* A token gets its own line only when it spans lines *)
-      let line = if st.token_line = 0 then st.line else st.token_line in
-      (t, lexbuf_span st lexbuf, line)
-    end
-  in
-  st.last_token <- tok;
-  (tok, span, line)
+  if not (Queue.is_empty st.token_queue) then Queue.pop st.token_queue
+  else begin
+    st.token_line <- 0;
+    let t = read_main st lexbuf in
+    (* A token gets its own line only when it spans lines *)
+    let line = if st.token_line = 0 then st.line else st.token_line in
+    (t, lexbuf_span st lexbuf, line)
+  end
 }

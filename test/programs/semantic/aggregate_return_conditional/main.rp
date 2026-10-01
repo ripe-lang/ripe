@@ -1,18 +1,18 @@
 struct pair {
-  x: i32
-  y: i32
+  x: i32,
+  y: i32,
 }
 
 func choose(flag: bool) pair {
   if flag {
-    return pair { x: 1, y: 2 }
+    return pair { x: 1, y: 2 };
   } else {
-    return pair { x: 3, y: 4 }
+    return pair { x: 3, y: 4 };
   }
 }
 
 func main() i32 {
-  var left = choose(true)
-  var right = choose(false)
-  return left.x + left.y + right.x + right.y
+  var left = choose(true);
+  var right = choose(false);
+  return left.x + left.y + right.x + right.y;
 }

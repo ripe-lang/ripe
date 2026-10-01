@@ -1,10 +1,10 @@
 func take(s: str) usize {
-  return s.len
+  return s.len;
 }
 
 func main() i32 {
-  var a: str = "hello"
-  var b: str = a
-  var empty: str = ""
-  return cast(i32, a.len + take(b) + take("héllo") + empty.len)
+  var a: str = "hello";
+  var b: str = a;
+  var empty: str = "";
+  return cast(i32, a.len + take(b) + take("héllo") + empty.len);
 }

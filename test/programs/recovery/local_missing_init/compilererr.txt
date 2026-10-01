@@ -1,4 +1,4 @@
 error: expected expression
-  at main.rp:2:14
-      var z: i32 =
-                 ^
+  at main.rp:3:3
+      return z;
+      ^~~~~~ found `return`

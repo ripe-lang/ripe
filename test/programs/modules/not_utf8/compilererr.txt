@@ -1,4 +1,4 @@
 error: not valid UTF-8: math.rp
   at main.rp:1:1
-    import math
+    import math;
     ^~~~~~~~~~~

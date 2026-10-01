@@ -7,5 +7,5 @@ func main() i32 {
     if value == 0 { 17 } else { first(value - 1) }
   }
 
-  return first(4)
+  return first(4);
 }
