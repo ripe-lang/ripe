@@ -1,11 +1,11 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var a: u8 = 255u8
-  var b: i64 = 9000000000i64
-  var c: i8 = -128i8
-  var h: u16 = 0xffu16
-  var o: u8 = 0o17u8
-  printf("%d %lld %d %d %d\n", cast(i32, a), b, cast(i32, c), cast(i32, h), cast(i32, o))
-  return 0
+  var a: u8 = 255u8;
+  var b: i64 = 9000000000i64;
+  var c: i8 = -128i8;
+  var h: u16 = 0xffu16;
+  var o: u8 = 0o17u8;
+  printf("%d %lld %d %d %d\n", cast(i32, a), b, cast(i32, c), cast(i32, h), cast(i32, o));
+  return 0;
 }

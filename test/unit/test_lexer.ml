@@ -2,69 +2,10 @@
 
 open Dump
 
-let%expect_test "lexer: semicolon inserted after expression newline" =
-  dump_tokens "x\n";
-  [%expect {|
-    IDENT x
-    AUTOSEMI
-    EOF
-    |}]
-
-let%expect_test "lexer: semicolon inserted at eof" =
-  dump_tokens "x";
-  [%expect {|
-    IDENT x
-    AUTOSEMI
-    EOF
-    |}]
-
-let%expect_test "lexer: semicolon inserted inside parens" =
-  dump_tokens "(\n1\n)\n";
-  [%expect {|
-    (
-    INT 1
-    AUTOSEMI
-    )
-    AUTOSEMI
-    EOF
-    |}]
-
-let%expect_test "lexer: semicolon inserted inside brackets" =
-  dump_tokens "[\n1\n]\n";
-  [%expect {|
-    [
-    INT 1
-    AUTOSEMI
-    ]
-    AUTOSEMI
-    EOF
-    |}]
-
-let%expect_test "lexer: blank lines do not stack semicolons" =
-  dump_tokens "x\n\n\ny\n";
-  [%expect {|
-    IDENT x
-    AUTOSEMI
-    IDENT y
-    AUTOSEMI
-    EOF
-    |}]
-
-let%expect_test "lexer: no semicolon after an operator" =
-  dump_tokens "1 +\n2\n";
-  [%expect {|
-    INT 1
-    +
-    INT 2
-    AUTOSEMI
-    EOF
-    |}]
-
 let%expect_test "lexer: string is one token" =
   dump_tokens {|"hello"|};
   [%expect {|
     STRING hello
-    AUTOSEMI
     EOF
     |}]
 
@@ -72,7 +13,6 @@ let%expect_test "lexer: empty string" =
   dump_tokens {|""|};
   [%expect {|
     STRING
-    AUTOSEMI
     EOF
     |}]
 
@@ -80,7 +20,6 @@ let%expect_test "lexer: braces are literal in a string" =
   dump_tokens {|"a{x}b"|};
   [%expect {|
     STRING a{x}b
-    AUTOSEMI
     EOF
     |}]
 
@@ -88,7 +27,6 @@ let%expect_test "lexer: escape sequences" =
   dump_tokens {|"a\nb\rc\td\\e\""|};
   [%expect {|
     STRING a\nb\rc\td\\e\"
-    AUTOSEMI
     EOF
     |}]
 
@@ -96,9 +34,7 @@ let%expect_test "lexer: line comment stripped to end of line" =
   dump_tokens "x // trailing comment\ny\n";
   [%expect {|
     IDENT x
-    AUTOSEMI
     IDENT y
-    AUTOSEMI
     EOF
     |}]
 
@@ -106,7 +42,6 @@ let%expect_test "lexer: comment only line" =
   dump_tokens "// just a comment\nx\n";
   [%expect {|
     IDENT x
-    AUTOSEMI
     EOF
     |}]
 
@@ -115,17 +50,14 @@ let%expect_test "lexer: block comment stripped" =
   [%expect {|
     IDENT x
     IDENT y
-    AUTOSEMI
     EOF
     |}]
 
-let%expect_test "lexer: multiline block comment inserts semicolon" =
+let%expect_test "lexer: multiline block comment stripped" =
   dump_tokens "x /* one\ntwo */ y\n";
   [%expect {|
     IDENT x
-    AUTOSEMI
     IDENT y
-    AUTOSEMI
     EOF
     |}]
 
@@ -134,7 +66,6 @@ let%expect_test "lexer: nested block comment stripped" =
   [%expect {|
     IDENT x
     IDENT y
-    AUTOSEMI
     EOF
     |}]
 
@@ -210,7 +141,6 @@ let%expect_test "lexer: keyword versus identifier" =
   [%expect {|
     KW for
     IDENT forth
-    AUTOSEMI
     EOF
     |}]
 
@@ -242,7 +172,6 @@ import module loop cast
     KW func
     KW type
     KW undefined
-    AUTOSEMI
     KW import
     KW module
     KW loop
@@ -254,7 +183,6 @@ let%expect_test "lexer: i64 max literal" =
   dump_tokens "9223372036854775807\n";
   [%expect {|
     INT 9223372036854775807
-    AUTOSEMI
     EOF
     |}]
 
@@ -262,7 +190,6 @@ let%expect_test "lexer: u64 max literal" =
   dump_tokens "18446744073709551615\n";
   [%expect {|
     INT -1
-    AUTOSEMI
     EOF
     |}]
 
@@ -277,7 +204,6 @@ let%expect_test "lexer: float literal" =
   dump_tokens "3.14\n";
   [%expect {|
     FLOAT 3.14
-    AUTOSEMI
     EOF
     |}]
 
@@ -285,7 +211,6 @@ let%expect_test "lexer: hex literal" =
   dump_tokens "0xff\n";
   [%expect {|
     INT 255
-    AUTOSEMI
     EOF
     |}]
 
@@ -293,7 +218,6 @@ let%expect_test "lexer: binary literal" =
   dump_tokens "0b1010\n";
   [%expect {|
     INT 10
-    AUTOSEMI
     EOF
     |}]
 
@@ -301,7 +225,6 @@ let%expect_test "lexer: octal literal" =
   dump_tokens "0o17\n";
   [%expect {|
     INT 15
-    AUTOSEMI
     EOF
     |}]
 
@@ -309,7 +232,6 @@ let%expect_test "lexer: uppercase base prefix" =
   dump_tokens "0XFF\n";
   [%expect {|
     INT 255
-    AUTOSEMI
     EOF
     |}]
 
@@ -319,7 +241,6 @@ let%expect_test "lexer: hex arithmetic" =
     INT 255
     +
     INT 1
-    AUTOSEMI
     EOF
     |}]
 
@@ -331,7 +252,6 @@ let%expect_test "lexer: exponent floats" =
     FLOAT 1000.
     FLOAT 1500.
     FLOAT 0.02
-    AUTOSEMI
     EOF
     |}]
 
@@ -356,13 +276,11 @@ let%expect_test "lexer: hex above u64 is an error" =
     EOF
     |}]
 
-let%expect_test "lexer: CRLF newline inserts one semicolon" =
+let%expect_test "lexer: CRLF newline is whitespace" =
   dump_tokens "x\r\ny\r\n";
   [%expect {|
     IDENT x
-    AUTOSEMI
     IDENT y
-    AUTOSEMI
     EOF
     |}]
 
@@ -399,7 +317,6 @@ let%expect_test "lexer: char literal is one code point" =
   dump_tokens "'A'\n";
   [%expect {|
     '\u{41}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -413,7 +330,6 @@ let%expect_test "lexer: char escapes" =
     '\u{9}'
     '\u{5C}'
     '\u{27}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -422,7 +338,6 @@ let%expect_test "lexer: multibyte char literals decode to a scalar" =
   [%expect {|
     '\u{E9}'
     '\u{1F600}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -430,7 +345,6 @@ let%expect_test "lexer: max scalar U+10FFFF" =
   dump_tokens "'\xf4\x8f\xbf\xbf'\n";
   [%expect {|
     '\u{10FFFF}'
-    AUTOSEMI
     EOF
     |}]
 
@@ -478,21 +392,18 @@ let%expect_test "lexer: an unterminated char literal stops before a closer" =
     (
     ERROR unterminated character literal
     )
-    AUTOSEMI
     EOF
     |}]
 
 let%expect_test "lexer: leading UTF 8 BOM is ignored" =
   dump_tokens "\xEF\xBB\xBFfunc main() {}\n";
-  [%expect
-    {|
+  [%expect {|
     KW func
     IDENT main
     (
     )
     {
     }
-    AUTOSEMI
     EOF
     |}]
 
@@ -509,7 +420,6 @@ let%expect_test "lexer: digit separators" =
     FLOAT 1000.0001
     FLOAT 15000000000.
     INT 255u8
-    AUTOSEMI
     EOF
     |}]
 
@@ -518,7 +428,6 @@ let%expect_test "lexer: separators anywhere after the first digit" =
   [%expect {|
     INT 100
     INT 1u8
-    AUTOSEMI
     EOF
     |}]
 
@@ -533,7 +442,6 @@ let%expect_test "lexer: a leading separator is a name" =
   dump_tokens "_1000\n";
   [%expect {|
     IDENT _1000
-    AUTOSEMI
     EOF
     |}]
 
@@ -551,7 +459,6 @@ let%expect_test "lexer: every suffix in decimal form" =
     INT 7u32
     INT 7u64
     INT 7usize
-    AUTOSEMI
     EOF
     |}]
 
@@ -566,7 +473,6 @@ let%expect_test "lexer: every float suffix" =
     FLOAT 1000.f32
     FLOAT 1.5
     FLOAT 10.5f64
-    AUTOSEMI
     EOF
     |}]
 
@@ -585,7 +491,6 @@ let%expect_test "lexer: every suffix in hex form" =
     INT 7u32
     INT 7u64
     INT 7usize
-    AUTOSEMI
     EOF
     |}]
 
@@ -604,7 +509,6 @@ let%expect_test "lexer: every suffix in binary form" =
     INT 1u32
     INT 1u64
     INT 1usize
-    AUTOSEMI
     EOF
     |}]
 
@@ -623,7 +527,6 @@ let%expect_test "lexer: every suffix in octal form" =
     INT 7u32
     INT 7u64
     INT 7usize
-    AUTOSEMI
     EOF
     |}]
 
@@ -634,18 +537,15 @@ let%expect_test "lexer: enum and match keywords and the arrow" =
     KW match
     =>
     _
-    AUTOSEMI
     EOF
     |}]
 
 let%expect_test "lexer: an identifier may start with an underscore" =
   dump_tokens "_ _x x_ _1\n";
-  [%expect
-    {|
+  [%expect {|
     _
     IDENT _x
     IDENT x_
     IDENT _1
-    AUTOSEMI
     EOF
     |}]

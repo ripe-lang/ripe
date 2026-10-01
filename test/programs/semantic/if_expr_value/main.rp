@@ -1,4 +1,4 @@
 func main() i32 {
-  var x = if true { 10 } else { 20 }
-  return x
+  var x = if true { 10 } else { 20 };
+  return x;
 }

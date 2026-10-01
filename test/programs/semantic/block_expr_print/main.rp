@@ -1,10 +1,10 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
   var msg = {
-    var n = 6
+    var n = 6;
     n * 7
-  }
-  printf("answer=%d\n", msg)
-  return 0
+  };
+  printf("answer=%d\n", msg);
+  return 0;
 }

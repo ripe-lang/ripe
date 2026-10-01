@@ -1,4 +1,4 @@
 error: expected `{`
   at main.rp:3:14
-      enum side  Left; Right }
+      enum side  Left, Right }
                  ^~~~ found Left

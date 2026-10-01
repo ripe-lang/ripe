@@ -32,14 +32,14 @@ RUNS = 1200
 
 def struct_decl(i, n):
     picks = [FIELD_TYPES[j % len(FIELD_TYPES)] for j in range(n)]
-    body = "\n".join(f"  {NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
+    body = "\n".join(f"  {NAMES[j]}: {t}," for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
 
     return f"struct S{i} {{\n{body}\n}}", [f"var s{i} = S{i} {{ {args} }}"], []
 
 
 def enum_decl(i, n):
-    body = "\n".join(f"  V{j}" for j in range(n))
+    body = "\n".join(f"  V{j}," for j in range(n))
 
     return f"enum E{i} {{\n{body}\n}}", [f"var _e{i} = E{i}.V0"], []
 
@@ -48,7 +48,7 @@ def func_decl(i, n):
     picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
     ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
-    text = f"func f{i}({ps}) i32 {{\n  return 0\n}}"
+    text = f"func f{i}({ps}) i32 {{\n  return 0;\n}}"
 
     return text, [f"var r{i} = f{i}({args})"], [f"r{i}"]
 
@@ -57,7 +57,7 @@ def extern_decl(i, n):
     picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
     ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
-    text = f'pub extern "C" func e{i}({ps}) i32 {{\n  return 0\n}}'
+    text = f'pub extern "C" func e{i}({ps}) i32 {{\n  return 0;\n}}'
 
     return text, [f"var r{i} = e{i}({args})"], [f"r{i}"]
 
@@ -67,7 +67,7 @@ def import_decl(i, n):
     picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
     ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
 
-    return f'extern "C" func x{i}({ps}) i32', [], []
+    return f'extern "C" func x{i}({ps}) i32;', [], []
 
 
 BUILDERS = (struct_decl, enum_decl, func_decl, extern_decl, import_decl)
@@ -144,17 +144,17 @@ def corrupt(rng, text):
 
 
 def build_main(uses, terms):
-    body = "".join(f"  {u}\n" for u in uses)
+    body = "".join(f"  {u};\n" for u in uses)
     total = " + ".join(terms) if terms else "0"
 
-    return f"func main() i32 {{\n{body}  return {total}\n}}\n"
+    return f"func main() i32 {{\n{body}  return {total};\n}}\n"
 
 
 def make_case(rng):
     if rng.random() < 0.15:
-        src = "struct P {\n  x: i32\n}\n"
+        src = "struct P {\n  x: i32,\n}\n"
         src += rng.choice(CLOSERS) + "\n"
-        src += "func main() i32 {\n  var p: P = undefined\n  return p.x\n}\n"
+        src += "func main() i32 {\n  var p: P = undefined;\n  return p.x;\n}\n"
 
         return src, False, "delim", 1, None
 

@@ -26,42 +26,42 @@ let%expect_test "an unterminated string underlines the remaining source" =
     |}]
 
 let%expect_test "a return type mismatch shows the expected and actual types" =
-  Pipeline.run_src "func main() i32 {\n  return true\n}\n";
+  Pipeline.run_src "func main() i32 {\n  return true;\n}\n";
   [%expect
     {|
     error: type mismatch
       at <test>:2:10
-          return true
+          return true;
                  ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "a parser error shows the token it found" =
-  Pipeline.run_src "func main() i32 {\n  var = 1\n  return 0\n}\n";
+  Pipeline.run_src "func main() i32 {\n  var = 1;\n  return 0;\n}\n";
   [%expect
     {|
     error: expected identifier
       at <test>:2:7
-          var = 1
+          var = 1;
               ^ found =
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =
-  Pipeline.run_src "func main() i32 {\n\treturn missing\n}\n";
+  Pipeline.run_src "func main() i32 {\n\treturn missing;\n}\n";
   [%expect
     {|
     error: undefined variable
       at <test>:2:16
-                return missing
+                return missing;
                        ^~~~~~~
     |}]
 
 let%expect_test "an unused variable warning includes the suggested name" =
-  Pipeline.run_src "func main() i32 {\n  var value = 1\n  return 0\n}\n";
+  Pipeline.run_src "func main() i32 {\n  var value = 1;\n  return 0;\n}\n";
   [%expect
     {|
     warning: unused variable: value
       at <test>:2:7
-          var value = 1
+          var value = 1;
               ^~~~~
     help: prefix with an underscore: _value
     ok
@@ -88,9 +88,9 @@ let%expect_test "an import cycle prints its path after the source" =
   let program, diags =
     Pipeline.load_tree
       [
-        ("main.rp", "import a\nfunc main() i32 { return 0 }");
-        ("a.rp", "import b\npub func fa() {}");
-        ("b.rp", "import a\npub func fb() {}");
+        ("main.rp", "import a;\nfunc main() i32 { return 0 }");
+        ("a.rp", "import b;\npub func fa() {}");
+        ("b.rp", "import a;\npub func fb() {}");
       ]
   in
   List.iter (render_in program) (Diagnostic.drain diags);
@@ -98,7 +98,7 @@ let%expect_test "an import cycle prints its path after the source" =
     {|
     error: import cycle
       at <test>:1:1
-        import a
+        import a;
         ^~~~~~~~
       module a
         imports b from a.rp
@@ -243,32 +243,32 @@ let%expect_test "the severity word gains color only when asked" =
     |}]
 
 let%expect_test "a mismatched delimiter points to the opening delimiter" =
-  Pipeline.run_src "func main() i32 { return value( }";
+  Pipeline.run_src "func main() i32 { return value( };";
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:1:33
-        func main() i32 { return value( }
+        func main() i32 { return value( };
                                         ^ expected `)`
       at <test>:1:31
-        func main() i32 { return value( }
+        func main() i32 { return value( };
                                       ^ to match this `(`
     |}]
 
 let%expect_test "an undefined name after UTF text keeps its caret aligned" =
-  Pipeline.run_src "func main() i32 {\n  var _s = \"é\"; return missing\n}\n";
+  Pipeline.run_src "func main() i32 {\n  var _s = \"é\"; return missing;\n}\n";
   [%expect
     {|
     error: undefined variable
       at <test>:2:24
-          var _s = "é"; return missing
+          var _s = "é"; return missing;
                                ^~~~~~~
     |}]
 
 let%expect_test "a long undefined name stops at the preview edge" =
   Pipeline.run_src
     {|func main() i32 {
-  return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more
+  return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more;
 }
 |};
   [%expect
@@ -283,19 +283,19 @@ let%expect_test
     "an undefined name near the end of a long expression stays visible" =
   Pipeline.run_src
     {|func main() i32 {
-  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
+  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing;
 }
 |};
   [%expect
     {|
     error: undefined variable
       at <test>:2:101
-        ... + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
-                                                                                                 ^~~~~~~
+        ...+ 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing;
+                                                                                                ^~~~~~~
     |}]
 
 let%expect_test "an unfinished function points to its opening brace" =
-  Pipeline.run_src "func main() i32 {\n  return";
+  Pipeline.run_src "func main() i32 {\n  return;";
   [%expect
     {|
     error: unclosed delimiter

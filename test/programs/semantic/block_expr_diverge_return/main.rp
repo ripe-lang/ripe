@@ -1,11 +1,11 @@
 func f() i32 {
   var x = {
-    return 7
+    return 7;
     99
-  }
-  return x
+  };
+  return x;
 }
 
 func main() i32 {
-  return f()
+  return f();
 }

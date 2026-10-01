@@ -1,7 +1,7 @@
-type Value = i32
+type Value = i32;
 
 func main() i32 {
-  type Value = bool
-  var value: Value = true
-  return if value { 20 } else { 0 }
+  type Value = bool;
+  var value: Value = true;
+  return if value { 20 } else { 0 };
 }

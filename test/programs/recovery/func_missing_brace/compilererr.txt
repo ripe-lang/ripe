@@ -1,4 +1,4 @@
 error: expected `{`
-  at main.rp:1:23
-    func scale(n: i32) i32
-                          ^ found ;
+  at main.rp:2:3
+      return n * 2;
+      ^~~~~~ found `return`

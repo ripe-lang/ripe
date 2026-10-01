@@ -1,8 +1,8 @@
-module main
+module main;
 
-import std.io
+import std.io;
 
 func main() i32 {
-  io.print_int(3)
-  return 0
+  io.print_int(3);
+  return 0;
 }

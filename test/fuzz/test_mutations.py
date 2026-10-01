@@ -55,13 +55,11 @@ ALPHABET = (
 
 FRONT_END = (
     "expected ",
-    "missing `,` before newline",
     "mixed struct fields",
     "unexpected closing delimiter",
     "pair assignment requires",
     "`module` must be the first item",
     "`...` must be the last parameter",
-    "operator starts a new statement after a newline",
     "comparison operators cannot be chained",
     "range operators cannot be chained",
     "integer literal out of range",

@@ -1,10 +1,10 @@
 func maybe(c: bool) {
   if c { return }
-  return
+  return;
 }
 
 func main() i32 {
-  maybe(true)
-  maybe(false)
-  return 7
+  maybe(true);
+  maybe(false);
+  return 7;
 }

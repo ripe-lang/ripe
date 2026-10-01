@@ -49,15 +49,15 @@
                            { id = 0; module_id = 0; name = "add";
                              link_name = "_R4main3add"; kind = Func;
                              visibility = Private; entry_point = false;
-                             span = (0,47); name_span = (5,8) });
+                             span = (0,48); name_span = (5,8) });
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
                         span = (-1,-1) },
-                      [{ desc = (TInt 1L); ty = (TInt I32); span = (80,81) };
-                        { desc = (TInt 2L); ty = (TInt I32); span = (83,84) }
+                      [{ desc = (TInt 1L); ty = (TInt I32); span = (81,82) };
+                        { desc = (TInt 2L); ty = (TInt I32); span = (84,85) }
                         ],
                       None));
-                   ty = (TInt I32); span = (76,85) }));
-        ty = TNever; span = (69,85) }
+                   ty = (TInt I32); span = (77,86) }));
+        ty = TNever; span = (70,86) }
        ];
      modifiers = []; variadic = false; abi = Ripe })

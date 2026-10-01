@@ -1,9 +1,9 @@
-type small = i32
+type small = i32;
 
 func main() i32 {
-  var a: small = 5
+  var a: small = 5;
   if sizeof(small) == 4 {
-    return cast(i32, a)
+    return cast(i32, a);
   }
-  return 0
+  return 0;
 }

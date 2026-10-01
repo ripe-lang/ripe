@@ -1,4 +1,4 @@
 error: expected type
   at main.rp:1:8
-    const A: b: i32 = 1
+    const A: b: i32 = 1;
            ^

@@ -1,10 +1,10 @@
-const GLOBAL: i32 = 40
+const GLOBAL: i32 = 40;
 
 func main() i32 {
-  const local: i32 = 2
-  local = 3
-  GLOBAL = 5
-  var _p: *i32 = &GLOBAL
-  var _q: *i32 = &local
-  return 0
+  const local: i32 = 2;
+  local = 3;
+  GLOBAL = 5;
+  var _p: *i32 = &GLOBAL;
+  var _q: *i32 = &local;
+  return 0;
 }

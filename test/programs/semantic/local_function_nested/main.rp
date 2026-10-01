@@ -15,5 +15,5 @@ func main() i32 {
     second(value)
   }
 
-  return first(14)
+  return first(14);
 }

@@ -1,5 +1,5 @@
 func main() i32 {
-  var a: isize = 40
-  var b: usize = 2
-  return (cast(i32, a)) + (cast(i32, b))
+  var a: isize = 40;
+  var b: usize = 2;
+  return (cast(i32, a)) + (cast(i32, b));
 }

@@ -1,1 +1,1 @@
-pub enum Color { Red; Green; Blue }
+pub enum Color { Red, Green, Blue }

@@ -34,7 +34,7 @@ let dump_decl_visibilities src =
 
 let%expect_test "resolve: global and function collide" =
   run_src {|
-var x: i32 = 1
+var x: i32 = 1;
 func x() i32 { return 0 }
 |};
   [%expect
@@ -44,20 +44,20 @@ func x() i32 { return 0 }
         func x() i32 { return 0 }
              ^
       at <test>:2:5
-        var x: i32 = 1
+        var x: i32 = 1;
             ^ previous definition here
     |}]
 
 let%expect_test "resolve: collision reported in either order" =
   run_src {|
 func x() i32 { return 0 }
-var x: i32 = 1
+var x: i32 = 1;
 |};
   [%expect
     {|
     error: already defined
       at <test>:3:5
-        var x: i32 = 1
+        var x: i32 = 1;
             ^
       at <test>:2:6
         func x() i32 { return 0 }
@@ -100,9 +100,9 @@ let%expect_test "resolve: nested block shadow does not leak" =
   run_src
     {|
 func main() i32 {
-  var x: i32 = 1
+  var x: i32 = 1;
   { var x: i32 = 2 }
-  return x
+  return x;
 }
 |};
   [%expect
@@ -119,9 +119,9 @@ let%expect_test "resolve: same scope redeclare reads old binding" =
   run_src
     {|
 func main() i32 {
-  var x: i32 = 1
-  var x: i32 = x + 4
-  return x
+  var x: i32 = 1;
+  var x: i32 = x + 4;
+  return x;
 }
 |};
   [%expect {| ok |}]
@@ -130,9 +130,9 @@ let%expect_test "resolve: loop variable is scoped to the loop" =
   run_src
     {|
 func main() i32 {
-  var i: i32 = 99
+  var i: i32 = 99;
   for i in 0..3 { }
-  return i
+  return i;
 }
 |};
   [%expect
@@ -149,15 +149,15 @@ let%expect_test "resolve: cannot assign to a function name" =
   run_src {|
 func g() {}
 func main() i32 {
-  g = g
-  return 0
+  g = g;
+  return 0;
 }
 |};
   [%expect
     {|
     error: cannot assign to function
       at <test>:4:3
-          g = g
+          g = g;
           ^
     |}]
 
@@ -166,8 +166,8 @@ let%expect_test "resolve: address of a function lowers" =
     {|
 func g() i32 { return 7 }
 func main() i32 {
-  var _p = &g
-  return 0
+  var _p = &g;
+  return 0;
 }
 |};
   [%expect
@@ -193,11 +193,11 @@ func main() i32 {
 let%expect_test "resolve: var shadowing a global is assignable" =
   run_src
     {|
-var C: i32 = 5
+var C: i32 = 5;
 func main() i32 {
-  var C: i32 = 1
-  C = 2
-  return C
+  var C: i32 = 1;
+  C = 2;
+  return C;
 }
 |};
   [%expect {| ok |}]
@@ -258,12 +258,12 @@ let%expect_test "resolve: shadow inside if body does not leak" =
   run_src
     {|
 func main() i32 {
-  var x: i32 = 1
+  var x: i32 = 1;
   if x > 0 {
-    var x: i32 = 2
-    x = x + 1
+    var x: i32 = 2;
+    x = x + 1;
   }
-  return x
+  return x;
 }
 |};
   [%expect {| ok |}]
@@ -272,12 +272,12 @@ let%expect_test "resolve: shadow inside while body does not leak" =
   run_src
     {|
 func main() i32 {
-  var x: i32 = 0
+  var x: i32 = 0;
   while x < 3 {
-    var y: i32 = x
-    x = y + 1
+    var y: i32 = x;
+    x = y + 1;
   }
-  return x
+  return x;
 }
 |};
   [%expect {| ok |}]
@@ -286,12 +286,12 @@ let%expect_test "resolve: local inside for body does not leak" =
   run_src
     {|
 func main() i32 {
-  var sum: i32 = 0
+  var sum: i32 = 0;
   for i in 0..3 {
-    var t: i32 = i
-    sum = sum + t
+    var t: i32 = i;
+    sum = sum + t;
   }
-  return sum
+  return sum;
 }
 |};
   [%expect {| ok |}]
@@ -300,22 +300,22 @@ let%expect_test "resolve: loop variable is not visible after the loop" =
   run_src
     {|
 func main() i32 {
-  var s: i32 = 0
+  var s: i32 = 0;
   for i in 0..3 { s = s + i }
-  return i
+  return i;
 }
 |};
   [%expect
     {|
     error: undefined variable
       at <test>:5:10
-          return i
+          return i;
                  ^
     |}]
 
 let%expect_test "resolve: extern and function names coexist" =
   run_src {|
-extern "C" func puts(s: cstr) i32
+extern "C" func puts(s: cstr) i32;
 func main() i32 { return 0 }
 |};
   [%expect {| ok |}]
@@ -324,12 +324,12 @@ let%expect_test "resolve: same local name in two functions" =
   run_src
     {|
 func a() i32 {
-  var x: i32 = 1
-  return x
+  var x: i32 = 1;
+  return x;
 }
 func b() i32 {
-  var x: i32 = 2
-  return x
+  var x: i32 = 2;
+  return x;
 }
 func main() i32 { return a() + b() }
 |};
@@ -349,7 +349,7 @@ func main() i32 { return nope() }
 
 let%expect_test "resolve: global is visible in a function" =
   run_src {|
-var C: i32 = 5
+var C: i32 = 5;
 func main() i32 { return C }
 |};
   [%expect {| ok |}]
@@ -359,8 +359,8 @@ let%expect_test "resolve: nested block reads the enclosing param" =
     {|
 func f(a: i32) i32 {
   {
-    var a: i32 = a + 1
-    return a
+    var a: i32 = a + 1;
+    return a;
   }
 }
 func main() i32 { return f(1) }
@@ -378,9 +378,9 @@ pub func api() {}
 func helper() {}
 pub struct point {}
 struct secret {}
-pub var LIMIT: i32 = 1
-var count: i32 = 0
-pub type meters = i32
+pub var LIMIT: i32 = 1;
+var count: i32 = 0;
+pub type meters = i32;
 |};
   [%expect
     {|
@@ -397,7 +397,7 @@ let%expect_test "resolve: a call reaches into an imported module" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func main() { math.add(1) }
 |});
       ("math.rp", {|
@@ -410,7 +410,7 @@ let%expect_test "resolve: an unknown member of an import is reported" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func main() { math.nope(1) }
 |});
       ("math.rp", {|
@@ -429,7 +429,7 @@ let%expect_test "resolve: a local shadows an import of the same name" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func main() { var math = 1; math.nope(1) }
 |});
       ("math.rp", {|
@@ -442,7 +442,7 @@ let%expect_test "resolve: an import and a function cannot share a name" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func math() {}
 func main() { math.add(1) }
 |});
@@ -457,7 +457,7 @@ pub func add(x: i32) {}
         func math() {}
              ^~~~
       at <test>:2:1
-        import math
+        import math;
         ^~~~~~~~~~~ previous definition here
     |}]
 
@@ -467,7 +467,7 @@ let%expect_test "resolve: an import and a struct can share a name" =
     [
       ( "main.rp",
         {|
-import math
+import math;
 struct math { x: i32 }
 func main() { math.add(1) }
 |} );
@@ -481,7 +481,7 @@ let%expect_test "resolve: a nested import binds its final name" =
   run_resolve_program
     [
       ("main.rp", {|
-import math.vector
+import math.vector;
 func main() { vector.add(1) }
 |});
       ("math/vector.rp", {|
@@ -493,11 +493,12 @@ pub func add(x: i32) {}
 let%expect_test "resolve: imports with the same final name collide" =
   run_resolve_program
     [
-      ("main.rp", {|
-import math.vector
-import geometry.vector
+      ( "main.rp",
+        {|
+import math.vector;
+import geometry.vector;
 func main() {}
-|});
+|} );
       ("math/vector.rp", {|
 pub func add(x: i32) {}
 |});
@@ -509,10 +510,10 @@ pub func scale(x: i32) {}
     {|
     error: already defined
       at <test>:3:1
-        import geometry.vector
+        import geometry.vector;
         ^~~~~~~~~~~~~~~~~~~~~~
       at <test>:2:1
-        import math.vector
+        import math.vector;
         ^~~~~~~~~~~~~~~~~~ previous definition here
     |}]
 
@@ -520,11 +521,11 @@ let%expect_test "resolve: a type annotation reaches into an imported module" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func main() { var d: math.meters = 0 }
 |});
       ("math.rp", {|
-pub type meters = i32
+pub type meters = i32;
 |});
     ];
   [%expect {| ok |}]
@@ -533,11 +534,11 @@ let%expect_test "resolve: a private type in another module is reported" =
   run_resolve_program
     [
       ("main.rp", {|
-import math
+import math;
 func main() { var d: math.meters = 0 }
 |});
       ("math.rp", {|
-type meters = i32
+type meters = i32;
 |});
     ];
   [%expect
@@ -547,7 +548,7 @@ type meters = i32
         func main() { var d: math.meters = 0 }
                              ^~~~~~~~~~~
       at <test>:2:1
-        type meters = i32
+        type meters = i32;
         ^~~~~~~~~~~~~~~~~ declared private here
     |}]
 
@@ -556,7 +557,7 @@ let%expect_test "resolve: main outside the root module is mangled" =
     load_program
       [
         ("main.rp", {|
-import math
+import math;
 func main() i32 { return 0 }
 |});
         ("math.rp", {|
@@ -583,12 +584,12 @@ let%expect_test "resolve: only a public ABI keeps the name C spells" =
     load_program
       [
         ("main.rp", {|
-import ffi
+import ffi;
 func main() i32 { return 0 }
 |});
         ( "ffi.rp",
           {|
-extern "C" func puts(s: cstr) i32
+extern "C" func puts(s: cstr) i32;
 pub extern "C" func exported(x: i32) i32 { return x }
 pub extern "Ripe" func unmangled(x: i32) i32 { return x }
 extern "C" func callback(x: i32) i32 { return x }
@@ -620,11 +621,11 @@ let%expect_test "resolve: a public import is callable from another module" =
   run_resolve_program
     [
       ("main.rp", {|
-import ffi
+import ffi;
 func main() i32 { return ffi.puts("hi") }
 |});
       ("ffi.rp", {|
-pub extern "C" func puts(s: cstr) i32
+pub extern "C" func puts(s: cstr) i32;
 |});
     ];
   [%expect {| ok |}]
@@ -633,11 +634,11 @@ let%expect_test "resolve: a private import stays in its module" =
   run_resolve_program
     [
       ("main.rp", {|
-import ffi
+import ffi;
 func main() i32 { return ffi.puts("hi") }
 |});
       ("ffi.rp", {|
-extern "C" func puts(s: cstr) i32
+extern "C" func puts(s: cstr) i32;
 |});
     ];
   [%expect
@@ -647,7 +648,7 @@ extern "C" func puts(s: cstr) i32
         func main() i32 { return ffi.puts("hi") }
                                  ^~~~~~~~
       at <test>:2:12
-        extern "C" func puts(s: cstr) i32
+        extern "C" func puts(s: cstr) i32;
                    ^~~~~~~~~~~~~~~~~~~~~~ declared private here
     |}]
 
@@ -662,7 +663,7 @@ let%expect_test "resolve: a local function may call a later sibling" =
 
 let%expect_test "resolve: a local function cannot capture a variable" =
   run_src {|func f() i32 {
-  var x = 4
+  var x = 4;
   func read() i32 { x }
   read()
 }|};
@@ -677,13 +678,13 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 let%expect_test "resolve: a local declaration stays in its block" =
   run_src {|func f() {
   { type Coord = i32 }
-  var x: Coord = 1
+  var x: Coord = 1;
 }|};
   [%expect
     {|
     error: undefined type
       at <test>:3:10
-          var x: Coord = 1
+          var x: Coord = 1;
                  ^~~~~
     |}]
 
@@ -691,7 +692,7 @@ let%expect_test "resolve: a captured variable shadows a module function" =
   run_src
     {|func x() i32 { 7 }
 func outer() i32 {
-  var x = 1
+  var x = 1;
   func inner() i32 { x() }
   inner()
 }|};
@@ -707,11 +708,11 @@ let%expect_test "resolve: an import resolves through a search root" =
   run_resolve_program ~search_roots:[ "/libs" ]
     [
       ("main.rp", {|
-import std.io
+import std.io;
 func main() { io.write() }
 |});
       ("/libs/std/io.rp", {|
-module io
+module io;
 pub func write() {}
 |});
     ];
@@ -721,15 +722,15 @@ let%expect_test "resolve: a relative module shadows a search root" =
   run_resolve_program ~search_roots:[ "/libs" ]
     [
       ("main.rp", {|
-import std.io
+import std.io;
 func main() { io.here() }
 |});
       ("std/io.rp", {|
-module io
+module io;
 pub func here() {}
 |});
       ("/libs/std/io.rp", {|
-module io
+module io;
 pub func write() {}
 |});
     ];
@@ -738,14 +739,14 @@ pub func write() {}
 let%expect_test "resolve: a missing import lists every root tried" =
   run_resolve_program ~search_roots:[ "/libs"; "/other" ]
     [ ("main.rp", {|
-import std.io
+import std.io;
 func main() {}
 |}) ];
   [%expect
     {|
     error: module not found
       at <test>:2:1
-        import std.io
+        import std.io;
         ^~~~~~~~~~~~~
       tried std/io.rp
             /libs/std/io.rp
@@ -788,7 +789,7 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
   let src =
     {|func outer() i32 {
   func inner() i32 { return 1 }
-  return inner()
+  return inner();
 }|}
   in
   let decls, uses = resolve_src 0 src in

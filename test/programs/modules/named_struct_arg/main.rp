@@ -1,6 +1,6 @@
-import math
+import math;
 
 func main() i32 {
-  math.take(1)
-  return 0
+  math.take(1);
+  return 0;
 }

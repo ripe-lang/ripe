@@ -6,5 +6,5 @@ func classify(x: i32) i32 {
   }
 }
 func main() i32 {
-  return classify(-20) + classify(-5) + classify(5) + classify(20)
+  return classify(-20) + classify(-5) + classify(5) + classify(20);
 }

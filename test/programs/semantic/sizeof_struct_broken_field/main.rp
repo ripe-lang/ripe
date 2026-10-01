@@ -1,7 +1,7 @@
 struct holder {
-  bad -1 i32
+  bad -1 i32,
 }
 
 func main() i32 {
-  return cast(i32, sizeof(holder))
+  return cast(i32, sizeof(holder));
 }

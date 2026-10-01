@@ -1,6 +1,6 @@
-extern "C" func exit(code: i32) never
+extern "C" func exit(code: i32) never;
 
 func main() i32 {
-  exit(42)
-  return 0
+  exit(42);
+  return 0;
 }

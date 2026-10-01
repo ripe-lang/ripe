@@ -1,1 +1,1 @@
-pub type Small = u8
+pub type Small = u8;

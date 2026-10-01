@@ -8,7 +8,6 @@ let tok_str (t : Ripe.Tokens.token) =
   | FLOAT (f, suf) ->
       "FLOAT " ^ string_of_float f ^ Option.value ~default:"" suf
   | STRING s -> "STRING " ^ String.escaped s
-  | AUTOSEMI -> "AUTOSEMI"
   | SEMI -> "SEMI"
   | EOF -> "EOF"
   | ERROR s -> "ERROR " ^ s

@@ -1,26 +1,26 @@
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
 func main() i32 {
-  var inner = 0
-  var outer = 0
+  var inner = 0;
+  var outer = 0;
   for _i in 0..3 {
     for j in 0..3 {
-      printf("%d", if j == 1 { continue } else { j })
-      inner += 1
+      printf("%d", if j == 1 { continue } else { j });
+      inner += 1;
     }
-    printf("|")
-    outer += 1
+    printf("|");
+    outer += 1;
   }
 
-  var skipped = 0
+  var skipped = 0;
   for i in 0..4 {
     for j in 0..2 {
-      skipped += j
+      skipped += j;
     }
-    printf("%d", if i == 2 { continue } else { i })
-    outer += 1
+    printf("%d", if i == 2 { continue } else { i });
+    outer += 1;
   }
 
-  printf(" inner=%d outer=%d skipped=%d\n", inner, outer, skipped)
-  return 0
+  printf(" inner=%d outer=%d skipped=%d\n", inner, outer, skipped);
+  return 0;
 }

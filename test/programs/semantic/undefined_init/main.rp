@@ -1,9 +1,9 @@
 func main() i32 {
-  var counter: i32
-  counter += 1
-  var buf: [4]u8 = undefined
+  var counter: i32;
+  counter += 1;
+  var buf: [4]u8 = undefined;
   for i in 0..buf.len {
-    buf[i] = cast(u8, i)
+    buf[i] = cast(u8, i);
   }
-  return counter + buf[3]
+  return counter + buf[3];
 }

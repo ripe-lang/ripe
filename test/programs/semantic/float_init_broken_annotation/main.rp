@@ -1,5 +1,5 @@
-var G: = 2.5
+var G: = 2.5;
 
 func main() i32 {
-  return 0
+  return 0;
 }

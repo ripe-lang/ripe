@@ -1,5 +1,0 @@
-error: expected field separator
-  at main.rp:1:22
-    struct point { x: i32, y: i32 }
-                         ^
-help: separate fields with a newline or `;`

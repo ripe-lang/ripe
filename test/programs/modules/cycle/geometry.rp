@@ -1,5 +1,5 @@
-import math
+import math;
 
 pub func area() i32 {
-  return math.answer()
+  return math.answer();
 }

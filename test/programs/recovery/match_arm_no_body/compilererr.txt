@@ -1,4 +1,5 @@
-error: expected expression
-  at main.rp:4:7
-        1 =>
+error: expected arm separator
+  at main.rp:5:7
+        2 => 2,
           ^~
+help: separate arms with `,`

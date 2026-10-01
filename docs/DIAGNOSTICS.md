@@ -52,7 +52,6 @@ declared private here
 
 ```text
 prefix with an underscore: _p
-move the operator to the previous line
 use `var _ = ...` when this is intentional
 ```
 
@@ -76,7 +75,7 @@ compiler did.
 ```text
 error: undefined variable
   at t.rp:1:8
-    return foo
+    return foo;
            ^~~
 ```
 
@@ -85,7 +84,7 @@ The `foo` is already under the caret, so naming it again adds nothing. The only 
 ```text
 error: type has no fields
   at t.rp:4:13
-      var _y = *n.x + 1
+      var _y = *n.x + 1;
                 ^~~ on i32
 ```
 
@@ -95,7 +94,7 @@ The point is to be obvious and minimal about where the fault is at.
 
 ```text
 error: no field
-    return p.zebra
+    return p.zebra;
              ^~~~~ on struct pt
 ```
 
@@ -103,7 +102,7 @@ You should point to the smallest span that can identify the failure, not the who
 
 ```text
 error: no field
-    return p.zebra
+    return p.zebra;
            ^~~~~~~ on struct pt
 ```
 
@@ -136,7 +135,7 @@ This is not about grouping all unused variables into one message: but rather one
 ```text
 error: module not found: math
   at main.rp:1:1
-    import math
+    import math;
     ^~~~~~~~~~~
 
 (and not a second error for math.answer that was not found)

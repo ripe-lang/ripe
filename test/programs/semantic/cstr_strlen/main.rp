@@ -1,6 +1,6 @@
-extern "C" func strlen(s: cstr) i64
+extern "C" func strlen(s: cstr) i64;
 
 func main() i32 {
-  var s: cstr = "hello"
-  return cast(i32, strlen(s))
+  var s: cstr = "hello";
+  return cast(i32, strlen(s));
 }

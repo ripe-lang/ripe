@@ -1,1 +1,1 @@
-type t = *b: i32
+type t = *b: i32;

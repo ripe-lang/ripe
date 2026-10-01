@@ -1,24 +1,24 @@
 // BROKEN: const eval stripped
 
-extern "C" func printf(fmt: cstr, ...) i32
+extern "C" func printf(fmt: cstr, ...) i32;
 
-const YES: bool = true
-const NO: bool = false
-const BOTH: bool = YES && !NO
-const EITHER: bool = NO || YES
+const YES: bool = true;
+const NO: bool = false;
+const BOTH: bool = YES && !NO;
+const EITHER: bool = NO || YES;
 
 func pick(b: bool) i32 {
   match b {
-    YES => return 10
-    _ => return 20
+    YES => return 10,
+    _ => return 20,
 
   }
 }
 
 func main() i32 {
-  var taken: i32 = 0
+  var taken: i32 = 0;
   if BOTH { taken = 1 } else { taken = 2 }
   printf("%d %d %d %d %d %d\n", cast(i32, YES), cast(i32, NO), cast(i32, BOTH),
-         cast(i32, EITHER), taken, pick(true))
-  return 0
+         cast(i32, EITHER), taken, pick(true));
+  return 0;
 }

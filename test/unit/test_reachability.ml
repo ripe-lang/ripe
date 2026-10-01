@@ -91,7 +91,7 @@ let%expect_test "reachability: a break hides in an initializer or a return" =
 (* FIXME(f4a6): A match arm never gets walked so this answers false *)
 let%expect_test "reachability: a break in a match arm is missed" =
   breaks {|while true { match n {
- 1 => break
- _ => x
+ 1 => break,
+ _ => x,
  } }|};
   [%expect {| false |}]

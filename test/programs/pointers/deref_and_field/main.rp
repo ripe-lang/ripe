@@ -1,24 +1,24 @@
-struct point { x: i32; y: i32 }
+struct point { x: i32, y: i32 }
 
 func deref_sum(a: *i32, b: *i32) i32 {
-  return *a + *b
+  return *a + *b;
 }
 
 func deref_negate(p: *i32) i32 {
-  return -*p
+  return -*p;
 }
 
 func bump(p: *point) {
-  p.x += 1
+  p.x += 1;
 }
 
 func main() i32 {
-  var x: i32 = 10
-  var y: i32 = 32
-  var sum = deref_sum(&x, &y)
-  var neg = deref_negate(&x)
-  var p: point = point { x: 0, y: 0 }
-  bump(&p)
-  bump(&p)
-  return sum + neg + p.x
+  var x: i32 = 10;
+  var y: i32 = 32;
+  var sum = deref_sum(&x, &y);
+  var neg = deref_negate(&x);
+  var p: point = point { x: 0, y: 0 };
+  bump(&p);
+  bump(&p);
+  return sum + neg + p.x;
 }
