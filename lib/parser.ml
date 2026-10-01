@@ -1341,7 +1341,7 @@ let parse_module st =
                 true
             | Extern _ | Global _ | TypeAlias _ -> false)
       in
-      if not (ends_in_brace || at st SEMI || at st EOF) then begin
+      if not (ends_in_brace || at st SEMI) then begin
         Diagnostic.error (cur_span st) "expected `;`" |> found st |> report st;
         if not (starts_item st) then recover_declaration st
       end;
