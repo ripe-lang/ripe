@@ -398,6 +398,8 @@ and parse_typ st =
         let n = parse_expr st in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
+  | FUNC when is_member_start (peek_token st) ->
+      Diagnostic.error (cur_span st) "expected type" |> found st |> fail
   | FUNC -> parse_func_ptr st lo NoAbi
   | LPAREN ->
       advance st;

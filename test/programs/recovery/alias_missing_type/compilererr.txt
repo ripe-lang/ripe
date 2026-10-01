@@ -1,8 +1,4 @@
-error: expected `(`
-  at main.rp:2:6
+error: expected type
+  at main.rp:2:1
     func main() i32 { return 0 }
-         ^~~~ found main
-error: expected declaration
-  at main.rp:2:6
-    func main() i32 { return 0 }
-         ^~~~ found main
+    ^~~~ found `func`
