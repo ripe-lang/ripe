@@ -49,7 +49,7 @@ func main() i32 { return math.add(1) }|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math.rp base 51 decls 1
+      unit math.rp base 52 decls 1
     |}]
 
 let%expect_test "program: two files sharing an import load it once" =
@@ -71,12 +71,12 @@ pub func r() {}|});
       imports module 1
       imports module 3
     module 1 left
-      unit left.rp base 55 decls 1
+      unit left.rp base 56 decls 1
       imports module 2
     module 2 shared
-      unit shared.rp base 85 decls 1
+      unit shared.rp base 87 decls 1
     module 3 right
-      unit right.rp base 100 decls 1
+      unit right.rp base 103 decls 1
       imports module 2
     |}]
 
@@ -95,8 +95,8 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 41 decls 1
-      unit math/sub.rp base 71 decls 1
+      unit math/add.rp base 42 decls 1
+      unit math/sub.rp base 73 decls 1
     |}]
 
 let%expect_test "program: a merged module concatenates the decls of its files" =
@@ -133,7 +133,7 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math failed
-      unit math.rp base 41 decls 0
+      unit math.rp base 42 decls 0
     |}]
 
 let%expect_test "program: a missing module lists every root it tried" =
@@ -151,7 +151,7 @@ let%expect_test "program: a missing module lists every root it tried" =
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math failed
-      unit math.rp base 41 decls 0
+      unit math.rp base 42 decls 0
     |}]
 
 let%expect_test "program: a search root supplies a module beside the source" =
@@ -163,7 +163,7 @@ let%expect_test "program: a search root supplies a module beside the source" =
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit vendor/math.rp base 41 decls 1
+      unit vendor/math.rp base 42 decls 1
     |}]
 
 let%expect_test "program: an import cycle names the hops it went through" =
@@ -188,10 +188,10 @@ pub func fb() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 a
-      unit a.rp base 38 decls 1
+      unit a.rp base 39 decls 1
       imports module 2
     module 2 b
-      unit b.rp base 64 decls 1
+      unit b.rp base 66 decls 1
       imports module 1
     |}]
 
@@ -210,7 +210,7 @@ pub func fa() {}|}) ];
       unit main.rp base 0 decls 1
       imports module 1
     module 1 a
-      unit a.rp base 38 decls 1
+      unit a.rp base 39 decls 1
       imports module 1
     |}]
 
@@ -233,8 +233,8 @@ pub func sub() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 41 decls 1
-      unit math/sub.rp base 71 decls 1
+      unit math/add.rp base 42 decls 1
+      unit math/sub.rp base 73 decls 1
     |}]
 
 let%expect_test "program: a header naming the parent points at the parent" =
@@ -257,8 +257,8 @@ pub func two() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math.vec
-      unit math/vec/one.rp base 45 decls 1
-      unit math/vec/two.rp base 74 decls 1
+      unit math/vec/one.rp base 46 decls 1
+      unit math/vec/two.rp base 76 decls 1
     |}]
 
 let%expect_test "program: a merged file with no header is reported" =
@@ -280,8 +280,8 @@ pub func add() {}|});
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math/add.rp base 41 decls 1
-      unit math/sub.rp base 71 decls 1
+      unit math/add.rp base 42 decls 1
+      unit math/sub.rp base 73 decls 1
     |}]
 
 let%expect_test "program: a single file module needs no header" =
@@ -292,14 +292,14 @@ let%expect_test "program: a single file module needs no header" =
       unit main.rp base 0 decls 1
       imports module 1
     module 1 math
-      unit math.rp base 41 decls 1
+      unit math.rp base 42 decls 1
     |}]
 
 let%expect_test "program: every file gets its own slice of the offset space" =
   let program = load [ importing "math"; ("math.rp", {|pub func add() {}|}) ] in
   let at pos = (Program.source_at program pos).Program.filename in
-  Printf.printf "%s %s %s\n" (at 0) (at 41) (at 1000);
-  [%expect {| main.rp math.rp math.rp |}]
+  Printf.printf "%s %s %s %s\n" (at 0) (at 41) (at 42) (at 1000);
+  [%expect {| main.rp main.rp math.rp math.rp |}]
 
 let%expect_test
     "program: an offset before the first file falls back to the root" =

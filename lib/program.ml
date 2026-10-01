@@ -209,7 +209,8 @@ let rec locate_in loader path = function
 let fresh_base loader filename length =
   let base = loader.next_base in
   if base + length > Span.max_offset then raise (Source_too_large filename);
-  loader.next_base <- base + length;
+  (* The end of a file gets its own offset so it never lands in the next one *)
+  loader.next_base <- base + length + 1;
   base
 
 let fresh_module_id loader =
