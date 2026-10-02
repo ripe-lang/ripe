@@ -86,5 +86,6 @@ and stride t elem = align_to (ty_size t elem) (ty_align t elem)
 let field_offset t name index =
   let layout = layout_of t name in
   if index >= Iarray.length layout.offsets then
-    Diagnostic.ice (Printf.sprintf "unknown field index %d" index)
+    Diagnostic.ice
+      (Printf.sprintf "unknown field %d on struct %s" index (Qname.show name))
   else Iarray.get layout.offsets index
