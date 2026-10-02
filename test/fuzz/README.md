@@ -29,8 +29,8 @@ A script exits 0 when nothing failed and you can set `JOBS` to change how many p
 
 | Script | Cases | Failures | Worst |
 | --- | --- | --- | --- |
-| `test_mutations.py` | 127094 | 115 | 7 |
-| `test_cluster_failures.py` | 127094 | 115 in 49 groups | |
+| `test_mutations.py` | 127094 | 111 | 7 |
+| `test_cluster_failures.py` | 127094 | 111 in 47 groups | |
 | `test_delim_perms.py` | 5760 | 0 | |
 | `test_recovery.py` | 1200 | 0 | 4 |
 | `test_type_positions.py` | 2421 | 0 | 2 |
