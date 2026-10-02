@@ -1405,7 +1405,7 @@ let read_token ds lex lexbuf () =
   end;
   { token; span; line }
 
-(* A lexer error before the fault is the likely cause so it wins *)
+(* The fault prints next to lexer errors because a string can't hide a brace *)
 let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
   let ds = { stack = []; fault = None; fault_at = 0; lexed = [] } in
   let read = read_token ds lex lexbuf in
@@ -1427,7 +1427,8 @@ let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
       List.iter (Diagnostic.emit diags) (List.rev lexed);
       List.iter (Diagnostic.emit diags) (Diagnostic.take parsed);
       module_
-  | Some d, [] ->
+  | Some d, lexed ->
+      List.iter (Diagnostic.emit diags) (List.rev lexed);
       (* A parser error before the fault sits closer to the real mistake *)
       let before p =
         match Diagnostic.primary p with
@@ -1438,7 +1439,4 @@ let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
       | first :: _ -> Diagnostic.emit diags first
       | [] -> Diagnostic.emit diags d
       end;
-      raise Unbalanced
-  | Some _, lexed ->
-      List.iter (Diagnostic.emit diags) (List.rev lexed);
       raise Unbalanced

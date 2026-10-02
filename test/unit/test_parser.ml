@@ -30,6 +30,10 @@ let%expect_test "parse: unterminated string" =
   run_src "fn f() { var s = \"oops";
   [%expect
     {|
+    error: unclosed delimiter
+      at <test>:1:8
+        fn f() { var s = "oops
+               ^
     error: unterminated string
       at <test>:1:18
         fn f() { var s = "oops
