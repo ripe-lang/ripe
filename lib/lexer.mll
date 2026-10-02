@@ -167,6 +167,7 @@ rule read_token st = parse
   | ':' { COLON }
   | ',' { COMMA }
   | '^' { CARET }
+  (* TODO(ede5): The lexer should take \u{...} escapes in chars and strings *)
   | "'\\0'" { CHAR 0 }
   | "'\\n'" { CHAR (Char.code '\n') }
   | "'\\r'" { CHAR (Char.code '\r') }
