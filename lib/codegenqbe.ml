@@ -433,6 +433,8 @@ let escape_data_string content =
       | '\\' -> Buffer.add_string buf "\\\\"
       | '\n' -> Buffer.add_string buf "\\n"
       | '\t' -> Buffer.add_string buf "\\t"
+      | ('\000' .. '\031' | '\127') as c ->
+          Buffer.add_string buf (Printf.sprintf "\\%03o" (Char.code c))
       | c -> Buffer.add_char buf c)
     content;
   Buffer.contents buf

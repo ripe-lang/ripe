@@ -127,12 +127,14 @@ let require_expr_start st span =
 let names_decl tok name =
   match (tok, name) with
   | (FUNC | STRUCT | ENUM | TYPE | CONST | VAR | IMPORT), IDENT _
-  | EXTERN, STRING _
   | PUBLIC, (FUNC | STRUCT | ENUM | TYPE | CONST | VAR | IMPORT | EXTERN) ->
       true
   | _ -> false
 
-let starts_item st = names_decl (cur_token st) (peek_token st)
+let starts_item st =
+  match (cur_token st, peek_token st) with
+  | EXTERN, STRING _ -> names_decl (peek_nth st 1).token (peek_nth st 2).token
+  | tok, name -> names_decl tok name
 
 let starts_member st =
   match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
