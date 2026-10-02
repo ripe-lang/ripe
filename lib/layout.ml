@@ -7,23 +7,23 @@ let align_to n a = Int.cdiv n a * a
 type layout = { size : int; align : int; offsets : int iarray }
 
 (* The fields and what they measure sit together so one lookup answers both *)
-type entry = { field_tys : ty iarray; mutable layout : (int * layout) option }
+type entry = { field_tys : ty iarray; mutable cached : (int * layout) option }
 
 type t = {
-  entries : entry Symbol.Table.t;
+  structs : entry Symbol.Table.t;
   (* A `sizeof` in a constant can measure a struct before its turn comes *)
   mutable generation : int;
 }
 
 let no_fields = Iarray.of_list []
-let create () = { entries = Symbol.Table.create 16; generation = 0 }
+let create () = { structs = Symbol.Table.create 16; generation = 0 }
 
 let set_struct_fields t key fields =
-  Symbol.Table.replace t.entries key
-    { field_tys = Iarray.of_list fields; layout = None };
+  Symbol.Table.replace t.structs key
+    { field_tys = Iarray.of_list fields; cached = None };
   t.generation <- t.generation + 1
 
-let entry_of t key = Symbol.Table.find_opt t.entries key
+let entry_of t key = Symbol.Table.find_opt t.structs key
 
 let struct_fields t key =
   match entry_of t key with Some e -> e.field_tys | None -> no_fields
@@ -44,7 +44,7 @@ let rec layout_of t name =
         Diagnostic.ice
           (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
   in
-  match entry.layout with
+  match entry.cached with
   | Some (generation, layout) when generation = t.generation -> layout
   | _ ->
       let place (align, used) ft =
@@ -56,7 +56,7 @@ let rec layout_of t name =
         Iarray.fold_left_map place (1, 0) entry.field_tys
       in
       let layout = { size = align_to used align; align; offsets } in
-      entry.layout <- Some (t.generation, layout);
+      entry.cached <- Some (t.generation, layout);
       layout
 
 (* A scalar is as wide as it is aligned and only aggregates differ *)
