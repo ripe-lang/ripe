@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-02 13:24:09.012299",
+  "depends": [],
+  "id": "ede5",
+  "priority": "low",
+  "source": "lib/lexer.mll",
+  "status": "open",
+  "tags": [],
+  "title": "The lexer should take \\u{...} escapes in chars and strings",
+  "updated_at": "2026-10-02 13:24:09.012299"
+}

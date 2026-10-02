@@ -3,3 +3,4 @@ vendor
 docs
 dist
 local
+benchmarks

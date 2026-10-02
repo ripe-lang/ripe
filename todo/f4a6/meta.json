@@ -5,11 +5,11 @@
   "depends": [],
   "id": "f4a6",
   "priority": "medium",
-  "source": "test/test_reachability.ml",
+  "source": "test/unit/test_reachability.ml",
   "status": "open",
   "tags": [
     "sema"
   ],
   "title": "A match arm never gets walked so this answers false",
-  "updated_at": "2026-09-03 22:37:59.084170"
+  "updated_at": "2026-10-02 13:24:09.013439"
 }

@@ -40,7 +40,7 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Float (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | Bool b -> string_of_bool b
   | Null -> "null"
-  | Char c -> Printf.sprintf "'\\u{%X}'" c
+  | Char c -> Ripe.Tokens.show_token (CHAR c)
   | String s -> "\"" ^ s ^ "\""
   | Ident s -> Ripe.Interner.text s
   | Call (callee, args) ->

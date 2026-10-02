@@ -8,6 +8,6 @@
   "source": "lib/ast.ml",
   "status": "open",
   "tags": [],
-  "title": "no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring",
-  "updated_at": "2026-08-24 02:40:23.205553"
+  "title": "no ranges, alternatives or destructuring",
+  "updated_at": "2026-10-02 13:24:09.010893"
 }
