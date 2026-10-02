@@ -6,12 +6,12 @@ let align_to n a = Int.cdiv n a * a
 
 type layout = { size : int; align : int; offsets : int iarray }
 
-(* The fields and what they measure sit together so one lookup answers both *)
+(* The cache lives with the fields so one lookup gets both *)
 type entry = { field_tys : ty iarray; mutable cached : (int * layout) option }
 
 type t = {
   structs : entry Symbol.Table.t;
-  (* A `sizeof` in a constant can measure a struct before its turn comes *)
+  (* A sizeof can measure a struct early so a change drops every cache *)
   mutable generation : int;
 }
 
@@ -59,7 +59,7 @@ let rec layout_of t name =
       entry.cached <- Some (t.generation, layout);
       layout
 
-(* A scalar is as wide as it is aligned and only aggregates differ *)
+(* A scalar's size is its alignment but an aggregate's isn't *)
 and ty_measure t ty =
   match resolve_ty ty with
   | TInt k ->
