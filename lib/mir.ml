@@ -157,7 +157,7 @@ type loop_context = {
 }
 
 type env = {
-  struct_layouts : Layout.structs;
+  struct_layouts : Layout.t;
   globals : (Symbol.key, string) Hashtbl.t;
 }
 
@@ -182,7 +182,7 @@ type context = {
 type func_context = { program : context; func : func; errors : error list ref }
 
 let build_struct_layouts (struct_decls : struct_decl list) =
-  let struct_layouts = Layout.make_structs () in
+  let struct_layouts = Layout.create () in
   List.iter
     (fun (decl : struct_decl) ->
       Layout.set_struct_fields struct_layouts (Qname.key decl.name) decl.fields)

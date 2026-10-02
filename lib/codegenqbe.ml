@@ -74,7 +74,7 @@ let qbe_load t =
 let qbe_store t = "store" ^ scalar_letter (qbe_scalar t)
 
 type ctx = {
-  structs : Layout.structs;
+  structs : Layout.t;
   struct_names : string Symbol.Table.t;
   panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
@@ -1012,7 +1012,7 @@ let emit_mir_global ctx (global : Mir.global) =
         (emit_mir_global_fields ctx global.Mir.ty value)
 
 let emit ~source_of program =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let struct_names = Symbol.Table.create 8 in
   List.iter
     (fun (decl : Mir.struct_decl) ->

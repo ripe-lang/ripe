@@ -92,7 +92,7 @@ type ctx = {
   func_sigs : func_sig Symbol.Table.t;
   type_defs : type_def Symbol.Table.t;
   (* The layout table mirrors struct definitions for size queries *)
-  layouts : Layout.structs;
+  layouts : Layout.t;
   globals : (ty * Ast.binding_kind) Symbol.Table.t;
   (* Constants evaluate on demand so an array size may name a later const *)
   global_facts : global_fact Symbol.Table.t;
@@ -128,7 +128,7 @@ let make_ctx diags symbols declarations =
     declarations;
     func_sigs = Symbol.Table.create 16;
     type_defs;
-    layouts = Layout.make_structs ();
+    layouts = Layout.create ();
     globals = Symbol.Table.create 16;
     global_facts = Symbol.Table.create 16;
     const_values = Symbol.Table.create 16;

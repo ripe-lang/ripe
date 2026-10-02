@@ -18,7 +18,7 @@ let offsets structs name count =
   print_endline (String.concat " " (List.init count at))
 
 let%expect_test "layout: scalars measure as wide as they align" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   List.iter (measure structs)
     [
       TInt I8;
@@ -55,7 +55,7 @@ let%expect_test "layout: scalars measure as wide as they align" =
     |}]
 
 let%expect_test "layout: a str and a slice are a pointer and a length" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   List.iter (measure structs) [ TStr; TSlice (TInt I8); TSlice (TFloat F64) ];
   [%expect
     {|
@@ -65,7 +65,7 @@ let%expect_test "layout: a str and a slice are a pointer and a length" =
     |}]
 
 let%expect_test "layout: a field pads out to its own alignment" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Pair" in
   let t = define structs name [ TInt I8; TInt I32 ] in
   measure structs t;
@@ -76,7 +76,7 @@ let%expect_test "layout: a field pads out to its own alignment" =
     |}]
 
 let%expect_test "layout: trailing padding rounds the struct to its alignment" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Tail" in
   let t = define structs name [ TInt I64; TInt I8 ] in
   measure structs t;
@@ -87,7 +87,7 @@ let%expect_test "layout: trailing padding rounds the struct to its alignment" =
     |}]
 
 let%expect_test "layout: field order changes the size" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let loose = qname 1 "Loose" in
   let tight = qname 2 "Tight" in
   let a = define structs loose [ TInt I8; TInt I64; TInt I8 ] in
@@ -105,14 +105,14 @@ let%expect_test "layout: field order changes the size" =
     |}]
 
 let%expect_test "layout: an empty struct takes no space" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Empty" in
   measure structs (define structs name []);
   [%expect {| Empty size 0 align 1 |}]
 
 let%expect_test
     "layout: a nested struct keeps the alignment of its widest field" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let inner = qname 1 "Inner" in
   let outer = qname 2 "Outer" in
   let i = define structs inner [ TInt I8; TInt I32 ] in
@@ -125,7 +125,7 @@ let%expect_test
     |}]
 
 let%expect_test "layout: an array is its stride times its length" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   List.iter (measure structs)
     [
       TArray (TInt I8, 3);
@@ -142,7 +142,7 @@ let%expect_test "layout: an array is its stride times its length" =
     |}]
 
 let%expect_test "layout: a padded element still strides by its full size" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Pair" in
   let t = define structs name [ TInt I8; TInt I32 ] in
   Printf.printf "stride %d\n" (Layout.stride structs t);
@@ -153,7 +153,7 @@ let%expect_test "layout: a padded element still strides by its full size" =
     |}]
 
 let%expect_test "layout: an alias measures as the type behind it" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   measure structs (TAlias (qname 1 "Word", TInt I64));
   measure structs (TArray (TAlias (qname 1 "Word", TInt I64), 2));
   [%expect {|
@@ -162,7 +162,7 @@ let%expect_test "layout: an alias measures as the type behind it" =
     |}]
 
 let%expect_test "layout: redefining fields drops the cached measurement" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Grow" in
   let t = define structs name [ TInt I8 ] in
   measure structs t;
@@ -192,7 +192,7 @@ let%expect_test "layout: align_to rounds up to the next multiple" =
     |}]
 
 let%expect_test "layout: the recorded fields come back in order" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Mixed" in
   ignore (define structs name [ TInt I8; TFloat F64; TBool ]);
   let fields = Layout.struct_fields structs (Qname.key name) in
@@ -205,13 +205,13 @@ let%expect_test "layout: the recorded fields come back in order" =
     |}]
 
 let%expect_test "layout: an unknown struct has no fields" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   Printf.printf "%d\n"
     (Iarray.length (Layout.struct_fields structs (Qname.key (qname 9 "Ghost"))));
   [%expect {| 0 |}]
 
 let%expect_test "layout: a field type comes back by index" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Mixed" in
   ignore (define structs name [ TInt I8; TFloat F64; TBool ]);
   let at i = show_ty (Layout.struct_field_ty structs name i) in
@@ -219,7 +219,7 @@ let%expect_test "layout: a field type comes back by index" =
   [%expect {| i8 f64 bool |}]
 
 let%expect_test "layout: a field index past the end is a compiler bug" =
-  let structs = Layout.make_structs () in
+  let structs = Layout.create () in
   let name = qname 1 "Mixed" in
   ignore (define structs name [ TInt I8 ]);
   (try ignore (Layout.struct_field_ty structs name 3)
