@@ -126,7 +126,17 @@ let show_token = function
   | FLOAT (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | IDENT s -> s
   | STRING s -> "\"" ^ s ^ "\""
-  | CHAR c -> Printf.sprintf "'\\u{%X}'" c
+  | CHAR c -> (
+      let b = Buffer.create 4 in
+      Buffer.add_utf_8_uchar b (Uchar.of_int c);
+      match Buffer.contents b with
+      | "\000" -> "'\\0'"
+      | "\n" -> "'\\n'"
+      | "\r" -> "'\\r'"
+      | "\t" -> "'\\t'"
+      | "\\" -> "'\\\\'"
+      | "'" -> "'\\''"
+      | s -> "'" ^ s ^ "'")
   | PLUS -> "+"
   | MINUS -> "-"
   | STAR -> "*"
