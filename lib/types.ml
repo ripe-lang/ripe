@@ -3,10 +3,59 @@
 type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 [@@deriving show { with_path = false }]
 
+let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
+
+let int_kind_of_string s =
+  List.find_opt
+    (fun k -> String.lowercase_ascii (show_int_kind k) = s)
+    int_kinds
+
+let int_kind_is_unsigned = function
+  | U8 | U16 | U32 | U64 | Usize -> true
+  | I8 | I16 | I32 | I64 | Isize -> false
+
+(* A byte size of each integer kind: bit width / 8 *)
+let int_kind_size = function
+  | I8 | U8 -> 1
+  | I16 | U16 -> 2
+  | I32 | U32 -> 4
+  | I64 | U64 | Isize | Usize -> 8
+
+let int_kind_pos_limit = function
+  | I8 -> 127L
+  | I16 -> 32767L
+  | I32 -> 2147483647L
+  | I64 | Isize -> Int64.max_int
+  | U8 -> 255L
+  | U16 -> 65535L
+  | U32 -> 4294967295L
+  | U64 | Usize -> -1L
+
+let int_kind_neg_limit = function
+  | I8 -> 128L
+  | I16 -> 32768L
+  | I32 -> 2147483648L
+  | I64 | Isize -> Int64.min_int
+  | U8 | U16 | U32 | U64 | Usize -> 0L
+
 type float_kind = F32 | F64 [@@deriving show { with_path = false }]
+
+let float_kinds = [ F32; F64 ]
+
+let float_kind_of_string s =
+  List.find_opt
+    (fun k -> String.lowercase_ascii (show_float_kind k) = s)
+    float_kinds
+
+let float_kind_size = function F32 -> 4 | F64 -> 8
+
+let float_kind_exact_limit = function
+  | F32 -> 16777216L
+  | F64 -> 9007199254740992L
+
 type func_abi = Ripe | C | AbiError [@@deriving show { with_path = false }]
 
-let func_abi_of_name = function
+let func_abi_of_string = function
   | "Ripe" -> Some Ripe
   | "C" -> Some C
   | _ -> None
@@ -34,30 +83,6 @@ type ty =
   | TUnit
 [@@deriving show { with_path = false }]
 
-let int_kinds = [ I8; I16; I32; I64; U8; U16; U32; U64; Isize; Usize ]
-let float_kinds = [ F32; F64 ]
-
-let int_kind_pos_limit = function
-  | I8 -> 127L
-  | I16 -> 32767L
-  | I32 -> 2147483647L
-  | I64 | Isize -> Int64.max_int
-  | U8 -> 255L
-  | U16 -> 65535L
-  | U32 -> 4294967295L
-  | U64 | Usize -> -1L
-
-let float_kind_exact_limit = function
-  | F32 -> 16777216L
-  | F64 -> 9007199254740992L
-
-let int_kind_neg_limit = function
-  | I8 -> 128L
-  | I16 -> 32768L
-  | I32 -> 2147483648L
-  | I64 | Isize -> Int64.min_int
-  | U8 | U16 | U32 | U64 | Usize -> 0L
-
 type builtin = BTy of ty | BOpaque
 
 let builtins =
@@ -75,16 +100,6 @@ let builtins =
       ("never", BTy TNever);
       ("opaque", BOpaque);
     ]
-
-let int_kind_of_string s =
-  List.find_opt
-    (fun k -> String.lowercase_ascii (show_int_kind k) = s)
-    int_kinds
-
-let float_kind_of_string s =
-  List.find_opt
-    (fun k -> String.lowercase_ascii (show_float_kind k) = s)
-    float_kinds
 
 let rec show_ty_with show_name t =
   let show_ty = show_ty_with show_name in
@@ -127,6 +142,16 @@ let show_ty t = show_ty_with Qname.show t
 let show_ty_in current t = show_ty_with (Qname.show_in current) t
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
+(* An alias is just another name for its base type so it doesn't make two types *)
+let rec erase_aliases = function
+  | TAlias (_, base) -> erase_aliases base
+  | TPointer t -> TPointer (erase_aliases t)
+  | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
+  | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
+  | TArray (t, n) -> TArray (erase_aliases t, n)
+  | TSlice t -> TSlice (erase_aliases t)
+  | t -> t
+
 let rec has_error = function
   | TError -> true
   | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
@@ -134,23 +159,10 @@ let rec has_error = function
   | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
   | _ -> false
 
-let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
-
-let int_kind_unsigned = function
-  | U8 | U16 | U32 | U64 | Usize -> true
-  | I8 | I16 | I32 | I64 | Isize -> false
-
-let is_unsigned t =
-  match resolve_ty t with TInt k -> int_kind_unsigned k | _ -> false
-
-(* A byte size of each integer kind: bit width / 8 *)
-let int_kind_size = function
-  | I8 | U8 -> 1
-  | I16 | U16 -> 2
-  | I32 | U32 -> 4
-  | I64 | U64 | Isize | Usize -> 8
-
-let float_kind_size = function F32 -> 4 | F64 -> 8
+let ty_equal a b =
+  match (erase_aliases a, erase_aliases b) with
+  | x, y when has_error x || has_error y -> true
+  | x, y -> x = y
 
 let int_kind_of t =
   match resolve_ty t with
@@ -162,9 +174,10 @@ let float_kind_of t =
   | TFloat k -> k
   | _ -> Diagnostic.ice "expected a float type"
 
-(* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
-let div_int_needs_check t =
-  match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false
+let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
+
+let is_unsigned t =
+  match resolve_ty t with TInt k -> int_kind_is_unsigned k | _ -> false
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
@@ -181,24 +194,13 @@ let is_scalar t =
     | _ -> false
 
 (* Wide values use 8 bytes so comptime eval uses a 64 bit result *)
-let is_wide_ty t =
+let is_wide t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
       true
   | _ -> false
 
-(* An alias is just another name for its base type so it doesn't make two types *)
-let rec erase_aliases = function
-  | TAlias (_, base) -> erase_aliases base
-  | TPointer t -> TPointer (erase_aliases t)
-  | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
-  | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
-  | TArray (t, n) -> TArray (erase_aliases t, n)
-  | TSlice t -> TSlice (erase_aliases t)
-  | t -> t
-
-let ty_equal a b =
-  match (erase_aliases a, erase_aliases b) with
-  | x, y when has_error x || has_error y -> true
-  | x, y -> x = y
+(* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
+let div_int_needs_check t =
+  match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false

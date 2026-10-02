@@ -197,7 +197,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
       word;
     ]
   in
-  List.iter (pred "wide" is_wide_ty) tys;
+  List.iter (pred "wide" is_wide) tys;
   [%expect
     {|
     wide i32 = false
@@ -232,7 +232,7 @@ let%expect_test "types: a narrow signed divide needs the overflow check" =
 let%expect_test "types: every integer kind reports its byte size" =
   let show k =
     Printf.printf "%s %d unsigned %b\n" (show_int_kind k) (int_kind_size k)
-      (int_kind_unsigned k)
+      (int_kind_is_unsigned k)
   in
   List.iter show int_kinds;
   [%expect
@@ -335,7 +335,7 @@ let%expect_test "types: the builtin table covers every spelled out type" =
 let%expect_test "types: only the two named abis parse" =
   let show s =
     Printf.printf "%s -> %s\n" s
-      (match func_abi_of_name s with
+      (match func_abi_of_string s with
       | Some abi -> show_func_abi abi
       | None -> "none")
   in
