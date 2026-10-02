@@ -335,7 +335,7 @@ let%expect_test "types: the builtin table covers every spelled out type" =
 let%expect_test "types: only the two named abis parse" =
   let show s =
     Printf.printf "%s -> %s\n" s
-      (match func_abi_of_name s with
+      (match func_abi_of_string s with
       | Some abi -> show_func_abi abi
       | None -> "none")
   in

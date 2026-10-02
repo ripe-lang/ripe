@@ -55,7 +55,7 @@ let float_kind_exact_limit = function
 
 type func_abi = Ripe | C | AbiError [@@deriving show { with_path = false }]
 
-let func_abi_of_name = function
+let func_abi_of_string = function
   | "Ripe" -> Some Ripe
   | "C" -> Some C
   | _ -> None

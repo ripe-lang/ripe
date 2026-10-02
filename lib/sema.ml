@@ -386,7 +386,7 @@ let lift_ty (f : ty -> ty) ty =
   if Types.has_error ty then Types.TError else f ty
 
 let resolve_named_abi env name span =
-  match Types.func_abi_of_name name with
+  match Types.func_abi_of_string name with
   | Some abi -> abi
   | None ->
       emit env
