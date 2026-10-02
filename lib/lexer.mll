@@ -211,6 +211,7 @@ and read_string st = parse
   | '\\' 't' { Buffer.add_char st.buf '\t'; read_string st lexbuf }
   | '\\' '\\' { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
+  | '\\' '0' { Buffer.add_char st.buf '\000'; read_string st lexbuf }
   (* The lexer continues until the string closes *)
   | '\\' (newline as nl | [^ '\r' '\n']) {
       let span =
