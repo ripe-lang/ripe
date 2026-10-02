@@ -212,7 +212,7 @@ and read_string st = parse
   | '\\' '\\' { Buffer.add_char st.buf '\\'; read_string st lexbuf }
   | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
   (* The lexer continues until the string closes *)
-  | '\\' _        {
+  | '\\' (newline as nl | [^ '\r' '\n']) {
       let span =
         Span.make
           (st.base + lexbuf.Lexing.lex_start_pos + 1)
@@ -221,6 +221,7 @@ and read_string st = parse
       Queue.push
         (ERROR "unknown escape", span, st.line)
         st.pending_errors;
+      if nl <> None then next_line st;
       read_string st lexbuf
     }
   | '\\' { read_string st lexbuf }
