@@ -142,8 +142,7 @@ let cast_class t =
       Aggregate
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
-let holds_address t =
-  match resolve_ty t with TInt _ -> is_wide_ty t | _ -> false
+let holds_address t = match resolve_ty t with TInt _ -> is_wide t | _ -> false
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
 let cast_ok src tgt =

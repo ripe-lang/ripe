@@ -102,10 +102,10 @@ let representable kind e =
 let narrow kind n =
   let width = int_kind_size kind * 8 in
   if width = 64 then
-    if int_kind_unsigned kind then of_magnitude n else of_bits n
+    if int_kind_is_unsigned kind then of_magnitude n else of_bits n
   else
     let masked = Int64.logand n (Int64.sub (Int64.shift_left 1L width) 1L) in
-    if int_kind_unsigned kind then of_magnitude masked
+    if int_kind_is_unsigned kind then of_magnitude masked
     else
       let shift = 64 - width in
       of_bits (Int64.shift_right (Int64.shift_left masked shift) shift)
@@ -139,14 +139,14 @@ let of_int64 ty n =
   | TChar -> VChar (Int64.to_int n)
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
   | _ ->
-      let kind = if is_wide_ty ty then I64 else I32 in
+      let kind = if is_wide ty then I64 else I32 in
       VInt (narrow kind n, kind)
 
 (* A literal already says what it is so nothing masks here *)
 let of_literal ty n =
   match resolve_ty ty with
   | TInt kind ->
-      let e = if int_kind_unsigned kind then of_magnitude n else of_bits n in
+      let e = if int_kind_is_unsigned kind then of_magnitude n else of_bits n in
       VInt (e, kind)
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
   | _ -> of_int64 ty n
@@ -159,7 +159,7 @@ let retype ty e =
   | TBool -> VBool (bits_of e <> 0L)
   | TChar -> VChar (Int64.to_int (bits_of e))
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
-  | _ -> VInt (e, if is_wide_ty ty then I64 else I32)
+  | _ -> VInt (e, if is_wide ty then I64 else I32)
 
 (* Only the arith lands here since a comp is not an int *)
 let int_binop op a b =

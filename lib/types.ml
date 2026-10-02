@@ -10,7 +10,7 @@ let int_kind_of_string s =
     (fun k -> String.lowercase_ascii (show_int_kind k) = s)
     int_kinds
 
-let int_kind_unsigned = function
+let int_kind_is_unsigned = function
   | U8 | U16 | U32 | U64 | Usize -> true
   | I8 | I16 | I32 | I64 | Isize -> false
 
@@ -177,7 +177,7 @@ let float_kind_of t =
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
 let is_unsigned t =
-  match resolve_ty t with TInt k -> int_kind_unsigned k | _ -> false
+  match resolve_ty t with TInt k -> int_kind_is_unsigned k | _ -> false
 
 (* Aggregates are addressed by pointer: an ident of this type is its base address *)
 let is_aggregate t =
@@ -194,7 +194,7 @@ let is_scalar t =
     | _ -> false
 
 (* Wide values use 8 bytes so comptime eval uses a 64 bit result *)
-let is_wide_ty t =
+let is_wide t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
