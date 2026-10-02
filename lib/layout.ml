@@ -69,17 +69,14 @@ and ty_measure t ty =
       let n = float_kind_size k in
       (n, n)
   | TBool -> (1, 1)
-  | TChar -> (4, 4)
+  | TChar | TEnum _ -> (4, 4)
   | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> (8, 8)
-  | TNever -> (0, 1)
-  | TError -> (0, 1)
+  | TSlice _ | TStr -> (16, 8)
+  | TUnit | TNever | TError -> (0, 1)
   | TStruct (name, _) ->
       let layout = layout_of t name in
       (layout.size, layout.align)
   | TArray (e, n) -> (n * stride t e, ty_align t e)
-  | TSlice _ | TStr -> (16, 8)
-  | TEnum _ -> (4, 4)
-  | TUnit -> (0, 1)
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
 and ty_size t ty = fst (ty_measure t ty)
