@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-09-30 10:16:13.143713",
+  "depends": [],
+  "id": "c2d5",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "feature"
+  ],
+  "title": "Index a str",
+  "updated_at": "2026-09-30 10:16:13.143722"
+}

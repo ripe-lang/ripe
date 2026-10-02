@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-01 23:04:16.064740",
+  "depends": [],
+  "id": "0c72",
+  "priority": "high",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "A binding match arm in a var initializer is an ICE",
+  "updated_at": "2026-10-01 23:04:16.064750"
+}
