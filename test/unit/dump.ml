@@ -65,10 +65,9 @@ and dump_expr (e : Ripe.Ast.expr) =
   | RangeToInclusive r -> "(..= " ^ dump_expr r ^ ")"
   | RangeFull -> "(..)"
   | Path p ->
-      let segs = Ripe.Ast.path_segments p in
+      let path, member = Ripe.Ast.path_split p in
       "(. "
-      ^ String.concat " "
-          (List.map (fun n -> Ripe.Interner.text n.Ripe.Ast.value) segs)
+      ^ String.concat " " (List.map Ripe.Interner.text (path @ [ member ]))
       ^ ")"
   | FieldAccess (e, f) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f.value ^ ")"

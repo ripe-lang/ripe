@@ -2,14 +2,19 @@
 
 type span = Span.t
 
-let pp_span = Span.pp
 let dummy_span = Span.dummy
 
-(* A source identifier is an interned id so a syntax node carries no pointer *)
+(* x, point, Color *)
 type name = Interner.id
 
+let show_names names = String.concat "." (List.map Interner.text names)
+let show_named path name = show_names (path @ [ name ])
+
+(* The show deriver looks these printers up by name *)
+let pp_span = Span.pp
 let pp_name = Interner.pp
 
+(* A generic wrapper saves writing a span field into every small record *)
 type 'a spanned = { value : 'a; span : span }
 [@@deriving show { with_path = false }]
 
@@ -17,13 +22,13 @@ let spanned value span = { value; span }
 
 type loop_label = name spanned [@@deriving show { with_path = false }]
 
-(* A name the parser could not read is missing, not absent *)
+(* The point of struct point { x: i32 } *)
 type ident = name option spanned [@@deriving show { with_path = false }]
 
 let ident name span = spanned (Some name) span
 let missing_ident span = spanned None span
 
-(* A missing name has no text so nothing downstream can name it *)
+(* A missing name gets empty text so later phases can't refer to it *)
 let ident_text i =
   match i.value with Some name -> Interner.text name | None -> ""
 
@@ -48,6 +53,7 @@ type binop =
   | Rshift
 [@@deriving show { with_path = false }]
 
+(* The derived show prints Add but messages want the + the user wrote *)
 let show_binop_sym = function
   | Add -> "+"
   | Sub -> "-"
@@ -108,7 +114,7 @@ type expr_desc =
   | ArrayLit of expr list
   | Index of expr * expr
   | Undefined
-  | StructLit of name list * name spanned * (name option spanned * expr) list
+  | StructLit of name list * name spanned * (ident * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
@@ -121,18 +127,24 @@ type expr_desc =
   | Loop of loop_label option * block
   | Match of expr * arm list
   | Unit
-[@@deriving show { with_path = false }]
 
 and expr = { desc : expr_desc; span : span }
 
-(* This carries roots like math.Vec and value.field through every phase *)
+(* math.Vec, value.field *)
 and path = { owner : name spanned Nonempty.t; member : name spanned }
-[@@deriving show { with_path = false }]
+and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
+and pattern = { pdesc : pattern_desc; pspan : span }
 
-and block = block_item list [@@deriving show { with_path = false }]
-
+(* TODO(7ea0): no ranges, alternatives or destructuring *)
+and pattern_desc = PatValue of expr | PatWild | PatBind of name
+and block = block_item list
 and block_item = Expr of expr | Decl of local_decl
-[@@deriving show { with_path = false }]
+
+and local_decl =
+  | LocalStruct of struct_def
+  | LocalTypeAlias of type_alias_def
+  | LocalFunc of func_def
+  | LocalEnum of enum_def
 
 and typ_desc =
   | ErrorType
@@ -142,25 +154,21 @@ and typ_desc =
   | Array of expr * typ
   | Slice of typ
   | UnitType
-[@@deriving show { with_path = false }]
 
+(* The prefix keeps these labels apart from the expr ones in this group *)
 and typ = { tdesc : typ_desc; tspan : span }
-[@@deriving show { with_path = false }]
 
+(* The "C" of extern "C" fn exit(code: i32) never *)
 and abi = NoAbi | NamedAbi of string spanned | AbiError
-[@@deriving show { with_path = false }]
-
 and field = { field_name : ident; field_typ : typ }
-[@@deriving show { with_path = false }]
 
-(* No field list at all means the braces never parsed, not an empty struct *)
+(* struct point { x: i32, y: i32 } *)
 and struct_def = {
   struct_name : ident;
   fields : field list option;
   struct_modifiers : modifier list;
   struct_span : span;
 }
-[@@deriving show { with_path = false }]
 
 and type_alias_def = {
   alias_name : ident;
@@ -168,10 +176,17 @@ and type_alias_def = {
   alias_modifiers : modifier list;
   alias_span : span;
 }
-[@@deriving show { with_path = false }]
+
+(* TODO(f1ac): every enum is an i32 and flags don't exist *)
+(* TODO(d737): a variant carries no explicit value and no payload *)
+and enum_def = {
+  enum_name : ident;
+  variants : ident list option;
+  enum_modifiers : modifier list;
+  enum_span : span;
+}
 
 and param = { param_name : ident; param_typ : typ; param_span : span }
-[@@deriving show { with_path = false }]
 
 and func_def = {
   func_name : ident;
@@ -185,35 +200,6 @@ and func_def = {
 }
 [@@deriving show { with_path = false }]
 
-and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
-[@@deriving show { with_path = false }]
-
-and pattern = { pdesc : pattern_desc; pspan : span }
-[@@deriving show { with_path = false }]
-
-(* TODO(7ea0): no ranges, no `|` alternatives, no struct destructuring, and no payload destructuring *)
-and pattern_desc = PatValue of expr | PatWild | PatBind of name
-[@@deriving show { with_path = false }]
-
-(* TODO(f1ac): every enum is an i32 and flags don't exist *)
-(* TODO(d737): a variant carries no explicit value and no payload *)
-and enum_def = {
-  enum_name : ident;
-  variants : ident list option;
-  enum_modifiers : modifier list;
-  enum_span : span;
-}
-[@@deriving show { with_path = false }]
-
-and local_decl =
-  | LocalStruct of struct_def
-  | LocalTypeAlias of type_alias_def
-  | LocalFunc of func_def
-  | LocalEnum of enum_def
-[@@deriving show { with_path = false }]
-
-let show_path path = String.concat "." (List.map Interner.text path)
-let show_named path name = show_path (path @ [ name ])
 let error_typ span = { tdesc = ErrorType; tspan = span }
 
 let path_expr p =
@@ -229,7 +215,6 @@ let owner_expr p =
 
 let path_names p = List.map (fun n -> n.value) (Nonempty.to_list p.owner)
 let path_split p = (path_names p, p.member.value)
-let path_segments p = Nonempty.to_list p.owner @ [ p.member ]
 
 type global_def = {
   name : ident;
@@ -241,6 +226,7 @@ type global_def = {
 }
 [@@deriving show { with_path = false }]
 
+(* fn add(a: i32, b: i32) i32 { ... }, extern "C" fn puts(s: cstr) i32 *)
 type decl =
   | Func of func_def
   | Struct of struct_def
@@ -250,7 +236,7 @@ type decl =
   | Enum of enum_def
 [@@deriving show { with_path = false }]
 
-(* A local declaration carries the same payload so it checks like a global one *)
+(* A local decl carries the same payload so it checks like a global one *)
 let decl_of_local = function
   | LocalStruct sd -> Struct sd
   | LocalTypeAlias td -> TypeAlias td
