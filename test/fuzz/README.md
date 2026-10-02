@@ -39,4 +39,4 @@ A script exits 0 when nothing failed and you can set `JOBS` to change how many p
 
 ## Contexts
 
-The programs live in `contexts/<script>/` as `.rp.in` files and each one is a small piece of code with `%%D%%` where the script writes. The `corpus` directory is a bit different because those are working programs, one per language feature.
+The programs live in `contexts/<script>/` as `.rp.in` files and each one is a small piece of code with `%%D%%` (delimiter) where the script writes, or `%%T%%` (type) and `%%L%%` (literal) in the `types` ones. The `corpus` directory is a bit different because those are working programs, one per language feature.
