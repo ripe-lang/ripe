@@ -139,7 +139,7 @@ let show_module module_ =
   in
   let imports =
     List.map
-      (fun import -> "import " ^ Ast.show_path import.Ast.path)
+      (fun import -> "import " ^ Ast.show_names import.Ast.path)
       module_.Ast.imports
   in
   String.concat "\n"
