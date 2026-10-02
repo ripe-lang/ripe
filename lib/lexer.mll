@@ -10,7 +10,6 @@ type state = {
   pending_errors : (Tokens.token * Span.t * int) Queue.t;
   mutable line : int;
   mutable start_line : int option;
-  mutable string_rewind : (int * int) option;
 }
 
 let make_state base = {
@@ -19,7 +18,6 @@ let make_state base = {
   pending_errors = Queue.create ();
   line = 1;
   start_line = None;
-  string_rewind = None;
 }
 
 let next_line st = st.line <- st.line + 1
@@ -194,7 +192,6 @@ rule read_token st = parse
       let start = lexbuf.Lexing.lex_start_pos in
       let line = st.line in
       Buffer.clear st.buf;
-      st.string_rewind <- None;
       let t = read_string st lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- start;
@@ -214,7 +211,7 @@ and read_string st = parse
   | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
   | '\\' '0' { Buffer.add_char st.buf '\000'; read_string st lexbuf }
   (* The lexer continues until the string closes *)
-  | '\\' (newline as nl | [^ '\r' '\n']) {
+  | '\\' [^ '\r' '\n'] {
       let span =
         Span.make
           (st.base + lexbuf.Lexing.lex_start_pos + 1)
@@ -223,29 +220,19 @@ and read_string st = parse
       Queue.push
         (ERROR "unknown escape", span, st.line)
         st.pending_errors;
-      if nl <> None then next_line st;
       read_string st lexbuf
     }
   | '\\' { read_string st lexbuf }
+  (* The newline goes back so the next line lexes as code *)
   | newline {
-      if st.string_rewind = None then
-        st.string_rewind <- Some (lexbuf.Lexing.lex_start_pos, st.line);
-      next_line st;
-      Buffer.add_string st.buf (Lexing.lexeme lexbuf);
-      read_string st lexbuf
+      lexbuf.Lexing.lex_curr_pos <- lexbuf.Lexing.lex_start_pos;
+      ERROR "unterminated string"
     }
   | [^ '"' '\\' '\r' '\n']+  {
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
-  | eof {
-      (match st.string_rewind with
-       | Some (pos, line) ->
-           lexbuf.Lexing.lex_curr_pos <- pos;
-           st.line <- line
-       | None -> ());
-      ERROR "unterminated string"
-    }
+  | eof { ERROR "unterminated string" }
 
 and read_block_comment st depth = parse
   | "/*" { read_block_comment st (depth + 1) lexbuf }

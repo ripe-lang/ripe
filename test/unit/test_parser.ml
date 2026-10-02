@@ -30,6 +30,10 @@ let%expect_test "parse: unterminated string" =
   run_src "fn f() { var s = \"oops";
   [%expect
     {|
+    error: unclosed delimiter
+      at <test>:1:8
+        fn f() { var s = "oops
+               ^
     error: unterminated string
       at <test>:1:18
         fn f() { var s = "oops
@@ -751,10 +755,14 @@ let%expect_test "parse: multiline array literal" =
     ok
     |}]
 
-let%expect_test "parse: line tracking after multiline string" =
-  run_src "fn f() {\n  var s = \"line one\nline two\";\n  @\n}";
+let%expect_test "parse: line tracking after unterminated string" =
+  run_src "fn f() {\n  var s = \"line one\n  var t = 1;\n  @\n}";
   [%expect
     {|
+    error: unterminated string
+      at <test>:2:11
+          var s = "line one
+                  ^~~~~~~~~
     error: unexpected character
       at <test>:4:3
           @

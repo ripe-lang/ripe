@@ -19,6 +19,10 @@ let%expect_test "an unterminated string underlines the remaining source" =
   Pipeline.run_src "fn main() i32 {\n  return \"unterminated";
   [%expect
     {|
+    error: unclosed delimiter
+      at <test>:1:15
+        fn main() i32 {
+                      ^
     error: unterminated string
       at <test>:2:10
           return "unterminated
