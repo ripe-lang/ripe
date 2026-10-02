@@ -7,25 +7,25 @@ open Tokens
 type state = {
   base : int;
   buf : Buffer.t;
-  token_queue : (Tokens.token * Span.t * int) Queue.t;
+  pending_errors : (Tokens.token * Span.t * int) Queue.t;
   mutable line : int;
-  mutable token_line : int;
-  mutable string_resume : (int * int) option;
+  mutable start_line : int option;
+  mutable string_rewind : (int * int) option;
 }
 
 let make_state base = {
   base;
   buf = Buffer.create 64;
-  token_queue = Queue.create ();
+  pending_errors = Queue.create ();
   line = 1;
-  token_line = 1;
-  string_resume = None;
+  start_line = None;
+  string_rewind = None;
 }
 
 let next_line st = st.line <- st.line + 1
 
 let max_intsuf_len = String.length "isize"
-let floatsuf_len = String.length "f32"
+let max_floatsuf_len = String.length "f32"
 
 (* The line tracker avoids per token positions *)
 let lexbuf_of_string src =
@@ -33,12 +33,12 @@ let lexbuf_of_string src =
   lexbuf.Lexing.lex_curr_p <- Lexing.dummy_pos;
   lexbuf
 
-let start_pos lexbuf = lexbuf.Lexing.lex_start_pos
-let end_pos lexbuf = lexbuf.Lexing.lex_curr_pos
 let lexbuf_span st lexbuf =
-  Span.make (st.base + start_pos lexbuf) (st.base + end_pos lexbuf)
+  Span.make
+    (st.base + lexbuf.Lexing.lex_start_pos)
+    (st.base + lexbuf.Lexing.lex_curr_pos)
 
-let int_token _st _lexbuf ?suf text =
+let int_token ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
   | None -> ERROR "integer literal out of range"
@@ -53,75 +53,74 @@ let split_int_suffix text =
       let body, suffix = String.cut_first i text in
       (body, Some suffix)
 
-let radix_int_token st lexbuf text =
+let radix_int_token text =
   let body, suf = split_int_suffix text in
-  int_token st lexbuf ?suf body
+  int_token ?suf body
 
-let decimal_int_token st lexbuf text =
+(* The unsigned prefix lets literals past the signed max still parse *)
+let decimal_int_token text =
   let body, suf = split_int_suffix text in
-  int_token st lexbuf ?suf ("0u" ^ body)
+  int_token ?suf ("0u" ^ body)
 
 let float_token text =
   let len = String.length text in
-  let start = len - floatsuf_len in
+  let start = len - max_floatsuf_len in
   if start > 0 && text.[start] = 'f' then
     let body, suffix = String.cut_first start text in
     FLOAT (float_of_string body, Some suffix)
   else FLOAT (float_of_string text, None)
 
-let bad_char _st _lexbuf msg = ERROR msg
-
-let char_token st lexbuf inner =
+let char_token inner =
   let d = String.get_utf_8_uchar inner 0 in
   if not (Uchar.utf_decode_is_valid d) then
-    bad_char st lexbuf "invalid character literal"
+    ERROR "invalid character literal"
   else if Uchar.utf_decode_length d <> String.length inner then
-    bad_char st lexbuf "character literal must be a single character"
+    ERROR "character literal must be a single character"
   else CHAR (Uchar.to_int (Uchar.utf_decode_uchar d))
 }
 
-let digit   = ['0'-'9']
+let decdig  = ['0'-'9']
 let hexdig  = ['0'-'9' 'a'-'f' 'A'-'F']
 let bindig  = ['0'-'1']
 let octdig  = ['0'-'7']
-let decimals = digit (digit | '_')*
+let decdigs = decdig (decdig | '_')*
 let hexdigs = hexdig (hexdig | '_')*
 let bindigs = bindig (bindig | '_')*
 let octdigs = octdig (octdig | '_')*
-let exp     = ['e' 'E'] ['+' '-']? decimals
+let exp     = ['e' 'E'] ['+' '-']? decdigs
 let alpha   = ['a'-'z' 'A'-'Z' '_']
-let alnum   = alpha | digit
+let alnum   = alpha | decdig
 let intsuf  = ('i' | 'u') ("8" | "16" | "32" | "64" | "size")
 let floatsuf = 'f' ("32" | "64")
 let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
-rule read_main st = parse
+rule read_token st = parse
   | "\xEF\xBB\xBF" {
-      if start_pos lexbuf = 0 then read_main st lexbuf
+      if lexbuf.Lexing.lex_start_pos = 0 then read_token st lexbuf
       else ERROR "unexpected character"
     }
-  | white { read_main st lexbuf }
-  | "//" [^ '\n' '\r']* { read_main st lexbuf }
+  | white { read_token st lexbuf }
+  | "//" [^ '\n' '\r']* { read_token st lexbuf }
   | "/*" { read_block_comment st 0 lexbuf }
   | newline {
       next_line st;
-      read_main st lexbuf
+      read_token st lexbuf
     }
-  | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token st lexbuf n }
-  | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token st lexbuf n }
-  | ('0' ['o' 'O'] octdigs intsuf?) as n { radix_int_token st lexbuf n }
+  | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token n }
+  | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token n }
+  | ('0' ['o' 'O'] octdigs intsuf?) as n { radix_int_token n }
   | '0' ['x' 'X' 'b' 'B' 'o' 'O'] alnum*
       { ERROR "invalid number literal" }
-  | decimals '.' decimals exp? floatsuf? as f { float_token f }
-  | decimals exp floatsuf? as f { float_token f }
-  | decimals floatsuf as f { float_token f }
-  | (decimals intsuf?) as n { decimal_int_token st lexbuf n }
+  | decdigs '.' decdigs exp? floatsuf? as n { float_token n }
+  | decdigs exp floatsuf? as n { float_token n }
+  | decdigs floatsuf as n { float_token n }
+  | (decdigs intsuf?) as n { decimal_int_token n }
   | '_' { UNDERSCORE }
-  | alpha alnum* as s {
-      match lookup_keyword s with
+  | alpha alnum* as n {
+      match lookup_keyword n with
       | Some t -> t
-      | None -> IDENT s
+      | None -> IDENT n
     }
   | "==" { EQ }
   | "=>" { FATARROW }
@@ -174,12 +173,9 @@ rule read_main st = parse
   | "'\\t'" { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''" { CHAR (Char.code '\'') }
-  | '\'' '\\' newline '\''  {
-      next_line st;
-      bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
-    }
-  | '\'' '\\' _ '\''  {
-      bad_char st lexbuf ("unknown escape: " ^ Lexing.lexeme lexbuf)
+  | '\'' '\\' (newline as nl | [^ '\r' '\n']) '\''  {
+      if nl <> None then next_line st;
+      ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf)
     }
   | '\'' [^ '\'' '\\' '\r' '\n']+ '\''  {
       let inner =
@@ -187,33 +183,29 @@ rule read_main st = parse
           (lexbuf.Lexing.lex_start_pos + 1)
           (lexbuf.Lexing.lex_curr_pos - 1)
       in
-      char_token st lexbuf inner
+      char_token inner
     }
-  | "''" { bad_char st lexbuf "empty character literal" }
+  | "''" { ERROR "empty character literal" }
   | '\'' ('\\' [^ '\r' '\n']?)? [^ '\'' '\\' '\r' '\n' ' ' '\t' '(' ')' '[' ']' '{' '}' ',' ';']* {
-      bad_char st lexbuf "unterminated character literal"
+      ERROR "unterminated character literal"
     }
   | '"' {
-      let str_start = lexbuf.Lexing.lex_start_pos in
-      let str_line = st.line in
+      let start = lexbuf.Lexing.lex_start_pos in
+      let line = st.line in
       Buffer.clear st.buf;
-      st.string_resume <- None;
-      let tok = read_string st lexbuf in
+      st.string_rewind <- None;
+      let t = read_string st lexbuf in
       (* The span includes quotes *)
-      lexbuf.Lexing.lex_start_pos <- str_start;
-      st.token_line <- str_line;
-      tok
+      lexbuf.Lexing.lex_start_pos <- start;
+      st.start_line <- Some line;
+      t
     }
   | eof { EOF }
   | _ { ERROR "unexpected character" }
 
 
 and read_string st = parse
-  | '"' {
-      let s = Buffer.contents st.buf in
-      Buffer.clear st.buf;
-      STRING s
-    }
+  | '"' { STRING (Buffer.contents st.buf) }
   | '\\' 'n' { Buffer.add_char st.buf '\n'; read_string st lexbuf }
   | '\\' 'r' { Buffer.add_char st.buf '\r'; read_string st lexbuf }
   | '\\' 't' { Buffer.add_char st.buf '\t'; read_string st lexbuf }
@@ -222,17 +214,19 @@ and read_string st = parse
   (* The lexer continues until the string closes *)
   | '\\' _        {
       let span =
-        Span.make (st.base + start_pos lexbuf + 1) (st.base + end_pos lexbuf)
+        Span.make
+          (st.base + lexbuf.Lexing.lex_start_pos + 1)
+          (st.base + lexbuf.Lexing.lex_curr_pos)
       in
       Queue.push
         (ERROR "unknown escape", span, st.line)
-        st.token_queue;
+        st.pending_errors;
       read_string st lexbuf
     }
   | '\\' { read_string st lexbuf }
   | newline {
-      if st.string_resume = None then
-        st.string_resume <- Some (start_pos lexbuf, st.line);
+      if st.string_rewind = None then
+        st.string_rewind <- Some (lexbuf.Lexing.lex_start_pos, st.line);
       next_line st;
       Buffer.add_string st.buf (Lexing.lexeme lexbuf);
       read_string st lexbuf
@@ -242,8 +236,7 @@ and read_string st = parse
       read_string st lexbuf
     }
   | eof {
-      Buffer.clear st.buf;
-      (match st.string_resume with
+      (match st.string_rewind with
        | Some (pos, line) ->
            lexbuf.Lexing.lex_curr_pos <- pos;
            st.line <- line
@@ -254,7 +247,7 @@ and read_string st = parse
 and read_block_comment st depth = parse
   | "/*" { read_block_comment st (depth + 1) lexbuf }
   | "*/"    {
-      if depth = 0 then read_main st lexbuf
+      if depth = 0 then read_token st lexbuf
       else read_block_comment st (depth - 1) lexbuf
     }
   | newline {
@@ -266,12 +259,12 @@ and read_block_comment st depth = parse
 
 {
 let read st lexbuf =
-  if not (Queue.is_empty st.token_queue) then Queue.pop st.token_queue
+  if not (Queue.is_empty st.pending_errors) then Queue.pop st.pending_errors
   else begin
-    st.token_line <- 0;
-    let t = read_main st lexbuf in
+    st.start_line <- None;
+    let t = read_token st lexbuf in
     (* A token gets its own line only when it spans lines *)
-    let line = if st.token_line = 0 then st.line else st.token_line in
+    let line = Option.value st.start_line ~default:st.line in
     (t, lexbuf_span st lexbuf, line)
   end
 }
