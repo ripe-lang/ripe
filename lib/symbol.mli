@@ -12,10 +12,10 @@ type kind =
   | Func
   | LocalFunc
   | Extern
-  | Global of Ast.binding_kind
+  | Global
   | Type
   | LocalType
-  | Local of Ast.binding_kind
+  | Local
   | Param
   | ForVar
   | Module
@@ -52,4 +52,3 @@ module Table : Hashtbl.S with type key = key
 val is_func : kind -> bool
 val is_global : kind -> bool
 val is_immutable : kind -> bool
-val is_const : kind -> bool

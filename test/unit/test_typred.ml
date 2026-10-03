@@ -17,7 +17,7 @@ let show_binop op name =
 
 (* The typed nodes are built by hand so an lvalue check needs no front end *)
 let binding name ty =
-  let s = Fake.symbol ~kind:(Symbol.Local Ast.Var) ~name 10 in
+  let s = Fake.symbol ~kind:Symbol.Local ~name 10 in
   Tast.mk ty (Tast.TIdent s)
 
 let field base index ty = Tast.mk ty (Tast.TFieldAccess (base, index))

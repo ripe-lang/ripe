@@ -58,14 +58,13 @@ let is_type_start = function
   | _ -> false
 
 let is_stmt_keyword = function
-  | CONST | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH ->
-      true
+  | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH -> true
   | _ -> false
 
 let is_stmt_start tok = is_expr_start tok || is_stmt_keyword tok
 
 let is_item_start = function
-  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | CONST | VAR | ENUM -> true
+  | FUNC | EXTERN | STRUCT | PUBLIC | TYPE | IMPORT | VAR | ENUM -> true
   | _ -> false
 
 let is_member_start = function IDENT _ -> true | _ -> false
@@ -74,7 +73,7 @@ let is_block_start tok = is_stmt_start tok || is_item_start tok
 let ends_in_block = function
   | Expr { desc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ }
   | Decl (LocalFunc _ | LocalStruct _ | LocalEnum _)
-  | Expr { desc = Binding (_, _, _, Some { desc = ErrorExpr; _ }); _ }
+  | Expr { desc = Binding (_, _, Some { desc = ErrorExpr; _ }); _ }
   | Decl (LocalTypeAlias { alias_typ = { tdesc = ErrorType; _ }; _ }) ->
       true
   | Expr _ | Decl _ -> false
@@ -126,8 +125,8 @@ let require_expr_start st span =
 (* A missing separator should not hide a declaration *)
 let names_decl tok name =
   match (tok, name) with
-  | (FUNC | STRUCT | ENUM | TYPE | CONST | VAR | IMPORT), IDENT _
-  | PUBLIC, (FUNC | STRUCT | ENUM | TYPE | CONST | VAR | IMPORT | EXTERN) ->
+  | (FUNC | STRUCT | ENUM | TYPE | VAR | IMPORT), IDENT _
+  | PUBLIC, (FUNC | STRUCT | ENUM | TYPE | VAR | IMPORT | EXTERN) ->
       true
   | _ -> false
 
@@ -415,20 +414,9 @@ and parse_typ st =
         { inner with tspan = span_from lo st }
   | _ -> Diagnostic.error (cur_span st) "expected type" |> found st |> fail
 
-(* const N: i32 = 4, var x: i32, var x = 42, var x *)
+(* var x: i32, var x = 42, var x *)
 and parse_binding st context =
-  let kind =
-    match cur_token st with
-    | CONST ->
-        advance st;
-        Const
-    | VAR ->
-        advance st;
-        Var
-    | _ ->
-        Diagnostic.error (cur_span st) "expected `const` or `var`"
-        |> found st |> fail
-  in
+  expect st VAR;
   let rec last_name name =
     match (cur_token st, peek_token st) with
     | IDENT _, (IDENT _ | COLON) -> last_name (expect_ident_span st)
@@ -446,18 +434,13 @@ and parse_binding st context =
   let line = cur_line st in
   try
     let typ = binding_annotation st in
-    (* Only var may omit the value *)
-    let init =
-      if at st ASSIGN || (context = LocalBinding && kind = Const) then
-        Some (binding_initializer st)
-      else None
-    in
-    (kind, name, typ, init)
+    let init = if at st ASSIGN then Some (binding_initializer st) else None in
+    (name, typ, init)
   with ParserError d ->
     report st d;
     skip_line st line [];
     let span = recovery_span st d in
-    (kind, name, Some (error_typ span), Some { desc = ErrorExpr; span })
+    (name, Some (error_typ span), Some { desc = ErrorExpr; span })
 
 (* fn (i32, i32) i32, extern "C" fn (i32) i32 *)
 and parse_func_ptr st lo abi =
@@ -1096,9 +1079,9 @@ and parse_stmt ?(context = BlockStatement) st =
   | LBRACE ->
       let body = (parse_block st).value in
       Expr (mk lo st (Block body))
-  | CONST | VAR ->
-      let kind, name, ann, e = parse_binding st LocalBinding in
-      Expr (mk lo st (Binding (kind, name, ann, e)))
+  | VAR ->
+      let name, ann, e = parse_binding st LocalBinding in
+      Expr (mk lo st (Binding (name, ann, e)))
   | BREAK ->
       advance st;
       let target = parse_loop_target st in
@@ -1267,18 +1250,18 @@ and parse_labeled_loop st =
       Diagnostic.error (cur_span st) "expected a loop after a label"
       |> found st |> fail
 
-(* const PAGE_SIZE: i32 = 4096, var n: i32 = 0, var flag: bool *)
+(* var n: i32 = 0, var flag: bool *)
 let parse_global st mods =
   let lo = cur_pos st in
-  let kind, name, typ, init = parse_binding st GlobalBinding in
+  let name, typ, init = parse_binding st GlobalBinding in
   let name = ident name.value name.span in
-  Global { name; typ; init; kind; modifiers = mods; span = span_from lo st }
+  Global { name; typ; init; modifiers = mods; span = span_from lo st }
 
 (* pub fn f() i32 { } *)
 let parse_decl st =
   let mods, abi = parse_decl_modifiers st in
   begin match cur_token st with
-  | STRUCT | CONST | VAR | TYPE | ENUM -> abi_wants_func st abi
+  | STRUCT | VAR | TYPE | ENUM -> abi_wants_func st abi
   | _ -> ()
   end;
   match cur_token st with
@@ -1286,7 +1269,7 @@ let parse_decl st =
       let fd, imported = parse_func_def st mods abi in
       if imported then Extern fd else Func fd
   | STRUCT -> Struct (parse_struct_def st mods)
-  | CONST | VAR -> parse_global st mods
+  | VAR -> parse_global st mods
   | TYPE -> TypeAlias (parse_alias_def st mods)
   | ENUM -> Enum (parse_enum_def st mods)
   | _ ->

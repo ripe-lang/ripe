@@ -1,7 +1,7 @@
 struct point { x: i32, y: i32 }
 enum color { Red, Green }
 type pair = i32;
-const LIMIT: i32 = 4;
+var LIMIT: i32 = 4;
 fn add(a: i32, b: i32) i32 { return a + b }
 fn main() i32 {
   var p = point { 5, 4 };

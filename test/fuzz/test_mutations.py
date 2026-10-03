@@ -38,7 +38,6 @@ ALPHABET = (
     "enum",
     "type",
     "var",
-    "const",
     "return",
     "if",
     "else",

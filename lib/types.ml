@@ -185,15 +185,6 @@ let is_aggregate t =
   | TArray _ | TSlice _ | TStr | TStruct _ -> true
   | _ -> false
 
-(* A const can only use types comptime evaluation knows how to compute *)
-let is_scalar t =
-  if has_error t then true
-  else
-    match resolve_ty t with
-    | TInt _ | TFloat _ | TBool | TChar -> true
-    | _ -> false
-
-(* Wide values use 8 bytes so comptime eval uses a 64 bit result *)
 let is_wide t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)

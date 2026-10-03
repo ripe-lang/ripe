@@ -1005,14 +1005,13 @@ and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
 and lower_statement state expr =
   if is_live state then
     match expr.desc with
-    | Tast.TBinding (_, _, ty, init)
+    | Tast.TBinding (_, ty, init)
       when ty = Types.TNever || init.ty = Types.TNever ->
         ignore (lower_expr state init)
-    | Tast.TBinding (_, symbol, Types.TUnit, init) ->
+    | Tast.TBinding (symbol, Types.TUnit, init) ->
         ignore (declare state symbol User Types.TUnit symbol.Symbol.span);
         ignore (lower_expr state init)
-    | Tast.TBinding (Ast.Const, _, _, _) -> ()
-    | Tast.TBinding (_, symbol, ty, init) ->
+    | Tast.TBinding (symbol, ty, init) ->
         let id = declare state symbol User ty symbol.Symbol.span in
         lower_fresh_into state (local_place expr.span id) init
     | Tast.TReturn returned ->
@@ -1112,8 +1111,7 @@ let struct_decl = function
   | _ -> None
 
 let global_decl = function
-  | Tast.TGlobal global when global.kind <> Ast.Const && has_value global.ty ->
-      Some global
+  | Tast.TGlobal global when has_value global.ty -> Some global
   | _ -> None
 
 let func_decl = function Tast.TFunc func -> Some func | _ -> None
