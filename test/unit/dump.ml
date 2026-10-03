@@ -107,7 +107,7 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(for "
       ^ Ripe.Interner.text name.value
       ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
-  | Binding (_, name, _, init) ->
+  | Binding (name, _, init) ->
       "(var "
       ^ Ripe.Interner.text name.value
       ^ (match init with Some e -> " " ^ dump_expr e | None -> "")

@@ -1,7 +1,7 @@
-// BROKEN: const eval stripped
+// BROKEN: a global init can't read another global yet
 
-const SMALL: u8 = 200;
-const WIDE: u32 = SMALL;
+var SMALL: u8 = 200;
+var WIDE: u32 = SMALL;
 var GLOBAL: i64 = SMALL;
 
 fn main() i32 {

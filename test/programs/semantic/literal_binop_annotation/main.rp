@@ -1,4 +1,4 @@
-// BROKEN: const eval stripped
+// BROKEN: a global init can't be an expression yet
 
 var A: i64 = 1 + 2;
 

@@ -463,19 +463,6 @@ var X: i32 = 7;
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: assign to a const global" =
-  run_src {|
-const X: i32 = 1;
-fn f() { X = 2 }
-|};
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:3:10
-        fn f() { X = 2 }
-                 ^
-    |}]
-
 let%expect_test "typecheck: write to a var struct field" =
   run_src
     {|
@@ -506,181 +493,17 @@ fn f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global initializer must be constant" =
+let%expect_test "typecheck: global initializer calls a function" =
   run_src {|
 fn g() i32 { return 1 }
 var X: i32 = g();
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: const requires initializer" =
-  run_src "const X: i32;";
-  [%expect
-    {|
-    error: const without initializer
-      at <test>:1:7
-        const X: i32;
-              ^
-    |}]
-
-let%expect_test "typecheck: const cannot be undefined" =
-  run_src "const N: i32 = undefined;";
-  [%expect
-    {|
-    error: const cannot be undefined
-      at <test>:1:16
-        const N: i32 = undefined;
-                       ^~~~~~~~~
-    help: use var for values that need storage
-    |}]
-
-let%expect_test "typecheck: cannot take address of a const global" =
-  run_src {|
-const N: i32 = 4;
-fn f() *i32 { return &N }
-|};
-  [%expect
-    {|
-    error: cannot take address of a constant
-      at <test>:3:23
-        fn f() *i32 { return &N }
-                              ^
-    help: a const has no storage, use var
-    |}]
-
-let%expect_test "typecheck: cannot take address of a local const" =
-  run_src {|
-fn f() {
-  const c: i32 = 2;
-  var p: *i32 = &c;
-}
-|};
-  [%expect
-    {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p: *i32 = &c;
-              ^
-    help: prefix with an underscore: _p
-    error: cannot take address of a constant
-      at <test>:4:18
-          var p: *i32 = &c;
-                         ^
-    help: a const has no storage, use var
-    |}]
-
-let%expect_test "typecheck: const must be a scalar" =
-  run_src {|
-fn f() {
-  const a: [2]i32 = [1, 2];
-}
-|};
-  [%expect
-    {|
-    error: const must be a scalar
-      at <test>:3:9
-          const a: [2]i32 = [1, 2];
-                ^ on [2]i32
-    help: use var for values that need storage
-    warning: unused variable: a
-      at <test>:3:9
-          const a: [2]i32 = [1, 2];
-                ^
-    help: prefix with an underscore: _a
-    |}]
-
-let%expect_test "typecheck: const cstr is not a scalar" =
-  run_src {|
-const S: cstr = "x";
-|};
-  [%expect
-    {|
-    error: const must be a scalar
-      at <test>:2:1
-        const S: cstr = "x";
-        ^~~~~~~~~~~~~~~~~~~ on cstr
-    help: use var for values that need storage
-    |}]
-
-let%expect_test "typecheck: local const initializer must fold" =
-  run_src
-    {|
-fn g() i32 { return 3 }
-fn f() i32 {
-  const c: i32 = g();
-  return c;
-}
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:4:18
-          const c: i32 = g();
-                         ^~~
-    help: constant initializers must evaluate at compile time
-    |}]
-
-let%expect_test "typecheck: mutually referential consts are a cycle" =
-  run_src {|
-const A: i32 = B;
-const B: i32 = A;
-|};
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: cannot assign to a const" =
-  run_src {|
-fn f() i32 {
-  const c: i32 = 2;
-  c = 3;
-  return c;
-}
-|};
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:4:3
-          c = 3;
-          ^
-    |}]
-
-let%expect_test "typecheck: local const reads an earlier const" =
-  run_src
-    {|
-fn f() i32 {
-  const a: i32 = 2;
-  const b: i32 = a * 3;
-  return b;
-}
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:4:18
-          const b: i32 = a * 3;
-                         ^~~~~
-    help: constant initializers must evaluate at compile time
-    |}]
-
-let%expect_test "typecheck: array size from a later const" =
-  run_src
-    {|
-var a: [N]i32 = undefined;
-const N: i32 = 3;
-fn f() i32 { return a[0] }
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:2:9
-        var a: [N]i32 = undefined;
-                ^
-    help: constant initializers must evaluate at compile time
-    |}]
-
 let%expect_test "typecheck: array size expression" =
   run_src
     {|
-const N: i32 = 4;
+var N: i32 = 4;
 fn f() i32 {
   var a: [N * 2 + 1]i32 = undefined;
   a[8] = 1;
@@ -689,11 +512,10 @@ fn f() i32 {
 |};
   [%expect
     {|
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:4:11
           var a: [N * 2 + 1]i32 = undefined;
                   ^~~~~~~~~
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: array size with a suffix" =
@@ -705,55 +527,16 @@ fn f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: struct field sized by a later const" =
-  run_src
-    {|
-struct S { buf: [N]i32 }
-const N: i32 = 2;
-fn f(s: S) i32 { return s.buf[1] }
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:2:18
-        struct S { buf: [N]i32 }
-                         ^
-    help: constant initializers must evaluate at compile time
-    |}]
-
-let%expect_test "typecheck: local const sizes a local array" =
-  run_src
-    {|
-fn f() i32 {
-  const n: i32 = 3;
-  var a: [n]i32 = [1, 2, 3];
-  return a[2];
-}
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:4:11
-          var a: [n]i32 = [1, 2, 3];
-                  ^
-    help: constant initializers must evaluate at compile time
-    error: wrong number of arguments
-      at <test>:4:19
-          var a: [n]i32 = [1, 2, 3];
-                          ^~~~~~~~~ expected 0 elements, found 3
-    |}]
-
 let%expect_test "typecheck: negative array size" =
   run_src {|
 var a: [0 - 1]i32 = undefined;
 |};
   [%expect
     {|
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:2:9
         var a: [0 - 1]i32 = undefined;
                 ^~~~~
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: bad array size in a param errors once" =
@@ -767,11 +550,10 @@ fn f(a: [0 - 1]i32) {}
         fn f(a: [0 - 1]i32) {}
              ^~~~~~~~~~~~~
     help: prefix with an underscore: _a
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:2:10
         fn f(a: [0 - 1]i32) {}
                  ^~~~~
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: huge array size" =
@@ -792,11 +574,10 @@ var a: [cast(u64, 0 - 1)]i32 = undefined;
 |};
   [%expect
     {|
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:2:9
         var a: [cast(u64, 0 - 1)]i32 = undefined;
                 ^~~~~~~~~~~~~~~~
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: array size literal with a type suffix" =
@@ -836,11 +617,10 @@ var a: [n]i32 = undefined;
 |};
   [%expect
     {|
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:3:9
         var a: [n]i32 = undefined;
                 ^
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: array size calls a function" =
@@ -850,30 +630,10 @@ var a: [g()]i32 = undefined;
 |};
   [%expect
     {|
-    error: unsupported constant expression
+    error: array size must be a literal
       at <test>:3:9
         var a: [g()]i32 = undefined;
                 ^~~
-    help: constant initializers must evaluate at compile time
-    |}]
-
-let%expect_test "typecheck: cycle through an array size" =
-  run_src {|
-const N: i32 = sizeof([M]i32);
-const M: i32 = sizeof([N]i32);
-|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:2:24
-        const N: i32 = sizeof([M]i32);
-                               ^
-    help: constant initializers must evaluate at compile time
-    error: unsupported constant expression
-      at <test>:3:24
-        const M: i32 = sizeof([N]i32);
-                               ^
-    help: constant initializers must evaluate at compile time
     |}]
 
 let%expect_test "typecheck: int arithmetic ok" =
@@ -1118,21 +878,6 @@ let%expect_test "typecheck: if/else ok" =
 let%expect_test "typecheck: nested loops break ok" =
   run_src "fn f() { while true { while true { break } } }";
   [%expect {| ok |}]
-
-let%expect_test "typecheck: assign to a const local" =
-  run_src {|
-fn f() {
-  const x: i32 = 1;
-  x = 2;
-}
-|};
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:4:3
-          x = 2;
-          ^
-    |}]
 
 let%expect_test "typecheck: redeclare local shadows" =
   run_src {|
@@ -1948,7 +1693,7 @@ fn f() i32 { return g[1] }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global array non-constant element rejected" =
+let%expect_test "typecheck: global array element calls a function" =
   run_src {|
 fn k() i32 { return 1 }
 var g: [2]i32 = [k(), 2];
@@ -2215,7 +1960,7 @@ fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global struct literal must be constant" =
+let%expect_test "typecheck: global struct literal calls a function" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
@@ -2536,15 +2281,6 @@ fn f() {
           take(a);
                ^ expected [4]i32, found [3]i32
     |}]
-
-let%expect_test "typecheck: global var initialized from a const global" =
-  run_src
-    {|
-const base: i32 = 10;
-var counter: i32 = base;
-fn f() i32 { return counter }
-|};
-  [%expect {| ok |}]
 
 let%expect_test "typecheck: extern variadic requires the fixed args" =
   run_src {|
@@ -3657,13 +3393,13 @@ let%expect_test "typecheck: pair assignment checks each value" =
     |}]
 
 let%expect_test "typecheck: pair assignment checks each target" =
-  run_src "fn f(a: i32) { const x = 1; var b = 2; x, b = b, a }";
+  run_src "fn f(a: i32) { var b = 2; a, b = b, a }";
   [%expect
     {|
     error: cannot assign to immutable
-      at <test>:1:40
-        fn f(a: i32) { const x = 1; var b = 2; x, b = b, a }
-                                               ^
+      at <test>:1:27
+        fn f(a: i32) { var b = 2; a, b = b, a }
+                                  ^
     |}]
 
 let%expect_test "typecheck: pair assignment rejects an expression target" =
@@ -4109,20 +3845,9 @@ let%expect_test "typecheck: str cannot be compared" =
                  ^ cannot apply `==` to str
     |}]
 
-let%expect_test "typecheck: a str global is constant" =
+let%expect_test "typecheck: a str global" =
   run_src "var g: str = \"a\";";
   [%expect {| ok |}]
-
-let%expect_test "typecheck: a str const is rejected" =
-  run_src "const C: str = \"a\";";
-  [%expect
-    {|
-    error: const must be a scalar
-      at <test>:1:1
-        const C: str = "a";
-        ^~~~~~~~~~~~~~~~~~ on str
-    help: use var for values that need storage
-    |}]
 
 let%expect_test "typecheck: a labeled break exits an outer loop" =
   run_src
@@ -4665,31 +4390,6 @@ let%expect_test "typecheck: a float cannot be matched" =
                                             ^~~ cannot test f32
     |}]
 
-let%expect_test "typecheck: a const name in a pattern compares" =
-  run_src
-    {|const LIMIT: i32 = 42;
-fn f(x: i32) i32 { return match x { LIMIT => 1, other => other } }|};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:2:37
-        fn f(x: i32) i32 { return match x { LIMIT => 1, other => other } }
-                                            ^~~~~
-    help: constant initializers must evaluate at compile time
-    |}]
-
-let%expect_test "typecheck: a const pattern still checks its type" =
-  run_src
-    {|const LIMIT: i32 = 42;
-fn f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }|};
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:2:38
-        fn f(x: bool) i32 { return match x { LIMIT => 1, _ => 0 } }
-                                             ^~~~~ expected bool, found i32
-    |}]
-
 let%expect_test "typecheck: unit type and value" =
   run_src
     {|fn pass(value: ()) () { value }
@@ -5013,7 +4713,6 @@ fn f(value: i8) i32 {
 let%expect_test "typecheck: widening reaches remaining value positions" =
   run_src
     {|
-const SMALL: u8 = 1;
 fn take(value: i64) i64 { value }
 fn tail(value: i32) i64 { value }
 fn apply(f: fn (i64) i64, value: i8) i64 { f(value) }
@@ -5028,19 +4727,12 @@ fn f(small: i8, index: u8) i64 {
   var _element = values[index];
   var _from = values[index..];
   var _to = values[..index];
-  var pattern = match 1i64 { SMALL => small, _ => 0i64 };
+  var pattern = match 1i64 { 1 => small, _ => 0i64 };
   return left + right + nested + negative + positive + pattern +
       tail(small) + apply(take, small);
 }
 |};
-  [%expect
-    {|
-    error: unsupported constant expression
-      at <test>:17:30
-          var pattern = match 1i64 { SMALL => small, _ => 0i64 };
-                                     ^~~~~
-    help: constant initializers must evaluate at compile time
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: shift count must be an integer" =
   run_src "fn f() i32 { var a: i32 = 1;\n  return a << 1.0 }";
@@ -5074,7 +4766,7 @@ let%expect_test "typecheck: cast has no effect" =
     ok
     |}]
 
-let%expect_test "typecheck: constant expression overflows" =
+let%expect_test "typecheck: a literal product overflows" =
   run_src "fn f() i64 { return 9223372036854775807 * 9223372036854775807 }";
   [%expect {| ok |}]
 

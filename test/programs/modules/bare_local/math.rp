@@ -1,4 +1,0 @@
-pub fn bad() {
-  const x: i32 = 1;
-  x = 2;
-}

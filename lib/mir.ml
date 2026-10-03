@@ -189,15 +189,7 @@ let build_struct_layouts (struct_decls : struct_decl list) =
     struct_decls;
   struct_layouts
 
-let constant_of_value = function
-  | Constant.VFloat (value, _) -> Float value
-  | Constant.VBool value -> Bool value
-  | Constant.VChar value -> Char value
-  | Constant.VInt _ as value -> Int (Constant.int_of value)
-
-(* This is only temporary *)
-let _keep_constant_of_value = constant_of_value
-
+(* TODO(7a4f): This is temporary until global inits fold again *)
 let literal (expr : Tast.texpr) =
   match expr.desc with
   (* The MIR keeps the value but not the variant name *)
@@ -212,7 +204,10 @@ let literal (expr : Tast.texpr) =
   | Tast.TUndef -> Undef
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       Function symbol.Symbol.link_name
-  | _ -> Diagnostic.ice ~span:expr.span "unsupported MIR global initializer"
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Diagnostic.error expr.span "global initializer must be a literal" ])
 
 let rec global_init (expr : Tast.texpr) =
   match expr.desc with
@@ -1005,14 +1000,13 @@ and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
 and lower_statement state expr =
   if is_live state then
     match expr.desc with
-    | Tast.TBinding (_, _, ty, init)
+    | Tast.TBinding (_, ty, init)
       when ty = Types.TNever || init.ty = Types.TNever ->
         ignore (lower_expr state init)
-    | Tast.TBinding (_, symbol, Types.TUnit, init) ->
+    | Tast.TBinding (symbol, Types.TUnit, init) ->
         ignore (declare state symbol User Types.TUnit symbol.Symbol.span);
         ignore (lower_expr state init)
-    | Tast.TBinding (Ast.Const, _, _, _) -> ()
-    | Tast.TBinding (_, symbol, ty, init) ->
+    | Tast.TBinding (symbol, ty, init) ->
         let id = declare state symbol User ty symbol.Symbol.span in
         lower_fresh_into state (local_place expr.span id) init
     | Tast.TReturn returned ->
@@ -1112,8 +1106,7 @@ let struct_decl = function
   | _ -> None
 
 let global_decl = function
-  | Tast.TGlobal global when global.kind <> Ast.Const && has_value global.ty ->
-      Some global
+  | Tast.TGlobal global when has_value global.ty -> Some global
   | _ -> None
 
 let func_decl = function Tast.TFunc func -> Some func | _ -> None

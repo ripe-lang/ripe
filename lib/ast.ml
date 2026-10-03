@@ -85,7 +85,6 @@ let show_unop_sym = function
   | Deref -> "*"
   | AddressOf -> "&"
 
-type binding_kind = Var | Const [@@deriving show { with_path = false }]
 type modifier = Pub [@@deriving show { with_path = false }]
 
 type expr_desc =
@@ -119,7 +118,7 @@ type expr_desc =
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
   | For of loop_label option * name spanned * expr * block
-  | Binding of binding_kind * name spanned * typ option * expr option
+  | Binding of name spanned * typ option * expr option
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
@@ -220,7 +219,6 @@ type global_def = {
   name : ident;
   typ : typ option;
   init : expr option;
-  kind : binding_kind;
   modifiers : modifier list;
   span : span;
 }

@@ -267,11 +267,11 @@ let rec find_func_in_scope scope name =
 
 let is_item_value sym =
   match sym.Symbol.kind with
-  | Symbol.Func | Symbol.Extern | Symbol.Global _ | Symbol.LocalFunc
+  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc
   | Symbol.Module ->
       true
-  | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local _
-  | Symbol.Param | Symbol.ForVar | Symbol.MatchBind ->
+  | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local | Symbol.Param
+  | Symbol.ForVar | Symbol.MatchBind ->
       false
 
 let rec find_item_value scope name =
@@ -553,10 +553,10 @@ and resolve_expr st e =
       let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
       resolve_block_contents st body
-  | Binding (kind, { value = name; span = nspan }, ann, e) ->
+  | Binding ({ value = name; span = nspan }, ann, e) ->
       Option.iter (resolve_typ st) ann;
       Option.iter (resolve_expr st) e;
-      declare_local st (Symbol.Local kind) name nspan
+      declare_local st Symbol.Local name nspan
   | Return e -> Option.iter (resolve_expr st) e
   | Break (_, value) -> Option.iter (resolve_expr st) value
   | Continue _ -> ()
@@ -574,18 +574,12 @@ and resolve_arm st a =
   resolve_pattern st a.pat;
   resolve_block_contents st a.arm_body.value
 
-and resolve_pattern_binding st span name =
-  match lookup st name with
-  | Some sym when Symbol.is_const sym.Symbol.kind -> use_symbol st span sym
-  | Some _ | None -> declare_local st Symbol.MatchBind name span
-
 and resolve_pattern st p =
   match p.pdesc with
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
-  | PatBind name -> resolve_pattern_binding st p.pspan name
+  | PatBind name -> declare_local st Symbol.MatchBind name p.pspan
 
-(* An array size expression may name constants *)
 and resolve_typ st t =
   match t.tdesc with
   | ErrorType -> ()
@@ -687,8 +681,8 @@ let declare_decls st decls =
             (visibility fd.func_modifiers)
             fd.func_name fd.func_span
       | Global gd ->
-          declare_global st (Symbol.Global gd.kind) (visibility gd.modifiers)
-            gd.name gd.span
+          declare_global st Symbol.Global (visibility gd.modifiers) gd.name
+            gd.span
       | Struct sd ->
           declare_type st
             (visibility sd.struct_modifiers)

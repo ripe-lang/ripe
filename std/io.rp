@@ -36,7 +36,6 @@ fn put_int(fd: i32, value: i64) {
   write(fd, digits.ptr, digits.len);
 }
 
-// The fds are spelled out until const works again
 pub fn print(s: str) {
   put(1, s);
   put(1, "\n");

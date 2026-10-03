@@ -1,4 +1,4 @@
-const N = 3;
+var N = 3;
 
 fn main() i32 {
   var x = 0;

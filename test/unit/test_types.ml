@@ -166,21 +166,6 @@ let%expect_test "types: an aggregate is addressed by pointer" =
     aggregate () = false
     |}]
 
-let%expect_test "types: a const may only use a scalar" =
-  let tys = [ TInt I8; TFloat F32; TBool; TChar; TError; TStr; point; TUnit ] in
-  List.iter (pred "scalar" is_scalar) tys;
-  [%expect
-    {|
-    scalar i8 = true
-    scalar f32 = true
-    scalar bool = true
-    scalar char = true
-    scalar <unknown type> = true
-    scalar str = false
-    scalar Point = false
-    scalar () = false
-    |}]
-
 let%expect_test "types: a wide value takes the full eight bytes" =
   let tys =
     [

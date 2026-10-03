@@ -1,4 +1,0 @@
-error: cannot assign to immutable
-  at math.rp:3:3
-      x = 2;
-      ^

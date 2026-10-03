@@ -36,7 +36,7 @@ type texpr_desc =
   | TIf of (texpr * tblock) list * tblock option
   | TWhile of Ast.loop_label option * texpr * tblock
   | TFor of Ast.loop_label option * Symbol.t * ty * texpr * tblock
-  | TBinding of Ast.binding_kind * Symbol.t * ty * texpr
+  | TBinding of Symbol.t * ty * texpr
   | TReturn of texpr option
   | TBreak of Ast.loop_label option * texpr option
   | TContinue of Ast.loop_label option
@@ -79,7 +79,6 @@ type tglobal_def = {
   name : string;
   ty : ty;
   init : texpr option;
-  kind : Ast.binding_kind;
   modifiers : Ast.modifier list;
 }
 [@@deriving show { with_path = false }]

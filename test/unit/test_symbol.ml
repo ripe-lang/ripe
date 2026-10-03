@@ -6,11 +6,9 @@ let all_kinds =
   [
     Symbol.Func;
     Extern;
-    Global Ast.Var;
-    Global Ast.Const;
+    Global;
     Type;
-    Local Ast.Const;
-    Local Ast.Var;
+    Local;
     Param;
     ForVar;
     MatchBind;
@@ -33,11 +31,9 @@ let%expect_test "symbol: is_func covers only fn and extern" =
     {|
     Func true
     Extern true
-    (Global Var) false
-    (Global Const) false
+    Global false
     Type false
-    (Local Const) false
-    (Local Var) false
+    Local false
     Param false
     ForVar false
     MatchBind false
@@ -53,11 +49,9 @@ let%expect_test "symbol: is_global covers only global" =
     {|
     Func false
     Extern false
-    (Global Var) true
-    (Global Const) true
+    Global true
     Type false
-    (Local Const) false
-    (Local Var) false
+    Local false
     Param false
     ForVar false
     MatchBind false
@@ -73,11 +67,9 @@ let%expect_test "symbol: is_immutable covers what cannot be assigned" =
     {|
     Func false
     Extern false
-    (Global Var) false
-    (Global Const) false
+    Global false
     Type false
-    (Local Const) true
-    (Local Var) false
+    Local false
     Param true
     ForVar true
     MatchBind true
@@ -85,26 +77,6 @@ let%expect_test "symbol: is_immutable covers what cannot be assigned" =
     LocalFunc false
     LocalType false
     Module true
-    |}]
-
-let%expect_test "symbol: is_const covers only the two const bindings" =
-  dump_kinds Symbol.is_const;
-  [%expect
-    {|
-    Func false
-    Extern false
-    (Global Var) false
-    (Global Const) true
-    Type false
-    (Local Const) true
-    (Local Var) false
-    Param false
-    ForVar false
-    MatchBind false
-    Error false
-    LocalFunc false
-    LocalType false
-    Module false
     |}]
 
 let%expect_test "symbol: a key packs a module and an id back apart" =

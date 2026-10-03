@@ -42,7 +42,7 @@ let force_deferred span cell ~(on_error : 'a) (compute : unit -> 'a) =
   match !cell with
   | Completed v -> v
   | Running ->
-      raise (Diagnostic.Errors [ Diagnostic.error span "cyclic constant" ])
+      raise (Diagnostic.Errors [ Diagnostic.error span "cyclic initializer" ])
   | Unstarted -> (
       cell := Running;
       try
@@ -57,7 +57,6 @@ type global_fact = {
   declaration : global_def;
   declared_ty : ty deferred ref;
   typed : Tast.texpr deferred ref;
-  folded : Constant.value deferred ref;
 }
 
 type loop_result =
@@ -93,10 +92,8 @@ type ctx = {
   type_defs : type_def Symbol.Table.t;
   (* The layout table mirrors struct definitions for size queries *)
   layouts : Layout.t;
-  globals : (ty * Ast.binding_kind) Symbol.Table.t;
-  (* Constants evaluate on demand so an array size may name a later const *)
+  globals : ty Symbol.Table.t;
   global_facts : global_fact Symbol.Table.t;
-  const_values : Constant.value Symbol.Table.t;
   diags : Diagnostic.sink;
   symbols : Resolve.t;
   initial_errors : bool;
@@ -105,7 +102,6 @@ type ctx = {
 type local_env = {
   ctx : ctx;
   scopes : (Symbol.key * var_info) list list;
-  mutable local_values : Constant.value Symbol.Table.t option;
   ret_ty : ty;
   loops : loop_ctx list;
   entry_function : bool;
@@ -131,7 +127,6 @@ let make_ctx diags symbols declarations =
     layouts = Layout.create ();
     globals = Symbol.Table.create 16;
     global_facts = Symbol.Table.create 16;
-    const_values = Symbol.Table.create 16;
     diags;
     symbols;
     initial_errors = Diagnostic.has_errors diags;
@@ -141,7 +136,6 @@ let make_env ?(reader_path = []) ctx =
   {
     ctx;
     scopes = [];
-    local_values = None;
     ret_ty = Types.TUnit;
     loops = [];
     entry_function = false;
@@ -173,7 +167,6 @@ let decl_env_at env span =
 (* The two fields every slice and string answers to, interned once *)
 let len_name = Interner.intern "len"
 let ptr_name = Interner.intern "ptr"
-let dummy_value = Constant.VInt (Constant.zero, Types.I32)
 let sym env span = Resolve.sym_at env.ctx.symbols span
 let diagnostic_sink env = Option.value env.probe_diags ~default:env.ctx.diags
 let emit env d = Diagnostic.emit (diagnostic_sink env) d
@@ -211,14 +204,6 @@ let probing env =
     loops = List.map clone_loop env.loops;
     probe_diags = Some (Diagnostic.sink ());
   }
-
-let local_consts env =
-  match env.local_values with
-  | Some values -> values
-  | None ->
-      let values = Symbol.Table.create 16 in
-      env.local_values <- Some values;
-      values
 
 let warn_unused_in_scope env =
   match env.scopes with
@@ -307,23 +292,6 @@ let lookup_func env span =
         abi = Types.Ripe;
         param_hole = true;
       }
-
-let is_const_global env key =
-  match Symbol.Table.find_opt env.ctx.globals key with
-  | Some (_, Const) -> true
-  | _ -> false
-
-let is_const_symbol env s =
-  Symbol.is_const s.Symbol.kind
-  || (Symbol.is_global s.Symbol.kind && is_const_global env (Symbol.key s))
-
-(* TODO(434d): This needs aggregate constants for global copies *)
-let verify_const_scalar env span t =
-  if not (is_scalar t) then
-    emit env
-      (Diagnostic.error span "const must be a scalar"
-      |> Diagnostic.label "on %s" (show_ty env t)
-      |> Diagnostic.help "use var for values that need storage")
 
 let lookup_struct env span name =
   match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
@@ -556,20 +524,12 @@ let verify_operands env span op t =
 let find_global_fact env span key =
   match Symbol.Table.find_opt env.ctx.global_facts key with
   | Some st -> st
-  | None ->
-      raise
-        (Diagnostic.Errors
-           [
-             Diagnostic.error span "unsupported constant expression"
-             |> Diagnostic.help
-                  "constant initializers must evaluate at compile time";
-           ])
+  | None -> Diagnostic.ice ~span "global was never registered"
 
 let adopt_int_literal env span want target ~neg n =
   let signed = if neg then Int64.neg n else n in
   match target with
-  | Types.TInt kind
-    when not (Constant.representable kind (Constant.of_magnitude ~neg n)) ->
+  | Types.TInt kind when not (Types.int_kind_fits kind ~neg n) ->
       emit env
         (Diagnostic.error span "integer literal out of range"
         |> Diagnostic.label "does not fit in %s" (show_ty env want));
@@ -744,7 +704,7 @@ and pending_global_ty env span key fact =
     force_deferred span fact.declared_ty ~on_error:Types.TError (fun () ->
         let decl_env = decl_env_at env fact.declaration.span in
         let t = global_ty decl_env fact.declaration in
-        Symbol.Table.replace env.ctx.globals key (t, fact.declaration.kind);
+        Symbol.Table.replace env.ctx.globals key t;
         t)
   with Diagnostic.Errors ds ->
     List.iter (emit env) ds;
@@ -759,7 +719,7 @@ and lookup_var env span =
 and lookup_non_local env span =
   let key = key_at env span in
   match Symbol.Table.find_opt env.ctx.globals key with
-  | Some (t, _) -> t
+  | Some t -> t
   | None -> (
       match Symbol.Table.find_opt env.ctx.global_facts key with
       | Some fact -> pending_global_ty env span key fact
@@ -776,22 +736,6 @@ and lookup_non_local env span =
 (* Stamp the source span here so the Tast.mk sites underneath stay span free *)
 and synth env e = synth_operand env e
 and synth_operand env (e : expr) = stamp e.span (synth_desc env e)
-
-(* Only a bare literal resolves until the demand entry point exists *)
-and const_value_or env default (te : Tast.texpr) =
-  if not (is_scalar te.ty && te.ty <> Types.TError) then default
-  else
-    match te.desc with
-    | Tast.TInt n -> Constant.of_literal te.ty n
-    | Tast.TBool b -> Constant.VBool b
-    | Tast.TChar c -> Constant.VChar c
-    | _ ->
-        emit env
-          (Diagnostic.error te.span "unsupported constant expression"
-          |> Diagnostic.help
-               "constant initializers must evaluate at compile time");
-        default
-
 and stamp span (te : Tast.texpr) = { te with span }
 
 and synth_desc env e =
@@ -867,8 +811,8 @@ and synth_desc env e =
         (Tast.TWhile (label, tc, tb))
   | For (label, { value = name; span = nspan }, iter, body) ->
       synth_for env e.span label name nspan iter body
-  | Binding (kind, { value = name; span = nspan }, ann, init) ->
-      snd (check_binding env kind name nspan ann init)
+  | Binding ({ value = name; span = nspan }, ann, init) ->
+      snd (check_binding env name nspan ann init)
   | Return init -> synth_return env e.span init
   | Break (label, value) -> synth_break env e.span label value
   | Continue label ->
@@ -1113,9 +1057,9 @@ and check_elem env item use : local_env * Tast.texpr =
       verify_unit_result env (block_item_span item) use;
       (env, Tast.mk Types.TUnit Tast.TLocalDecl)
   | Expr
-      ({ desc = Binding (kind, { value = name; span = nspan }, ann, init); _ }
-       as e) ->
-      let env', tbind = check_binding env kind name nspan ann init in
+      ({ desc = Binding ({ value = name; span = nspan }, ann, init); _ } as e)
+    ->
+      let env', tbind = check_binding env name nspan ann init in
       if tbind.ty <> Types.TNever then verify_unit_result env e.span use;
       (env', tbind)
   | Expr e -> (env, check_value_for_use env e use)
@@ -1132,7 +1076,7 @@ and check_scoped_block ?loop env span body use =
   warn_unused_in_scope final_inner;
   (tb, tblock_ty tb)
 
-and check_binding env kind name nspan ann init =
+and check_binding env name nspan ann init =
   let t, te =
     match (ann, init) with
     | Some a, Some e ->
@@ -1152,14 +1096,10 @@ and check_binding env kind name nspan ann init =
         (* A real type here would cause unrelated later mismatches *)
         (Types.TError, dummy_texpr)
   in
-  if kind = Const then (
-    verify_const_scalar env nspan t;
-    let value = const_value_or env dummy_value te in
-    Symbol.Table.replace (local_consts env) (Symbol.key (sym env nspan)) value);
   (* An init that diverges makes the binding itself dead so it carries never *)
   let node_ty = if te.ty = Types.TNever then Types.TNever else Types.TUnit in
   ( extend_var env nspan name t,
-    Tast.mk node_ty (Tast.TBinding (kind, sym env nspan, t, te)) )
+    Tast.mk node_ty (Tast.TBinding (sym env nspan, t, te)) )
 
 and synth_return env span init =
   if env.ret_ty = Types.TNever then
@@ -1358,12 +1298,7 @@ and check_pattern env sty pat =
   | PatWild -> (env, Some Tast.TPatWild)
   | PatBind name ->
       let symbol = sym env pat.pspan in
-      (* The resolver already decided so a const name reads as a constant *)
-      if Symbol.is_const symbol.Symbol.kind then
-        check_pattern env sty
-          { pat with pdesc = PatValue { desc = Ident name; span = pat.pspan } }
-      else
-        (extend_var env pat.pspan name sty, Some (Tast.TPatBind (symbol, sty)))
+      (extend_var env pat.pspan name sty, Some (Tast.TPatBind (symbol, sty)))
   | PatValue e -> (
       let te = check env e sty in
       (* TODO(43f6): comparing these needs more than the integer test an arm emits *)
@@ -1373,7 +1308,7 @@ and check_pattern env sty pat =
           |> Diagnostic.label "cannot test %s" (show_ty env te.ty));
         (env, None)
       in
-      (* TODO(766b): a named constant and a range should both work as patterns *)
+      (* TODO(766b): A range should work as a pattern *)
       let not_a_literal () =
         emit env
           (Diagnostic.error pat.pspan "pattern is not a literal"
@@ -1388,9 +1323,6 @@ and check_pattern env sty pat =
       | Tast.TChar c -> (env, Some (Tast.TPatConst (Int64.of_int c)))
       | Tast.TErrorExpr -> (env, None)
       | Tast.TFloat _ | Tast.TStr _ | Tast.TCStr _ -> not_comparable ()
-      | _ when is_integer te.ty ->
-          let value = const_value_or env dummy_value te in
-          (env, Some (Tast.TPatConst (Constant.int_of value)))
       | _ -> not_a_literal ())
 
 and check_match env scrutinee arms use =
@@ -1510,8 +1442,7 @@ and check_size_literal env (e : expr) want target typ =
       let size = Int64.of_int (Layout.ty_size env.ctx.layouts ty) in
       (* An error type counts as an integer here so it has no kind to ask for *)
       (match target with
-      | Types.TInt kind
-        when not (Constant.representable kind (Constant.of_magnitude size)) ->
+      | Types.TInt kind when not (Types.int_kind_fits kind ~neg:false size) ->
           emit env
             (Diagnostic.error e.span "size does not fit"
             |> Diagnostic.label "%Ld does not fit in %s" size
@@ -1691,8 +1622,7 @@ and check_assign_operands env base l r =
   | Tast.TIdent _ | Tast.TFieldAccess _ | Tast.TIndex _ -> (
       (* This catches writes to any immutable binding *)
       match root_binding tl with
-      | Some s when Symbol.is_immutable s.Symbol.kind || is_const_symbol env s
-        ->
+      | Some s when Symbol.is_immutable s.Symbol.kind ->
           emit env (Diagnostic.error l.span "cannot assign to immutable")
       | _ -> ())
   | _ -> ());
@@ -1744,15 +1674,8 @@ and synth_unop env op e =
           dummy_texpr)
   | AddressOf ->
       let te = synth env e in
-      (match te.desc with
-      | Tast.TIdent s when is_const_symbol env s ->
-          emit env
-            (Diagnostic.error e.span "cannot take address of a constant"
-            |> Diagnostic.help "a const has no storage, use var")
-      | _ ->
-          if te.ty <> Types.TError && not (is_lvalue te) then
-            emit env
-              (Diagnostic.error e.span "cannot take address of expression"));
+      if te.ty <> Types.TError && not (is_lvalue te) then
+        emit env (Diagnostic.error e.span "cannot take address of expression");
       Tast.mk
         (lift_ty (fun ty -> Types.TPointer ty) te.ty)
         (Tast.TUnOp (op, te))
@@ -1877,29 +1800,6 @@ and synth_index env span base idx =
         |> Diagnostic.label "on %s" (show_ty env t));
       dummy_texpr
 
-(* An array size can want a const before that decl is checked so values
-   resolve on demand *)
-and const_of_symbol env s span =
-  match s.Symbol.kind with
-  | Symbol.Local Ast.Const ->
-      Option.bind env.local_values (fun values ->
-          Symbol.Table.find_opt values (Symbol.key s))
-  | Symbol.Global Ast.Const
-    when Symbol.Table.mem env.ctx.global_facts (Symbol.key s) ->
-      Some (global_const_num env span (Symbol.key s))
-  | _ -> None
-
-and global_const_num env span key =
-  match Symbol.Table.find_opt env.ctx.const_values key with
-  | Some value -> value
-  | None ->
-      let fact = find_global_fact env span key in
-      force_deferred span fact.folded ~on_error:dummy_value (fun () ->
-          let te = global_typed_init env span key in
-          let value = const_value_or env dummy_value te in
-          Symbol.Table.replace env.ctx.const_values key value;
-          value)
-
 (* The init is what an unannotated global gets its type from *)
 and global_ty env (gd : global_def) =
   match (gd.typ, gd.init) with
@@ -1928,40 +1828,29 @@ and global_typed_init env span key =
 and type_global_init env span = function
   | { init = Some e; typ = Some t; _ } -> check env e (ty_of_ast env t)
   | { init = Some e; typ = None; _ } -> synth env e
-  | { init = None; _ } ->
-      raise
-        (Diagnostic.Errors
-           [
-             Diagnostic.error span "unsupported constant expression"
-             |> Diagnostic.help
-                  "constant initializers must evaluate at compile time";
-           ])
+  | { init = None; _ } -> Diagnostic.ice ~span "global has no initializer"
 
-(* The folded size fixes dropped suffixes and silent wraps on huge counts *)
 and eval_array_size env e =
   let bad msg =
     emit env (Diagnostic.error e.span "%s" msg);
     0
   in
   let te = synth env e in
-  if not (is_integer te.ty) then bad "array size must be an integer"
-  else
-    let v = const_value_or env dummy_value te in
-    let n = Constant.int_of v in
-    (* The message shows the folded value for expression sizes *)
-    let shown =
-      if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
-    in
-    if
-      Int64.compare n 0x7FFF_FFFFL > 0
-      || (Int64.compare n 0L < 0 && is_unsigned te.ty)
-    then bad ("array size is too large: " ^ shown)
-    else if Int64.compare n 0L < 0 then bad ("array size is negative: " ^ shown)
-    else Int64.to_int n
-
-(* The const query survives the strip but nothing reaches it until the
-   demand entry point exists *)
-let _keep_const_query = (const_of_symbol, global_const_num)
+  match te.desc with
+  | _ when not (is_integer te.ty) -> bad "array size must be an integer"
+  | Tast.TInt n ->
+      let shown =
+        if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
+      in
+      if
+        Int64.compare n 0x7FFF_FFFFL > 0
+        || (Int64.compare n 0L < 0 && is_unsigned te.ty)
+      then bad ("array size is too large: " ^ shown)
+      else if Int64.compare n 0L < 0 then
+        bad ("array size is negative: " ^ shown)
+      else Int64.to_int n
+  | _ when Types.has_error te.ty -> 0
+  | _ -> bad "array size must be a literal"
 
 let params_have_a_hole (fd : func_def) =
   List.exists (fun p -> Option.is_none p.param_name.value) fd.params
@@ -2184,18 +2073,13 @@ let resolve_type_bodies ctx =
   List.iter resolve ctx.declarations
 
 let collect_global env (gd : global_def) =
-  (if gd.init = None then
-     match gd.kind with
-     | Var -> ()
-     | Const ->
-         emit env (Diagnostic.error gd.name.span "const without initializer"));
   let key = key_at env gd.span in
   let t =
     match Symbol.Table.find_opt env.ctx.global_facts key with
     | Some fact -> pending_global_ty env gd.span key fact
     | None -> global_ty env gd
   in
-  Symbol.Table.replace env.ctx.globals key (t, gd.kind)
+  Symbol.Table.replace env.ctx.globals key t
 
 (* Every type name lands first so a signature can name a type written later *)
 let reserve_type_names ctx =
@@ -2325,19 +2209,12 @@ let check_global env (gd : global_def) =
   (* The collected type is reused so a bad array size errors once *)
   let t =
     match Symbol.Table.find_opt env.ctx.globals key with
-    | Some (t, _) -> t
+    | Some t -> t
     | None -> global_ty env gd
   in
-  if gd.kind = Const then verify_const_scalar env gd.span t;
   let tinit =
     match gd.init with
     | None -> None
-    | Some { desc = Undefined; span } when gd.kind = Const ->
-        emit env
-          Diagnostic.(
-            error span "const cannot be undefined"
-            |> help "use var for values that need storage");
-        None
     | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te =
@@ -2352,7 +2229,6 @@ let check_global env (gd : global_def) =
     name = link_name_at env gd.span (Ast.ident_text gd.name);
     ty = t;
     init = tinit;
-    kind = gd.kind;
     modifiers = gd.modifiers;
   }
 
@@ -2412,7 +2288,7 @@ let check_decls ctx =
   in
   List.map check_declaration ctx.declarations
 
-(* An early array size can demand any later const so defs go in first *)
+(* A global init can read a later global so defs go in first *)
 let register_globals ctx =
   let register = function
     | Global gd ->
@@ -2421,7 +2297,6 @@ let register_globals ctx =
             declaration = gd;
             declared_ty = ref Unstarted;
             typed = ref Unstarted;
-            folded = ref Unstarted;
           }
     | Func _ | Extern _ | Struct _ | TypeAlias _ | Enum _ -> ()
   in

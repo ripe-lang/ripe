@@ -9,10 +9,10 @@ type kind =
   | Func
   | LocalFunc
   | Extern
-  | Global of Ast.binding_kind
+  | Global
   | Type
   | LocalType
-  | Local of Ast.binding_kind
+  | Local
   | Param
   | ForVar
   | Module
@@ -53,12 +53,8 @@ end)
 
 let prelude_module_id = -2
 let is_func = function Func | LocalFunc | Extern -> true | _ -> false
-let is_global = function Global _ -> true | _ -> false
+let is_global = function Global -> true | _ -> false
 
 let is_immutable = function
-  | Local Ast.Const | ForVar | Module | MatchBind | Param -> true
-  | _ -> false
-
-let is_const = function
-  | Local Ast.Const | Global Ast.Const -> true
+  | ForVar | Module | MatchBind | Param -> true
   | _ -> false

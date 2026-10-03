@@ -1,7 +1,7 @@
 struct pt { x: i32, y: i32 }
 enum col { Red, Green }
 type mi = i64;
-const K: i32 = 3;
+var K: i32 = 3;
 var tbl: [3]i32 = [1, 2, 3];
 fn add(a: i32, b: i32) i32 { return a + b }
 fn idx(i: i32) i32 { return tbl[i] }
