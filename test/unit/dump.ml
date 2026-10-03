@@ -128,8 +128,6 @@ and dump_expr (e : Ripe.Ast.expr) =
       "(match " ^ dump_expr scrutinee
       ^ String.concat "" (List.map arm arms)
       ^ ")"
-  | PairAssign (ft, st, fv, sv) ->
-      "(pair " ^ String.concat " " (List.map dump_expr [ ft; st; fv; sv ]) ^ ")"
   | Unit -> "()"
 
 and dump_pattern (p : Ripe.Ast.pattern) : string =

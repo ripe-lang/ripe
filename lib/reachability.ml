@@ -33,7 +33,6 @@ and expr_has_break ~own target e =
   | While (label, _, body) | Loop (label, body) ->
       nested_has_break target label body
   | For (label, _, _, body) -> nested_has_break target label body
-  | PairAssign _ -> false
   | _ -> false
 
 and nested_has_break target label body =

@@ -6,13 +6,8 @@ fn bump(x: i32) {
   x += 1;
 }
 
-fn swap(a: i32, b: i32) {
-  a, b = b, a;
-}
-
 fn main() i32 {
   set(34);
   bump(34);
-  swap(1, 2);
   return 0;
 }

@@ -731,33 +731,6 @@ let%expect_test "mir: a slice expression carries a base and a length" =
     }
     |}]
 
-let%expect_test "mir: a pair assign reads both sides before writing" =
-  Pipeline.run_mir
-    {|fn f() i32 {
-  var a: i32 = 1;
-  var b: i32 = 2;
-  a, b = b, a;
-  return a;
-}|};
-  [%expect
-    {|
-    fn f() i32 {
-      local %0 a: i32 user
-      local %1 b: i32 user
-      local %2: i32 temp
-      local %3: i32 temp
-
-      block0:
-        %0 = 1
-        %1 = 2
-        %2 = copy %1
-        %3 = copy %0
-        %0 = copy %2
-        %1 = copy %3
-        return copy %0
-    }
-    |}]
-
 let%expect_test "mir: a compound assign reuses the place it writes" =
   Pipeline.run_mir
     {|fn f() i32 {

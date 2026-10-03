@@ -1797,30 +1797,6 @@ import math.vector;
     import math.vector
     |}]
 
-let%expect_test "parse: pair assignment" =
-  run_src "fn f() { var a = 1; var b = 2; a, b = b, a }";
-  [%expect {| ok |}]
-
-let%expect_test "parse: pair assignment rejects a third target" =
-  run_src "fn f(a: i32, b: i32, c: i32) { a, b, c = b, c, a }";
-  [%expect
-    {|
-    error: pair assignment requires exactly two targets
-      at <test>:1:36
-        fn f(a: i32, b: i32, c: i32) { a, b, c = b, c, a }
-                                           ^
-    |}]
-
-let%expect_test "parse: pair assignment rejects a third value" =
-  run_src "fn f(a: i32, b: i32, c: i32) { a, b = b, c, a }";
-  [%expect
-    {|
-    error: pair assignment requires exactly two values
-      at <test>:1:43
-        fn f(a: i32, b: i32, c: i32) { a, b = b, c, a }
-                                                  ^
-    |}]
-
 let%expect_test "parse: regular assignment remains accepted" =
   run_src "fn f(b: i32) { var a = 1; a = b }";
   [%expect {| ok |}]

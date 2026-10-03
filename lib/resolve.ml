@@ -561,11 +561,6 @@ and resolve_expr st e =
   | Break (_, value) -> Option.iter (resolve_expr st) value
   | Continue _ -> ()
   | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
-  | PairAssign (ft, st', fv, sv) ->
-      resolve_expr st ft;
-      resolve_expr st st';
-      resolve_expr st fv;
-      resolve_expr st sv
   | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)

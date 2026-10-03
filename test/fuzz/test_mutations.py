@@ -56,7 +56,6 @@ FRONT_END = (
     "expected ",
     "mixed struct fields",
     "unexpected closing delimiter",
-    "pair assignment requires",
     "`module` must be the first item",
     "`...` must be the last parameter",
     "comparison operators cannot be chained",
