@@ -189,6 +189,7 @@ let build_struct_layouts (struct_decls : struct_decl list) =
     struct_decls;
   struct_layouts
 
+(* TODO(7a4f): This is temporary until global inits fold again *)
 let literal (expr : Tast.texpr) =
   match expr.desc with
   (* The MIR keeps the value but not the variant name *)
@@ -203,7 +204,10 @@ let literal (expr : Tast.texpr) =
   | Tast.TUndef -> Undef
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       Function symbol.Symbol.link_name
-  | _ -> Diagnostic.ice ~span:expr.span "unsupported MIR global initializer"
+  | _ ->
+      raise
+        (Diagnostic.Errors
+           [ Diagnostic.error expr.span "global initializer must be a literal" ])
 
 let rec global_init (expr : Tast.texpr) =
   match expr.desc with
