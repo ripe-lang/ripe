@@ -8,6 +8,6 @@
   "source": "lib/sema.ml",
   "status": "open",
   "tags": [],
-  "title": "a named constant and a range should both work as patterns",
+  "title": "A range should work as a pattern",
   "updated_at": "2026-08-24 02:40:23.201073"
 }

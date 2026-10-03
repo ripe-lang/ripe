@@ -42,7 +42,7 @@ let force_deferred span cell ~(on_error : 'a) (compute : unit -> 'a) =
   match !cell with
   | Completed v -> v
   | Running ->
-      raise (Diagnostic.Errors [ Diagnostic.error span "cyclic constant" ])
+      raise (Diagnostic.Errors [ Diagnostic.error span "cyclic initializer" ])
   | Unstarted -> (
       cell := Running;
       try
@@ -524,14 +524,7 @@ let verify_operands env span op t =
 let find_global_fact env span key =
   match Symbol.Table.find_opt env.ctx.global_facts key with
   | Some st -> st
-  | None ->
-      raise
-        (Diagnostic.Errors
-           [
-             Diagnostic.error span "unsupported constant expression"
-             |> Diagnostic.help
-                  "constant initializers must evaluate at compile time";
-           ])
+  | None -> Diagnostic.ice ~span "global was never registered"
 
 let adopt_int_literal env span want target ~neg n =
   let signed = if neg then Int64.neg n else n in
@@ -1315,7 +1308,7 @@ and check_pattern env sty pat =
           |> Diagnostic.label "cannot test %s" (show_ty env te.ty));
         (env, None)
       in
-      (* TODO(766b): a named constant and a range should both work as patterns *)
+      (* TODO(766b): A range should work as a pattern *)
       let not_a_literal () =
         emit env
           (Diagnostic.error pat.pspan "pattern is not a literal"
@@ -1835,14 +1828,7 @@ and global_typed_init env span key =
 and type_global_init env span = function
   | { init = Some e; typ = Some t; _ } -> check env e (ty_of_ast env t)
   | { init = Some e; typ = None; _ } -> synth env e
-  | { init = None; _ } ->
-      raise
-        (Diagnostic.Errors
-           [
-             Diagnostic.error span "unsupported constant expression"
-             |> Diagnostic.help
-                  "constant initializers must evaluate at compile time";
-           ])
+  | { init = None; _ } -> Diagnostic.ice ~span "global has no initializer"
 
 and eval_array_size env e =
   let bad msg =
@@ -2302,7 +2288,7 @@ let check_decls ctx =
   in
   List.map check_declaration ctx.declarations
 
-(* An early array size can demand any later const so defs go in first *)
+(* A global init can read a later global so defs go in first *)
 let register_globals ctx =
   let register = function
     | Global gd ->

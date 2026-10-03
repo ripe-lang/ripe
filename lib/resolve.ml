@@ -580,7 +580,6 @@ and resolve_pattern st p =
   | PatValue e -> resolve_expr st e
   | PatBind name -> declare_local st Symbol.MatchBind name p.pspan
 
-(* An array size expression may name constants *)
 and resolve_typ st t =
   match t.tdesc with
   | ErrorType -> ()

@@ -493,7 +493,7 @@ fn f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global initializer must be constant" =
+let%expect_test "typecheck: global initializer calls a function" =
   run_src {|
 fn g() i32 { return 1 }
 var X: i32 = g();
@@ -1693,7 +1693,7 @@ fn f() i32 { return g[1] }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global array non-constant element rejected" =
+let%expect_test "typecheck: global array element calls a function" =
   run_src {|
 fn k() i32 { return 1 }
 var g: [2]i32 = [k(), 2];
@@ -1960,7 +1960,7 @@ fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global struct literal must be constant" =
+let%expect_test "typecheck: global struct literal calls a function" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
@@ -3845,7 +3845,7 @@ let%expect_test "typecheck: str cannot be compared" =
                  ^ cannot apply `==` to str
     |}]
 
-let%expect_test "typecheck: a str global is constant" =
+let%expect_test "typecheck: a str global" =
   run_src "var g: str = \"a\";";
   [%expect {| ok |}]
 
@@ -4766,7 +4766,7 @@ let%expect_test "typecheck: cast has no effect" =
     ok
     |}]
 
-let%expect_test "typecheck: constant expression overflows" =
+let%expect_test "typecheck: a literal product overflows" =
   run_src "fn f() i64 { return 9223372036854775807 * 9223372036854775807 }";
   [%expect {| ok |}]
 

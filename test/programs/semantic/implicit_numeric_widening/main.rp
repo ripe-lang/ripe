@@ -1,4 +1,4 @@
-// BROKEN: const eval stripped
+// BROKEN: a global init can't read another global yet
 
 var SMALL: u8 = 200;
 var WIDE: u32 = SMALL;
