@@ -818,7 +818,6 @@ and synth_desc env e =
   | Continue label ->
       ignore (find_loop_or_error env e.span "`continue` outside a loop" label);
       Tast.mk Types.TNever (Tast.TContinue label)
-  | PairAssign (ft, st, fv, sv) -> synth_pair_assign env ft st fv sv
   | Loop (label, body) -> check_loop_expr env e.span label body None
   | Unit -> Tast.mk Types.TUnit Tast.TUnit
 
@@ -1637,11 +1636,6 @@ and check_assign_operands env base l r =
     | _ -> check env r t
   in
   (tl, tr)
-
-and synth_pair_assign env ft st fv sv =
-  let ft, fv = check_assign_operands env None ft fv in
-  let st, sv = check_assign_operands env None st sv in
-  Tast.mk Types.TUnit (Tast.TPairAssign (ft, st, fv, sv))
 
 and synth_unop env op e =
   match op with

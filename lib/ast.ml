@@ -122,7 +122,6 @@ type expr_desc =
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
-  | PairAssign of expr * expr * expr * expr
   | Loop of loop_label option * block
   | Match of expr * arm list
   | Unit

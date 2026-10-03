@@ -40,7 +40,6 @@ type texpr_desc =
   | TReturn of texpr option
   | TBreak of Ast.loop_label option * texpr option
   | TContinue of Ast.loop_label option
-  | TPairAssign of texpr * texpr * texpr * texpr
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
   | TMatch of texpr * tarm list

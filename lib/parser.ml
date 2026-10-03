@@ -30,7 +30,6 @@ type infix = { prec : int; assoc : assoc; build : expr -> expr -> expr_desc }
 type field_form = NamedField | PositionalField
 type binding_context = LocalBinding | GlobalBinding
 type expression_context = NormalExpression | HeaderExpression
-type statement_context = BlockStatement | MatchArmBody
 
 let cur_token st = st.current.token
 let cur_line st = st.current.line
@@ -354,12 +353,6 @@ and binding_annotation st =
 and binding_initializer st =
   expect st ASSIGN;
   parse_expr st
-
-and expression_statement st context lo =
-  let first = parse_expr st in
-  match context with
-  | BlockStatement when at st COMMA -> Expr (parse_pair_assign st lo first)
-  | BlockStatement | MatchArmBody -> Expr first
 
 (* i32, *i32, fn (i32, i32) i32 *)
 and parse_typ st =
@@ -1009,23 +1002,6 @@ and parse_struct_lit_fields st =
 (* The x < len of if x < len { } *)
 and parse_header_expr st = parse_expr ~context:HeaderExpression st
 
-(* a, b = b, a *)
-and parse_pair_assign st lo t1 =
-  expect st COMMA;
-  let t2 = parse_expr ~min_prec:2 st in
-  if at st COMMA then
-    Diagnostic.error (cur_span st)
-      "pair assignment requires exactly two targets"
-    |> fail;
-  expect st ASSIGN;
-  let v1 = parse_expr st in
-  expect st COMMA;
-  let v2 = parse_expr st in
-  if at st COMMA then
-    Diagnostic.error (cur_span st) "pair assignment requires exactly two values"
-    |> fail;
-  mk lo st (PairAssign (t1, t2, v1, v2))
-
 (* { return a + b }  *)
 and parse_block st =
   let lo = cur_pos st in
@@ -1067,7 +1043,7 @@ and parse_stmts st =
   go ()
 
 (* var n = 1, if c { }, return x *)
-and parse_stmt ?(context = BlockStatement) st =
+and parse_stmt st =
   let lo = cur_pos st in
   match cur_token st with
   | IF -> Expr (parse_if st)
@@ -1094,14 +1070,14 @@ and parse_stmt ?(context = BlockStatement) st =
       advance st;
       if at_value_end st then Expr (mk lo st (Return None))
       else Expr (mk lo st (Return (Some (parse_expr st))))
-  | FUNC when peek_token st == LPAREN -> expression_statement st context lo
+  | FUNC when peek_token st == LPAREN -> Expr (parse_expr st)
   | FUNC when is_stmt_keyword (peek_token st) ->
       advance st;
       Diagnostic.error (cur_span st) "expected identifier"
       |> found st |> report st;
-      parse_stmt ~context st
+      parse_stmt st
   | PUBLIC | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
-  | _ -> expression_statement st context lo
+  | _ -> Expr (parse_expr st)
 
 (* pub type small = i32 inside a body *)
 and parse_local_decl st =
@@ -1185,9 +1161,7 @@ and parse_arm st =
   let pat = parse_pattern st in
   expect st FATARROW;
   let body_lo = cur_pos st in
-  let body =
-    spanned [ parse_stmt ~context:MatchArmBody st ] (span_from body_lo st)
-  in
+  let body = spanned [ parse_stmt st ] (span_from body_lo st) in
   { pat; arm_body = body; arm_span = span_from lo st }
 
 (* _, n, Color.Red *)

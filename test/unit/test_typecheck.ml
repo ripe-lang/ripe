@@ -3378,44 +3378,6 @@ let%expect_test "typecheck: binding a unit call" =
   run_src "fn foo() { }; fn f() { var _value = foo() }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: pair assignment checks each value" =
-  run_src "fn f(x: i32, y: bool) { var a = x; var b = y; a, b = b, a }";
-  [%expect
-    {|
-    error: type mismatch
-      at <test>:1:54
-        fn f(x: i32, y: bool) { var a = x; var b = y; a, b = b, a }
-                                                             ^ expected i32, found bool
-    error: type mismatch
-      at <test>:1:57
-        fn f(x: i32, y: bool) { var a = x; var b = y; a, b = b, a }
-                                                                ^ expected bool, found i32
-    |}]
-
-let%expect_test "typecheck: pair assignment checks each target" =
-  run_src "fn f(a: i32) { var b = 2; a, b = b, a }";
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:1:27
-        fn f(a: i32) { var b = 2; a, b = b, a }
-                                  ^
-    |}]
-
-let%expect_test "typecheck: pair assignment rejects an expression target" =
-  run_src "fn f(a: i32) { var b = 2; (a + 1), b = b, a }";
-  [%expect
-    {|
-    error: cannot assign to expression
-      at <test>:1:28
-        fn f(a: i32) { var b = 2; (a + 1), b = b, a }
-                                   ^~~~~ on i32
-    |}]
-
-let%expect_test "typecheck: pair assignment allows different target types" =
-  run_src "fn f() { var a = 0; var b = false; a, b = 1, true }";
-  [%expect {| ok |}]
-
 let%expect_test "typecheck: newline operator continues into unit call" =
   run_src {|fn g() {}
 fn f() i32 {
@@ -3689,34 +3651,6 @@ let%expect_test "typecheck: compound write to a scalar parameter" =
       at <test>:1:16
         fn f(x: i32) { x += 1 }
                        ^
-    |}]
-
-let%expect_test "typecheck: pair assignment to two parameters" =
-  run_src "fn f(a: i32, b: i32) { a, b = b, a }";
-  [%expect
-    {|
-    error: cannot assign to immutable
-      at <test>:1:24
-        fn f(a: i32, b: i32) { a, b = b, a }
-                               ^
-    error: cannot assign to immutable
-      at <test>:1:27
-        fn f(a: i32, b: i32) { a, b = b, a }
-                                  ^
-    |}]
-
-let%expect_test "typecheck: pair assignment to an expression and a parameter" =
-  run_src "fn f(a: i32, b: i32) { (a + 1), b = b, a }";
-  [%expect
-    {|
-    error: cannot assign to expression
-      at <test>:1:25
-        fn f(a: i32, b: i32) { (a + 1), b = b, a }
-                                ^~~~~ on i32
-    error: cannot assign to immutable
-      at <test>:1:33
-        fn f(a: i32, b: i32) { (a + 1), b = b, a }
-                                        ^
     |}]
 
 let%expect_test "typecheck: discarded if arms need not agree" =
@@ -4719,7 +4653,8 @@ fn apply(f: fn (i64) i64, value: i8) i64 { f(value) }
 fn f(small: i8, index: u8) i64 {
   var left: i64 = 0;
   var right: i64 = 0;  
-  left, right = small, small;
+  left = small;
+  right = small;
   var nested: i64 = { small };
   var negative: i64 = -small;
   var positive: i64 = +small;

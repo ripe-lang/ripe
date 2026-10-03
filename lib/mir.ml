@@ -327,11 +327,6 @@ let materialize state (operand : operand) =
       assign state destination operand;
       destination
 
-let save_operand (state : builder) (operand : operand) =
-  let destination = new_temp state operand.span operand.ty in
-  assign state destination operand;
-  copy operand.span operand.ty destination
-
 let global_place (state : builder) span (symbol : Symbol.t) =
   match Hashtbl.find_opt state.env.globals (Symbol.key symbol) with
   | Some name -> place span (Global name)
@@ -829,8 +824,7 @@ and lower_expr state expr =
   | Tast.TFor (label, symbol, elem_ty, iter, body) ->
       lower_for state expr.span label symbol elem_ty iter body;
       constant expr Undef
-  | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _
-  | Tast.TPairAssign _ ->
+  | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _ ->
       lower_statement state expr;
       constant expr Undef
   | Tast.TUnit -> constant expr Undef
@@ -983,15 +977,6 @@ and lower_compound_assign state (expr : Tast.texpr) op (left : Tast.texpr) right
   assign state target updated;
   updated
 
-and lower_pair_assign state first_target second_target first_value second_value
-    =
-  let first_value = lower_expr state first_value |> save_operand state in
-  let second_value = lower_expr state second_value |> save_operand state in
-  let first_target = lower_place state first_target in
-  assign state first_target first_value;
-  let second_target = lower_place state second_target in
-  assign state second_target second_value
-
 (* A later break can widen the loop type the earlier ones settled on *)
 and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
   if lowered.ty = Types.TNever || ty_equal lowered.ty result_ty then lowered
@@ -1047,10 +1032,6 @@ and lower_statement state expr =
         lower_for state expr.span label symbol elem_ty iter body
     | Tast.TLoop (label, body) ->
         ignore (lower_loop state expr.span label expr.ty body)
-    | Tast.TPairAssign (first_target, second_target, first_value, second_value)
-      ->
-        lower_pair_assign state first_target second_target first_value
-          second_value
     | Tast.TBlock body -> List.iter (lower_statement state) body
     | _ ->
         ignore (lower_expr state expr);
