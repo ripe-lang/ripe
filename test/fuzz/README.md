@@ -36,6 +36,9 @@ A script exits 0 when nothing failed and you can set `JOBS` to change how many p
 | `test_type_positions.py` | 2421 | 0 | 2 |
 | `test_delim_random.py` | 400 | 0 | |
 | `test_delim_mixes.py` | 150 | 0 | |
+| `test_decl_heads.py` | 48 | 0 | 2 |
+| `test_stress.py` | 10 | 0 | |
+| `test_survival.py` | 426 | 5 | |
 
 ## Contexts
 
