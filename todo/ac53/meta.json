@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-03 17:07:30.424271",
+  "depends": [],
+  "id": "ac53",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "A misplaced positional struct literal in a header cascades into a fields error",
+  "updated_at": "2026-10-03 17:07:30.424284"
+}
