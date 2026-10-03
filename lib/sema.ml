@@ -536,8 +536,7 @@ let find_global_fact env span key =
 let adopt_int_literal env span want target ~neg n =
   let signed = if neg then Int64.neg n else n in
   match target with
-  | Types.TInt kind
-    when not (Constant.representable kind (Constant.of_magnitude ~neg n)) ->
+  | Types.TInt kind when not (Types.int_kind_fits kind ~neg n) ->
       emit env
         (Diagnostic.error span "integer literal out of range"
         |> Diagnostic.label "does not fit in %s" (show_ty env want));
@@ -1450,8 +1449,7 @@ and check_size_literal env (e : expr) want target typ =
       let size = Int64.of_int (Layout.ty_size env.ctx.layouts ty) in
       (* An error type counts as an integer here so it has no kind to ask for *)
       (match target with
-      | Types.TInt kind
-        when not (Constant.representable kind (Constant.of_magnitude size)) ->
+      | Types.TInt kind when not (Types.int_kind_fits kind ~neg:false size) ->
           emit env
             (Diagnostic.error e.span "size does not fit"
             |> Diagnostic.label "%Ld does not fit in %s" size

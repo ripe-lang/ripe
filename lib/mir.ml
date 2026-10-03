@@ -189,15 +189,6 @@ let build_struct_layouts (struct_decls : struct_decl list) =
     struct_decls;
   struct_layouts
 
-let constant_of_value = function
-  | Constant.VFloat (value, _) -> Float value
-  | Constant.VBool value -> Bool value
-  | Constant.VChar value -> Char value
-  | Constant.VInt _ as value -> Int (Constant.int_of value)
-
-(* This is only temporary *)
-let _keep_constant_of_value = constant_of_value
-
 let literal (expr : Tast.texpr) =
   match expr.desc with
   (* The MIR keeps the value but not the variant name *)
