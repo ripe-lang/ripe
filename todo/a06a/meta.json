@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-03 03:38:36.971829",
+  "depends": [],
+  "id": "a06a",
+  "priority": "medium",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "diagnostics"
+  ],
+  "title": "A broken var initializer hides a missing semicolon",
+  "updated_at": "2026-10-03 03:38:36.971843"
+}
