@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-03 17:09:45.576361",
+  "depends": [],
+  "id": "c74d",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "A one field positional struct literal in a header cascades",
+  "updated_at": "2026-10-03 17:09:45.576373"
+}
