@@ -1,0 +1,16 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-05 00:34:29.337107",
+  "depends": [],
+  "id": "be4c",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug",
+    "diagnostics"
+  ],
+  "title": "Late module header in a merged file reports twice",
+  "updated_at": "2026-10-05 00:34:34.362818"
+}
