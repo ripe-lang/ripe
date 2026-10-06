@@ -13,26 +13,6 @@ A systems programming language.
 > [!WARNING]
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
-```
-import std.io;
-
-struct Point { x: i32, y: i32 }
-
-fn norm(p: Point) i32 {
-  p.x * p.x + p.y * p.y
-}
-
-fn main() {
-  var points: [2]Point = [
-    Point { x: 1, y: 2 },
-    Point { x: 8, y: 0 },
-  ];
-  for p in points {
-    io.print_int(norm(p)); // 5 then 64
-  }
-}
-```
-
 ## Documentation
 
 Read the documentation at [ripe-lang.org](https://www.ripe-lang.org).
