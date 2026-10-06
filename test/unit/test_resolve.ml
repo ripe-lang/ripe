@@ -820,15 +820,13 @@ let%expect_test "resolve: the builtin types are all in scope" =
   let _, uses = resolve_src 0 {|fn f() i32 { return 1 }|} in
   let builtins = Ripe.Resolve.builtins uses in
   let name (_, builtin) =
-    match builtin with
-    | Ripe.Types.BTy t -> Ripe.Types.show_ty t
-    | Ripe.Types.BOpaque -> "opaque"
+    match builtin with Ripe.Types.BTy t -> Ripe.Types.show_ty t
   in
   print_endline (String.concat " " (List.map name builtins));
   Printf.printf "%d\n" (List.length builtins);
   [%expect
     {|
-    i8 i16 i32 i64 u8 u16 u32 u64 isize usize f32 f64 bool char cstr str never opaque
+    i8 i16 i32 i64 u8 u16 u32 u64 isize usize f32 f64 bool char cstr str never ptr
     18
     |}]
 

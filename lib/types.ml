@@ -76,7 +76,7 @@ type ty =
   | TNever
   | TNull
   | TPointer of ty
-  | TOpaquePtr
+  | TPtr
   (* TODO(39ca): the ty list stays empty until generics land *)
   | TStruct of Qname.t * ty list
   | TFunc of ty list * ty * func_abi
@@ -89,7 +89,7 @@ type ty =
   | TUnit
 [@@deriving show { with_path = false }]
 
-type builtin = BTy of ty | BOpaque
+type builtin = BTy of ty
 
 let builtins =
   List.map
@@ -104,7 +104,7 @@ let builtins =
       ("cstr", BTy TCStr);
       ("str", BTy TStr);
       ("never", BTy TNever);
-      ("opaque", BOpaque);
+      ("ptr", BTy TPtr);
     ]
 
 let rec show_ty_with show_name t =
@@ -119,7 +119,7 @@ let rec show_ty_with show_name t =
   | TNever -> "never"
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
-  | TOpaquePtr -> "*opaque"
+  | TPtr -> "ptr"
   | TStruct (name, []) -> show_name name
   | TStruct (name, args) ->
       Printf.sprintf "%s[%s]" (show_name name)
@@ -194,7 +194,7 @@ let is_aggregate t =
 let is_wide t =
   match resolve_ty t with
   | TInt (I64 | U64 | Isize | Usize)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ ->
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ ->
       true
   | _ -> false
 

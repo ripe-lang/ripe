@@ -12,7 +12,7 @@ let%expect_test "types: a type prints the way it is written" =
   show (TInt U8);
   show (TFloat F32);
   show (TPointer (TPointer TBool));
-  show TOpaquePtr;
+  show TPtr;
   show (TArray (TSlice TChar, 3));
   show point;
   show word;
@@ -26,7 +26,7 @@ let%expect_test "types: a type prints the way it is written" =
     u8
     f32
     **bool
-    *opaque
+    ptr
     [3][]char
     Point
     Word
@@ -174,7 +174,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
       TInt Usize;
       TInt U32;
       TPointer TBool;
-      TOpaquePtr;
+      TPtr;
       TNull;
       TCStr;
       TFunc ([], TUnit, Ripe);
@@ -190,7 +190,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
     wide usize = true
     wide u32 = false
     wide *bool = true
-    wide *opaque = true
+    wide ptr = true
     wide null = true
     wide cstr = true
     wide fn () () = true
@@ -291,8 +291,7 @@ let%expect_test "types: a name maps back to the kind it spells" =
 
 let%expect_test "types: the builtin table covers every spelled out type" =
   let show (name, builtin) =
-    Printf.printf "%s %s\n" name
-      (match builtin with BTy t -> show_ty t | BOpaque -> "<opaque>")
+    Printf.printf "%s %s\n" name (match builtin with BTy t -> show_ty t)
   in
   List.iter show builtins;
   [%expect
@@ -314,7 +313,7 @@ let%expect_test "types: the builtin table covers every spelled out type" =
     cstr cstr
     str str
     never never
-    opaque <opaque>
+    ptr ptr
     |}]
 
 let%expect_test "types: only the two named abis parse" =

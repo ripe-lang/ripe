@@ -40,17 +40,17 @@ let%expect_test "typred: a null fits any pointer but not the other way" =
   let show = pred2 "accepts" Typred.compatible in
   show byte_ptr TNull;
   show TNull byte_ptr;
-  show TOpaquePtr TNull;
-  show TOpaquePtr byte_ptr;
-  show byte_ptr TOpaquePtr;
+  show TPtr TNull;
+  show TPtr byte_ptr;
+  show byte_ptr TPtr;
   show (TInt I64) TNull;
   [%expect
     {|
     *i8 accepts null = true
     null accepts *i8 = false
-    *opaque accepts null = true
-    *opaque accepts *i8 = true
-    *i8 accepts *opaque = false
+    ptr accepts null = true
+    ptr accepts *i8 = false
+    *i8 accepts ptr = false
     i64 accepts null = false
     |}]
 
@@ -258,7 +258,7 @@ let%expect_test "typred: a pointer crosses to a number but never to a float" =
   let show = pred2 "casts to" Typred.cast_ok in
   show (TInt I32) (TFloat F64);
   show (TFloat F64) (TInt I64);
-  show byte_ptr TOpaquePtr;
+  show byte_ptr TPtr;
   show byte_ptr (TInt I64);
   show (TInt I64) byte_ptr;
   show (TFloat F64) byte_ptr;
@@ -266,7 +266,7 @@ let%expect_test "typred: a pointer crosses to a number but never to a float" =
     {|
     i32 casts to f64 = true
     f64 casts to i64 = true
-    *i8 casts to *opaque = true
+    *i8 casts to ptr = true
     *i8 casts to i64 = true
     i64 casts to *i8 = true
     f64 casts to *i8 = false
@@ -295,8 +295,8 @@ let%expect_test "typred: an address needs an integer wide enough to hold it" =
   show (TInt I64) byte_ptr;
   show byte_ptr (TInt I64);
   show (TInt I32) byte_ptr;
-  show (TInt Usize) TOpaquePtr;
-  show TOpaquePtr byte_ptr;
+  show (TInt Usize) TPtr;
+  show TPtr byte_ptr;
   show byte_ptr (TFloat F64);
   show byte_ptr TBool;
   show byte_ptr TChar;
@@ -306,8 +306,8 @@ let%expect_test "typred: an address needs an integer wide enough to hold it" =
     i64 casts to *i8 = true
     *i8 casts to i64 = true
     i32 casts to *i8 = false
-    usize casts to *opaque = true
-    *opaque casts to *i8 = true
+    usize casts to ptr = true
+    ptr casts to *i8 = true
     *i8 casts to f64 = false
     *i8 casts to bool = false
     *i8 casts to char = false

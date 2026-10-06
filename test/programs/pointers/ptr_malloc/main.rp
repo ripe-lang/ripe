@@ -1,4 +1,4 @@
-extern "C" fn malloc(n: usize) *opaque;
+extern "C" fn malloc(n: usize) ptr;
 
 struct point { x: i32, y: i32 }
 

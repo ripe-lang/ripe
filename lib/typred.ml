@@ -9,8 +9,7 @@ let rec compatible want got =
   match (resolve_ty want, resolve_ty got) with
   | a, b when has_error a || has_error b -> true
   | _, TNever -> true
-  | TOpaquePtr, (TPointer _ | TCStr | TNull | TOpaquePtr) -> true
-  | TPointer _, TNull -> true
+  | (TPointer _ | TPtr), TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> compatible_under_pointer a b
   | TSlice a, TArray (b, _) -> compatible a b
@@ -72,8 +71,8 @@ let rec is_comparable t =
   if has_error t then true
   else
     match t with
-    | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TOpaquePtr
-    | TNull | TEnum _ ->
+    | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TPtr | TNull
+    | TEnum _ ->
         true
     | TAlias (_, base) -> is_comparable base
     | TError | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit
@@ -136,7 +135,7 @@ type cast_class = Numeric | Ptr | Aggregate
 let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
-  | TPointer _ | TOpaquePtr | TCStr | TNull | TFunc _ -> Ptr
+  | TPointer _ | TPtr | TCStr | TNull | TFunc _ -> Ptr
   | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
     ->
       Aggregate
