@@ -30,7 +30,7 @@ type 'a deferred = Unstarted | Running | Completed of 'a
 type type_def =
   | Struct_type of struct_info deferred ref
   | Alias_type of ty deferred ref
-  | Builtin_type of Types.builtin
+  | Builtin_type of Types.ty
   | Enum_type of enum_info deferred ref
 
 type result_use = Infer | Expect of ty | Discard
@@ -257,11 +257,6 @@ let key_in ctx span =
 (* Two declarations can go by one name so lookups key on which one it is *)
 let key_at env span = key_in env.ctx span
 
-let builtin_at env span =
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
-  | Some (Builtin_type b) -> Some b
-  | Some (Struct_type _ | Alias_type _ | Enum_type _) | None -> None
-
 (* The symbol path qualifies types in diagnostics *)
 let qname_at env span fallback =
   symbol_at env span
@@ -376,13 +371,7 @@ let unresolved_named_ty env span =
 
 let named_ty env span shown =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
-  | Some (Builtin_type BOpaque) ->
-      emit env
-        Diagnostic.(
-          error span "opaque is only valid as a pointee"
-          |> help "use *opaque for an untyped pointer");
-      Types.TError
-  | Some (Builtin_type (BTy ty)) -> ty
+  | Some (Builtin_type ty) -> ty
   | Some (Struct_type _) -> Types.TStruct (qname_at env span shown, [])
   | Some (Alias_type { contents = Completed aliased }) ->
       Types.TAlias (qname_at env span shown, aliased)
@@ -655,9 +644,9 @@ let synth_typed_field env span (te : Tast.texpr) fname fspan =
   | (Types.TArray (elem, _) | Types.TSlice elem), name when name = ptr_name ->
       Tast.mk (Types.TPointer elem) (Tast.TDataPtr te)
   | (Types.TArray _ | Types.TSlice _), _ -> no_such_field env fspan ty
-  | Types.TOpaquePtr, _ ->
+  | Types.TPtr, _ ->
       emit env
-        (Diagnostic.error span "cannot access a field of *opaque"
+        (Diagnostic.error span "cannot access a field of ptr"
         |> Diagnostic.help "cast to a typed pointer first");
       dummy_texpr
   | _, _ -> synth_struct_field env span te ty fname fspan
@@ -675,8 +664,6 @@ let rec ty_of_ast env t =
   match t.tdesc with
   | ErrorType -> Types.TError
   | Named (path, name) -> named_ty env t.tspan (Ast.show_named path name)
-  | Pointer inner when builtin_at env inner.tspan = Some BOpaque ->
-      Types.TOpaquePtr
   | Pointer t -> lift_ty (fun ty -> Types.TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> array_ty_of_ast env e t
   | Slice t -> lift_ty (fun ty -> Types.TSlice ty) (ty_of_ast env t)
@@ -1511,8 +1498,15 @@ and coerce_expr env e want te =
   else begin
     let mismatch =
       Diagnostic.error e.span "type mismatch"
-      |> Diagnostic.label "expected %s, found %s" (show_ty env want)
-           (show_ty env got)
+      |>
+      match (resolve_ty want, resolve_ty got) with
+      | Types.TPtr, (Types.TPointer _ | Types.TCStr)
+      | (Types.TPointer _ | Types.TCStr), Types.TPtr ->
+          Diagnostic.label "%s needs a cast to become %s" (show_ty env got)
+            (show_ty env want)
+      | _ ->
+          Diagnostic.label "expected %s, found %s" (show_ty env want)
+            (show_ty env got)
     in
     let mismatch =
       match (e.desc, resolve_ty want) with
@@ -1656,9 +1650,9 @@ and synth_unop env op e =
       match resolve_ty te.ty with
       | Types.TPointer inner -> Tast.mk inner (Tast.TUnOp (op, te))
       | t when Types.has_error t -> dummy_texpr
-      | Types.TOpaquePtr ->
+      | Types.TPtr ->
           emit env
-            (Diagnostic.error e.span "cannot dereference *opaque"
+            (Diagnostic.error e.span "cannot dereference ptr"
             |> Diagnostic.help "cast to a typed pointer first");
           dummy_texpr
       | t ->
@@ -1783,9 +1777,9 @@ and synth_index env span base idx =
               (Diagnostic.error idx.span "array index must be an integer");
           Tast.mk elem (Tast.TIndex (tbase, tidx)))
   | Types.TError -> dummy_texpr
-  | Types.TOpaquePtr ->
+  | Types.TPtr ->
       emit env
-        (Diagnostic.error span "cannot index *opaque"
+        (Diagnostic.error span "cannot index ptr"
         |> Diagnostic.help "cast to a typed pointer first");
       dummy_texpr
   | t ->

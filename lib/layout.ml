@@ -70,7 +70,7 @@ and ty_measure t ty =
       (n, n)
   | TBool -> (1, 1)
   | TChar | TEnum _ -> (4, 4)
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> (8, 8)
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> (8, 8)
   | TSlice _ | TStr -> (16, 8)
   | TUnit | TNever | TError -> (0, 1)
   | TStruct (name, _) ->

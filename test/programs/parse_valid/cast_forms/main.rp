@@ -13,7 +13,7 @@ fn main() i32 {
   var q: *u32 = cast(*u32, p);
   var pp: **i32 = &p;
   var qq: **u32 = cast(**u32, pp);
-  var o: *opaque = cast(*opaque, p);
+  var o: ptr = cast(ptr, p);
   var z: *i32 = cast(*i32, cast(usize, 0));
   var fp: fn (i32) i32 = h;
   var ep: extern "C" fn (i32) i32 = cast(extern "C" fn (i32) i32, fp);

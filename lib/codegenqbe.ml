@@ -12,7 +12,7 @@ let qbe_scalar t =
   | TInt k -> ( match int_kind_size k with 1 -> B | 2 -> H | 4 -> W | _ -> L)
   | TFloat F32 -> S
   | TFloat F64 -> D
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ | TStruct _ | TArray _
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ | TStruct _ | TArray _
   | TSlice _ | TStr ->
       L
   | TNever -> Diagnostic.ice "TNever has no QBE type"
@@ -39,7 +39,7 @@ let qbe_ty t = match qbe_base t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 (* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness t =
   match resolve_ty t with
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TChar | TBool -> "u"
+  | TPointer _ | TPtr | TNull | TCStr | TChar | TBool -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
 (* This is the hard limit where libc call stops emitting one instruction per word *)
@@ -844,7 +844,7 @@ let analyze_local_usage func =
 let can_bind_value (local : Mir.local) =
   match resolve_ty local.Mir.ty with
   | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
-  | TPointer _ | TOpaquePtr | TNull | TCStr | TFunc _ -> true
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> true
   | _ -> false
 
 (* Keeps names readable in the generated IL and adds suffixes when needed *)

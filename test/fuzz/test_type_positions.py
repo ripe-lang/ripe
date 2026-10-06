@@ -16,7 +16,7 @@ SHAPES = (
     ("never", "spin()"),
     ('extern "C" fn (i32) i32', "hc"),
     ("**i32", "null"),
-    ("*opaque", "null"),
+    ("ptr", "null"),
     ("bool", "true"),
     ("char", "'a'"),
     ("f64", "1.0"),

@@ -31,7 +31,7 @@ let%expect_test "layout: scalars measure as wide as they align" =
       TBool;
       TChar;
       TPointer (TInt I32);
-      TOpaquePtr;
+      TPtr;
       TCStr;
       TUnit;
       TNever;
@@ -48,7 +48,7 @@ let%expect_test "layout: scalars measure as wide as they align" =
     bool size 1 align 1
     char size 4 align 4
     *i32 size 8 align 8
-    *opaque size 8 align 8
+    ptr size 8 align 8
     cstr size 8 align 8
     () size 0 align 1
     never size 0 align 1

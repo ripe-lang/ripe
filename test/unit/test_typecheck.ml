@@ -2988,117 +2988,111 @@ fn f() { var stop: extern "C" fn (i32) never = exit;
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: a typed pointer flows into *opaque" =
-  run_src "fn f(p: *i32) *opaque { return p }";
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: cstr flows into *opaque" =
-  run_src "fn f(s: cstr) *opaque { return s }";
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: null flows into *opaque" =
-  run_src "fn f() *opaque { return null }";
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: *opaque needs a cast back to a typed pointer" =
-  run_src "fn f(a: *opaque) *i32 { return a }";
+let%expect_test "typecheck: a typed pointer needs a cast to become ptr" =
+  run_src "fn f(p: *i32) ptr { return p }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:32
-        fn f(a: *opaque) *i32 { return a }
-                                       ^ expected *i32, found *opaque
+      at <test>:1:28
+        fn f(p: *i32) ptr { return p }
+                                   ^ *i32 needs a cast to become ptr
     |}]
 
-let%expect_test "typecheck: *opaque casts back to a typed pointer" =
-  run_src "fn f(a: *opaque) *i32 { return cast(*i32, a) }";
+let%expect_test "typecheck: cstr needs a cast to become ptr" =
+  run_src "fn f(s: cstr) ptr { return s }";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:28
+        fn f(s: cstr) ptr { return s }
+                                   ^ cstr needs a cast to become ptr
+    |}]
+
+let%expect_test "typecheck: null flows into ptr" =
+  run_src "fn f() ptr { return null }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: cannot dereference *opaque" =
-  run_src "fn f(a: *opaque) i32 { return *a }";
+let%expect_test "typecheck: ptr needs a cast to become a typed pointer" =
+  run_src "fn f(a: ptr) *i32 { return a }";
   [%expect
     {|
-    error: cannot dereference *opaque
-      at <test>:1:32
-        fn f(a: *opaque) i32 { return *a }
-                                       ^
+    error: type mismatch
+      at <test>:1:28
+        fn f(a: ptr) *i32 { return a }
+                                   ^ ptr needs a cast to become *i32
+    |}]
+
+let%expect_test "typecheck: ptr casts back to a typed pointer" =
+  run_src "fn f(a: ptr) *i32 { return cast(*i32, a) }";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: cannot dereference ptr" =
+  run_src "fn f(a: ptr) i32 { return *a }";
+  [%expect
+    {|
+    error: cannot dereference ptr
+      at <test>:1:28
+        fn f(a: ptr) i32 { return *a }
+                                   ^
     help: cast to a typed pointer first
     |}]
 
-let%expect_test "typecheck: cannot index *opaque" =
-  run_src "fn f(a: *opaque) i32 { return a[0] }";
+let%expect_test "typecheck: cannot index ptr" =
+  run_src "fn f(a: ptr) i32 { return a[0] }";
   [%expect
     {|
-    error: cannot index *opaque
-      at <test>:1:31
-        fn f(a: *opaque) i32 { return a[0] }
-                                      ^~~~
+    error: cannot index ptr
+      at <test>:1:27
+        fn f(a: ptr) i32 { return a[0] }
+                                  ^~~~
     help: cast to a typed pointer first
     |}]
 
-let%expect_test "typecheck: cannot access a field of *opaque" =
-  run_src "fn f(a: *opaque) i32 { return a.x }";
+let%expect_test "typecheck: cannot access a field of ptr" =
+  run_src "fn f(a: ptr) i32 { return a.x }";
   [%expect
     {|
-    error: cannot access a field of *opaque
-      at <test>:1:31
-        fn f(a: *opaque) i32 { return a.x }
-                                      ^~~
+    error: cannot access a field of ptr
+      at <test>:1:27
+        fn f(a: ptr) i32 { return a.x }
+                                  ^~~
     help: cast to a typed pointer first
     |}]
 
-let%expect_test "typecheck: no arithmetic on *opaque" =
-  run_src "fn f(a: *opaque) *opaque { return a + 1 }";
+let%expect_test "typecheck: no arithmetic on ptr" =
+  run_src "fn f(a: ptr) ptr { return a + 1 }";
   [%expect
     {|
     error: invalid operand
-      at <test>:1:35
-        fn f(a: *opaque) *opaque { return a + 1 }
-                                          ^ cannot apply `+` to *opaque
+      at <test>:1:27
+        fn f(a: ptr) ptr { return a + 1 }
+                                  ^ cannot apply `+` to ptr
     error: type mismatch
-      at <test>:1:39
-        fn f(a: *opaque) *opaque { return a + 1 }
-                                              ^ expected *opaque, found i32
+      at <test>:1:31
+        fn f(a: ptr) ptr { return a + 1 }
+                                      ^ expected ptr, found i32
     |}]
 
-let%expect_test "typecheck: *opaque compares to null" =
-  run_src "fn f(a: *opaque) bool { return a == null }";
+let%expect_test "typecheck: ptr compares to null" =
+  run_src "fn f(a: ptr) bool { return a == null }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: two *opaque values compare" =
-  run_src "fn f(a: *opaque, b: *opaque) bool { return a != b }";
+let%expect_test "typecheck: two ptr values compare" =
+  run_src "fn f(a: ptr, b: ptr) bool { return a != b }";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: bare opaque as a param is rejected" =
-  run_src "fn f(x: opaque) { }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:6
-        fn f(x: opaque) { }
-             ^~~~~~~~~
-    help: prefix with an underscore: _x
-    error: opaque is only valid as a pointee
-      at <test>:1:9
-        fn f(x: opaque) { }
-                ^~~~~~
-    help: use *opaque for an untyped pointer
-    |}]
+let%expect_test "typecheck: a typed pointer casts to ptr" =
+  run_src "fn f(p: *i32) ptr { return cast(ptr, p) }";
+  [%expect {| ok |}]
 
-let%expect_test "typecheck: bare opaque as a var is rejected" =
-  run_src "fn f() { var x: opaque }";
+let%expect_test "typecheck: ptr and a typed pointer need a cast to compare" =
+  run_src "fn f(a: ptr, b: *i32) bool { return a == b }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: opaque }
-                     ^
-    help: prefix with an underscore: _x
-    error: opaque is only valid as a pointee
-      at <test>:1:17
-        fn f() { var x: opaque }
-                        ^~~~~~
-    help: use *opaque for an untyped pointer
+    error: type mismatch
+      at <test>:1:42
+        fn f(a: ptr, b: *i32) bool { return a == b }
+                                                 ^ *i32 needs a cast to become ptr
     |}]
 
 let%expect_test "typecheck: if-expr never arm bends to the other arm" =
