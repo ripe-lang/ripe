@@ -30,7 +30,7 @@ type 'a deferred = Unstarted | Running | Completed of 'a
 type type_def =
   | Struct_type of struct_info deferred ref
   | Alias_type of ty deferred ref
-  | Builtin_type of Types.builtin
+  | Builtin_type of Types.ty
   | Enum_type of enum_info deferred ref
 
 type result_use = Infer | Expect of ty | Discard
@@ -371,7 +371,7 @@ let unresolved_named_ty env span =
 
 let named_ty env span shown =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
-  | Some (Builtin_type (BTy ty)) -> ty
+  | Some (Builtin_type ty) -> ty
   | Some (Struct_type _) -> Types.TStruct (qname_at env span shown, [])
   | Some (Alias_type { contents = Completed aliased }) ->
       Types.TAlias (qname_at env span shown, aliased)

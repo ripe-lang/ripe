@@ -13,7 +13,7 @@ val shadowed_at : t -> Ast.span -> Symbol.t option
 val qname_of : t -> Symbol.t -> Qname.t
 val local_decls : t -> Ast.decl list
 val module_path_at : t -> Ast.span -> string list
-val builtins : t -> (Symbol.key * Types.builtin) list
+val builtins : t -> (Symbol.key * Types.ty) list
 
 (* This is the `--emit resolve` output *)
 val dump : t -> string

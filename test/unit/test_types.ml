@@ -290,9 +290,7 @@ let%expect_test "types: a name maps back to the kind it spells" =
     |}]
 
 let%expect_test "types: the builtin table covers every spelled out type" =
-  let show (name, builtin) =
-    Printf.printf "%s %s\n" name (match builtin with BTy t -> show_ty t)
-  in
+  let show (name, t) = Printf.printf "%s %s\n" name (show_ty t) in
   List.iter show builtins;
   [%expect
     {|
