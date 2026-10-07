@@ -467,7 +467,6 @@ let%expect_test "typred: a signed literal is still a literal" =
   show "1";
   show "1.5";
   show "-1";
-  show "+1";
   show "- -1";
   show "x";
   show "1 + 1";
@@ -477,7 +476,6 @@ let%expect_test "typred: a signed literal is still a literal" =
     1 = true
     1.5 = true
     -1 = true
-    +1 = true
     - -1 = true
     x = false
     1 + 1 = false

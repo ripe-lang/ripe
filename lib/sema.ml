@@ -388,7 +388,7 @@ let if_result_ty (tbranches : (Tast.texpr * Tast.tblock) list) telse
 let rec arm_is_flexible (e : expr) =
   match e.desc with
   | Int (_, None) | Float (_, None) -> true
-  | UnOp ((Pos | Neg), inner) -> arm_is_flexible inner
+  | UnOp (Neg, inner) -> arm_is_flexible inner
   | Block body -> block_is_flexible body
   | If (branches, else_body) ->
       Option.is_some else_body
@@ -723,8 +723,6 @@ and synth_desc env e =
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       check_int_literal env e (Types.TInt kind) (Types.TInt kind) n
-  | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
-      synth_desc env { operand with span = e.span }
   | UnOp (Neg, { desc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
       check_neg_int_literal env e (Types.TInt kind) (Types.TInt kind) n
@@ -1465,9 +1463,7 @@ and check_desc env e want =
   | UnOp (Neg, { desc = Float (f, suf); _ }) ->
       check_operand env { e with desc = Float (-.f, suf) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth env e want
-  | UnOp (Pos, ({ desc = Int _; _ } as operand)) ->
-      check_operand env { operand with span = e.span } want
-  | UnOp (((Neg | Pos | BitNot) as op), operand) when unop_accepts op want ->
+  | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
       Tast.mk want (Tast.TUnOp (op, check_operand env operand want))
   | ArrayLit elements -> check_array_literal env e want elements
   | BinOp (((Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor) as op), l, r)
@@ -1631,7 +1627,7 @@ and check_assign_operands env base l r =
 
 and synth_unop env op e =
   match op with
-  | Pos | Neg | BitNot ->
+  | Neg | BitNot ->
       let te = synth_operand env e in
       let t = te.ty in
       if not (unop_accepts op t) then
