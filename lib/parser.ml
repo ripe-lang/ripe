@@ -14,7 +14,6 @@ type state = {
   mutable ahead : token_info list;
   mutable prev_end : int;
   mutable opens : (token * span) list;
-  diags : Diagnostic.sink;
 }
 
 type chain = Comparison | Range
@@ -191,7 +190,7 @@ let report st d =
     | _ -> false
   in
   if not duplicate then begin
-    Diagnostic.emit st.diags d
+    Diagnostic.emit d
   end
 
 let recover_expr st d =
@@ -1336,7 +1335,7 @@ let track stack token span =
 
 (* The fault prints next to lexer errors because a string can't hide a brace.
    Its token reaches the parser as an error so nothing repeats the fault *)
-let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
+let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
   let rec lex_all acc =
     let token, span, line = lex lexbuf in
     let acc = { token; span; line } :: acc in
@@ -1352,7 +1351,7 @@ let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
     | Ok _ -> None
     | Error d -> Some d
   in
-  Option.iter (Diagnostic.emit diags) fault;
+  Option.iter Diagnostic.emit fault;
   let cut = Option.bind fault Diagnostic.primary in
   let rest = ref tokens in
   let read () =
@@ -1370,13 +1369,6 @@ let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
   let current = read () in
   let module_ =
     parse_module
-      {
-        read;
-        current;
-        ahead = [];
-        prev_end = Span.hi Span.dummy;
-        opens = [];
-        diags;
-      }
+      { read; current; ahead = []; prev_end = Span.hi Span.dummy; opens = [] }
   in
   if Option.is_some fault then raise Unbalanced else module_

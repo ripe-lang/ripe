@@ -151,8 +151,8 @@ and dump_block (body : Ripe.Ast.block) : string =
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 
 let dump_tokens src =
-  let diags = Ripe.Diagnostic.sink () in
-  let st = Ripe.Lexer.make_state ~diags 0 in
+  Diag.fresh ();
+  let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
     let t, _, _ = Ripe.Lexer.read st lexbuf in
@@ -162,4 +162,4 @@ let dump_tokens src =
   go ();
   List.iter
     (fun d -> print_endline ("error " ^ Ripe.Diagnostic.headline d))
-    (Ripe.Diagnostic.take diags)
+    (Ripe.Diagnostic.take ())

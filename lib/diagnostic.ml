@@ -74,25 +74,36 @@ let ice ?span msg = raise (Errors [ internal ?span msg ])
 (* Where a pass dumps diagnostics and the edge drains it to render *)
 type sink = { mutable pending : t list; mutable errors : bool }
 
-let sink () = { pending = []; errors = false }
+let reported = { pending = []; errors = false }
 
-let emit s d =
-  s.pending <- d :: s.pending;
-  s.errors <- s.errors || d.severity = Error
+let emit d =
+  reported.pending <- d :: reported.pending;
+  reported.errors <- reported.errors || d.severity = Error
 
-let has_errors s = s.errors
+let has_errors () = reported.errors
 
 (* Sorted into source order and ties keep emission order *)
-let drain s =
+let drain () =
   let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
-  List.stable_sort (fun a b -> compare (pos a) (pos b)) (List.rev s.pending)
+  List.stable_sort
+    (fun a b -> compare (pos a) (pos b))
+    (List.rev reported.pending)
 
-(* The next stage would report these all over again if the sink kept them *)
-let take s =
-  let all = drain s in
-  s.pending <- [];
-  s.errors <- false;
+(* This empties it so nothing prints twice *)
+let take () =
+  let all = drain () in
+  reported.pending <- [];
+  reported.errors <- false;
   all
+
+(* The errors in here get dropped since we might back out *)
+let quietly f =
+  let pending = reported.pending and errors = reported.errors in
+  reported.pending <- [];
+  reported.errors <- false;
+  Fun.protect f ~finally:(fun () ->
+      reported.pending <- pending;
+      reported.errors <- errors)
 
 (* Rendering *)
 

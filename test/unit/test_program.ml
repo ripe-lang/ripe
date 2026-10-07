@@ -19,8 +19,8 @@ let dump (program : Program.t) =
   Array.iter module_ program.modules
 
 let load ?search_roots files =
-  let program, diags = Pipeline.load_tree ?search_roots files in
-  List.iter (Diag.render_in program) (Diagnostic.drain diags);
+  let program = Pipeline.load_tree ?search_roots files in
+  List.iter (Diag.render_in program) (Diagnostic.take ());
   program
 
 let show ?search_roots files = dump (load ?search_roots files)

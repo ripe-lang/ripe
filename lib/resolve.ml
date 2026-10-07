@@ -42,7 +42,6 @@ type state = {
   scope : scope;
   value_boundary : scope option;
   next_id : Symbol.id ref;
-  diags : Diagnostic.sink;
   header_hole : Ast.span option ref;
 }
 
@@ -206,7 +205,7 @@ let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
   | Some name -> (
       match Names.find_opt table name with
       | Some prev ->
-          Diagnostic.emit st.diags
+          Diagnostic.emit
             (Diagnostic.error ident.span "already defined"
             |> Diagnostic.secondary prev.Symbol.name_span
                  "previous definition here")
@@ -320,7 +319,7 @@ let check_visibility st span sym =
     sym.Symbol.module_id <> st.module_id
     && sym.Symbol.visibility = Symbol.Private
   then
-    Diagnostic.emit st.diags
+    Diagnostic.emit
       (Diagnostic.error span "private declaration"
       |> Diagnostic.secondary sym.Symbol.span "declared private here")
 
@@ -354,7 +353,7 @@ let use_type st path name span =
   | None ->
       let shown = Ast.show_named path name in
       if not (failed_import st path) then
-        Diagnostic.emit st.diags (Diagnostic.error span "undefined type");
+        Diagnostic.emit (Diagnostic.error span "undefined type");
       ignore (mint st Symbol.Error (Interner.intern shown) span)
 
 (* Semantic analysis already reports an unknown struct literal *)
@@ -369,7 +368,7 @@ let use st ~what name span =
   | None when !(st.header_hole) = Some span ->
       ignore (mint st Symbol.Error name span)
   | None ->
-      Diagnostic.emit st.diags (missing_value st ~what name span);
+      Diagnostic.emit (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
 
 let use_callee st ?(what = "function") name span =
@@ -391,7 +390,7 @@ let declare_param st p =
   | Some name -> (
       match Names.find_opt st.scope.values name with
       | Some prev ->
-          Diagnostic.emit st.diags
+          Diagnostic.emit
             (Diagnostic.error p.param_span "already defined"
             |> Diagnostic.secondary prev.Symbol.span "previous definition here"
             );
@@ -416,7 +415,7 @@ let use_qualified st ~what p span =
   | Missing (module_path, member) ->
       (* The import already failed so every name under it would say the same thing twice *)
       if not (failed_import st module_path) then
-        Diagnostic.emit st.diags (Diagnostic.error span "undefined %s" what);
+        Diagnostic.emit (Diagnostic.error span "undefined %s" what);
       (* The stages after this read a symbol back off every span they walk *)
       ignore
         (mint st Symbol.Error
@@ -489,7 +488,7 @@ and resolve_header st e =
   | Ident name
     when lookup st name = None && find_type_in_scope st.scope name <> None ->
       st.header_hole := Some tail.Ast.span;
-      Diagnostic.emit st.diags
+      Diagnostic.emit
         (Diagnostic.error tail.Ast.span "expected a value and found a type"
         |> Diagnostic.help "wrap a struct literal in parentheses here")
   | _ -> ());
@@ -645,7 +644,7 @@ let foreign_link_name (fd : Ast.func_def) =
     Some (Ast.ident_text fd.func_name)
   else None
 
-let make_state ~out ~diags ~module_id ~module_path ~qualify ~is_root =
+let make_state ~out ~module_id ~module_path ~qualify ~is_root =
   let top = new_scope (Some out.prelude) in
   {
     out;
@@ -657,7 +656,6 @@ let make_state ~out ~diags ~module_id ~module_path ~qualify ~is_root =
     scope = top;
     value_boundary = None;
     next_id = ref 0;
-    diags;
     header_hole = ref None;
   }
 
@@ -692,18 +690,17 @@ let declare_decls st decls =
             ed.enum_name ed.enum_span)
     decls
 
-let resolve ~diags ~module_id decls =
+let resolve ~module_id decls =
   let out = make_output 1 in
   Hashtbl.add out.module_paths module_id [];
   let st =
-    make_state ~out ~diags ~module_id ~module_path:[] ~qualify:false
-      ~is_root:true
+    make_state ~out ~module_id ~module_path:[] ~qualify:false ~is_root:true
   in
   declare_decls st decls;
   List.iter (resolve_decl st) decls;
   out
 
-let resolve_program ~diags program =
+let resolve_program program =
   let count = Array.length program.Program.modules in
   let out = make_output count in
   let states = Hashtbl.create count in
@@ -721,7 +718,7 @@ let resolve_program ~diags program =
       module_.Program.module_id = program.Program.root.Program.module_id
     in
     Hashtbl.add states module_.Program.module_id
-      (make_state ~out ~diags ~module_id:module_.Program.module_id
+      (make_state ~out ~module_id:module_.Program.module_id
          ~module_path:module_.Program.path ~qualify:true ~is_root)
   in
   (* The scope is shared so an import sees names declared after this *)
@@ -736,7 +733,7 @@ let resolve_program ~diags program =
     let bind_name dependency (import : Ast.import) target name =
       match Names.find_opt st.top.values name with
       | Some prev ->
-          Diagnostic.emit st.diags
+          Diagnostic.emit
             (Diagnostic.error import.Ast.span "already defined"
             |> Diagnostic.secondary prev.Symbol.span "previous definition here"
             )

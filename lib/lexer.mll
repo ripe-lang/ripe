@@ -7,14 +7,12 @@ open Tokens
 type state = {
   base : int;
   buf : Buffer.t;
-  diags : Diagnostic.sink;
   mutable line : int;
 }
 
-let make_state ~diags base = {
+let make_state base = {
   base;
   buf = Buffer.create 64;
-  diags;
   line = 1;
 }
 
@@ -211,7 +209,7 @@ and read_string st = parse
           (st.base + lexbuf.Lexing.lex_start_pos + 1)
           (st.base + lexbuf.Lexing.lex_curr_pos)
       in
-      Diagnostic.emit st.diags (Diagnostic.error span "unknown escape");
+      Diagnostic.emit (Diagnostic.error span "unknown escape");
       read_string st lexbuf
     }
   | '\\' { read_string st lexbuf }
@@ -244,7 +242,7 @@ let read st lexbuf =
   let t = read_token st lexbuf in
   let span = lexbuf_span st lexbuf in
   begin match t with
-  | ERROR msg -> Diagnostic.emit st.diags (Diagnostic.error span "%s" msg)
+  | ERROR msg -> Diagnostic.emit (Diagnostic.error span "%s" msg)
   | _ -> ()
   end;
   (t, span, st.line)
