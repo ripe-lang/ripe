@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 let parse_src ~diags file src =
-  let st = Ripe.Lexer.make_state file in
+  let st = Ripe.Lexer.make_state ~diags file in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   try Ripe.Parser.parse ~diags (Ripe.Lexer.read st) lexbuf
   with Ripe.Parser.Unbalanced ->

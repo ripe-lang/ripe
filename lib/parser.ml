@@ -21,7 +21,6 @@ type delims = {
   mutable stack : (token * span) list;
   mutable fault : Diagnostic.t option;
   mutable fault_at : int;
-  mutable lexed : Diagnostic.t list;
 }
 
 type chain = Comparison | Range
@@ -1315,7 +1314,6 @@ let parse_module st =
 
 let track ds token span =
   match token with
-  | ERROR msg -> ds.lexed <- Diagnostic.error span "%s" msg :: ds.lexed
   | LPAREN | LBRACKET | LBRACE -> ds.stack <- (token, span) :: ds.stack
   | RPAREN | RBRACKET | RBRACE ->
       begin match ds.stack with
@@ -1364,7 +1362,7 @@ let read_token ds lex lexbuf () =
 
 (* The fault prints next to lexer errors because a string can't hide a brace *)
 let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
-  let ds = { stack = []; fault = None; fault_at = 0; lexed = [] } in
+  let ds = { stack = []; fault = None; fault_at = 0 } in
   let read = read_token ds lex lexbuf in
   let parsed = Diagnostic.sink () in
   let current = read () in
@@ -1379,13 +1377,11 @@ let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
     }
   in
   let module_ = parse_module st in
-  match (ds.fault, ds.lexed) with
-  | None, lexed ->
-      List.iter (Diagnostic.emit diags) (List.rev lexed);
+  match ds.fault with
+  | None ->
       List.iter (Diagnostic.emit diags) (Diagnostic.take parsed);
       module_
-  | Some d, lexed ->
-      List.iter (Diagnostic.emit diags) (List.rev lexed);
+  | Some d ->
       (* A parser error before the fault sits closer to the real mistake *)
       let before p =
         match Diagnostic.primary p with

@@ -250,7 +250,9 @@ let root_tokens filename =
   if not (String.is_valid_utf_8 src) then
     die (Printf.sprintf "not valid UTF-8: %s" filename);
   let lexbuf = Lexer.lexbuf_of_string src in
-  dump_tokens (Lexer.read (Lexer.make_state 0)) lexbuf
+  dump_tokens
+    (Lexer.read (Lexer.make_state ~diags:(Diagnostic.sink ()) 0))
+    lexbuf
 
 let load ~diags ~search_roots ~filename =
   try

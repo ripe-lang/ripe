@@ -74,7 +74,7 @@ let empty_ast = { Ast.header = None; imports = []; decls = [] }
 let parse_source ~diags ~base filename src =
   let source = { base; filename; source_map = Sourcemap.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
-  let read = Lexer.read (Lexer.make_state base) in
+  let read = Lexer.read (Lexer.make_state ~diags base) in
   match Parser.parse ~diags read lexbuf with
   | ast -> (source, ast, false)
   | exception Parser.Unbalanced -> (source, empty_ast, true)
@@ -122,7 +122,7 @@ let show_import_cycle hops back =
 (* Only the first item matters so a full parse would double every error *)
 let probe_header src =
   let lexbuf = Lexer.lexbuf_of_string src in
-  let read = Lexer.read (Lexer.make_state 0) in
+  let read = Lexer.read (Lexer.make_state ~diags:(Diagnostic.sink ()) 0) in
   let rec first_item () =
     match read lexbuf with
     | Tokens.SEMI, _, _ -> first_item ()
