@@ -17,12 +17,6 @@ type state = {
   diags : Diagnostic.sink;
 }
 
-type delims = {
-  mutable stack : (token * span) list;
-  mutable fault : Diagnostic.t option;
-  mutable fault_at : int;
-}
-
 type chain = Comparison | Range
 type assoc = Left | Right | Chain of chain
 type infix = { prec : int; assoc : assoc; build : expr -> expr -> expr_desc }
@@ -1312,84 +1306,77 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
-let track ds token span =
+(* The first fault ends tracking because later delimiters are suspect *)
+let track stack token span =
   match token with
-  | LPAREN | LBRACKET | LBRACE -> ds.stack <- (token, span) :: ds.stack
-  | RPAREN | RBRACKET | RBRACE ->
-      begin match ds.stack with
-      | (opener, _) :: rest when closer_of opener == token -> ds.stack <- rest
+  | LPAREN | LBRACKET | LBRACE -> Ok ((token, span) :: stack)
+  | RPAREN | RBRACKET | RBRACE -> (
+      match stack with
+      | (opener, _) :: rest when closer_of opener == token -> Ok rest
       | (opener, open_span) :: _ ->
-          let d =
-            Diagnostic.error span "mismatched closing delimiter"
+          Error
+            (Diagnostic.error span "mismatched closing delimiter"
             |> Diagnostic.label "expected `%s`" (show_token (closer_of opener))
             |> Diagnostic.secondary open_span
-                 (Printf.sprintf "to match this `%s`" (show_token opener))
-          in
-          ds.fault <- Some d
-      | [] ->
-          let d = Diagnostic.error span "unexpected closing delimiter" in
-          ds.fault <- Some d
-      end
-  | EOF ->
-      begin match ds.stack with
-      | [] -> ()
+                 (Printf.sprintf "to match this `%s`" (show_token opener)))
+      | [] -> Error (Diagnostic.error span "unexpected closing delimiter"))
+  | EOF -> (
+      match stack with
+      | [] -> Ok []
       | (_, open_span) :: outer ->
-          let d =
-            List.fold_left
-              (fun d (o, span) ->
-                Diagnostic.secondary span
-                  (Printf.sprintf "to match this `%s`" (show_token o))
-                  d)
-              (Diagnostic.error open_span "unclosed delimiter")
-              outer
-          in
-          ds.fault <- Some d
-      end
-  | _ -> ()
+          Error
+            (List.fold_left
+               (fun d (o, span) ->
+                 Diagnostic.secondary span
+                   (Printf.sprintf "to match this `%s`" (show_token o))
+                   d)
+               (Diagnostic.error open_span "unclosed delimiter")
+               outer))
+  | _ -> Ok stack
 
-(* The first fault ends tracking because later delimiters are suspect *)
-let read_token ds lex lexbuf () =
-  let token, span, line = lex lexbuf in
-  if Option.is_none ds.fault then begin
-    track ds token span;
-    match ds.fault with
-    | Some d ->
-        ds.fault_at <-
-          Span.lo (Option.value (Diagnostic.primary d) ~default:span)
-    | None -> ()
-  end;
-  { token; span; line }
-
-(* The fault prints next to lexer errors because a string can't hide a brace *)
+(* The fault prints next to lexer errors because a string can't hide a brace.
+   Its token reaches the parser as an error so nothing repeats the fault *)
 let parse ~diags (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
-  let ds = { stack = []; fault = None; fault_at = 0 } in
-  let read = read_token ds lex lexbuf in
-  let parsed = Diagnostic.sink () in
-  let current = read () in
-  let st =
-    {
-      read;
-      current;
-      ahead = [];
-      prev_end = Span.hi Span.dummy;
-      opens = [];
-      diags = parsed;
-    }
+  let rec lex_all acc =
+    let token, span, line = lex lexbuf in
+    let acc = { token; span; line } :: acc in
+    match token with EOF -> List.rev acc | _ -> lex_all acc
   in
-  let module_ = parse_module st in
-  match ds.fault with
-  | None ->
-      List.iter (Diagnostic.emit diags) (Diagnostic.take parsed);
-      module_
-  | Some d ->
-      (* A parser error before the fault sits closer to the real mistake *)
-      let before p =
-        match Diagnostic.primary p with
-        | Some span -> Span.lo span < ds.fault_at
-        | None -> false
-      in
-      begin match List.filter before (Diagnostic.take parsed) with
-      | first :: _ -> Diagnostic.emit diags first
-      | [] -> Diagnostic.emit diags d
-      end;
-      raise Unbalanced
+  let tokens = lex_all [] in
+  let fault =
+    match
+      List.fold_left
+        (fun opened t -> Result.bind opened (fun s -> track s t.token t.span))
+        (Ok []) tokens
+    with
+    | Ok _ -> None
+    | Error d -> Some d
+  in
+  Option.iter (Diagnostic.emit diags) fault;
+  let cut = Option.bind fault Diagnostic.primary in
+  let rest = ref tokens in
+  let read () =
+    match !rest with
+    | t :: _ when Some t.span = cut ->
+        rest := [];
+        { t with token = ERROR "delimiter fault" }
+    | [ eof ] -> eof
+    | t :: more ->
+        rest := more;
+        t
+    | [] when Option.is_some fault -> raise Unbalanced
+    | [] -> Diagnostic.ice "the token list lost its EOF"
+  in
+  let current = read () in
+  let module_ =
+    parse_module
+      {
+        read;
+        current;
+        ahead = [];
+        prev_end = Span.hi Span.dummy;
+        opens = [];
+        diags;
+      }
+  in
+  if Option.is_some fault then raise Unbalanced else module_

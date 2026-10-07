@@ -2,3 +2,15 @@ error: expected `{`
   at main.rp:4:5
         1 => 1,
         ^ found 1
+error: expected `;`
+  at main.rp:4:7
+        1 => 1,
+          ^~ found =>
+error: expected `;`
+  at main.rp:5:11
+        _ => 0,
+              ^ found ,
+error: unexpected closing delimiter
+  at main.rp:7:1
+    }
+    ^

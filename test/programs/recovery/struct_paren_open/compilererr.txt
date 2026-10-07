@@ -2,3 +2,10 @@ error: expected `{`
   at main.rp:1:14
     struct point ( x: i32 }
                  ^ found (
+error: mismatched closing delimiter
+  at main.rp:1:23
+    struct point ( x: i32 }
+                          ^ expected `)`
+  at main.rp:1:14
+    struct point ( x: i32 }
+                 ^ to match this `(`
