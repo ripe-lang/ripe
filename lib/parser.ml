@@ -1305,7 +1305,7 @@ let parse_module st =
   done;
   { header = !header; imports = List.rev !imports; decls = List.rev !decls }
 
-(* The first fault ends tracking because later delimiters are suspect *)
+(* The first bad one is enough since the rest is junk *)
 let track stack token span =
   match token with
   | LPAREN | LBRACKET | LBRACE -> Ok ((token, span) :: stack)
@@ -1333,8 +1333,8 @@ let track stack token span =
                outer))
   | _ -> Ok stack
 
-(* The fault prints next to lexer errors because a string can't hide a brace.
-   Its token reaches the parser as an error so nothing repeats the fault *)
+(* The check runs after lexing so braces in strings don't count. A broken
+   delimiter means we just stop *)
 let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
   let rec lex_all acc =
     let token, span, line = lex lexbuf in
@@ -1342,33 +1342,24 @@ let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span * int) lexbuf =
     match token with EOF -> List.rev acc | _ -> lex_all acc
   in
   let tokens = lex_all [] in
-  let fault =
-    match
-      List.fold_left
-        (fun opened t -> Result.bind opened (fun s -> track s t.token t.span))
-        (Ok []) tokens
-    with
-    | Ok _ -> None
-    | Error d -> Some d
-  in
-  Option.iter Diagnostic.emit fault;
-  let cut = Option.bind fault Diagnostic.primary in
-  let rest = ref tokens in
-  let read () =
-    match !rest with
-    | t :: _ when Some t.span = cut ->
-        rest := [];
-        { t with token = ERROR "delimiter fault" }
-    | [ eof ] -> eof
-    | t :: more ->
-        rest := more;
-        t
-    | [] when Option.is_some fault -> raise Unbalanced
-    | [] -> Diagnostic.ice "the token list lost its EOF"
-  in
-  let current = read () in
-  let module_ =
-    parse_module
-      { read; current; ahead = []; prev_end = Span.hi Span.dummy; opens = [] }
-  in
-  if Option.is_some fault then raise Unbalanced else module_
+  match
+    List.fold_left
+      (fun opened t -> Result.bind opened (fun s -> track s t.token t.span))
+      (Ok []) tokens
+  with
+  | Error d ->
+      Diagnostic.emit d;
+      raise Unbalanced
+  | Ok _ ->
+      let rest = ref tokens in
+      let read () =
+        match !rest with
+        | [ eof ] -> eof
+        | t :: more ->
+            rest := more;
+            t
+        | [] -> Diagnostic.ice "the token list lost its EOF"
+      in
+      let current = read () in
+      parse_module
+        { read; current; ahead = []; prev_end = Span.hi Span.dummy; opens = [] }

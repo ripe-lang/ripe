@@ -1,11 +1,3 @@
-error: expected `{`
-  at main.rp:3:14
-      enum side  Left, Right }
-                 ^~~~ found Left
-error: expected declaration
-  at main.rp:6:3
-      return helper(1) + match s { side.Left => 0, _ => 1 };
-      ^~~~~~ found `return`
 error: unexpected closing delimiter
   at main.rp:7:1
     }

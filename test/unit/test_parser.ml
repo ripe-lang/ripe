@@ -1745,10 +1745,6 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
   run_src "fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };";
   [%expect
     {|
-    error: expected `;`
-      at <test>:1:20
-        fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
-                           ^~~~~ found `while`
     error: mismatched closing delimiter
       at <test>:1:57
         fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
@@ -1762,10 +1758,6 @@ let%expect_test "parse: unclosed bracket in an index points at the bracket" =
   run_src "fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
   [%expect
     {|
-    error: expected `;`
-      at <test>:1:30
-        fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                     ^~ found `if`
     error: mismatched closing delimiter
       at <test>:1:46
         fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
@@ -2091,14 +2083,6 @@ let%expect_test "parse: a local enum body keeps the brace it was given" =
 }|};
   [%expect
     {|
-    error: expected `{`
-      at <test>:2:14
-          enum side  Left, Right }
-                     ^~~~ found Left
-    error: expected declaration
-      at <test>:4:3
-          return 0;
-          ^~~~~~ found `return`
     error: unexpected closing delimiter
       at <test>:5:1
         }
