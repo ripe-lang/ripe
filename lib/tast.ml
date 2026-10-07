@@ -28,7 +28,6 @@ type texpr_desc =
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero
-  | TUndef
   | TStructLit of Qname.t * (int * texpr) list
   (* TODO(6c3f): a payload variant carries its arguments here too *)
   | TVariant of Qname.t * int64

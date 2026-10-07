@@ -154,7 +154,7 @@ def make_case(rng):
     if rng.random() < 0.15:
         src = "struct P {\n  x: i32,\n}\n"
         src += rng.choice(CLOSERS) + "\n"
-        src += "fn main() i32 {\n  var p: P = undefined;\n  return p.x;\n}\n"
+        src += "fn main() i32 {\n  var p: P;\n  return p.x;\n}\n"
 
         return src, False, "delim", 1, None
 

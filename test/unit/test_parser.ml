@@ -1460,7 +1460,7 @@ let%expect_test "parse: a bad field name drops only that field" =
     {|struct P { 99: i32,
   y: i32 }
 fn main() i32 {
-  var p: P = undefined;
+  var p: P;
   return p.y;
 }|};
   [%expect
@@ -1493,7 +1493,7 @@ let%expect_test "parse: two bad fields report once each" =
   88: i32,
   z: i32 }
 fn main() i32 {
-  var p: P = undefined;
+  var p: P;
   return p.z;
 }|};
   [%expect
@@ -1847,7 +1847,7 @@ let%expect_test "parse: module must come before anything else" =
     |}]
 
 let%expect_test "parse: a dotted type path" =
-  (match parse "var p: math.vector.point = undefined;" with
+  (match parse "var p: math.vector.point;" with
   | [ Ripe.Ast.Global { typ = Some t; _ } ] -> print_endline (dump_typ t)
   | _ -> print_endline "<expected a global>");
   [%expect {| math.vector.point |}]

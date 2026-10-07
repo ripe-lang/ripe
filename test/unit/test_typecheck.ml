@@ -505,7 +505,7 @@ let%expect_test "typecheck: array size expression" =
     {|
 var N: i32 = 4;
 fn f() i32 {
-  var a: [N * 2 + 1]i32 = undefined;
+  var a: [N * 2 + 1]i32;
   a[8] = 1;
   return a[8];
 }
@@ -514,7 +514,7 @@ fn f() i32 {
     {|
     error: array size must be a literal
       at <test>:4:11
-          var a: [N * 2 + 1]i32 = undefined;
+          var a: [N * 2 + 1]i32;
                   ^~~~~~~~~
     |}]
 
@@ -529,13 +529,13 @@ fn f() i32 {
 
 let%expect_test "typecheck: negative array size" =
   run_src {|
-var a: [0 - 1]i32 = undefined;
+var a: [0 - 1]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
       at <test>:2:9
-        var a: [0 - 1]i32 = undefined;
+        var a: [0 - 1]i32;
                 ^~~~~
     |}]
 
@@ -558,81 +558,81 @@ fn f(a: [0 - 1]i32) {}
 
 let%expect_test "typecheck: huge array size" =
   run_src {|
-var a: [9999999999i64]i32 = undefined;
+var a: [9999999999i64]i32;
 |};
   [%expect
     {|
     error: array size is too large: 9999999999
       at <test>:2:9
-        var a: [9999999999i64]i32 = undefined;
+        var a: [9999999999i64]i32;
                 ^~~~~~~~~~~~~
     |}]
 
 let%expect_test "typecheck: huge unsigned array size" =
   run_src {|
-var a: [cast(u64, 0 - 1)]i32 = undefined;
+var a: [cast(u64, 0 - 1)]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
       at <test>:2:9
-        var a: [cast(u64, 0 - 1)]i32 = undefined;
+        var a: [cast(u64, 0 - 1)]i32;
                 ^~~~~~~~~~~~~~~~
     |}]
 
 let%expect_test "typecheck: array size literal with a type suffix" =
   run_src {|
-var a: [2u8]i32 = undefined;
+var a: [2u8]i32;
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array size literal suffix still range checks" =
   run_src {|
-var a: [300u8]i32 = undefined;
+var a: [300u8]i32;
 |};
   [%expect
     {|
     error: integer literal out of range
       at <test>:2:9
-        var a: [300u8]i32 = undefined;
+        var a: [300u8]i32;
                 ^~~~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: float array size" =
   run_src {|
-var a: [1.5]i32 = undefined;
+var a: [1.5]i32;
 |};
   [%expect
     {|
     error: array size must be an integer
       at <test>:2:9
-        var a: [1.5]i32 = undefined;
+        var a: [1.5]i32;
                 ^~~
     |}]
 
 let%expect_test "typecheck: array size names a var" =
   run_src {|
 var n: i32 = 3;
-var a: [n]i32 = undefined;
+var a: [n]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
       at <test>:3:9
-        var a: [n]i32 = undefined;
+        var a: [n]i32;
                 ^
     |}]
 
 let%expect_test "typecheck: array size calls a function" =
   run_src {|
 fn g() i32 { return 3 }
-var a: [g()]i32 = undefined;
+var a: [g()]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
       at <test>:3:9
-        var a: [g()]i32 = undefined;
+        var a: [g()]i32;
                 ^~~
     |}]
 
@@ -1786,25 +1786,6 @@ let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
                      ^
     help: write the type or give it a value
     |}]
-
-let%expect_test "typecheck: undefined without type cannot infer" =
-  run_src "fn f() { var x = undefined }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = undefined }
-                     ^
-    help: prefix with an underscore: _x
-    error: cannot infer type of undefined
-      at <test>:1:18
-        fn f() { var x = undefined }
-                         ^~~~~~~~~
-    |}]
-
-let%expect_test "typecheck: undefined with type ok" =
-  run_src "fn f() i32 { var x: i32 = undefined; return x }";
-  [%expect {| ok |}]
 
 let%expect_test "typecheck: missing return on a path" =
   run_src "fn f(n: i32) i32 { if n > 0 { return 1 } }";
