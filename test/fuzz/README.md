@@ -32,13 +32,13 @@ A script exits 0 when nothing failed and you can set `JOBS` to change how many p
 | `test_mutations.py` | 122846 | 102 | 7 |
 | `test_cluster_failures.py` | 122846 | 102 in 41 groups | |
 | `test_delim_perms.py` | 5760 | 0 | |
-| `test_recovery.py` | 1200 | 0 | 4 |
+| `test_recovery.py` | 1200 | 0 | 3 |
 | `test_type_positions.py` | 2421 | 0 | 2 |
 | `test_delim_random.py` | 400 | 0 | |
 | `test_delim_mixes.py` | 150 | 0 | |
 | `test_decl_heads.py` | 48 | 0 | 2 |
 | `test_stress.py` | 10 | 0 | |
-| `test_survival.py` | 426 | 5 | |
+| `test_survival.py` | 426 | 0 | |
 
 ## Contexts
 
