@@ -9,7 +9,6 @@ type state = {
   buf : Buffer.t;
   pending_errors : (Tokens.token * Span.t * int) Queue.t;
   mutable line : int;
-  mutable start_line : int option;
 }
 
 let make_state base = {
@@ -17,7 +16,6 @@ let make_state base = {
   buf = Buffer.create 64;
   pending_errors = Queue.create ();
   line = 1;
-  start_line = None;
 }
 
 let next_line st = st.line <- st.line + 1
@@ -27,9 +25,7 @@ let max_floatsuf_len = String.length "f32"
 
 (* The line tracker avoids per token positions *)
 let lexbuf_of_string src =
-  let lexbuf = Lexing.from_string src in
-  lexbuf.Lexing.lex_curr_p <- Lexing.dummy_pos;
-  lexbuf
+  Lexing.from_string ~with_positions:false src
 
 let lexbuf_span st lexbuf =
   Span.make
@@ -190,12 +186,10 @@ rule read_token st = parse
     }
   | '"' {
       let start = lexbuf.Lexing.lex_start_pos in
-      let line = st.line in
       Buffer.clear st.buf;
       let t = read_string st lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- start;
-      st.start_line <- Some line;
       t
     }
   | eof { EOF }
@@ -250,11 +244,7 @@ and read_block_comment st depth = parse
 {
 let read st lexbuf =
   if not (Queue.is_empty st.pending_errors) then Queue.pop st.pending_errors
-  else begin
-    st.start_line <- None;
+  else
     let t = read_token st lexbuf in
-    (* A token gets its own line only when it spans lines *)
-    let line = Option.value st.start_line ~default:st.line in
-    (t, lexbuf_span st lexbuf, line)
-  end
+    (t, lexbuf_span st lexbuf, st.line)
 }
