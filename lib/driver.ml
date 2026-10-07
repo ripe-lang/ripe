@@ -24,17 +24,6 @@ let stage_name : stage -> string = function
   | Obj -> "obj"
   | Bin -> "bin"
 
-module Backend = struct
-  type t = Qbe | X86
-
-  let name : t -> string = function Qbe -> "qbe" | X86 -> "x86"
-
-  let has_stage (backend : t) (stage : stage) : bool =
-    match stage with
-    | Qbe | Asm -> ( match backend with Qbe -> true | X86 -> false)
-    | Tokens | Ast | Resolve | Tast | Check | Mir | Obj | Bin -> true
-end
-
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 let list_dir dir = Array.to_list (Sys.readdir dir)
 
@@ -79,12 +68,6 @@ let run_linker ~show_commands target ~output ~object_file ~libraries =
   let command = shell_command args in
   if show_commands then Printf.eprintf "Running linker:\n%s\n" command;
   run command
-
-let link_object ~show_commands target base object_bytes libraries =
-  let tmp_obj = Filename.temp_file "ripe" ".o" in
-  Out_channel.with_open_bin tmp_obj (fun oc -> output_string oc object_bytes);
-  run_linker ~show_commands target ~output:base ~object_file:tmp_obj ~libraries;
-  Sys.remove tmp_obj
 
 let compile_binary ~show_commands ~qbe target base il libraries =
   let backend_start = Unix.gettimeofday () in
@@ -201,7 +184,7 @@ let print_stats program ~frontend_time ~qbe_time ~compiler_time ~link_time
     (line_word processed_lines)
     all_lines;
   Printf.eprintf "Front end time: %.6fs\n" frontend_time;
-  Option.iter (Printf.eprintf "QBE time:       %.6fs\n") qbe_time;
+  Printf.eprintf "QBE time:       %.6fs\n" qbe_time;
   Printf.eprintf "Compiler time:  %.6fs\n" compiler_time;
   Printf.eprintf "Link time:      %.6fs\n" link_time;
   Printf.eprintf "Total time:     %.6fs (%.0f raw lines/s)\n" total_time
@@ -303,13 +286,8 @@ let stop_at ~stage ~program target emit =
     raise Exit
   end
 
-let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
+let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
   let output = Output.make out in
-  if not (Backend.has_stage backend stage) then
-    die
-      (Printf.sprintf "the %s backend has no %s stage" (Backend.name backend)
-         (stage_name stage));
-
   if stage = Tokens then (
     Output.text output (root_tokens filename);
     exit 0);
@@ -362,42 +340,25 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
       (source.Program.filename, source.Program.source_map)
     in
 
-    match backend with
-    | Backend.X86 ->
-        let object_bytes = Codegenx86.emit ~source_of mir in
-        let codegen_time = Unix.gettimeofday () -. codegen_start in
-        stop_at Obj (fun () -> Output.bytes output object_bytes);
+    let il = Codegenqbe.emit ~source_of mir in
+    let codegen_time = Unix.gettimeofday () -. codegen_start in
 
-        let link_start = Unix.gettimeofday () in
-        link_object ~show_commands:stats (Target.host ())
-          (Output.base output filename)
-          object_bytes libraries;
-        let link_time = Unix.gettimeofday () -. link_start in
-        report_stats stats program ~total_start ~frontend_time ~qbe_time:None
-          ~compiler_time:(frontend_time +. codegen_time)
-          ~link_time
-    | Backend.Qbe ->
-        let il = Codegenqbe.emit ~source_of mir in
-        let codegen_time = Unix.gettimeofday () -. codegen_start in
+    stop_at Qbe (fun () -> Output.text output il);
+    let qbe = Config.qbe () in
+    stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
+    stop_at Obj (fun () ->
+        Output.bytes output (emit_obj ~qbe (Target.host ()) il));
 
-        stop_at Qbe (fun () -> Output.text output il);
-        let qbe = Config.qbe () in
-        stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
-        stop_at Obj (fun () ->
-            Output.bytes output (emit_obj ~qbe (Target.host ()) il));
-
-        let qbe_time, backend_time, link_time =
-          compile_binary ~show_commands:stats ~qbe (Target.host ())
-            (Output.base output filename)
-            il libraries
-        in
-        report_stats stats program ~total_start ~frontend_time
-          ~qbe_time:(Some qbe_time)
-          ~compiler_time:(frontend_time +. codegen_time +. backend_time)
-          ~link_time
+    let qbe_time, backend_time, link_time =
+      compile_binary ~show_commands:stats ~qbe (Target.host ())
+        (Output.base output filename)
+        il libraries
+    in
+    report_stats stats program ~total_start ~frontend_time ~qbe_time
+      ~compiler_time:(frontend_time +. codegen_time +. backend_time)
+      ~link_time
   with
   | Exit -> ()
-  | Codegenx86.Unsupported msg -> die msg
   | Diagnostic.Errors ds ->
       render_program program ds;
       exit 1
