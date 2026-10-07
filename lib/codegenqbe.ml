@@ -251,26 +251,26 @@ let negative_shift_condition ctx count count_qt =
 
 (* Write a zero value of type t to dest *)
 let emit_zero_into ctx dest t =
-  match resolve_ty t with
-  | TArray _ | TSlice _ | TStruct _ ->
-      let size = Layout.ty_size ctx.structs t in
-      if size > bulk_mem_threshold then
-        emit ctx "call $memset(l %s, w 0, l %d)\n" dest size
-      else begin
-        let align = Layout.ty_align ctx.structs t in
-        let off = ref 0 in
-        let step w store =
-          while w <= align && !off + w <= size do
-            emit_store ctx store "0" (offset_addr ctx dest !off);
-            off := !off + w
-          done
-        in
-        step 8 "storel";
-        step 4 "storew";
-        step 2 "storeh";
-        step 1 "storeb"
-      end
-  | _ -> emit_store ctx (qbe_store t) "0" dest
+  if is_aggregate t then begin
+    let size = Layout.ty_size ctx.structs t in
+    if size > bulk_mem_threshold then
+      emit ctx "call $memset(l %s, w 0, l %d)\n" dest size
+    else begin
+      let align = Layout.ty_align ctx.structs t in
+      let off = ref 0 in
+      let step w store =
+        while w <= align && !off + w <= size do
+          emit_store ctx store "0" (offset_addr ctx dest !off);
+          off := !off + w
+        done
+      in
+      step 8 "storel";
+      step 4 "storew";
+      step 2 "storeh";
+      step 1 "storeb"
+    end
+  end
+  else emit_store ctx (qbe_store t) "0" dest
 
 (* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
 let emit_aggregate_copy ctx dest src size =
