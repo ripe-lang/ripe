@@ -13,7 +13,7 @@ fn main() i32 {
   var b: i32 = sizeof(i32);
   var c: u8 = sizeof(pt);
   var d = sizeof(pt);
-  var buf: [sizeof(pt)]u8 = undefined;
+  var buf: [sizeof(pt)]u8;
   var p = malloc(sizeof(pt));
   free(p);
   printf("%llu %d %d %llu %d %d\n", a, b, cast(i32, c), d, cast(i32, buf.len),

@@ -763,9 +763,6 @@ and synth_desc env e =
       dummy_texpr
   | ArrayLit (first :: rest) -> synth_array_lit env first rest
   | Index (base, idx) -> synth_index env e.span base idx
-  | Undefined ->
-      Diagnostic.emit (Diagnostic.error e.span "cannot infer type of undefined");
-      dummy_texpr
   | StructLit (path, { value = name; span = name_span }, inits) ->
       synth_struct_lit env e.span path name name_span inits
   | Block body ->
@@ -1482,7 +1479,6 @@ and check_desc env e want =
       check_if env e.span branches else_body (Some want)
   | Match (scrutinee, arms) -> check_match env scrutinee arms (Expect want)
   | Loop (label, body) -> check_loop_expr env e.span label body (Some want)
-  | Undefined -> Tast.mk want Tast.TUndef
   | _ -> check_by_synth env e want
 
 and coerce_expr env e want te =
@@ -2197,7 +2193,6 @@ let check_global env (gd : global_def) =
   let tinit =
     match gd.init with
     | None -> None
-    | Some { desc = Undefined; _ } -> None
     | Some e ->
         let te =
           if Symbol.Table.mem env.ctx.global_facts key then

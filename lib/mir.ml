@@ -201,7 +201,6 @@ let literal (expr : Tast.texpr) =
   | Tast.TStr value -> Str value
   | Tast.TChar value -> Char value
   | Tast.TZero -> Zero
-  | Tast.TUndef -> Undef
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       Function symbol.Symbol.link_name
   | _ ->
@@ -750,7 +749,7 @@ and lower_expr state expr =
       Diagnostic.ice ~span:expr.span "error expression reached MIR"
   | Tast.TIdent _ when expr.ty = Types.TUnit -> constant expr Undef
   | Tast.TInt _ | Tast.TVariant _ | Tast.TFloat _ | Tast.TBool _ | Tast.TNull
-  | Tast.TCStr _ | Tast.TStr _ | Tast.TChar _ | Tast.TZero | Tast.TUndef ->
+  | Tast.TCStr _ | Tast.TStr _ | Tast.TChar _ | Tast.TZero ->
       constant expr (literal expr)
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       constant expr (literal expr)

@@ -1,4 +1,4 @@
 fn main() i32 {
-  var a: [3]i32 = undefined;
+  var a: [3]i32;
   return a[0;
 }

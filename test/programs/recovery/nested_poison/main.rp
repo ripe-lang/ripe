@@ -1,7 +1,7 @@
 fn main() i32 {
   var p: *nosuch = null;
-  var a: [1]nosuch = undefined;
-  var f: fn () nosuch = undefined;
+  var a: [1]nosuch;
+  var f: fn () nosuch;
   var _x = p.field;
   var _y = *p;
   var _z = f();

@@ -70,7 +70,6 @@ type token =
   | EOF
   | ERROR of string
   | TYPE
-  | UNDEFINED
   | IMPORT
   | MODULE
   | LOOP
@@ -100,7 +99,6 @@ let keywords =
     ("pub", PUBLIC);
     ("fn", FUNC);
     ("type", TYPE);
-    ("undefined", UNDEFINED);
     ("import", IMPORT);
     ("module", MODULE);
     ("loop", LOOP);
@@ -184,8 +182,8 @@ let show_token = function
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK
-    | CONTINUE | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC | FUNC | TYPE
-    | UNDEFINED | IMPORT | MODULE | LOOP | ENUM | MATCH | CAST ) as t ->
+    | CONTINUE | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC | FUNC | TYPE | IMPORT
+    | MODULE | LOOP | ENUM | MATCH | CAST ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token token =

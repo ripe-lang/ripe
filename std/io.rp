@@ -7,7 +7,7 @@ fn put(fd: i32, s: str) {
 // The standard itoa but the sign flips per digit
 // https://www.geeksforgeeks.org/c/implement-itoa/
 fn put_int(fd: i32, value: i64) {
-  var buf: [21]u8 = undefined;
+  var buf: [21]u8;
   var i: usize = 21;
 
   var negative = value < 0;

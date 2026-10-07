@@ -559,7 +559,7 @@ and resolve_expr st e =
   | Return e -> Option.iter (resolve_expr st) e
   | Break (_, value) -> Option.iter (resolve_expr st) value
   | Continue _ -> ()
-  | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Undefined -> ()
+  | Int _ | Float _ | Bool _ | Null | Char _ | String _ -> ()
   | Unit -> ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)

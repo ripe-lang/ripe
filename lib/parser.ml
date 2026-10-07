@@ -39,8 +39,8 @@ let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET
-  | UNDEFINED | IF | LBRACE | LOOP | MATCH | ERROR _ ->
+  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF
+  | LBRACE | LOOP | MATCH | ERROR _ ->
       true
   | _ -> false
 
@@ -907,9 +907,6 @@ and parse_primary st context =
   | STRING s ->
       advance st;
       mk lo st (String s)
-  | UNDEFINED ->
-      advance st;
-      mk lo st Undefined
   | IF -> parse_if st
   | MATCH -> parse_match st context
   | LBRACE when context = HeaderExpression ->

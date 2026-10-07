@@ -1,7 +1,7 @@
 fn main() i32 {
   var counter: i32;
   counter += 1;
-  var buf: [4]u8 = undefined;
+  var buf: [4]u8;
   for i in 0..buf.len {
     buf[i] = cast(u8, i);
   }
