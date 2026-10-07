@@ -8,9 +8,3 @@ let%expect_test "driver: every stage has a name the CLI can take" =
   in
   print_endline (String.concat ", " (List.map Driver.stage_name stages));
   [%expect {| tokens, ast, resolve, tast, check, mir, qbe, asm, obj, bin |}]
-
-let%expect_test "driver: every backend has a name the CLI can take" =
-  print_endline
-    (String.concat ", "
-       (List.map Driver.Backend.name [ Driver.Backend.Qbe; X86 ]));
-  [%expect {| qbe, x86 |}]

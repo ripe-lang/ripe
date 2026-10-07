@@ -30,11 +30,6 @@ let struct_ty ?module_id ?path id name =
 let alias_ty ?module_id ?path id name base =
   Types.TAlias (qname ?module_id ?path id name, base)
 
-let hex s =
-  String.to_seq s
-  |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
-  |> List.of_seq |> String.concat " "
-
 let pred name f t = Printf.printf "%s %s = %b\n" name (Types.show_ty t) (f t)
 
 let pred2 name f a b =
