@@ -24,6 +24,9 @@ A script exits 0 when nothing failed and you can set `JOBS` to change how many p
 | `test_cluster_failures.py` | `<top>` `--show TEXT` | Finds which bug is behind the most failures |
 | `test_no_regression.py` | `<rev>` `--show TEXT` | Compares this build against an older one |
 | `test_gen_goldens.py` | `<dir>` `--write` | Updates the saved output files in `test/programs` |
+| `test_decl_heads.py` | `-v` | Breaks the name, colon, type, or value at the start of a declaration |
+| `test_stress.py` | | Throws huge and deeply nested programs at it to make sure nothing blows up |
+| `test_survival.py` | `-v` | Drops one bracket from each working program and checks you get one error |
 
 ## Results
 
