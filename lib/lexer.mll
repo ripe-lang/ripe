@@ -27,9 +27,7 @@ let max_floatsuf_len = String.length "f32"
 
 (* The line tracker avoids per token positions *)
 let lexbuf_of_string src =
-  let lexbuf = Lexing.from_string src in
-  lexbuf.Lexing.lex_curr_p <- Lexing.dummy_pos;
-  lexbuf
+  Lexing.from_string ~with_positions:false src
 
 let lexbuf_span st lexbuf =
   Span.make
