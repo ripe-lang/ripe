@@ -2613,45 +2613,6 @@ fn f() bool { var m: Meters = 5; var b: i32 = 5; return m == b }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: unary plus accepts numeric operands" =
-  run_src {|
-fn f() {
-  var _x: i64 = +3000000000;
-  var _y: f32 = +1.5;
-}
-|};
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: unary plus rejects bool" =
-  run_src "fn f() { var _x = +true }";
-  [%expect
-    {|
-    error: invalid operand
-      at <test>:1:20
-        fn f() { var _x = +true }
-                           ^~~~ cannot apply `+` to bool
-    |}]
-
-let%expect_test "typecheck: suffixed unary plus range includes operator" =
-  run_src "fn f() { var _x = +128i8 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:19
-        fn f() { var _x = +128i8 }
-                          ^~~~~~ does not fit in i8
-    |}]
-
-let%expect_test "typecheck: explicit positive literal reports full span" =
-  run_src "fn f() { var _x: i8 = +128 }";
-  [%expect
-    {|
-    error: integer literal out of range
-      at <test>:1:23
-        fn f() { var _x: i8 = +128 }
-                              ^~~~ does not fit in i8
-    |}]
-
 let%expect_test "typecheck: type alias keeps every comparison of its base" =
   run_src
     {|
@@ -4651,13 +4612,12 @@ fn f(small: i8, index: u8) i64 {
   right = small;
   var nested: i64 = { small };
   var negative: i64 = -small;
-  var positive: i64 = +small;
   var values: [2]i32 = [small, small];
   var _element = values[index];
   var _from = values[index..];
   var _to = values[..index];
   var pattern = match 1i64 { 1 => small, _ => 0i64 };
-  return left + right + nested + negative + positive + pattern +
+  return left + right + nested + negative + pattern +
       tail(small) + apply(take, small);
 }
 |};

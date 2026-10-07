@@ -768,7 +768,6 @@ and parse_prefix st context =
   in
   match cur_token st with
   | BANG -> unary Not
-  | PLUS -> unary Pos
   | MINUS -> unary Neg
   | TILDE -> unary BitNot
   | AMP -> unary AddressOf

@@ -188,31 +188,31 @@ let%expect_test "parse: recover, repeated return after operators" =
                  ^ found /
     |}]
 
-let%expect_test "parse: recover, repeated incomplete unary plus" =
+let%expect_test "parse: recover, repeated incomplete unary minus" =
   run_src {|fn f() {
-  return +
-  return +
-  return +
+  return -
+  return -
+  return -
 }|};
   [%expect
     {|
     error: expected expression
       at <test>:2:10
-          return +
+          return -
                  ^
     error: expected expression
       at <test>:3:10
-          return +
+          return -
                  ^
     error: expected expression
       at <test>:4:10
-          return +
+          return -
                  ^
     |}]
 
 let%expect_test "parse: unary operator keeps a valid operand across newline" =
   run_src {|fn f() i32 {
-  return +
+  return -
   1;
 }|};
   [%expect {| ok |}]
@@ -446,7 +446,7 @@ let%expect_test "parse: recover operators across statement forms" =
   let src =
     {|fn f() {
   if 1 *
-  var a = +
+  var a = ~
   var b = 1 -
   var c = !
   while 2 /
@@ -463,7 +463,7 @@ let%expect_test "parse: recover operators across statement forms" =
                ^
     error: expected expression
       at <test>:3:11
-          var a = +
+          var a = ~
                   ^
     error: expected expression
       at <test>:4:13
@@ -1121,13 +1121,15 @@ let%expect_test "parse: bitnot" =
   parse_expr "~x";
   [%expect {| (~ x) |}]
 
-let%expect_test "parse: unary plus" =
-  parse_expr "+42";
-  [%expect {| (+ 42) |}]
-
-let%expect_test "parse: unary plus binds tighter than multiply" =
-  parse_expr "+2 * 3";
-  [%expect {| (* (+ 2) 3) |}]
+let%expect_test "parse: unary plus is rejected" =
+  run_src "fn f() { var _x = +42 }";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:19
+        fn f() { var _x = +42 }
+                          ^ found +
+    |}]
 
 let%expect_test "parse: field access after call" =
   parse_expr "f().x";
@@ -1883,13 +1885,13 @@ let%expect_test "parse: operator may follow an explicit semicolon" =
   run_src
     {|fn f(x: i32) i32 { return x }
 fn main() i32 {
-  var _x = f(1); +f(2); return 0;
+  var _x = f(1); -f(2); return 0;
 }|};
   [%expect
     {|
     warning: discarded operation result
       at <test>:3:18
-          var _x = f(1); +f(2); return 0;
+          var _x = f(1); -f(2); return 0;
                          ^~~~~
     help: use `var _ = ...` when this is intentional
     ok

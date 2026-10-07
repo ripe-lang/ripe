@@ -74,11 +74,10 @@ let show_binop_sym = function
   | Lshift -> "<<"
   | Rshift -> ">>"
 
-type unop = Pos | Neg | Not | BitNot | Deref | AddressOf
+type unop = Neg | Not | BitNot | Deref | AddressOf
 [@@deriving show { with_path = false }]
 
 let show_unop_sym = function
-  | Pos -> "+"
   | Neg -> "-"
   | Not -> "!"
   | BitNot -> "~"

@@ -89,14 +89,14 @@ let binop_accepts op =
 
 let unop_accepts op =
   match op with
-  | Pos | Neg -> is_numeric
+  | Neg -> is_numeric
   | BitNot -> is_integer
   | Not | Deref | AddressOf -> fun _ -> true
 
 let rec is_num_literal e =
   match e.desc with
   | Int _ | Float _ -> true
-  | UnOp ((Pos | Neg), operand) -> is_num_literal operand
+  | UnOp (Neg, operand) -> is_num_literal operand
   | _ -> false
 
 let widens_to src tgt =

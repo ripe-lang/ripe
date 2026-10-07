@@ -345,7 +345,6 @@ let lower_unop op =
   | Ast.Neg -> Neg
   | Ast.Not -> Not
   | Ast.BitNot -> BitNot
-  | Ast.Pos -> Diagnostic.ice "unary plus reached MIR"
   | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
   | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
@@ -780,7 +779,6 @@ and lower_expr state expr =
   | Tast.TBinOp (op, left, right) ->
       let left, right = lower_binop_operands state expr op left right in
       lower_binary state expr.span expr.ty op left right
-  | Tast.TUnOp (Ast.Pos, inner) -> lower_expr state inner
   | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TUnOp (Ast.Deref, inner); _ }) ->
       lower_expr state inner
   | Tast.TUnOp (Ast.AddressOf, ({ desc = Tast.TIdent symbol; _ } as inner))
