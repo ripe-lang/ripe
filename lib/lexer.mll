@@ -6,13 +6,13 @@ open Tokens
 (* The state stays local to each lex session *)
 type state = {
   base : int;
-  buf : Buffer.t;
+  strbuf : Buffer.t;
   mutable line : int;
 }
 
 let make_state base = {
   base;
-  buf = Buffer.create 64;
+  strbuf = Buffer.create 64;
   line = 1;
 }
 
@@ -184,7 +184,7 @@ rule read_token st = parse
     }
   | '"' {
       let start = lexbuf.Lexing.lex_start_pos in
-      Buffer.clear st.buf;
+      Buffer.clear st.strbuf;
       let t = read_string st lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- start;
@@ -195,13 +195,13 @@ rule read_token st = parse
 
 
 and read_string st = parse
-  | '"' { STRING (Buffer.contents st.buf) }
-  | '\\' 'n' { Buffer.add_char st.buf '\n'; read_string st lexbuf }
-  | '\\' 'r' { Buffer.add_char st.buf '\r'; read_string st lexbuf }
-  | '\\' 't' { Buffer.add_char st.buf '\t'; read_string st lexbuf }
-  | '\\' '\\' { Buffer.add_char st.buf '\\'; read_string st lexbuf }
-  | '\\' '"' { Buffer.add_char st.buf '"'; read_string st lexbuf }
-  | '\\' '0' { Buffer.add_char st.buf '\000'; read_string st lexbuf }
+  | '"' { STRING (Buffer.contents st.strbuf) }
+  | '\\' 'n' { Buffer.add_char st.strbuf '\n'; read_string st lexbuf }
+  | '\\' 'r' { Buffer.add_char st.strbuf '\r'; read_string st lexbuf }
+  | '\\' 't' { Buffer.add_char st.strbuf '\t'; read_string st lexbuf }
+  | '\\' '\\' { Buffer.add_char st.strbuf '\\'; read_string st lexbuf }
+  | '\\' '"' { Buffer.add_char st.strbuf '"'; read_string st lexbuf }
+  | '\\' '0' { Buffer.add_char st.strbuf '\000'; read_string st lexbuf }
   (* The lexer continues until the string closes *)
   | '\\' [^ '\r' '\n'] {
       let span =
@@ -219,7 +219,7 @@ and read_string st = parse
       ERROR "unterminated string"
     }
   | [^ '"' '\\' '\r' '\n']+  {
-      Buffer.add_string st.buf (Lexing.lexeme lexbuf);
+      Buffer.add_string st.strbuf (Lexing.lexeme lexbuf);
       read_string st lexbuf
     }
   | eof { ERROR "unterminated string" }
