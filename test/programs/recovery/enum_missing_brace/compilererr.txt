@@ -1,4 +1,4 @@
-error: expected `{`
-  at main.rp:1:12
+error: unexpected closing delimiter
+  at main.rp:1:23
     enum color Red, Green }
-               ^~~ found Red
+                          ^

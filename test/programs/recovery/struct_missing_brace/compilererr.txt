@@ -1,4 +1,4 @@
-error: expected `{`
-  at main.rp:1:14
+error: unexpected closing delimiter
+  at main.rp:1:29
     struct point x: i32; y: i32 }
-                 ^ found x
+                                ^

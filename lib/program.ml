@@ -33,7 +33,6 @@ type located = Single of string | Merged of string list | Clash | Not_found
 type load_origin = Root | Imported of Ast.import
 
 type loader = {
-  diags : Diagnostic.sink;
   read_file : string -> string;
   list_dir : string -> string list;
   roots : string list;
@@ -71,11 +70,11 @@ let source_at (t : t) =
 
 let empty_ast = { Ast.header = None; imports = []; decls = [] }
 
-let parse_source ~diags ~base filename src =
+let parse_source ~base filename src =
   let source = { base; filename; source_map = Sourcemap.create ~base src } in
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state base) in
-  match Parser.parse ~diags read lexbuf with
+  match Parser.parse read lexbuf with
   | ast -> (source, ast, false)
   | exception Parser.Unbalanced -> (source, empty_ast, true)
 
@@ -131,7 +130,8 @@ let probe_header src =
   let module_name () =
     match read lexbuf with Tokens.IDENT name, _, _ -> Some name | _ -> None
   in
-  match first_item () with Tokens.MODULE -> module_name () | _ -> None
+  Diagnostic.quietly (fun () ->
+      match first_item () with Tokens.MODULE -> module_name () | _ -> None)
 
 let ripe_files (list_dir : string -> string list) dir =
   match list_dir dir with
@@ -161,7 +161,7 @@ let locate_module ~(read_file : string -> string)
   | false, false -> Not_found
 
 (* Every file of a merged module needs the name importers actually write *)
-let check_header ~diags path merged unit_ =
+let check_header path merged unit_ =
   let expected = module_name_of_path path in
   match unit_.ast.Ast.header with
   | Some header when Interner.text header.Ast.name <> expected ->
@@ -184,10 +184,10 @@ let check_header ~diags path merged unit_ =
             Diagnostic.help ("import `" ^ path ^ "` instead") diagnostic
         | None -> diagnostic
       in
-      Diagnostic.emit diags diagnostic
+      Diagnostic.emit diagnostic
   | Some _ -> ()
   | None when merged ->
-      Diagnostic.emit diags
+      Diagnostic.emit
         (Diagnostic.error
            (Span.make unit_.source.base unit_.source.base)
            "missing module header"
@@ -226,7 +226,7 @@ let record_module loader module_id path ?(failed = false) units dependencies =
 
 (* A file that won't read becomes a module so lookups never fail *)
 let record_failed_module loader module_id path diagnostic =
-  Diagnostic.emit loader.diags diagnostic;
+  Diagnostic.emit diagnostic;
   let filename = file_of_path loader.source_root path in
   let base = fresh_base loader filename 0 in
   let source = { base; filename; source_map = Sourcemap.create ~base "" } in
@@ -239,7 +239,7 @@ let read_unit loader filename =
   (* The lexer walks bytes so it would split a character in half *)
   if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
   let source, ast, unbalanced =
-    parse_source ~diags:loader.diags
+    parse_source
       ~base:(fresh_base loader filename (String.length src))
       filename src
   in
@@ -261,7 +261,7 @@ let rec load_module loader stack origin path =
           let detail =
             show_import_cycle (import_cycle (List.rev stack) path) path
           in
-          Diagnostic.emit loader.diags
+          Diagnostic.emit
             (Diagnostic.error import.Ast.span "import cycle"
             |> Diagnostic.detail detail)
       end;
@@ -307,7 +307,7 @@ and load_units loader stack module_id path merged filenames =
   let units = List.map fst read in
   (* An unbalanced file has no declarations so importers would see only misses *)
   let failed = List.exists snd read in
-  List.iter (check_header ~diags:loader.diags path merged) units;
+  List.iter (check_header path merged) units;
   let dependencies =
     units |> List.concat_map (load_imports loader stack path)
   in
@@ -324,9 +324,8 @@ and load_imports loader stack path unit_ =
   in
   List.map load_import unit_.ast.Ast.imports
 
-let load ~diags ~(read_file : string -> string)
-    ~(list_dir : string -> string list) ?(search_roots : string list = [])
-    ~root_filename () =
+let load ~(read_file : string -> string) ~(list_dir : string -> string list)
+    ?(search_roots : string list = []) ~root_filename () =
   (* A bare filename has no directory so every import would start with "./" *)
   let source_root =
     match Filename.dirname root_filename with "." -> "" | dir -> dir
@@ -338,7 +337,6 @@ let load ~diags ~(read_file : string -> string)
   let roots = source_root :: search_roots in
   let loader =
     {
-      diags;
       read_file;
       list_dir;
       roots;

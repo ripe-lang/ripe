@@ -23,13 +23,15 @@ let render_in (program : Ripe.Program.t) d =
   in
   print_string (Ripe.Diagnostic.render_with ctx_at (ctx_at 0) d)
 
-let finish (diags : Ripe.Diagnostic.sink) (value : 'a) :
-    'a * Ripe.Diagnostic.t list =
-  let failed = Ripe.Diagnostic.has_errors diags in
-  let all = Ripe.Diagnostic.drain diags in
+let finish (value : 'a) : 'a * Ripe.Diagnostic.t list =
+  let failed = Ripe.Diagnostic.has_errors () in
+  let all = Ripe.Diagnostic.take () in
   if failed then raise (Ripe.Diagnostic.Errors all);
   (value, all)
 
-let run_stage (f : Ripe.Diagnostic.sink -> 'a) : 'a * Ripe.Diagnostic.t list =
-  let diags = Ripe.Diagnostic.sink () in
-  finish diags (f diags)
+(* This clears out whatever a crashed test left behind *)
+let fresh () = ignore (Ripe.Diagnostic.take ())
+
+let run_stage (f : unit -> 'a) : 'a * Ripe.Diagnostic.t list =
+  fresh ();
+  finish (f ())

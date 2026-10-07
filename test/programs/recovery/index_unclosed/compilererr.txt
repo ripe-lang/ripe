@@ -1,7 +1,7 @@
-error: expected `]`
-  at main.rp:3:13
-      return a[0;
-                ^ found ;
+error: mismatched closing delimiter
+  at main.rp:4:1
+    }
+    ^ expected `]`
   at main.rp:3:11
       return a[0;
               ^ to match this `[`

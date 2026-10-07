@@ -1373,6 +1373,21 @@ let%expect_test "parse: unknown string escape" =
                             ^
     |}]
 
+let%expect_test "parse: an unknown escape keeps the rest of its statement" =
+  run_src {|extern "C" fn g(s: cstr, n: i32);
+fn f() { g("a\qb", nope); }|};
+  [%expect
+    {|
+    error: unknown escape
+      at <test>:2:15
+        fn f() { g("a\qb", nope); }
+                      ^
+    error: undefined variable
+      at <test>:2:20
+        fn f() { g("a\qb", nope); }
+                           ^~~~
+    |}]
+
 let%expect_test "parse: call result indexed then field accessed" =
   parse_expr "f()[0].x";
   [%expect {| (. (index (call f) 0) x) |}]
@@ -1730,20 +1745,26 @@ let%expect_test "parse: unclosed paren in a while condition points at the paren"
   run_src "fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };";
   [%expect
     {|
-    error: expected `;`
-      at <test>:1:20
+    error: mismatched closing delimiter
+      at <test>:1:57
         fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
-                           ^~~~~ found `while`
+                                                                ^ expected `)`
+      at <test>:1:26
+        fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
+                                 ^ to match this `(`
     |}]
 
 let%expect_test "parse: unclosed bracket in an index points at the bracket" =
   run_src "fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
   [%expect
     {|
-    error: expected `;`
-      at <test>:1:30
+    error: mismatched closing delimiter
+      at <test>:1:46
         fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
-                                     ^~ found `if`
+                                                     ^ expected `]`
+      at <test>:1:37
+        fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+                                            ^ to match this `[`
     |}]
 
 let%expect_test "parse: stray closing paren with nothing open" =
@@ -2062,10 +2083,10 @@ let%expect_test "parse: a local enum body keeps the brace it was given" =
 }|};
   [%expect
     {|
-    error: expected `{`
-      at <test>:2:14
-          enum side  Left, Right }
-                     ^~~~ found Left
+    error: unexpected closing delimiter
+      at <test>:5:1
+        }
+        ^
     |}]
 
 let%expect_test "parse: a binding with two names keeps the second" =
@@ -2182,4 +2203,46 @@ let%expect_test "parse: a broken statement keeps the rest of a value block" =
       at <test>:2:16
           var x: i32 = {
                        ^ to match this `{`
+    |}]
+
+let%expect_test "parse: an unknown escape after a delimiter fault" =
+  run_src {|fn f() { var s = (1]; var t = "a\qb"; }|};
+  [%expect
+    {|
+    error: mismatched closing delimiter
+      at <test>:1:20
+        fn f() { var s = (1]; var t = "a\qb"; }
+                           ^ expected `)`
+      at <test>:1:18
+        fn f() { var s = (1]; var t = "a\qb"; }
+                         ^ to match this `(`
+    error: unknown escape
+      at <test>:1:34
+        fn f() { var s = (1]; var t = "a\qb"; }
+                                         ^
+    |}]
+
+let%expect_test "parse: lexer errors after a delimiter fault" =
+  run_src {|fn f() {
+  var s = (1];
+  var t = "abc
+  var c = @;
+}|};
+  [%expect
+    {|
+    error: mismatched closing delimiter
+      at <test>:2:13
+          var s = (1];
+                    ^ expected `)`
+      at <test>:2:11
+          var s = (1];
+                  ^ to match this `(`
+    error: unterminated string
+      at <test>:3:11
+          var t = "abc
+                  ^~~~
+    error: unexpected character
+      at <test>:4:11
+          var c = @;
+                  ^
     |}]

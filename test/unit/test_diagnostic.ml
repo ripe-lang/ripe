@@ -89,7 +89,7 @@ fn main() i32 { return value() }
     |}]
 
 let%expect_test "an import cycle prints its path after the source" =
-  let program, diags =
+  let program =
     Pipeline.load_tree
       [
         ("main.rp", "import a;\nfn main() i32 { return 0 }");
@@ -97,7 +97,7 @@ let%expect_test "an import cycle prints its path after the source" =
         ("b.rp", "import a;\npub fn fb() {}");
       ]
   in
-  List.iter (render_in program) (Diagnostic.drain diags);
+  List.iter (render_in program) (Diagnostic.take ());
   [%expect
     {|
     error: import cycle
@@ -153,13 +153,13 @@ let%expect_test "the primary span and detail come back out" =
     none "none"
     |}]
 
-let%expect_test "a sink counts errors but not warnings" =
-  let sink = Diagnostic.sink () in
-  Printf.printf "empty %b\n" (Diagnostic.has_errors sink);
-  Diagnostic.emit sink (Diagnostic.warning Span.dummy "just a warning");
-  Printf.printf "after warning %b\n" (Diagnostic.has_errors sink);
-  Diagnostic.emit sink (Diagnostic.error_no_span "a real error");
-  Printf.printf "after error %b\n" (Diagnostic.has_errors sink);
+let%expect_test "the report counts errors but not warnings" =
+  fresh ();
+  Printf.printf "empty %b\n" (Diagnostic.has_errors ());
+  Diagnostic.emit (Diagnostic.warning Span.dummy "just a warning");
+  Printf.printf "after warning %b\n" (Diagnostic.has_errors ());
+  Diagnostic.emit (Diagnostic.error_no_span "a real error");
+  Printf.printf "after error %b\n" (Diagnostic.has_errors ());
   [%expect
     {|
     empty false
@@ -167,32 +167,23 @@ let%expect_test "a sink counts errors but not warnings" =
     after error true
     |}]
 
-let%expect_test "draining reads the sink without emptying it" =
-  let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error_no_span "first");
-  Diagnostic.emit sink (Diagnostic.error_no_span "second");
-  let first = List.length (Diagnostic.drain sink) in
-  let again = List.length (Diagnostic.drain sink) in
-  Printf.printf "%d then %d\n" first again;
-  [%expect {| 2 then 2 |}]
-
-let%expect_test "taking the sink leaves it empty" =
-  let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error_no_span "first");
-  Diagnostic.emit sink (Diagnostic.error_no_span "second");
-  let first = List.length (Diagnostic.take sink) in
-  let again = List.length (Diagnostic.take sink) in
-  Printf.printf "%d then %d\n" first again;
-  [%expect {| 2 then 0 |}]
+let%expect_test "taking the report leaves it empty" =
+  fresh ();
+  Diagnostic.emit (Diagnostic.error_no_span "first");
+  Diagnostic.emit (Diagnostic.error_no_span "second");
+  let first = List.length (Diagnostic.take ()) in
+  let again = List.length (Diagnostic.take ()) in
+  Printf.printf "%d then %d %b\n" first again (Diagnostic.has_errors ());
+  [%expect {| 2 then 0 false |}]
 
 let%expect_test "spanless diagnostics keep the order they were made" =
-  let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error_no_span "first");
-  Diagnostic.emit sink (Diagnostic.warning Span.dummy "second");
-  Diagnostic.emit sink (Diagnostic.error_no_span "third");
+  fresh ();
+  Diagnostic.emit (Diagnostic.error_no_span "first");
+  Diagnostic.emit (Diagnostic.warning Span.dummy "second");
+  Diagnostic.emit (Diagnostic.error_no_span "third");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
-    (Diagnostic.drain sink);
+    (Diagnostic.take ());
   [%expect {|
     first
     second
@@ -201,14 +192,14 @@ let%expect_test "spanless diagnostics keep the order they were made" =
 
 let%expect_test "diagnostics come back sorted by where they point" =
   let src = "one two three\n" in
-  let sink = Diagnostic.sink () in
-  Diagnostic.emit sink (Diagnostic.error (span src "three") "at three");
-  Diagnostic.emit sink (Diagnostic.error (span src "one") "at one");
-  Diagnostic.emit sink (Diagnostic.warning (span src "two") "at two");
-  Diagnostic.emit sink (Diagnostic.error_no_span "nowhere");
+  fresh ();
+  Diagnostic.emit (Diagnostic.error (span src "three") "at three");
+  Diagnostic.emit (Diagnostic.error (span src "one") "at one");
+  Diagnostic.emit (Diagnostic.warning (span src "two") "at two");
+  Diagnostic.emit (Diagnostic.error_no_span "nowhere");
   List.iter
     (fun d -> print_endline (Diagnostic.headline d))
-    (Diagnostic.drain sink);
+    (Diagnostic.take ());
   [%expect {|
     nowhere
     at one
@@ -306,4 +297,21 @@ let%expect_test "an unfinished function points to its opening brace" =
       at <test>:1:15
         fn main() i32 {
                       ^
+    |}]
+
+let%expect_test "a quiet walk leaves the report as it found it" =
+  fresh ();
+  Diagnostic.emit (Diagnostic.warning Span.dummy "kept");
+  let inside =
+    Diagnostic.quietly (fun () ->
+        Diagnostic.emit (Diagnostic.error_no_span "thrown away");
+        Diagnostic.has_errors ())
+  in
+  Printf.printf "inside %b after %b\n" inside (Diagnostic.has_errors ());
+  List.iter
+    (fun d -> print_endline (Diagnostic.headline d))
+    (Diagnostic.take ());
+  [%expect {|
+    inside true after false
+    kept
     |}]

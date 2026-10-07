@@ -233,12 +233,12 @@ let render_program program diags =
     diags
 
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
-let check_has_main diags tdecls =
+let check_has_main tdecls =
   let is_main decl =
     match decl with Tast.TFunc fd -> fd.Tast.entry_point | _ -> false
   in
   if not (List.exists is_main tdecls) then
-    Diagnostic.emit diags
+    Diagnostic.emit
       (Diagnostic.error_no_span "no `main` function found"
       |> Diagnostic.help "add a `fn main()` entry point")
 
@@ -252,10 +252,9 @@ let root_tokens filename =
   let lexbuf = Lexer.lexbuf_of_string src in
   dump_tokens (Lexer.read (Lexer.make_state 0)) lexbuf
 
-let load ~diags ~search_roots ~filename =
+let load ~search_roots ~filename =
   try
-    Program.load ~diags ~read_file ~list_dir ~search_roots
-      ~root_filename:filename ()
+    Program.load ~read_file ~list_dir ~search_roots ~root_filename:filename ()
   with
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
@@ -264,9 +263,9 @@ let load ~diags ~search_roots ~filename =
         (Printf.sprintf "more than %d bytes of source in one program: %s"
            Span.max_offset name)
 
-let render_and_exit_if_failed program diags =
-  let failed = Diagnostic.has_errors diags in
-  render_program program (Diagnostic.take diags);
+let render_and_exit_if_failed program =
+  let failed = Diagnostic.has_errors () in
+  render_program program (Diagnostic.take ());
   if failed then exit 1
 
 module Output = struct
@@ -297,10 +296,10 @@ module Output = struct
 end
 
 (* Each stage is a possible stopping point so bail once we hit the target *)
-let stop_at ~stage ~program ~diags target emit =
+let stop_at ~stage ~program target emit =
   if stage = target then begin
     emit ();
-    render_and_exit_if_failed program diags;
+    render_and_exit_if_failed program;
     raise Exit
   end
 
@@ -316,28 +315,27 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     exit 0);
 
   let total_start = Unix.gettimeofday () in
-  let diags = Diagnostic.sink () in
-  let program = load ~diags ~search_roots ~filename in
+  let program = load ~search_roots ~filename in
 
   (* A missing main is noise once the program failed to load *)
-  let load_had_errors = Diagnostic.has_errors diags in
+  let load_had_errors = Diagnostic.has_errors () in
 
-  let stop_at target emit = stop_at ~stage ~program ~diags target emit in
+  let stop_at target emit = stop_at ~stage ~program target emit in
   try
     stop_at Ast (fun () -> Output.text output (show_program program));
-    let resolved = Resolve.resolve_program ~diags program in
+    let resolved = Resolve.resolve_program program in
     let uses = resolved.Resolve.uses in
     let decls = resolved.Resolve.decls in
     stop_at Resolve (fun () -> Output.text output (Resolve.dump uses));
-    let tdecls = Sema.analyze ~diags uses decls in
+    let tdecls = Sema.analyze uses decls in
     let emit_check_result () =
-      if not (Diagnostic.has_errors diags) then
+      if not (Diagnostic.has_errors ()) then
         Output.text output "typecheck: ok\n"
     in
     stop_at Check emit_check_result;
     stop_at Tast (fun () -> Output.text output (show_tdecls tdecls));
-    if stage = Bin && not load_had_errors then check_has_main diags tdecls;
-    render_and_exit_if_failed program diags;
+    if stage = Bin && not load_had_errors then check_has_main tdecls;
+    render_and_exit_if_failed program;
 
     let frontend_time = Unix.gettimeofday () -. total_start in
     let codegen_start = Unix.gettimeofday () in
@@ -348,11 +346,11 @@ let compile ~stage ~backend ~out ~libraries ~search_roots ~stats ~filename =
     | Error errors ->
         List.iter
           (fun error ->
-            Diagnostic.emit diags
+            Diagnostic.emit
               (Diagnostic.internal ~span:error.Mir.error_span
                  (Mir.show_error error)))
           errors;
-        render_and_exit_if_failed program diags;
+        render_and_exit_if_failed program;
         raise Exit
     end;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));

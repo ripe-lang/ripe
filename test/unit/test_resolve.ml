@@ -552,7 +552,7 @@ type meters = i32;
     |}]
 
 let%expect_test "resolve: main outside the root module is mangled" =
-  let resolved, _ =
+  let resolved =
     load_program
       [
         ("main.rp", {|
@@ -579,7 +579,7 @@ pub fn main() {}
     |}]
 
 let%expect_test "resolve: only a public ABI keeps the name C spells" =
-  let resolved, _ =
+  let resolved =
     load_program
       [
         ("main.rp", {|

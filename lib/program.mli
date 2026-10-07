@@ -28,7 +28,6 @@ val module_decls : module_ -> Ast.decl list
 val source_at : t -> int -> source
 
 val load :
-  diags:Diagnostic.sink ->
   read_file:(string -> string) ->
   list_dir:(string -> string list) ->
   ?search_roots:string list ->

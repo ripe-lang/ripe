@@ -1,4 +1,4 @@
-error: expected `{`
-  at main.rp:2:3
-      var a1: i32 = n;
-      ^~~ found `var`
+error: unexpected closing delimiter
+  at main.rp:5:1
+    }
+    ^

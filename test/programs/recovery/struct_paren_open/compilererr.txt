@@ -1,4 +1,7 @@
-error: expected `{`
+error: mismatched closing delimiter
+  at main.rp:1:23
+    struct point ( x: i32 }
+                          ^ expected `)`
   at main.rp:1:14
     struct point ( x: i32 }
-                 ^ found (
+                 ^ to match this `(`

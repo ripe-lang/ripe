@@ -71,10 +71,12 @@ let%expect_test "lexer: nested block comment stripped" =
 
 let%expect_test "lexer: unterminated block comment errors" =
   dump_tokens "x /* never closes\n";
-  [%expect {|
+  [%expect
+    {|
     IDENT x
-    ERROR unterminated block comment
+    ERROR
     EOF
+    error unterminated block comment
     |}]
 
 let%expect_test "lexer: operators and compound assignment" =
@@ -195,8 +197,9 @@ let%expect_test "lexer: u64 max literal" =
 let%expect_test "lexer: literal above u64 is an error" =
   dump_tokens "99999999999999999999999\n";
   [%expect {|
-    ERROR integer literal out of range
+    ERROR
     EOF
+    error integer literal out of range
     |}]
 
 let%expect_test "lexer: float literal" =
@@ -257,22 +260,25 @@ let%expect_test "lexer: exponent floats" =
 let%expect_test "lexer: malformed hex is an error" =
   dump_tokens "0xg\n";
   [%expect {|
-    ERROR invalid number literal
+    ERROR
     EOF
+    error invalid number literal
     |}]
 
 let%expect_test "lexer: malformed binary is an error" =
   dump_tokens "0b12\n";
   [%expect {|
-    ERROR invalid number literal
+    ERROR
     EOF
+    error invalid number literal
     |}]
 
 let%expect_test "lexer: hex above u64 is an error" =
   dump_tokens "0xfffffffffffffffff\n";
   [%expect {|
-    ERROR integer literal out of range
+    ERROR
     EOF
+    error integer literal out of range
     |}]
 
 let%expect_test "lexer: CRLF newline is whitespace" =
@@ -286,30 +292,43 @@ let%expect_test "lexer: CRLF newline is whitespace" =
 let%expect_test "lexer: unterminated string yields an error token" =
   dump_tokens {|"abc|};
   [%expect {|
-    ERROR unterminated string
+    ERROR
     EOF
+    error unterminated string
     |}]
 
 let%expect_test "lexer: a backslash at the end of an unterminated string" =
   dump_tokens {|"abc\|};
   [%expect {|
-    ERROR unterminated string
+    ERROR
     EOF
+    error unterminated string
     |}]
 
 let%expect_test "lexer: unknown escape is an error" =
   dump_tokens {|"a\qb"|};
   [%expect {|
     STRING ab
-    ERROR unknown escape
     EOF
+    error unknown escape
+    |}]
+
+let%expect_test "lexer: every unknown escape in a string is an error" =
+  dump_tokens {|"a\qb\zc"|};
+  [%expect
+    {|
+    STRING abc
+    EOF
+    error unknown escape
+    error unknown escape
     |}]
 
 let%expect_test "lexer: unexpected character is an error" =
   dump_tokens "@\n";
   [%expect {|
-    ERROR unexpected character
+    ERROR
     EOF
+    error unexpected character
     |}]
 
 let%expect_test "lexer: char literal is one code point" =
@@ -350,38 +369,43 @@ let%expect_test "lexer: max scalar U+10FFFF" =
 let%expect_test "lexer: empty char literal is an error" =
   dump_tokens "''\n";
   [%expect {|
-    ERROR empty character literal
+    ERROR
     EOF
+    error empty character literal
     |}]
 
 let%expect_test "lexer: two chars in a literal is an error" =
   dump_tokens "'ab'\n";
   [%expect
     {|
-    ERROR character literal must be a single character
+    ERROR
     EOF
+    error character literal must be a single character
     |}]
 
 let%expect_test "lexer: two scalars in a literal is an error" =
   dump_tokens "'\xf0\x9f\x98\x80\xf0\x9f\x98\x80'\n";
   [%expect
     {|
-    ERROR character literal must be a single character
+    ERROR
     EOF
+    error character literal must be a single character
     |}]
 
 let%expect_test "lexer: unknown char escape is an error" =
   dump_tokens {|'\q'|};
   [%expect {|
-    ERROR unknown escape: '\q'
+    ERROR
     EOF
+    error unknown escape: '\q'
     |}]
 
 let%expect_test "lexer: unterminated char literal is an error" =
   dump_tokens "'a\n";
   [%expect {|
-    ERROR unterminated character literal
+    ERROR
     EOF
+    error unterminated character literal
     |}]
 
 let%expect_test "lexer: an unterminated char literal stops before a closer" =
@@ -389,9 +413,10 @@ let%expect_test "lexer: an unterminated char literal stops before a closer" =
   [%expect
     {|
     (
-    ERROR unterminated character literal
+    ERROR
     )
     EOF
+    error unterminated character literal
     |}]
 
 let%expect_test "lexer: leading UTF 8 BOM is ignored" =
@@ -433,8 +458,9 @@ let%expect_test "lexer: separators anywhere after the first digit" =
 let%expect_test "lexer: separator right after a base prefix" =
   dump_tokens "0x_ff\n";
   [%expect {|
-    ERROR invalid number literal
+    ERROR
     EOF
+    error invalid number literal
     |}]
 
 let%expect_test "lexer: a leading separator is a name" =

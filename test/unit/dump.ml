@@ -10,7 +10,7 @@ let tok_str (t : Ripe.Tokens.token) =
   | STRING s -> "STRING " ^ String.escaped s
   | SEMI -> "SEMI"
   | EOF -> "EOF"
-  | ERROR s -> "ERROR " ^ s
+  | ERROR _ -> "ERROR"
   | other ->
       if List.exists (fun (_, t') -> t' = other) keywords then
         "KW " ^ show_token other
@@ -151,6 +151,7 @@ and dump_block (body : Ripe.Ast.block) : string =
   "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
 
 let dump_tokens src =
+  Diag.fresh ();
   let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
@@ -158,4 +159,7 @@ let dump_tokens src =
     print_endline (tok_str t);
     if t <> Ripe.Tokens.EOF then go ()
   in
-  go ()
+  go ();
+  List.iter
+    (fun d -> print_endline ("error " ^ Ripe.Diagnostic.headline d))
+    (Ripe.Diagnostic.take ())

@@ -7,14 +7,12 @@ open Tokens
 type state = {
   base : int;
   buf : Buffer.t;
-  pending_errors : (Tokens.token * Span.t * int) Queue.t;
   mutable line : int;
 }
 
 let make_state base = {
   base;
   buf = Buffer.create 64;
-  pending_errors = Queue.create ();
   line = 1;
 }
 
@@ -211,9 +209,7 @@ and read_string st = parse
           (st.base + lexbuf.Lexing.lex_start_pos + 1)
           (st.base + lexbuf.Lexing.lex_curr_pos)
       in
-      Queue.push
-        (ERROR "unknown escape", span, st.line)
-        st.pending_errors;
+      Diagnostic.emit (Diagnostic.error span "unknown escape");
       read_string st lexbuf
     }
   | '\\' { read_string st lexbuf }
@@ -243,8 +239,11 @@ and read_block_comment st depth = parse
 
 {
 let read st lexbuf =
-  if not (Queue.is_empty st.pending_errors) then Queue.pop st.pending_errors
-  else
-    let t = read_token st lexbuf in
-    (t, lexbuf_span st lexbuf, st.line)
+  let t = read_token st lexbuf in
+  let span = lexbuf_span st lexbuf in
+  begin match t with
+  | ERROR msg -> Diagnostic.emit (Diagnostic.error span "%s" msg)
+  | _ -> ()
+  end;
+  (t, span, st.line)
 }
