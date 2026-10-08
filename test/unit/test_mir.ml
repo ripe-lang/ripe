@@ -233,7 +233,6 @@ fn main() i32 {
     fn _R4main() i32 {
       local %0 n: i32 user
       local %1: bool temp
-      local %2: i32 temp
 
       block0:
         %0 = 0
@@ -243,7 +242,7 @@ fn main() i32 {
         jump block3
 
       block2:
-        %2 = call @printf("n=%d\n", copy %0)
+        call @printf("n=%d\n", copy %0)
         return copy %0
 
       block3:
@@ -291,7 +290,6 @@ fn main() i32 {
       local %2 j: i32 user
       local %3: bool temp
       local %4: i32 temp
-      local %5: i32 temp
 
       block0:
         %0 = 0
@@ -302,7 +300,7 @@ fn main() i32 {
         jump block3
 
       block2:
-        %5 = call @printf("found=%d\n", copy %1)
+        call @printf("found=%d\n", copy %1)
         return copy %1
 
       block3:
