@@ -146,7 +146,7 @@ type program = {
 type loop_context = {
   label : Ast.name option;
   continue_block : block_id;
-  break_block : block_id option ref;
+  break_block : block_id;
   result : (place * Types.ty) option;
 }
 
@@ -584,8 +584,7 @@ and lower_while state span label condition body =
   switch state condition_block;
   lower_cond state condition body_block exit_block;
   switch state body_block;
-  lower_loop_body state span label condition_block (ref (Some exit_block)) None
-    body;
+  lower_loop_body state span label condition_block exit_block None body;
   switch state exit_block
 
 (* The stack gives nested loop control the nearest matching target *)
@@ -624,7 +623,7 @@ and lower_counted_loop state span label op ty counter limit element body =
   (match element with
   | Some (destination, value) -> assign state destination value
   | None -> ());
-  lower_loop_body state span label step_block (ref (Some exit_block)) None body;
+  lower_loop_body state span label step_block exit_block None body;
   switch state step_block;
   if op = Lte then begin
     let increment_block = new_block state in
@@ -703,12 +702,12 @@ and lower_each_for state span label symbol elem_ty iter body =
      jump block2 *)
 and lower_loop state destination span label ty body =
   let body_block = new_block state in
-  let exit = ref None in
+  let exit_block = new_block state in
   terminate state (Jump body_block) span;
   switch state body_block;
   let result = Option.map (fun place -> (place, ty)) destination in
-  lower_loop_body state span label body_block exit result body;
-  Option.iter (switch state) !exit
+  lower_loop_body state span label body_block exit_block result body;
+  switch state exit_block
 
 (* copy %0, 1 *)
 and lower_arg state expr =
@@ -964,7 +963,7 @@ and lower_statement state expr =
             | Some result -> lower_break state result value
             | None -> lower_into state None value)
           value;
-        terminate state (Jump (join_block state target.break_block)) expr.span
+        terminate state (Jump target.break_block) expr.span
     | Tast.TContinue label ->
         let target = loop_target state label expr.span in
         terminate state (Jump target.continue_block) expr.span

@@ -236,22 +236,25 @@ fn main() i32 {
         jump block1
 
       block1:
-        jump block2
+        jump block3
 
       block2:
-        %0 = copy %0 + 1
-        %1 = copy %0 == 4
-        branch copy %1 block3 block4
-
-      block3:
-        jump block5
-
-      block4:
-        jump block2
-
-      block5:
         call @printf("n=%d\n", copy %0)
         return copy %0
+
+      block3:
+        %0 = copy %0 + 1
+        %1 = copy %0 == 4
+        branch copy %1 block5 block6
+
+      block4:
+        unreachable
+
+      block5:
+        jump block2
+
+      block6:
+        jump block3
     }
     |}]
 
@@ -288,24 +291,27 @@ fn main() i32 {
 
       block1:
         %2 = 0
-        jump block2
+        jump block3
 
       block2:
-        %2 = copy %2 + 1
-        %3 = copy %2 == 4
-        branch copy %3 block3 block4
-
-      block3:
-        %4 = copy %0 * 100
-        %1 = copy %4 + copy %2
-        jump block5
-
-      block4:
-        jump block2
-
-      block5:
         call @printf("found=%d\n", copy %1)
         return copy %1
+
+      block3:
+        %2 = copy %2 + 1
+        %3 = copy %2 == 4
+        branch copy %3 block5 block6
+
+      block4:
+        unreachable
+
+      block5:
+        %4 = copy %0 * 100
+        %1 = copy %4 + copy %2
+        jump block2
+
+      block6:
+        jump block3
     }
     |}]
 
@@ -804,17 +810,17 @@ let%expect_test "mir: a loop yields the value its break carries" =
       block1:
         %0 = copy %0 + 1
         %2 = copy %0 == 3
-        branch copy %2 block2 block3
+        branch copy %2 block3 block4
 
       block2:
-        %1 = copy %0
-        jump block4
+        return copy %1
 
       block3:
-        jump block1
+        %1 = copy %0
+        jump block2
 
       block4:
-        return copy %1
+        jump block1
     }
     |}]
 
