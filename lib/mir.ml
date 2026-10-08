@@ -409,6 +409,7 @@ let lower_binary state destination span ty (op : Ast.binop) (left : operand)
     (right : operand) =
   let lowered = binop_of op in
   match op with
+  | _ when not (is_live state) -> ()
   | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
       lower_div state destination span ty lowered left right
   | Ast.Lshift | Ast.Rshift ->
