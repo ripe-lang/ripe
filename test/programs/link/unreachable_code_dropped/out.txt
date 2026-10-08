@@ -1,3 +1,0 @@
-through pointer
-through global
-exit: 0
