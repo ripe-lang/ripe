@@ -1,16 +1,16 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let parse_src file src =
-  let st = Ripe.Lexer.make_state file in
+let parse_src src =
+  let st = Ripe.Lexer.make_state () in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   try Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
   with Ripe.Parser.Failed -> []
 
-let parse ?(file = 0) src = fst (Diag.run_stage (fun () -> parse_src file src))
+let parse src = fst (Diag.run_stage (fun () -> parse_src src))
 
 let front_src src =
   Diag.fresh ();
-  let decls = parse_src 0 src in
+  let decls = parse_src src in
   (decls, Ripe.Resolve.resolve decls)
 
 let resolve_src src =
@@ -30,7 +30,7 @@ let mir_src src =
 
 let emit_src src =
   Ripe.Codegenqbe.emit ~filename:"<test>"
-    ~source_map:(Ripe.Sourcemap.create ~base:0 src)
+    ~source_map:(Ripe.Sourcemap.create src)
     (mir_src src)
 
 (* feed the il through qbe so malformed output fails the test *)

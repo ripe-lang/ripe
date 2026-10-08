@@ -146,8 +146,7 @@ module Columns = Ephemeron.K1.Make (struct
   let equal a b = a == b
 
   (* The source text would make every cache hit scan the file again *)
-  let hash sm =
-    Hashtbl.hash (Sourcemap.rel sm 0, String.length (Sourcemap.src sm))
+  let hash sm = Hashtbl.hash (String.length (Sourcemap.src sm))
 end)
 
 let columns = Columns.create 16
@@ -216,10 +215,9 @@ let window_of cells total caret_lo =
   in
   (left ^ shown ^ right, start, edge)
 
-(* Offsets here index into the raw source so they have to be file relative *)
 let render_snippet ctx buf span label severity =
   let src = Sourcemap.src ctx.sm in
-  let lo = Sourcemap.rel ctx.sm (Span.lo span) in
+  let lo = Span.lo span in
   let line_start, line_end = Sourcemap.line_bounds ctx.sm (Span.lo span) in
   let cols, cells = cached_line ctx.sm line_start line_end in
   let col pos = cols.(pos - line_start) in
@@ -235,7 +233,7 @@ let render_snippet ctx buf span label severity =
   Printf.bprintf buf "%*s%s\n" snippet_indent "" shown;
 
   let pad = snippet_indent + caret_lo - offset in
-  let hi = min (Sourcemap.rel ctx.sm (Span.hi span)) line_end in
+  let hi = min (Span.hi span) line_end in
   (* A span running off the window stops at its edge *)
   let width =
     if hi <= lo then 1 else min (col hi - caret_lo) (edge - caret_lo)

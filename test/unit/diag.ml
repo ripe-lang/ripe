@@ -1,11 +1,7 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 let ctx ?(color = false) src =
-  {
-    Ripe.Diagnostic.sm = Ripe.Sourcemap.create ~base:0 src;
-    filename = "<test>";
-    color;
-  }
+  { Ripe.Diagnostic.sm = Ripe.Sourcemap.create src; filename = "<test>"; color }
 
 let render ?color src d =
   print_string (Ripe.Diagnostic.render (ctx ?color src) d)

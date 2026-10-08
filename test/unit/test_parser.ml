@@ -1796,16 +1796,6 @@ let%expect_test
                ^ to match this `{`
     |}]
 
-let%expect_test "parse: spans from different files are distinct" =
-  let src = "fn f() {}" in
-  let first_span file =
-    match parse ~file src with
-    | Ripe.Ast.Func fd :: _ -> fd.func_span
-    | _ -> failwith "expected a function"
-  in
-  Printf.printf "%b" (first_span 0 = first_span 1);
-  [%expect {| false |}]
-
 let%expect_test "parse: regular assignment remains accepted" =
   run_src "fn f(b: i32) { var a = 1; a = b }";
   [%expect {| ok |}]

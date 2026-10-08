@@ -148,7 +148,7 @@ and dump_block (body : Ripe.Ast.block) : string =
 
 let dump_tokens src =
   Diag.fresh ();
-  let st = Ripe.Lexer.make_state 0 in
+  let st = Ripe.Lexer.make_state () in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
     let t, _ = Ripe.Lexer.read st lexbuf in

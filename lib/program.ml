@@ -10,8 +10,8 @@ let load ~(read_file : string -> string) filename =
   (* The lexer walks bytes so it would split a character in half *)
   if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
   if String.length src > Span.max_offset then raise (Source_too_large filename);
-  let source_map = Sourcemap.create ~base:0 src in
+  let source_map = Sourcemap.create src in
   let lexbuf = Lexer.lexbuf_of_string src in
-  let read = Lexer.read (Lexer.make_state 0) in
+  let read = Lexer.read (Lexer.make_state ()) in
   let decls = try Parser.parse read lexbuf with Parser.Failed -> [] in
   { filename; source_map; decls }

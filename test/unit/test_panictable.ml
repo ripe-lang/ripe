@@ -8,8 +8,7 @@ let offset line col = line_starts.(line - 1) + col - 1
 let at line col = Span.make (offset line col) (offset line col + 1)
 
 let create () =
-  Panictable.create ~filename:"main.rp"
-    ~source_map:(Sourcemap.create ~base:0 src)
+  Panictable.create ~filename:"main.rp" ~source_map:(Sourcemap.create src)
 
 let fires t func span =
   Panictable.enter_func t func;

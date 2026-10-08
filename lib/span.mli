@@ -1,7 +1,5 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* Offsets run across every source file at once so a file gets found by
-   searching the bases instead of riding along in the span *)
 type t
 
 val make : int -> int -> t
