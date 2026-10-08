@@ -1,10 +1,10 @@
 (TFunc
    { key = 0; name = "_R3add"; source_name = "add"; entry_point = false;
      params =
-     [({ id = 2; module_id = 0; name = "a"; link_name = "a"; kind = Param;
+     [({ id = 2; name = "a"; link_name = "a"; kind = Param;
          entry_point = false; span = (7,13); name_span = (7,13) },
        (TInt I32));
-       ({ id = 3; module_id = 0; name = "b"; link_name = "b"; kind = Param;
+       ({ id = 3; name = "b"; link_name = "b"; kind = Param;
           entry_point = false; span = (15,21); name_span = (15,21) },
         (TInt I32))
        ];
@@ -16,17 +16,15 @@
                    (TBinOp (Add,
                       { desc =
                         (TIdent
-                           { id = 2; module_id = 0; name = "a";
-                             link_name = "a"; kind = Param;
-                             entry_point = false; span = (7,13);
-                             name_span = (7,13) });
+                           { id = 2; name = "a"; link_name = "a";
+                             kind = Param; entry_point = false;
+                             span = (7,13); name_span = (7,13) });
                         ty = (TInt I32); span = (38,39) },
                       { desc =
                         (TIdent
-                           { id = 3; module_id = 0; name = "b";
-                             link_name = "b"; kind = Param;
-                             entry_point = false; span = (15,21);
-                             name_span = (15,21) });
+                           { id = 3; name = "b"; link_name = "b";
+                             kind = Param; entry_point = false;
+                             span = (15,21); name_span = (15,21) });
                         ty = (TInt I32); span = (42,43) }
                       ));
                    ty = (TInt I32); span = (38,43) }));
@@ -43,9 +41,8 @@
                    (TCall (
                       { desc =
                         (TIdent
-                           { id = 0; module_id = 0; name = "add";
-                             link_name = "_R3add"; kind = Func;
-                             entry_point = false; span = (0,46);
+                           { id = 0; name = "add"; link_name = "_R3add";
+                             kind = Func; entry_point = false; span = (0,46);
                              name_span = (3,6) });
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));

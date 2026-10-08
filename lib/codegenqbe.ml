@@ -1020,10 +1020,7 @@ let emit ~filename ~source_map program =
       let key = Qname.key decl.Mir.name in
       Layout.set_struct_fields structs key decl.Mir.fields;
       let name =
-        if decl.Mir.local then
-          Printf.sprintf "_Rlocal%d_%d"
-            (Symbol.module_id_of_key key)
-            (Symbol.id_of_key key)
+        if decl.Mir.local then Printf.sprintf "_Rlocal%d" (key :> int)
         else Qname.show decl.Mir.name
       in
       Symbol.Table.add struct_names key name)

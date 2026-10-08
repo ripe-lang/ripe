@@ -506,13 +506,13 @@ let%expect_test "resolve: the dump lists what each name resolved to" =
 
     Each line maps a source byte range to its definition.
     * (start,end): source byte range
-    * #module.id: declaration ID
-    * #-module.id: built in declaration
+    * #id: declaration ID
+    * #-id: built in declaration
     * kind name: resolved definition
 
-    (0,29) -> #0.0 Func f
-    (5,11) -> #0.1 Param a
-    (8,11) -> #-2.2 Type i32
-    (13,16) -> #-2.2 Type i32
-    (26,27) -> #0.1 Param a
+    (0,29) -> #0 Func f
+    (5,11) -> #1 Param a
+    (8,11) -> #-4 Type i32
+    (13,16) -> #-4 Type i32
+    (26,27) -> #1 Param a
     |}]

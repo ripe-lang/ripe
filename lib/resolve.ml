@@ -39,7 +39,6 @@ type state = {
 let prelude_symbol id name =
   {
     Symbol.id;
-    module_id = Symbol.prelude_module_id;
     name;
     link_name = name;
     kind = Symbol.Type;
@@ -61,9 +60,11 @@ let make_output () =
   let prelude = new_scope None in
   let seed id (name, _) =
     Names.replace prelude.types (Interner.intern name) (prelude_symbol id name);
-    id + 1
+    id - 1
   in
-  ignore (List.fold_left seed 0 Types.builtins);
+  (* We go negative so a builtin never grabs an id the program wants *)
+  ignore
+    (List.fold_left seed ((Symbol.unresolved_key :> int) - 1) Types.builtins);
   {
     syms = Span.Table.create 16;
     shadowed = Span.Table.create 16;
@@ -77,8 +78,8 @@ let dump r =
     Span.Table.to_seq r.syms |> List.of_seq
     |> List.sort (fun (a, _) (b, _) -> compare a b)
     |> List.map (fun (sp, s) ->
-        Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
-          s.Symbol.module_id s.Symbol.id
+        Printf.sprintf "(%d,%d) -> #%d %s %s\n" (Span.lo sp) (Span.hi sp)
+          s.Symbol.id
           (Symbol.show_kind s.Symbol.kind)
           s.Symbol.name)
     |> String.concat ""
@@ -86,8 +87,8 @@ let dump r =
   "Resolver output\n\n\
    Each line maps a source byte range to its definition.\n\
    * (start,end): source byte range\n\
-   * #module.id: declaration ID\n\
-   * #-module.id: built in declaration\n\
+   * #id: declaration ID\n\
+   * #-id: built in declaration\n\
    * kind name: resolved definition\n\n" ^ entries
 
 let sym_at r span =
@@ -117,7 +118,6 @@ let mint ?link_name ?name_span st kind name span =
   let sym =
     {
       Symbol.id;
-      module_id = 0;
       name = Interner.text name;
       link_name;
       kind;
