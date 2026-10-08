@@ -546,8 +546,7 @@ and lower_cond state (expr : Tast.texpr) yes no =
       lower_cond state right yes no
   | _ ->
       let condition = lower_expr state expr in
-      if is_live state then
-        terminate state (Branch (condition, yes, no)) expr.span
+      terminate state (Branch (condition, yes, no)) expr.span
 
 (* jump block1
    block1:
@@ -834,7 +833,6 @@ and lower_place state expr =
             temp_value state (Types.TInt Usize) base.span (Len source)
           in
           lower_check state (Bounds (index, length)) expr.span
-      | Types.TPointer _ -> ()
       | _ ->
           let message = "index on non indexed MIR place" in
           Diagnostic.ice ~span:base.span message);
