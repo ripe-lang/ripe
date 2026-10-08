@@ -17,7 +17,6 @@ Options:
   -l, --library <NAME>  Link with the named library
   -I, --import-path <DIR>
                         Add a directory to the import search path
-  --stats               Print compiler timing and tool commands
   -h, --help            Display this list of options
 
 Examples:

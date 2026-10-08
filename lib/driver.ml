@@ -48,53 +48,39 @@ let shell_command = function
   | command :: args -> Filename.quote_command command args
 
 (* Lower IL through qbe and return the emitted asm path *)
-let run_qbe ?(show_command = false) qbe il =
+let run_qbe qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
   Out_channel.with_open_text tmp_qbe (fun oc -> output_string oc il);
-  let args = [ qbe; "-o"; tmp_asm; tmp_qbe ] in
-  let command = shell_command args in
-  let start = Unix.gettimeofday () in
-  if show_command then Printf.eprintf "Running QBE:\n%s\n" command;
-  run command;
+  run (shell_command [ qbe; "-o"; tmp_asm; tmp_qbe ]);
   Sys.remove tmp_qbe;
-  (tmp_asm, Unix.gettimeofday () -. start)
+  tmp_asm
 
-let run_linker ~show_commands target ~output ~object_file ~libraries =
+let run_linker target ~output ~object_file ~libraries =
   let args =
     Target.linker_args target ~output ~object_file
       ~runtime:(Config.runtime_object ()) ~libraries
   in
-  let command = shell_command args in
-  if show_commands then Printf.eprintf "Running linker:\n%s\n" command;
-  run command
+  run (shell_command args)
 
-let compile_binary ~show_commands ~qbe target base il libraries =
-  let backend_start = Unix.gettimeofday () in
-  let tmp_asm, qbe_time = run_qbe ~show_command:show_commands qbe il in
+let compile_binary ~qbe target base il libraries =
+  let tmp_asm = run_qbe qbe il in
   let tmp_obj = Filename.temp_file "ripe" ".o" in
-  let assemble_args =
-    Target.assembler_args target ~output:tmp_obj ~input:tmp_asm
-  in
-  let assemble = shell_command assemble_args in
-  if show_commands then Printf.eprintf "Running assembler:\n%s\n" assemble;
-  run assemble;
-  let backend_time = Unix.gettimeofday () -. backend_start in
-  let start = Unix.gettimeofday () in
-  run_linker ~show_commands target ~output:base ~object_file:tmp_obj ~libraries;
+  let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
+  run (shell_command args);
+  run_linker target ~output:base ~object_file:tmp_obj ~libraries;
   Sys.remove tmp_asm;
-  Sys.remove tmp_obj;
-  (qbe_time, backend_time, Unix.gettimeofday () -. start)
+  Sys.remove tmp_obj
 
 let emit_asm qbe il =
-  let tmp_asm, _ = run_qbe qbe il in
+  let tmp_asm = run_qbe qbe il in
   let asm = read_file tmp_asm in
   Sys.remove tmp_asm;
   asm
 
 (* The same object the linker would have consumed, handed back instead *)
 let emit_obj ~qbe target il =
-  let tmp_asm, _ = run_qbe qbe il in
+  let tmp_asm = run_qbe qbe il in
   let tmp_obj = Filename.temp_file "ripe" ".o" in
   let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
   run (shell_command args);
@@ -137,64 +123,6 @@ let show_program program =
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"
-
-let line_counts program =
-  let count_processed_lines text =
-    let length = String.length text in
-    let rec loop position processed has_content =
-      if position = length then processed + if has_content then 1 else 0
-      else if text.[position] = '\n' then
-        loop (position + 1) (processed + if has_content then 1 else 0) false
-      else
-        let has_content =
-          has_content
-          || text.[position] <> ' '
-             && text.[position] <> '\t'
-             && text.[position] <> '\r'
-        in
-        loop (position + 1) processed has_content
-    in
-    loop 0 0 false
-  in
-  let processed = ref 0 in
-  let all = ref 0 in
-  Array.iter
-    (fun module_ ->
-      List.iter
-        (fun unit_ ->
-          let source_map = unit_.Program.source.Program.source_map in
-          let source = Sourcemap.src source_map in
-          let source_processed = count_processed_lines source in
-          let source_all = Sourcemap.line_count source_map in
-          processed := !processed + source_processed;
-          all := !all + source_all)
-        module_.Program.units)
-    program.Program.modules;
-  (!processed, !all)
-
-let print_stats program ~frontend_time ~qbe_time ~compiler_time ~link_time
-    ~total_time =
-  let processed_lines, all_lines = line_counts program in
-  let line_word count = if count = 1 then "line" else "lines" in
-  let lines_per_second =
-    if total_time > 0. then float_of_int all_lines /. total_time else 0.
-  in
-  Printf.eprintf "\n";
-  Printf.eprintf "Compiled %d %s (%d raw lines)\n" processed_lines
-    (line_word processed_lines)
-    all_lines;
-  Printf.eprintf "Front end time: %.6fs\n" frontend_time;
-  Printf.eprintf "QBE time:       %.6fs\n" qbe_time;
-  Printf.eprintf "Compiler time:  %.6fs\n" compiler_time;
-  Printf.eprintf "Link time:      %.6fs\n" link_time;
-  Printf.eprintf "Total time:     %.6fs (%.0f raw lines/s)\n" total_time
-    lines_per_second
-
-let report_stats stats program ~total_start ~frontend_time ~qbe_time
-    ~compiler_time ~link_time =
-  if stats then
-    print_stats program ~frontend_time ~qbe_time ~compiler_time ~link_time
-      ~total_time:(Unix.gettimeofday () -. total_start)
 
 let source_ctx color source : Diagnostic.ctx =
   {
@@ -286,13 +214,12 @@ let stop_at ~stage ~program target emit =
     raise Exit
   end
 
-let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
+let compile ~stage ~out ~libraries ~search_roots ~filename =
   let output = Output.make out in
   if stage = Tokens then (
     Output.text output (root_tokens filename);
     exit 0);
 
-  let total_start = Unix.gettimeofday () in
   let program = load ~search_roots ~filename in
 
   (* A missing main is noise once the program failed to load *)
@@ -315,9 +242,6 @@ let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
     if stage = Bin && not load_had_errors then check_has_main tdecls;
     render_and_exit_if_failed program;
 
-    let frontend_time = Unix.gettimeofday () -. total_start in
-    let codegen_start = Unix.gettimeofday () in
-
     let mir = Mir.build tdecls in
     Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
@@ -329,7 +253,6 @@ let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
     in
 
     let il = Codegenqbe.emit ~source_of mir in
-    let codegen_time = Unix.gettimeofday () -. codegen_start in
 
     stop_at Qbe (fun () -> Output.text output il);
     let qbe = Config.qbe () in
@@ -337,14 +260,9 @@ let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
     stop_at Obj (fun () ->
         Output.bytes output (emit_obj ~qbe (Target.host ()) il));
 
-    let qbe_time, backend_time, link_time =
-      compile_binary ~show_commands:stats ~qbe (Target.host ())
-        (Output.base output filename)
-        il libraries
-    in
-    report_stats stats program ~total_start ~frontend_time ~qbe_time
-      ~compiler_time:(frontend_time +. codegen_time +. backend_time)
-      ~link_time
+    compile_binary ~qbe (Target.host ())
+      (Output.base output filename)
+      il libraries
   with
   | Exit -> ()
   | Diagnostic.Errors ds ->
