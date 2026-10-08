@@ -23,14 +23,7 @@ let spanned value span = { value; span }
 type loop_label = name spanned [@@deriving show { with_path = false }]
 
 (* The point of struct point { x: i32 } *)
-type ident = name option spanned [@@deriving show { with_path = false }]
-
-let ident name span = spanned (Some name) span
-let missing_ident span = spanned None span
-
-(* A missing name gets empty text so later phases can't refer to it *)
-let ident_text i =
-  match i.value with Some name -> Interner.text name | None -> ""
+type ident = name spanned [@@deriving show { with_path = false }]
 
 type binop =
   | Add
@@ -87,7 +80,6 @@ let show_unop_sym = function
 type modifier = Pub [@@deriving show { with_path = false }]
 
 type expr_desc =
-  | ErrorExpr
   | Int of int64 * string option
   | Float of float * string option
   | Bool of bool
@@ -111,7 +103,7 @@ type expr_desc =
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
-  | StructLit of name list * name spanned * (ident * expr) list
+  | StructLit of name list * name spanned * (name option spanned * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
@@ -143,7 +135,6 @@ and local_decl =
   | LocalEnum of enum_def
 
 and typ_desc =
-  | ErrorType
   | Named of name list * name
   | Pointer of typ
   | FuncPtr of abi * typ list * typ option
@@ -155,13 +146,13 @@ and typ_desc =
 and typ = { tdesc : typ_desc; tspan : span }
 
 (* The "C" of extern "C" fn exit(code: i32) never *)
-and abi = NoAbi | NamedAbi of string spanned | AbiError
+and abi = NoAbi | NamedAbi of string spanned
 and field = { field_name : ident; field_typ : typ }
 
 (* struct point { x: i32, y: i32 } *)
 and struct_def = {
   struct_name : ident;
-  fields : field list option;
+  fields : field list;
   struct_modifiers : modifier list;
   struct_span : span;
 }
@@ -177,7 +168,7 @@ and type_alias_def = {
 (* TODO(d737): a variant carries no explicit value and no payload *)
 and enum_def = {
   enum_name : ident;
-  variants : ident list option;
+  variants : ident list;
   enum_modifiers : modifier list;
   enum_span : span;
 }
@@ -195,8 +186,6 @@ and func_def = {
   func_span : span;
 }
 [@@deriving show { with_path = false }]
-
-let error_typ span = { tdesc = ErrorType; tspan = span }
 
 let path_expr p =
   let first = (Nonempty.hd p.owner).span in

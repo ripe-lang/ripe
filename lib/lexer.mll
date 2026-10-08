@@ -7,21 +7,17 @@ open Tokens
 type state = {
   base : int;
   strbuf : Buffer.t;
-  mutable line : int;
 }
 
 let make_state base = {
   base;
   strbuf = Buffer.create 64;
-  line = 1;
 }
-
-let next_line st = st.line <- st.line + 1
 
 let max_intsuf_len = String.length "isize"
 let max_floatsuf_len = String.length "f32"
 
-(* The line tracker avoids per token positions *)
+(* Spans are plain offsets so the lexbuf needs no positions *)
 let lexbuf_of_string src =
   Lexing.from_string ~with_positions:false src
 
@@ -95,10 +91,7 @@ rule read_token st = parse
   | white { read_token st lexbuf }
   | "//" [^ '\n' '\r']* { read_token st lexbuf }
   | "/*" { read_block_comment st 0 lexbuf }
-  | newline {
-      next_line st;
-      read_token st lexbuf
-    }
+  | newline { read_token st lexbuf }
   | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token n }
   | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token n }
   | ('0' ['o' 'O'] octdigs intsuf?) as n { radix_int_token n }
@@ -166,8 +159,7 @@ rule read_token st = parse
   | "'\\t'" { CHAR (Char.code '\t') }
   | "'\\\\'" { CHAR (Char.code '\\') }
   | "'\\''" { CHAR (Char.code '\'') }
-  | '\'' '\\' (newline as nl | [^ '\r' '\n']) '\''  {
-      if nl <> None then next_line st;
+  | '\'' '\\' (newline | [^ '\r' '\n']) '\''  {
       ERROR ("unknown escape: " ^ Lexing.lexeme lexbuf)
     }
   | '\'' [^ '\'' '\\' '\r' '\n']+ '\''  {
@@ -230,10 +222,6 @@ and read_block_comment st depth = parse
       if depth = 0 then read_token st lexbuf
       else read_block_comment st (depth - 1) lexbuf
     }
-  | newline {
-      next_line st;
-      read_block_comment st depth lexbuf
-    }
   | eof { ERROR "unterminated block comment" }
   | _ { read_block_comment st depth lexbuf }
 
@@ -245,5 +233,5 @@ let read st lexbuf =
   | ERROR msg -> Diagnostic.emit (Diagnostic.error span "%s" msg)
   | _ -> ()
   end;
-  (t, span, st.line)
+  (t, span)
 }

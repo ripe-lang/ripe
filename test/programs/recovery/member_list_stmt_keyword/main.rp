@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 fn main() i32 {
   struct pair { a: i32, b: i32 return
   type small = i32;

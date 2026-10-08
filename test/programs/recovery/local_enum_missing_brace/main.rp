@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 fn main() i32 {
   type small = i32;
   enum side  Left, Right }

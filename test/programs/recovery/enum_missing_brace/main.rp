@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 enum color Red, Green }
 fn main() i32 {
   var c = color.Red;

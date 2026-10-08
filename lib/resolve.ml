@@ -52,8 +52,6 @@ type qualified =
   | Found of Symbol.t
   | Missing of Ast.name list * Ast.name
 
-let no_name = Interner.intern ""
-
 let prelude_symbol id name =
   {
     Symbol.id;
@@ -196,26 +194,20 @@ let enter_scope st = { st with scope = new_scope (Some st.scope) }
 let declare_local st kind name span =
   Names.replace st.scope.values name (mint st kind name span)
 
-(* A missing name still gets a symbol so later passes find something there *)
-let declare_missing st span = ignore (mint st Symbol.Error no_name span)
-
 let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
-  match ident.value with
-  | None -> declare_missing st span
-  | Some name -> (
-      match Names.find_opt table name with
-      | Some prev ->
-          Diagnostic.emit
-            (Diagnostic.error ident.span "already defined"
-            |> Diagnostic.secondary prev.Symbol.name_span
-                 "previous definition here")
-      | None ->
-          let link_name =
-            Option.value ~default:(declaration_link_name st kind name) link_name
-          in
-          Names.replace table name
-            (mint ~visibility ~link_name ~name_span:ident.span st kind name span)
-      )
+  let name = ident.value in
+  match Names.find_opt table name with
+  | Some prev ->
+      Diagnostic.emit
+        (Diagnostic.error ident.span "already defined"
+        |> Diagnostic.secondary prev.Symbol.name_span "previous definition here"
+        )
+  | None ->
+      let link_name =
+        Option.value ~default:(declaration_link_name st kind name) link_name
+      in
+      Names.replace table name
+        (mint ~visibility ~link_name ~name_span:ident.span st kind name span)
 
 let declare_global ?link_name st kind visibility ident span =
   declare_in ?link_name st.top.values st kind visibility ident span
@@ -227,11 +219,9 @@ let declare_local_type st ident span =
   declare_in st.scope.types st Symbol.LocalType Symbol.Private ident span
 
 let declare_local_func st (ident : Ast.ident) span =
-  let text =
-    match ident.value with Some name -> Interner.text name | None -> ""
-  in
   let link_name =
-    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id !(st.next_id) text
+    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id !(st.next_id)
+      (Interner.text ident.value)
   in
   declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private ident
     span
@@ -385,17 +375,14 @@ let use_callee st ?(what = "function") name span =
 
 (* Body binders can redeclare but params can't repeat *)
 let declare_param st p =
-  match p.param_name.value with
-  | None -> declare_missing st p.param_span
-  | Some name -> (
-      match Names.find_opt st.scope.values name with
-      | Some prev ->
-          Diagnostic.emit
-            (Diagnostic.error p.param_span "already defined"
-            |> Diagnostic.secondary prev.Symbol.span "previous definition here"
-            );
-          Span.Table.replace st.out.syms p.param_span prev
-      | None -> declare_local st Symbol.Param name p.param_span)
+  let name = p.param_name.value in
+  match Names.find_opt st.scope.values name with
+  | Some prev ->
+      Diagnostic.emit
+        (Diagnostic.error p.param_span "already defined"
+        |> Diagnostic.secondary prev.Symbol.span "previous definition here");
+      Span.Table.replace st.out.syms p.param_span prev
+  | None -> declare_local st Symbol.Param name p.param_span
 
 let qualified_use st p =
   let module_path, member = Ast.path_split p in
@@ -497,7 +484,6 @@ and resolve_header st e =
 
 and resolve_expr st e =
   match e.desc with
-  | ErrorExpr -> ()
   | Ident name -> use st ~what:"variable" name e.span
   | Call ({ desc = Ident name; span }, args) ->
       use_callee st name span;
@@ -576,7 +562,6 @@ and resolve_pattern st p =
 
 and resolve_typ st t =
   match t.tdesc with
-  | ErrorType -> ()
   | Named (path, name) -> use_type st path name t.tspan
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
@@ -630,8 +615,7 @@ and resolve_decl st = function
   | Global gd ->
       Option.iter (resolve_typ st) gd.typ;
       Option.iter (resolve_expr st) gd.init
-  | Struct sd ->
-      Option.iter (List.iter (fun f -> resolve_typ st f.field_typ)) sd.fields
+  | Struct sd -> List.iter (fun f -> resolve_typ st f.field_typ) sd.fields
   | TypeAlias td -> resolve_typ st td.alias_typ
   (* TODO(c111): nothing to walk until a variant can hold a type *)
   | Enum _ -> ()
@@ -641,7 +625,7 @@ let visibility modifiers =
 
 let foreign_link_name (fd : Ast.func_def) =
   if fd.extern_abi <> Ast.NoAbi && List.mem Ast.Pub fd.func_modifiers then
-    Some (Ast.ident_text fd.func_name)
+    Some (Interner.text fd.func_name.value)
   else None
 
 let make_state ~out ~module_id ~module_path ~qualify ~is_root =
@@ -669,7 +653,7 @@ let declare_decls st decls =
             fd.func_name fd.func_span
       | Extern fd ->
           declare_global
-            ~link_name:(Ast.ident_text fd.func_name)
+            ~link_name:(Interner.text fd.func_name.value)
             st Symbol.Extern
             (visibility fd.func_modifiers)
             fd.func_name fd.func_span

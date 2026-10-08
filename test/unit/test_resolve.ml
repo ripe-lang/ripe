@@ -28,7 +28,8 @@ let dump_decl_visibilities src =
     (fun decl ->
       let name, span = decl_name_span decl in
       let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n" (Ripe.Ast.ident_text name)
+      Printf.printf "%s %s\n"
+        (Ripe.Interner.text name.value)
         (Ripe.Symbol.show_visibility sym.visibility))
     decls
 
@@ -796,7 +797,7 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
   let decls, uses = resolve_src 0 src in
   let name (decl : Ripe.Ast.decl) =
     let n, _ = decl_name_span decl in
-    Ripe.Ast.ident_text n
+    Ripe.Interner.text n.value
   in
   Printf.printf "top %s\n" (String.concat " " (List.map name decls));
   Printf.printf "lifted %s\n"

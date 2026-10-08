@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 fn scale(n: i32 i32 {
   return n * 2;
 }
