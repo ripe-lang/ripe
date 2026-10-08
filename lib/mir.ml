@@ -344,11 +344,13 @@ let lower_null_check (state : builder) pointee pointer span =
 
 (* Plain and compound arithmetic guard the same two operators the same way *)
 (* check_div_zero copy %1 block1, check_negative_shift copy %1 block1 *)
-let lower_arith_check state op left_ty right span =
-  match op with
-  | (Ast.Div | Ast.Mod) when not (is_float left_ty) ->
+let lower_arith_check state op left_ty (right : operand) span =
+  match (op, right.desc) with
+  | (Ast.Div | Ast.Mod), Const (Int n) when n <> 0L -> ()
+  | (Ast.Lshift | Ast.Rshift), Const (Int n) when n >= 0L -> ()
+  | (Ast.Div | Ast.Mod), _ when not (is_float left_ty) ->
       lower_check state (DivZero right) span
-  | (Ast.Lshift | Ast.Rshift) when not (is_unsigned right.ty) ->
+  | (Ast.Lshift | Ast.Rshift), _ when not (is_unsigned right.ty) ->
       lower_check state (NegativeShift right) span
   | _ -> ()
 
@@ -417,11 +419,16 @@ let lower_shift state destination span ty op (left : operand) (right : operand)
 let lower_binary state destination span ty (op : Ast.binop) (left : operand)
     (right : operand) =
   let lowered = binop_of op in
-  match op with
+  let bits () = Int64.of_int (8 * int_kind_size (int_kind_of ty)) in
+  match (op, right.desc) with
   | _ when not (is_live state) -> ()
-  | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
+  | (Ast.Div | Ast.Mod), Const (Int n) when n <> -1L ->
+      store state destination ty span (Binary (lowered, left, right))
+  | (Ast.Div | Ast.Mod), _ when div_int_needs_check left.ty ->
       lower_div state destination span ty lowered left right
-  | Ast.Lshift | Ast.Rshift ->
+  | (Ast.Lshift | Ast.Rshift), Const (Int n) when n >= 0L && n < bits () ->
+      store state destination ty span (Binary (lowered, left, right))
+  | (Ast.Lshift | Ast.Rshift), _ ->
       lower_shift state destination span ty lowered left right
   | _ -> store state destination ty span (Binary (lowered, left, right))
 
