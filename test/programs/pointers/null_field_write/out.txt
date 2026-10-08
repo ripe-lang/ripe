@@ -1,4 +1,4 @@
 panic: null pointer dereference
   at main.rp:4:3
-  in main.main
+  in main
 exit: 79

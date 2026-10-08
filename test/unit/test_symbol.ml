@@ -15,7 +15,6 @@ let all_kinds =
     Error;
     LocalFunc;
     LocalType;
-    Module;
   ]
 
 let symbol module_id id = Fake.symbol ~module_id ~kind:Symbol.Func id
@@ -40,7 +39,6 @@ let%expect_test "symbol: is_func covers only fn and extern" =
     Error false
     LocalFunc true
     LocalType false
-    Module false
     |}]
 
 let%expect_test "symbol: is_global covers only global" =
@@ -58,7 +56,6 @@ let%expect_test "symbol: is_global covers only global" =
     Error false
     LocalFunc false
     LocalType false
-    Module false
     |}]
 
 let%expect_test "symbol: is_immutable covers what cannot be assigned" =
@@ -76,7 +73,6 @@ let%expect_test "symbol: is_immutable covers what cannot be assigned" =
     Error false
     LocalFunc false
     LocalType false
-    Module true
     |}]
 
 let%expect_test "symbol: a key packs a module and an id back apart" =

@@ -37,18 +37,6 @@ let%expect_test "types: a type prints the way it is written" =
     null
     |}]
 
-let%expect_test "types: a name in the current module drops its path" =
-  let vec = TStruct (qname ~path:[ "math" ] 3 "Vec", []) in
-  Printf.printf "anywhere    %s\n" (show_ty vec);
-  Printf.printf "from math   %s\n" (show_ty_in [ "math" ] vec);
-  Printf.printf "from other  %s\n" (show_ty_in [ "other" ] vec);
-  [%expect
-    {|
-    anywhere    math.Vec
-    from math   Vec
-    from other  math.Vec
-    |}]
-
 let%expect_test "types: resolving walks down a chain of aliases" =
   let deep = TAlias (qname 4 "Outer", word) in
   print_endline (show_ty (resolve_ty deep));

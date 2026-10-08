@@ -1,5 +1,0 @@
-pub extern "C" fn abs(n: i32) i32;
-
-pub extern "C" fn doubled(x: i32) i32 {
-  return x * 2;
-}

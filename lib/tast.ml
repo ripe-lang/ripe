@@ -66,7 +66,7 @@ type tfunc_def = {
   params : (Symbol.t * ty) list;
   ret_ty : ty;
   body : tblock;
-  modifiers : Ast.modifier list;
+  export : bool;
   variadic : bool;
   abi : func_abi;
 }
@@ -77,14 +77,12 @@ type tglobal_def = {
   name : string;
   ty : ty;
   init : texpr option;
-  modifiers : Ast.modifier list;
 }
 [@@deriving show { with_path = false }]
 
 type tdecl =
   | TFunc of tfunc_def
-  | TStruct of Qname.t * ty list * Ast.modifier list
-    (* This has a name typed fields and modifiers *)
+  | TStruct of Qname.t * ty list (* This has a name and typed fields *)
   | TLocalStruct of Qname.t * ty list
   | TExtern of tfunc_def
   | TGlobal of tglobal_def

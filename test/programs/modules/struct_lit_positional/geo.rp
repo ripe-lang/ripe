@@ -1,8 +1,0 @@
-pub struct point {
-  x: i32,
-  y: i32,
-}
-
-pub fn origin() point {
-  return point { 0, 0 };
-}

@@ -10,29 +10,6 @@ let decl_name_span = function
   | Ripe.Ast.TypeAlias td -> (td.alias_name, td.alias_span)
   | Ripe.Ast.Enum ed -> (ed.enum_name, ed.enum_span)
 
-let compare_module_symbols src =
-  let first_symbol module_id =
-    match resolve_src module_id src with
-    | decl :: _, uses ->
-        let _, span = decl_name_span decl in
-        Ripe.Resolve.sym_at uses span
-    | [], _ -> failwith "expected a declaration"
-  in
-  let first = first_symbol 4 in
-  let second = first_symbol 9 in
-  Printf.printf "%d %d %b" first.module_id second.module_id (first = second)
-
-let dump_decl_visibilities src =
-  let decls, uses = resolve_src 0 src in
-  List.iter
-    (fun decl ->
-      let name, span = decl_name_span decl in
-      let sym = Ripe.Resolve.sym_at uses span in
-      Printf.printf "%s %s\n"
-        (Ripe.Interner.text name.value)
-        (Ripe.Symbol.show_visibility sym.visibility))
-    decls
-
 let%expect_test "resolve: global and function collide" =
   run_src {|
 var x: i32 = 1;
@@ -173,7 +150,7 @@ fn main() i32 {
 |};
   [%expect
     {|
-    function w $g() {
+    function w $_R1g() {
     @start
     ret 7
     }
@@ -181,7 +158,7 @@ fn main() i32 {
     function w $_R4main() {
     @start
     %m1 =l alloc8 8
-    storel $g, %m1
+    storel $_R1g, %m1
     %_p =l copy %m1
     ret 0
     }
@@ -370,288 +347,33 @@ fn main() i32 { return f(1) }
 |};
   [%expect {| ok |}]
 
-let%expect_test "resolve: symbols from different modules are distinct" =
-  compare_module_symbols "fn f() {}";
-  [%expect {| 4 9 false |}]
-
-let%expect_test "resolve: declarations carry visibility" =
-  dump_decl_visibilities
-    {|
-pub fn api() {}
-fn helper() {}
-pub struct point {}
-struct secret {}
-pub var LIMIT: i32 = 1;
-var count: i32 = 0;
-pub type meters = i32;
-|};
-  [%expect
-    {|
-    api Public
-    helper Private
-    point Public
-    secret Private
-    LIMIT Public
-    count Private
-    meters Public
-    |}]
-
-let%expect_test "resolve: a call reaches into an imported module" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn main() { math.add(1) }
-|});
-      ("math.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: an unknown member of an import is reported" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn main() { math.nope(1) }
-|});
-      ("math.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect
-    {|
-    error: undefined function
-      at <test>:3:13
-        fn main() { math.nope(1) }
-                    ^~~~~~~~~
-    |}]
-
-let%expect_test "resolve: a local shadows an import of the same name" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn main() { var math = 1; math.nope(1) }
-|});
-      ("math.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: an import and a function cannot share a name" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn math() {}
-fn main() { math.add(1) }
-|});
-      ("math.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect
-    {|
-    error: already defined
-      at <test>:3:4
-        fn math() {}
-           ^~~~
-      at <test>:2:1
-        import math;
-        ^~~~~~~~~~~ previous definition here
-    |}]
-
-(* A struct and a fn already share a name here so an import does too *)
-let%expect_test "resolve: an import and a struct can share a name" =
-  run_resolve_program
-    [
-      ( "main.rp",
-        {|
-import math;
-struct math { x: i32 }
-fn main() { math.add(1) }
-|} );
-      ("math.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: a nested import binds its final name" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math.vector;
-fn main() { vector.add(1) }
-|});
-      ("math/vector.rp", {|
-pub fn add(x: i32) {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: imports with the same final name collide" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math.vector;
-import geometry.vector;
-fn main() {}
-|});
-      ("math/vector.rp", {|
-pub fn add(x: i32) {}
-|});
-      ("geometry/vector.rp", {|
-pub fn scale(x: i32) {}
-|});
-    ];
-  [%expect
-    {|
-    error: already defined
-      at <test>:3:1
-        import geometry.vector;
-        ^~~~~~~~~~~~~~~~~~~~~~
-      at <test>:2:1
-        import math.vector;
-        ^~~~~~~~~~~~~~~~~~ previous definition here
-    |}]
-
-let%expect_test "resolve: a type annotation reaches into an imported module" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn main() { var d: math.meters = 0 }
-|});
-      ("math.rp", {|
-pub type meters = i32;
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: a private type in another module is reported" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import math;
-fn main() { var d: math.meters = 0 }
-|});
-      ("math.rp", {|
-type meters = i32;
-|});
-    ];
-  [%expect
-    {|
-    error: private declaration
-      at <test>:3:20
-        fn main() { var d: math.meters = 0 }
-                           ^~~~~~~~~~~
-      at <test>:2:1
-        type meters = i32;
-        ^~~~~~~~~~~~~~~~~ declared private here
-    |}]
-
-let%expect_test "resolve: main outside the root module is mangled" =
-  let resolved =
-    load_program
-      [
-        ("main.rp", {|
-import math;
+let%expect_test "resolve: only an extern ABI keeps the name C spells" =
+  let decls, uses =
+    resolve_src
+      {|
 fn main() i32 { return 0 }
-|});
-        ("math.rp", {|
-pub fn main() {}
-|});
-      ]
-  in
-  let show (decl : Ripe.Ast.decl) =
-    match decl with
-    | Ripe.Ast.Func fd ->
-        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.func_span in
-        Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
-          sym.Ripe.Symbol.link_name
-    | _ -> ()
-  in
-  List.iter show resolved.Ripe.Resolve.decls;
-  [%expect {|
-    main -> _R4main4main
-    main -> _R4math4main
-    |}]
-
-let%expect_test "resolve: only a public ABI keeps the name C spells" =
-  let resolved =
-    load_program
-      [
-        ("main.rp", {|
-import ffi;
-fn main() i32 { return 0 }
-|});
-        ( "ffi.rp",
-          {|
 extern "C" fn puts(s: cstr) i32;
-pub extern "C" fn exported(x: i32) i32 { return x }
-pub extern "Ripe" fn unmangled(x: i32) i32 { return x }
-extern "C" fn callback(x: i32) i32 { return x }
-pub fn plain(x: i32) i32 { return x }
+extern "C" fn exported(x: i32) i32 { return x }
+extern "Ripe" fn unmangled(x: i32) i32 { return x }
+fn plain(x: i32) i32 { return x }
 |}
-        );
-      ]
   in
   let show (decl : Ripe.Ast.decl) =
     match decl with
     | Ripe.Ast.Func fd | Ripe.Ast.Extern fd ->
-        let sym = Ripe.Resolve.sym_at resolved.Ripe.Resolve.uses fd.func_span in
+        let sym = Ripe.Resolve.sym_at uses fd.func_span in
         Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
           sym.Ripe.Symbol.link_name
     | _ -> ()
   in
-  List.iter show resolved.Ripe.Resolve.decls;
+  List.iter show decls;
   [%expect
     {|
-    main -> _R4main4main
+    main -> _R4main
     puts -> puts
     exported -> exported
     unmangled -> unmangled
-    callback -> _R3ffi8callback
-    plain -> _R3ffi5plain
-    |}]
-
-let%expect_test "resolve: a public import is callable from another module" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import ffi;
-fn main() i32 { return ffi.puts("hi") }
-|});
-      ("ffi.rp", {|
-pub extern "C" fn puts(s: cstr) i32;
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: a private import stays in its module" =
-  run_resolve_program
-    [
-      ("main.rp", {|
-import ffi;
-fn main() i32 { return ffi.puts("hi") }
-|});
-      ("ffi.rp", {|
-extern "C" fn puts(s: cstr) i32;
-|});
-    ];
-  [%expect
-    {|
-    error: private declaration
-      at <test>:3:24
-        fn main() i32 { return ffi.puts("hi") }
-                               ^~~~~~~~
-      at <test>:2:12
-        extern "C" fn puts(s: cstr) i32;
-                   ^~~~~~~~~~~~~~~~~~~~ declared private here
+    plain -> _R5plain
     |}]
 
 let%expect_test "resolve: a local function may call a later sibling" =
@@ -706,58 +428,9 @@ fn outer() i32 {
                            ^
     |}]
 
-let%expect_test "resolve: an import resolves through a search root" =
-  run_resolve_program ~search_roots:[ "/libs" ]
-    [
-      ("main.rp", {|
-import std.io;
-fn main() { io.write() }
-|});
-      ("/libs/std/io.rp", {|
-module io;
-pub fn write() {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: a relative module shadows a search root" =
-  run_resolve_program ~search_roots:[ "/libs" ]
-    [
-      ("main.rp", {|
-import std.io;
-fn main() { io.here() }
-|});
-      ("std/io.rp", {|
-module io;
-pub fn here() {}
-|});
-      ("/libs/std/io.rp", {|
-module io;
-pub fn write() {}
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "resolve: a missing import lists every root tried" =
-  run_resolve_program ~search_roots:[ "/libs"; "/other" ]
-    [ ("main.rp", {|
-import std.io;
-fn main() {}
-|}) ];
-  [%expect
-    {|
-    error: module not found
-      at <test>:2:1
-        import std.io;
-        ^~~~~~~~~~~~~
-      tried std/io.rp
-            /libs/std/io.rp
-            /other/std/io.rp
-    |}]
-
 let%expect_test "resolve: a span with no symbol comes back empty" =
   let src = {|fn target() i32 { return 1 }|} in
-  let decls, uses = resolve_src 0 src in
+  let decls, uses = resolve_src src in
   let _, recorded = decl_name_span (List.hd decls) in
   let show what sp =
     Printf.printf "%s %s\n" what
@@ -779,10 +452,10 @@ let%expect_test "resolve: a span with no symbol comes back empty" =
 
 let%expect_test "resolve: a symbol carries the qualified name it resolves to" =
   let src = {|fn target() i32 { return 1 }|} in
-  let decls, uses = resolve_src 3 src in
+  let decls, uses = resolve_src src in
   let _, recorded = decl_name_span (List.hd decls) in
   let sym = Ripe.Resolve.sym_at uses recorded in
-  let qname = Ripe.Resolve.qname_of uses sym in
+  let qname = Ripe.Resolve.qname_of sym in
   Printf.printf "%s key matches %b\n" (Ripe.Qname.show qname)
     (Ripe.Qname.key qname = Ripe.Symbol.key sym);
   [%expect {| target key matches true |}]
@@ -794,7 +467,7 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
   return inner();
 }|}
   in
-  let decls, uses = resolve_src 0 src in
+  let decls, uses = resolve_src src in
   let name (decl : Ripe.Ast.decl) =
     let n, _ = decl_name_span decl in
     Ripe.Interner.text n.value
@@ -808,19 +481,12 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
     |}]
 
 let%expect_test "resolve: nothing is lifted when no body declares one" =
-  let _, uses = resolve_src 0 {|fn target() i32 { return 1 }|} in
+  let _, uses = resolve_src {|fn target() i32 { return 1 }|} in
   Printf.printf "%d\n" (List.length (Ripe.Resolve.local_decls uses));
   [%expect {| 0 |}]
 
-let%expect_test "resolve: a span reports the module path it sits in" =
-  let src = {|fn target() i32 { return 1 }|} in
-  let _, uses = resolve_src 0 src in
-  let path = Ripe.Resolve.module_path_at uses (span src "target") in
-  Printf.printf "%S\n" (String.concat "." path);
-  [%expect {| "" |}]
-
 let%expect_test "resolve: the builtin types are all in scope" =
-  let _, uses = resolve_src 0 {|fn f() i32 { return 1 }|} in
+  let _, uses = resolve_src {|fn f() i32 { return 1 }|} in
   let builtins = Ripe.Resolve.builtins uses in
   let name (_, t) = Ripe.Types.show_ty t in
   print_endline (String.concat " " (List.map name builtins));
@@ -832,7 +498,7 @@ let%expect_test "resolve: the builtin types are all in scope" =
     |}]
 
 let%expect_test "resolve: the dump lists what each name resolved to" =
-  let _, uses = resolve_src 0 {|fn f(a: i32) i32 { return a }|} in
+  let _, uses = resolve_src {|fn f(a: i32) i32 { return a }|} in
   print_string (Ripe.Resolve.dump uses);
   [%expect
     {|

@@ -15,9 +15,4 @@ type stage =
 val stage_name : stage -> string
 
 val compile :
-  stage:stage ->
-  out:string ->
-  libraries:string list ->
-  search_roots:string list ->
-  filename:string ->
-  unit
+  stage:stage -> out:string -> libraries:string list -> filename:string -> unit

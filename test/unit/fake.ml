@@ -4,8 +4,8 @@
 
 open Ripe
 
-let symbol ?(module_id = 0) ?(kind = Symbol.Type) ?(visibility = Symbol.Private)
-    ?(entry_point = false) ?name id =
+let symbol ?(module_id = 0) ?(kind = Symbol.Type) ?(entry_point = false) ?name
+    id =
   let name = Option.value name ~default:("s" ^ string_of_int id) in
   {
     Symbol.id;
@@ -13,22 +13,17 @@ let symbol ?(module_id = 0) ?(kind = Symbol.Type) ?(visibility = Symbol.Private)
     name;
     link_name = name;
     kind;
-    visibility;
     entry_point;
     span = Span.dummy;
     name_span = Span.dummy;
   }
 
 let key ?module_id ?kind id = Symbol.key (symbol ?module_id ?kind id)
+let qname ?module_id id name = Qname.make (key ?module_id id) name
+let struct_ty ?module_id id name = Types.TStruct (qname ?module_id id name, [])
 
-let qname ?module_id ?(path = []) id name =
-  Qname.make (key ?module_id id) path name
-
-let struct_ty ?module_id ?path id name =
-  Types.TStruct (qname ?module_id ?path id name, [])
-
-let alias_ty ?module_id ?path id name base =
-  Types.TAlias (qname ?module_id ?path id name, base)
+let alias_ty ?module_id id name base =
+  Types.TAlias (qname ?module_id id name, base)
 
 let pred name f t = Printf.printf "%s %s = %b\n" name (Types.show_ty t) (f t)
 

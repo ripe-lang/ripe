@@ -106,7 +106,7 @@ type block = { statements : statement list; terminator : terminator option }
 type func = {
   name : string;
   source_name : string;
-  public : bool;
+  export : bool;
   abi : Types.func_abi;
   params : local_id list;
   result : local_id option;
@@ -125,12 +125,7 @@ type global_value =
   | GlobalArray of global_value list
   | GlobalStruct of (int * global_value) list
 
-type global = {
-  name : string;
-  ty : Types.ty;
-  init : global_value option;
-  public : bool;
-}
+type global = { name : string; ty : Types.ty; init : global_value option }
 
 type program = {
   structs : struct_decl list;

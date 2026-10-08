@@ -2,7 +2,6 @@
 
 type id = int [@@deriving show { with_path = false }]
 type module_id = int [@@deriving show { with_path = false }]
-type visibility = Private | Public [@@deriving show { with_path = false }]
 
 type kind =
   | Error
@@ -15,7 +14,6 @@ type kind =
   | Local
   | Param
   | ForVar
-  | Module
   | MatchBind
 [@@deriving show { with_path = false }]
 
@@ -25,7 +23,6 @@ type t = {
   name : string;
   link_name : string;
   kind : kind;
-  visibility : visibility;
   entry_point : bool;
   span : Ast.span;
   name_span : Ast.span;
@@ -54,7 +51,4 @@ end)
 let prelude_module_id = -2
 let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
-
-let is_immutable = function
-  | ForVar | Module | MatchBind | Param -> true
-  | _ -> false
+let is_immutable = function ForVar | MatchBind | Param -> true | _ -> false

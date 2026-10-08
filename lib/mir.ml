@@ -111,7 +111,7 @@ type block = { statements : statement list; terminator : terminator option }
 type func = {
   name : string;
   source_name : string;
-  public : bool;
+  export : bool;
   abi : Types.func_abi;
   params : local_id list;
   result : local_id option;
@@ -130,12 +130,7 @@ type global_value =
   | GlobalArray of global_value list
   | GlobalStruct of (int * global_value) list
 
-type global = {
-  name : string;
-  ty : Types.ty;
-  init : global_value option;
-  public : bool;
-}
+type global = { name : string; ty : Types.ty; init : global_value option }
 
 type program = {
   structs : struct_decl list;
@@ -948,7 +943,6 @@ let build_global (global : Tast.tglobal_def) =
     name = global.name;
     ty = global.ty;
     init = Option.map global_value_of global.init;
-    public = List.mem Ast.Pub global.modifiers;
   }
 
 let build_func global_names (func : Tast.tfunc_def) =
@@ -979,7 +973,7 @@ let build_func global_names (func : Tast.tfunc_def) =
   {
     name = func.name;
     source_name = func.source_name;
-    public = List.mem Ast.Pub func.modifiers;
+    export = func.export;
     abi = func.abi;
     params;
     result = state.result;
@@ -995,7 +989,7 @@ let build declarations =
     List.fold_right
       (fun decl (structs, globals, funcs) ->
         match decl with
-        | Tast.TStruct (name, fields, _) ->
+        | Tast.TStruct (name, fields) ->
             ({ name; fields; local = false } :: structs, globals, funcs)
         | Tast.TLocalStruct (name, fields) ->
             ({ name; fields; local = true } :: structs, globals, funcs)

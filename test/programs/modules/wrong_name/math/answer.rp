@@ -1,5 +1,0 @@
-module maths;
-
-pub fn answer() i32 {
-  return 42;
-}

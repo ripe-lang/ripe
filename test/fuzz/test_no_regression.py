@@ -11,8 +11,8 @@ USAGE = "test_no_regression.py <rev> [--show <message>]"
 BASE_TREE = os.path.join(harness.WORK, "base")
 BASE_RIPEC = os.path.join(BASE_TREE, "_build/install/default/bin/ripec")
 
-BASE_ARGV = [BASE_RIPEC] + harness.IMPORT + ["--emit", "check", harness.MAIN]
-NEW_ARGV = [harness.RIPEC] + harness.IMPORT + ["--emit", "check", harness.MAIN]
+BASE_ARGV = [BASE_RIPEC, "--emit", "check", harness.MAIN]
+NEW_ARGV = [harness.RIPEC, "--emit", "check", harness.MAIN]
 
 SHOWN_HIDDEN = 20
 SHOWN_DIFF = 700

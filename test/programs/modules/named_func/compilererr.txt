@@ -1,4 +1,0 @@
-error: cannot assign to function
-  at main.rp:4:3
-      math.add = math.add;
-      ^~~~~~~~

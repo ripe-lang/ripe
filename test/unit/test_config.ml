@@ -8,31 +8,6 @@ let with_env name value run =
   Unix.putenv name value;
   Fun.protect ~finally:(fun () -> Unix.putenv name saved) run
 
-let%expect_test "config: a unix list splits on colons" =
-  show (Ripe.Config.split_paths ~sep:':' "/usr/lib/ripe:/home/me/libs");
-  [%expect {| /usr/lib/ripe | /home/me/libs |}]
-
-let%expect_test "config: a windows list splits on semicolons and keeps drives" =
-  show (Ripe.Config.split_paths ~sep:';' "C:\\ripe\\std;D:\\libs");
-  [%expect {| C:\ripe\std | D:\libs |}]
-
-let%expect_test "config: empty entries drop out" =
-  show (Ripe.Config.split_paths ~sep:':' ":/a::  :/b:");
-  [%expect {| /a | /b |}]
-
-let%expect_test "config: RIPE_PATH entries come before the standard roots" =
-  with_env "RIPE_PATH" "/first:/second" (fun () ->
-      let roots = Ripe.Config.search_roots () in
-      show (List.filteri (fun i _ -> i < 2) roots));
-  [%expect {| /first | /second |}]
-
-let%expect_test "config: an unset RIPE_PATH leaves only the standard roots" =
-  with_env "RIPE_PATH" "" (fun () ->
-      let roots = Ripe.Config.search_roots () in
-      Printf.printf "starts with a slash %b\n"
-        (List.for_all (fun r -> String.starts_with ~prefix:"/" r) roots));
-  [%expect {| starts with a slash true |}]
-
 let%expect_test "config: RIPE_RUNTIME names the object outright" =
   with_env "RIPE_RUNTIME" "/dev/null" (fun () ->
       print_endline (Ripe.Config.runtime_object ()));

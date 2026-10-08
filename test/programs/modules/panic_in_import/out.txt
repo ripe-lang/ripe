@@ -1,4 +1,0 @@
-panic: integer divide by zero
-  at math.rp:4:10
-  in math.div
-exit: 79

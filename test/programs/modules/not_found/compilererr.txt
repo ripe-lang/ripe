@@ -1,6 +1,0 @@
-error: module not found
-  at main.rp:1:1
-    import math;
-    ^~~~~~~~~~~
-  tried math.rp
-        <import-path>/math.rp

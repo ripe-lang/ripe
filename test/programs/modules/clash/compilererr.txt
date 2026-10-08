@@ -1,4 +1,0 @@
-error: module is both a file and a directory
-  at main.rp:1:1
-    import math;
-    ^~~~~~~~~~~

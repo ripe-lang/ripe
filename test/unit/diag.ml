@@ -10,19 +10,6 @@ let ctx ?(color = false) src =
 let render ?color src d =
   print_string (Ripe.Diagnostic.render (ctx ?color src) d)
 
-(* Offsets are global so a diagnostic renders against whichever file it hit *)
-let render_in (program : Ripe.Program.t) d =
-  let source_at = Ripe.Program.source_at program in
-  let ctx_at pos =
-    let source = source_at pos in
-    {
-      Ripe.Diagnostic.sm = source.Ripe.Program.source_map;
-      filename = "<test>";
-      color = false;
-    }
-  in
-  print_string (Ripe.Diagnostic.render_with ctx_at (ctx_at 0) d)
-
 let finish (value : 'a) : 'a * Ripe.Diagnostic.t list =
   let failed = Ripe.Diagnostic.has_errors () in
   let all = Ripe.Diagnostic.take () in

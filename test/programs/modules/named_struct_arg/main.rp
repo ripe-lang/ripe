@@ -1,6 +1,0 @@
-import math;
-
-fn main() i32 {
-  math.take(1);
-  return 0;
-}

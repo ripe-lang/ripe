@@ -15,8 +15,6 @@ Options:
                           obj     the relocatable object file
   -o, --output <FILE>   Write the compiler output to <FILE>
   -l, --library <NAME>  Link with the named library
-  -I, --import-path <DIR>
-                        Add a directory to the import search path
   -h, --help            Display this list of options
 
 Examples:

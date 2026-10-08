@@ -1115,7 +1115,7 @@ fn f() {
 let%expect_test "typecheck: extern definition callable" =
   run_src
     {|
-pub extern "C" fn add(a: i32, b: i32) i32 { return a + b }
+extern "C" fn add(a: i32, b: i32) i32 { return a + b }
 fn f() i32 { return add(1, 2) }
 |};
   [%expect {| ok |}]
@@ -1143,13 +1143,13 @@ let%expect_test "typecheck: extern definition warns about an unused parameter" =
     |}]
 
 let%expect_test "typecheck: an unsupported ABI on a definition" =
-  run_src {|pub extern "Rust" fn add(a: i32) i32 { return a }|};
+  run_src {|extern "Rust" fn add(a: i32) i32 { return a }|};
   [%expect
     {|
     error: unsupported ABI
-      at <test>:1:12
-        pub extern "Rust" fn add(a: i32) i32 { return a }
-                   ^~~~~~ this ABI is not supported here
+      at <test>:1:8
+        extern "Rust" fn add(a: i32) i32 { return a }
+               ^~~~~~ this ABI is not supported here
     |}]
 
 let%expect_test "typecheck: array literal inferred" =
@@ -3430,52 +3430,6 @@ fn f() {
       at <test>:6:21
           var unit_array = [noop(), noop()];
                             ^~~~~~ on ()
-    |}]
-
-let%expect_test "typecheck: a qualified struct literal" =
-  run_program
-    [
-      ( "main.rp",
-        {|
-import math;
-fn main() i32 { var _p = math.Point { x: 1 } }
-|} );
-      ("math.rp", {|
-pub struct Point { x: i32 }
-|});
-    ];
-  [%expect {| ok |}]
-
-let%expect_test "typecheck: a module needs a member" =
-  run_program
-    [
-      ("main.rp", {|
-import math;
-fn main() i32 { var _value = math }
-|});
-      ("math.rp", {|
-pub fn add(_x: i32) {}
-|});
-    ];
-  [%expect {| module requires a member |}]
-
-let%expect_test "typecheck: modules can repeat a type spelling" =
-  run_program
-    [
-      ( "main.rp",
-        {|
-import math;
-type Pair = i32;
-fn main() i32 { math.check() }
-|} );
-      ("math.rp", {|
-type Pair = bool;
-pub fn check() { var v: Pair = 1 }
-|});
-    ];
-  [%expect {|
-    unused variable: v
-    type mismatch
     |}]
 
 let%expect_test "typecheck: singular argument count" =

@@ -909,7 +909,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
     else qbe_abi_ty ctx func.Mir.return_ty ^ " "
   in
   emit ctx "%sfunction %s$%s(%s) {\n"
-    (if func.Mir.public then "export " else "")
+    (if func.Mir.export then "export " else "")
     return_text func.Mir.name
     (String.concat ", " params_text);
   emit_label ctx "@start";
@@ -1004,16 +1004,15 @@ let rec emit_mir_global_fields ctx expected = function
 
 let emit_mir_global ctx (global : Mir.global) =
   let align = Layout.ty_align ctx.structs global.Mir.ty in
-  let export = if global.Mir.public then "export " else "" in
   match global.Mir.init with
   | None ->
-      emit ctx "%sdata $%s = align %d { z %d }\n" export global.Mir.name align
+      emit ctx "data $%s = align %d { z %d }\n" global.Mir.name align
         (Layout.ty_size ctx.structs global.Mir.ty)
   | Some value ->
-      emit ctx "%sdata $%s = align %d { %s }\n" export global.Mir.name align
+      emit ctx "data $%s = align %d { %s }\n" global.Mir.name align
         (emit_mir_global_fields ctx global.Mir.ty value)
 
-let emit ~source_of program =
+let emit ~filename ~source_map program =
   let structs = Layout.create () in
   let struct_names = Symbol.Table.create 8 in
   List.iter
@@ -1038,7 +1037,7 @@ let emit ~source_of program =
     {
       structs;
       struct_names;
-      panics = Panictable.create ~source_of;
+      panics = Panictable.create ~filename ~source_map;
       used_slots = Hashtbl.create 16;
       buf = Buffer.create 1024;
       strings = ref [];

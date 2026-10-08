@@ -1,5 +1,0 @@
-import math;
-
-pub fn area() i32 {
-  return math.answer();
-}

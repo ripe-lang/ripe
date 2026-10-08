@@ -25,7 +25,6 @@ let stage_name : stage -> string = function
   | Bin -> "bin"
 
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
-let list_dir dir = Array.to_list (Sys.readdir dir)
 
 let use_color () =
   match Sys.getenv_opt "NO_COLOR" with
@@ -100,48 +99,21 @@ let dump_tokens read lexbuf =
   loop ();
   Buffer.contents buf
 
-let show_module module_ =
-  let header =
-    match module_.Ast.header with
-    | None -> []
-    | Some header -> [ "module " ^ Interner.text header.Ast.name ]
-  in
-  let imports =
-    List.map
-      (fun import -> "import " ^ Ast.show_names import.Ast.path)
-      module_.Ast.imports
-  in
-  String.concat "\n"
-    (header @ imports @ List.map Ast.show_decl module_.Ast.decls)
-  ^ "\n"
-
 let show_program program =
-  program.Program.modules |> Array.to_list
-  |> List.concat_map (fun module_ -> module_.Program.units)
-  |> List.map (fun unit_ -> show_module unit_.Program.ast)
-  |> String.concat ""
+  String.concat "\n" (List.map Ast.show_decl program.Program.decls) ^ "\n"
 
 let show_tdecls tdecls =
   String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"
 
-let source_ctx color source : Diagnostic.ctx =
-  {
-    Diagnostic.sm = source.Program.source_map;
-    filename = source.Program.filename;
-    color;
-  }
-
-let program_context program : (int -> Diagnostic.ctx) * Diagnostic.ctx =
-  let color = use_color () in
-  let source_at = Program.source_at program in
-  ( (fun pos -> source_ctx color (source_at pos)),
-    source_ctx color program.Program.root_source )
-
 let render_program program diags =
-  let context_at, default = program_context program in
-  List.iter
-    (fun d -> Printf.eprintf "%s" (Diagnostic.render_with context_at default d))
-    diags
+  let ctx =
+    {
+      Diagnostic.sm = program.Program.source_map;
+      filename = program.Program.filename;
+      color = use_color ();
+    }
+  in
+  List.iter (fun d -> Printf.eprintf "%s" (Diagnostic.render ctx d)) diags
 
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main tdecls =
@@ -153,8 +125,7 @@ let check_has_main tdecls =
       (Diagnostic.error_no_span "no `main` function found"
       |> Diagnostic.help "add a `fn main()` entry point")
 
-(* The token dump never follows an import so it reads the root file itself *)
-let root_tokens filename =
+let file_tokens filename =
   if not (Sys.file_exists filename) then
     die (Printf.sprintf "no such file: %s" filename);
   let src = read_file filename in
@@ -163,15 +134,13 @@ let root_tokens filename =
   let lexbuf = Lexer.lexbuf_of_string src in
   dump_tokens (Lexer.read (Lexer.make_state 0)) lexbuf
 
-let load ~search_roots ~filename =
-  try
-    Program.load ~read_file ~list_dir ~search_roots ~root_filename:filename ()
-  with
+let load filename =
+  try Program.load ~read_file filename with
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
   | Program.Source_too_large name ->
       die
-        (Printf.sprintf "more than %d bytes of source in one program: %s"
+        (Printf.sprintf "more than %d bytes of source in one file: %s"
            Span.max_offset name)
 
 let render_and_exit_if_failed program =
@@ -214,13 +183,13 @@ let stop_at ~stage ~program target emit =
     raise Exit
   end
 
-let compile ~stage ~out ~libraries ~search_roots ~filename =
+let compile ~stage ~out ~libraries ~filename =
   let output = Output.make out in
   if stage = Tokens then (
-    Output.text output (root_tokens filename);
+    Output.text output (file_tokens filename);
     exit 0);
 
-  let program = load ~search_roots ~filename in
+  let program = load filename in
 
   (* A missing main is noise once the program failed to load *)
   let load_had_errors = Diagnostic.has_errors () in
@@ -228,9 +197,8 @@ let compile ~stage ~out ~libraries ~search_roots ~filename =
   let stop_at target emit = stop_at ~stage ~program target emit in
   try
     stop_at Ast (fun () -> Output.text output (show_program program));
-    let resolved = Resolve.resolve_program program in
-    let uses = resolved.Resolve.uses in
-    let decls = resolved.Resolve.decls in
+    let decls = program.Program.decls in
+    let uses = Resolve.resolve decls in
     stop_at Resolve (fun () -> Output.text output (Resolve.dump uses));
     let tdecls = Sema.analyze uses decls in
     let emit_check_result () =
@@ -246,13 +214,10 @@ let compile ~stage ~out ~libraries ~search_roots ~filename =
     Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
 
-    let source_at = Program.source_at program in
-    let source_of pos =
-      let source = source_at pos in
-      (source.Program.filename, source.Program.source_map)
+    let il =
+      Codegenqbe.emit ~filename:program.Program.filename
+        ~source_map:program.Program.source_map mir
     in
-
-    let il = Codegenqbe.emit ~source_of mir in
 
     stop_at Qbe (fun () -> Output.text output il);
     let qbe = Config.qbe () in

@@ -1,5 +1,0 @@
-pub struct Point { x: i32 }
-
-pub fn bad() {
-  var _p: Point = true;
-}
