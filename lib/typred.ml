@@ -156,6 +156,7 @@ let cast_ok src tgt =
   if has_error src || has_error tgt then true
   else
     match (resolve_ty src, resolve_ty tgt) with
+    | TNever, _ -> true
     | s, TBool -> s = TBool
     | TChar, TChar -> true
     | TChar, TInt _ | TInt _, TChar -> true

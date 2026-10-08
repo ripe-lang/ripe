@@ -492,7 +492,7 @@ let adopt want (te : Tast.texpr) =
 
 (* The count keeps its own type since it is only a number of positions *)
 let verify_shift_count env span (tr : Tast.texpr) =
-  if not (is_integer tr.ty) then
+  if not (is_integer tr.ty || tr.ty = Types.TNever) then
     Diagnostic.emit
       (Diagnostic.error span "shift count must be an integer"
       |> Diagnostic.found (show_ty env tr.ty))
@@ -888,14 +888,18 @@ and coerce_common env first rest =
   (coerce first :: List.map coerce rest, common)
 
 and coerce_common_pair env ~(contextual : expr -> bool) left right =
+  let against (typed : Tast.texpr) e =
+    if typed.ty = Types.TNever then synth_operand env e
+    else check_operand env e typed.ty
+  in
   if contextual left && not (contextual right) then
     let typed_right = synth_operand env right in
-    let common = typed_right.ty in
-    (check_operand env left common, typed_right, common)
+    let typed_left = against typed_right left in
+    (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else if contextual right then
     let typed_left = synth_operand env left in
-    let common = typed_left.ty in
-    (typed_left, check_operand env right common, common)
+    let typed_right = against typed_left right in
+    (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else
     let typed_left = synth_operand env left in
     let typed_right = synth_operand env right in
@@ -1781,7 +1785,7 @@ and synth_index env span base idx =
       | RangeFull -> slice zero whole_length
       | _ ->
           let tidx = synth env idx in
-          if not (is_integer tidx.ty) then
+          if not (is_integer tidx.ty || tidx.ty = Types.TNever) then
             Diagnostic.emit
               (Diagnostic.error idx.span "array index must be an integer");
           Tast.mk elem (Tast.TIndex (tbase, tidx)))

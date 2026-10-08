@@ -1,0 +1,13 @@
+fn shift(n: i32) i32 { return n << { return 1 } }
+fn index(a: [2]i32) i32 { return a[{ return 2 }] }
+fn convert() i32 { return cast(i32, { return 3 }) }
+fn range(a: [2]i32) i32 {
+  var s = a[0..{ return 4 }];
+  return cast(i32, s.len);
+}
+fn literal() i32 { return 1 + { return 5 } }
+
+fn main() i32 {
+  var a: [2]i32 = [1, 2];
+  return shift(1) + index(a) + convert() + range(a) + literal();
+}
