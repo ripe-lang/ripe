@@ -36,11 +36,6 @@ let%expect_test "typecheck: type mismatch in a binding" =
   run_src "fn f() { var x: bool = 42 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: bool = 42 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:24
         fn f() { var x: bool = 42 }
@@ -51,11 +46,6 @@ let%expect_test "typecheck: int literal a float can't hold exactly" =
   run_src "fn f() { var x: f32 = 16777217 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: f32 = 16777217 }
-                     ^
-    help: prefix with an underscore: _x
     error: integer literal loses precision
       at <test>:1:23
         fn f() { var x: f32 = 16777217 }
@@ -65,27 +55,7 @@ let%expect_test "typecheck: int literal a float can't hold exactly" =
 
 let%expect_test "typecheck: float suffix disagrees with the annotation" =
   run_src "fn f() { var x: f64 = 1.5f32 }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: f64 = 1.5f32 }
-                     ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
-
-let%expect_test "typecheck: unused parameter warns" =
-  run_src "fn g(used: i32, _skip: i32, dead: i32) i32 { return used }";
-  [%expect
-    {|
-    warning: unused variable: dead
-      at <test>:1:29
-        fn g(used: i32, _skip: i32, dead: i32) i32 { return used }
-                                    ^~~~~~~~~
-    help: prefix with an underscore: _dead
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: wrong number of arguments" =
   run_src {|
@@ -104,11 +74,6 @@ let%expect_test "typecheck: null assigned to non-pointer" =
   run_src "fn f() { var x: i32 = null }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: i32 = null }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:23
         fn f() { var x: i32 = null }
@@ -121,25 +86,12 @@ let%expect_test "typecheck: identity function" =
 
 let%expect_test "typecheck: null assigned to pointer" =
   run_src "fn f() { var p: *i32 = null }";
-  [%expect
-    {|
-    warning: unused variable: p
-      at <test>:1:14
-        fn f() { var p: *i32 = null }
-                     ^
-    help: prefix with an underscore: _p
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: array does not coerce to slice under a pointer" =
   run_src "fn takes(p: *[]i32) { }\nfn f() { var a: [3]i32;\n  takes(&a) }";
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:1:10
-        fn takes(p: *[]i32) { }
-                 ^~~~~~~~~
-    help: prefix with an underscore: _p
     error: type mismatch
       at <test>:3:9
           takes(&a) }
@@ -149,77 +101,6 @@ let%expect_test "typecheck: array does not coerce to slice under a pointer" =
 let%expect_test "typecheck: break inside while" =
   run_src "fn f() { while true { break } }";
   [%expect {| ok |}]
-
-let%expect_test "typecheck: unreachable code after break" =
-  run_src "fn f() { while true { break;\n    g() } }\nfn g() {}";
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:2:5
-            g() } }
-            ^~~
-    ok
-    |}]
-
-let%expect_test "typecheck: unreachable code after continue" =
-  run_src "fn f() { while true { continue;\n    g() } }\nfn g() {}";
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:2:5
-            g() } }
-            ^~~
-    ok
-    |}]
-
-let%expect_test "typecheck: unreachable code after a returning if" =
-  run_src
-    {|fn f() i32 { if true { return 1 } else { return 2 }
-    g() }
-fn g() {}|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:2:5
-            g() }
-            ^~~
-    ok
-    |}]
-
-let%expect_test "typecheck: unreachable code after a diverging binding" =
-  run_src
-    {|
-fn d() never { loop {} }
-fn f() { var _x = d();
-    g() }
-fn g() {}
-|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:4:5
-            g() }
-            ^~~
-    ok
-    |}]
-
-let%expect_test
-    "typecheck: unreachable code after an annotated diverging binding" =
-  run_src
-    {|
-fn d() never { loop {} }
-fn f() { var _x: i32 = d();
-    g() }
-fn g() {}
-|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:4:5
-            g() }
-            ^~~
-    ok
-    |}]
 
 let%expect_test "typecheck: a diverging binding ends a value block" =
   run_src {|
@@ -247,20 +128,7 @@ let%expect_test "typecheck: call with args" =
 fn add(x: i32, y: i32) {}
 fn f() { add(1, 2) }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:2:8
-        fn add(x: i32, y: i32) {}
-               ^~~~~~
-    help: prefix with an underscore: _x
-    warning: unused variable: y
-      at <test>:2:16
-        fn add(x: i32, y: i32) {}
-                       ^~~~~~
-    help: prefix with an underscore: _y
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: fn ptr assign and call" =
   run_src
@@ -294,11 +162,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: op
-      at <test>:4:7
-          var op: fn (i32) i32 = add;
-              ^~
-    help: prefix with an underscore: _op
     error: type mismatch
       at <test>:4:26
           var op: fn (i32) i32 = add;
@@ -545,11 +408,6 @@ fn f(a: [0 - 1]i32) {}
 |};
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:2:6
-        fn f(a: [0 - 1]i32) {}
-             ^~~~~~~~~~~~~
-    help: prefix with an underscore: _a
     error: array size must be a literal
       at <test>:2:10
         fn f(a: [0 - 1]i32) {}
@@ -648,25 +506,12 @@ fn f() {
   var c = a + b;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: c
-      at <test>:5:7
-          var c = a + b;
-              ^
-    help: prefix with an underscore: _c
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: bool arithmetic rejected" =
   run_src "fn f() { var x = true + false }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = true + false }
-                     ^
-    help: prefix with an underscore: _x
     error: invalid operand
       at <test>:1:18
         fn f() { var x = true + false }
@@ -681,11 +526,6 @@ let%expect_test "typecheck: logical and/or require bool" =
   run_src "fn f() { var x = 1 && 2 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = 1 && 2 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:18
         fn f() { var x = 1 && 2 }
@@ -700,11 +540,6 @@ let%expect_test "typecheck: not on non-bool" =
   run_src "fn f() { var x = !1 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = !1 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:19
         fn f() { var x = !1 }
@@ -715,11 +550,6 @@ let%expect_test "typecheck: address of rvalue rejected" =
   run_src "fn f() { var x = &5 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = &5 }
-                     ^
-    help: prefix with an underscore: _x
     error: cannot take address of expression
       at <test>:1:19
         fn f() { var x = &5 }
@@ -738,11 +568,6 @@ let%expect_test "typecheck: bitwise on bool rejected" =
   run_src "fn f() { var x = true & false }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x = true & false }
-                     ^
-    help: prefix with an underscore: _x
     error: invalid operand
       at <test>:1:18
         fn f() { var x = true & false }
@@ -761,11 +586,6 @@ let%expect_test "typecheck: cast bool to ptr rejected" =
   run_src "fn f() { var p: *i32 = cast(*i32, true) }";
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:1:14
-        fn f() { var p: *i32 = cast(*i32, true) }
-                     ^
-    help: prefix with an underscore: _p
     error: invalid conversion
       at <test>:1:24
         fn f() { var p: *i32 = cast(*i32, true) }
@@ -794,11 +614,6 @@ fn f() { var s: S; var y: f64 = cast(f64, s) }
 |};
   [%expect
     {|
-    warning: unused variable: y
-      at <test>:3:24
-        fn f() { var s: S; var y: f64 = cast(f64, s) }
-                               ^
-    help: prefix with an underscore: _y
     error: invalid conversion
       at <test>:3:33
         fn f() { var s: S; var y: f64 = cast(f64, s) }
@@ -809,11 +624,6 @@ let%expect_test "typecheck: cast int to bool rejected" =
   run_src "fn f() { var b: bool = cast(bool, 256) }";
   [%expect
     {|
-    warning: unused variable: b
-      at <test>:1:14
-        fn f() { var b: bool = cast(bool, 256) }
-                     ^
-    help: prefix with an underscore: _b
     error: invalid conversion
       at <test>:1:24
         fn f() { var b: bool = cast(bool, 256) }
@@ -886,20 +696,7 @@ fn f() {
   var x: i32 = 2;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:3:7
-          var x: i32 = 1;
-              ^
-    help: prefix with an underscore: _x
-    warning: unused variable: x
-      at <test>:4:7
-          var x: i32 = 2;
-              ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: shadow can change type and the new type wins" =
   run_src {|
@@ -909,15 +706,7 @@ fn f() i64 {
   return x;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:3:7
-          var x: i32 = 1;
-              ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: shadow reads the old binding in its initializer" =
   run_src
@@ -934,11 +723,6 @@ let%expect_test "typecheck: type annot mismatch on var" =
   run_src "fn f() { var x: bool = 1 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: bool = 1 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:24
         fn f() { var x: bool = 1 }
@@ -969,11 +753,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: y
-      at <test>:4:7
-          var y = *x;
-              ^
-    help: prefix with an underscore: _y
     error: cannot dereference
       at <test>:4:12
           var y = *x;
@@ -1035,11 +814,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: y
-      at <test>:4:7
-          var y = x.foo;
-              ^
-    help: prefix with an underscore: _y
     error: type has no fields
       at <test>:4:11
           var y = x.foo;
@@ -1090,11 +864,6 @@ fn f() { g(true) }
 |};
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:2:6
-        fn g(x: i32) {}
-             ^~~~~~
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:3:12
         fn f() { g(true) }
@@ -1130,18 +899,6 @@ let%expect_test "typecheck: extern definition checks its body" =
                                                        ^~~~~ expected i32, found bool
     |}]
 
-let%expect_test "typecheck: extern definition warns about an unused parameter" =
-  run_src {|extern "C" fn add(a: i32, b: i32) i32 { return a }|};
-  [%expect
-    {|
-    warning: unused variable: b
-      at <test>:1:27
-        extern "C" fn add(a: i32, b: i32) i32 { return a }
-                                  ^~~~~~
-    help: prefix with an underscore: _b
-    ok
-    |}]
-
 let%expect_test "typecheck: an unsupported ABI on a definition" =
   run_src {|extern "Rust" fn add(a: i32) i32 { return a }|};
   [%expect
@@ -1164,11 +921,6 @@ let%expect_test "typecheck: array element type mismatch" =
   run_src "fn f() { var a: [2]i32 = [1, true] }";
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:1:14
-        fn f() { var a: [2]i32 = [1, true] }
-                     ^
-    help: prefix with an underscore: _a
     error: type mismatch
       at <test>:1:30
         fn f() { var a: [2]i32 = [1, true] }
@@ -1179,11 +931,6 @@ let%expect_test "typecheck: array wrong element count" =
   run_src "fn f() { var a: [3]i32 = [1, 2] }";
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:1:14
-        fn f() { var a: [3]i32 = [1, 2] }
-                     ^
-    help: prefix with an underscore: _a
     error: wrong number of arguments
       at <test>:1:26
         fn f() { var a: [3]i32 = [1, 2] }
@@ -1204,11 +951,6 @@ let%expect_test "typecheck: empty array literal needs annotation" =
   run_src "fn f() { var a = [] }";
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:1:14
-        fn f() { var a = [] }
-                     ^
-    help: prefix with an underscore: _a
     error: cannot infer type of empty array literal
       at <test>:1:18
         fn f() { var a = [] }
@@ -1279,27 +1021,11 @@ let%expect_test "typecheck: index element assign type mismatch" =
 
 let%expect_test "typecheck: for over range ok (branch 2)" =
   run_src "fn f() { for i in 0..5 { var x = i } }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:30
-        fn f() { for i in 0..5 { var x = i } }
-                                     ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: for over inclusive range ok (branch 2)" =
   run_src "fn f() { for i in 0..=5 { var x = i } }";
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:1:31
-        fn f() { for i in 0..=5 { var x = i } }
-                                      ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: for over array binds element type" =
   run_src
@@ -1309,15 +1035,7 @@ fn f() {
   for x in a { var y: i32 = x }
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: y
-      at <test>:4:20
-          for x in a { var y: i32 = x }
-                           ^
-    help: prefix with an underscore: _y
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: for over array wrong element use" =
   run_src
@@ -1329,11 +1047,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: y
-      at <test>:4:20
-          for x in a { var y: bool = x }
-                           ^
-    help: prefix with an underscore: _y
     error: type mismatch
       at <test>:4:30
           for x in a { var y: bool = x }
@@ -1348,11 +1061,6 @@ let%expect_test "typecheck: for over non-iterable" =
       at <test>:1:19
         fn f() { for x in 5 { var y = x } }
                           ^ on i32
-    warning: unused variable: y
-      at <test>:1:27
-        fn f() { for x in 5 { var y = x } }
-                                  ^
-    help: prefix with an underscore: _y
     |}]
 
 let%expect_test "typecheck: range bounds must be integers (branch 2)" =
@@ -1367,11 +1075,6 @@ let%expect_test "typecheck: range bounds must be integers (branch 2)" =
       at <test>:1:25
         fn f() { for i in true..5 { var x = i } }
                                 ^ expected bool, found i32
-    warning: unused variable: x
-      at <test>:1:33
-        fn f() { for i in true..5 { var x = i } }
-                                        ^
-    help: prefix with an underscore: _x
     |}]
 
 let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
@@ -1381,15 +1084,7 @@ fn f() {
   for i in 0..n { var x = i }
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:4:23
-          for i in 0..n { var x = i }
-                              ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: range over len needs no cast (branch 1)" =
   run_src
@@ -1409,15 +1104,7 @@ fn f() {
   for i in n..10 { var x = i }
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:4:24
-          for i in n..10 { var x = i }
-                               ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: slice bound over len needs no cast (branch 1)" =
   run_src
@@ -1427,15 +1114,7 @@ fn f() {
   var s: []i32 = a[0..a.len];
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: s
-      at <test>:4:7
-          var s: []i32 = a[0..a.len];
-              ^
-    help: prefix with an underscore: _s
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: two typed endpoints still must match (branch 2)" =
   run_src
@@ -1446,51 +1125,15 @@ fn f() {
   for i in m..n { var x = i }
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:5:23
-          for i in m..n { var x = i }
-                              ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: break inside for" =
   run_src "fn f() { for i in 0..5 { break } }";
-  [%expect
-    {|
-    warning: unused variable: i
-      at <test>:1:14
-        fn f() { for i in 0..5 { break } }
-                     ^
-    help: prefix with an underscore: _i
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: continue inside for" =
   run_src "fn f() { for i in 0..5 { continue } }";
-  [%expect
-    {|
-    warning: unused variable: i
-      at <test>:1:14
-        fn f() { for i in 0..5 { continue } }
-                     ^
-    help: prefix with an underscore: _i
-    ok
-    |}]
-
-let%expect_test "typecheck: unused loop variable warns" =
-  run_src "fn f() { for i in 0..5 { var _x = 1 } }";
-  [%expect
-    {|
-    warning: unused variable: i
-      at <test>:1:14
-        fn f() { for i in 0..5 { var _x = 1 } }
-                     ^
-    help: prefix with an underscore: _i
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: a bare array is not a slice param" =
   run_src
@@ -1501,15 +1144,7 @@ fn f() i32 {
   return sum(a);
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: xs
-      at <test>:2:8
-        fn sum(xs: []i32) i32 { return 0 }
-               ^~~~~~~~~
-    help: prefix with an underscore: _xs
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: slice element wrong type rejected" =
   run_src
@@ -1522,11 +1157,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: xs
-      at <test>:2:8
-        fn sum(xs: []i32) {}
-               ^~~~~~~~~
-    help: prefix with an underscore: _xs
     error: type mismatch
       at <test>:5:7
           sum(a);
@@ -1584,11 +1214,6 @@ let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
   run_src "fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }";
   [%expect
     {|
-    warning: unused variable: s
-      at <test>:1:39
-        fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
-                                              ^
-    help: prefix with an underscore: _s
     error: range bounds must be integers
       at <test>:1:52
         fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
@@ -1615,25 +1240,12 @@ fn f() i32 {
   return first(s.ptr);
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: p
-      at <test>:2:10
-        fn first(p: *i32) i32 { return 0 }
-                 ^~~~~~~
-    help: prefix with an underscore: _p
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: slice does not coerce back to array" =
   run_src "fn f() { var a: [3]i32 = [1,2,3]; var b: [3]i32 = a[0..3] }";
   [%expect
     {|
-    warning: unused variable: b
-      at <test>:1:39
-        fn f() { var a: [3]i32 = [1,2,3]; var b: [3]i32 = a[0..3] }
-                                              ^
-    help: prefix with an underscore: _b
     error: type mismatch
       at <test>:1:51
         fn f() { var a: [3]i32 = [1,2,3]; var b: [3]i32 = a[0..3] }
@@ -1649,15 +1261,7 @@ fn f() {
   for x in s { var y: i32 = x }
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: y
-      at <test>:5:20
-          for x in s { var y: i32 = x }
-                           ^
-    help: prefix with an underscore: _y
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: slice index element assignable" =
   run_src "fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..3]; s[0] = 9 }";
@@ -1675,11 +1279,6 @@ let%expect_test "typecheck: multidim wrong inner count" =
   run_src "fn f() { var m: [2][2]i32 = [[1,2],[3]] }";
   [%expect
     {|
-    warning: unused variable: m
-      at <test>:1:14
-        fn f() { var m: [2][2]i32 = [[1,2],[3]] }
-                     ^
-    help: prefix with an underscore: _m
     error: wrong number of arguments
       at <test>:1:36
         fn f() { var m: [2][2]i32 = [[1,2],[3]] }
@@ -1742,15 +1341,7 @@ let%expect_test "typecheck: array literal as slice argument" =
 fn sum(xs: []i32) i32 { return 0 }
 fn f() i32 { return sum([1, 2, 3]) }
 |};
-  [%expect
-    {|
-    warning: unused variable: xs
-      at <test>:2:8
-        fn sum(xs: []i32) i32 { return 0 }
-               ^~~~~~~~~
-    help: prefix with an underscore: _xs
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: scalar zero init" =
   run_src "fn f() i32 { var x: i32; return x }";
@@ -1769,11 +1360,6 @@ let%expect_test "typecheck: var without type or value cannot infer" =
         fn f() { var x }
                      ^
     help: write the type or give it a value
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x }
-                     ^
-    help: prefix with an underscore: _x
     |}]
 
 let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
@@ -1860,11 +1446,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { z: 1 };
-              ^
-    help: prefix with an underscore: _p
     error: no field
       at <test>:4:16
           var p = pt { z: 1 };
@@ -1881,11 +1462,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { x: 1, x: 2 };
-              ^
-    help: prefix with an underscore: _p
     error: duplicate field
       at <test>:4:22
           var p = pt { x: 1, x: 2 };
@@ -1902,11 +1478,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { x: true };
-              ^
-    help: prefix with an underscore: _p
     error: type mismatch
       at <test>:4:19
           var p = pt { x: true };
@@ -1921,11 +1492,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:3:7
-          var p = nope { x: 1 };
-              ^
-    help: prefix with an underscore: _p
     error: undefined struct
       at <test>:3:11
           var p = nope { x: 1 };
@@ -1981,11 +1547,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { 1 };
-              ^
-    help: prefix with an underscore: _p
     error: wrong number of fields
       at <test>:4:11
           var p = pt { 1 };
@@ -2002,11 +1563,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { 1, 2, 3 };
-              ^
-    help: prefix with an underscore: _p
     error: wrong number of fields
       at <test>:4:11
           var p = pt { 1, 2, 3 };
@@ -2023,11 +1579,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: p
-      at <test>:4:7
-          var p = pt { 1, true };
-              ^
-    help: prefix with an underscore: _p
     error: type mismatch
       at <test>:4:19
           var p = pt { 1, true };
@@ -2109,11 +1660,6 @@ fn g() { f(true) }
 |};
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:3:6
-        fn f(x: myint) i32 { return 0 }
-             ^~~~~~~~
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:4:12
         fn g() { f(true) }
@@ -2187,11 +1733,6 @@ fn f() { var x: i32 = g() }
 |};
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:3:14
-        fn f() { var x: i32 = g() }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:3:23
         fn f() { var x: i32 = g() }
@@ -2252,11 +1793,6 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:2:9
-        fn take(a: [4]i32) {}
-                ^~~~~~~~~
-    help: prefix with an underscore: _a
     error: type mismatch
       at <test>:5:8
           take(a);
@@ -2375,11 +1911,6 @@ fn main() i32 {
 |};
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:3:7
-          var x: u8 = 300;
-              ^
-    help: prefix with an underscore: _x
     error: integer literal out of range
       at <test>:3:15
           var x: u8 = 300;
@@ -2395,11 +1926,6 @@ fn main() i32 {
 |};
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:3:7
-          var x: u8 = -1;
-              ^
-    help: prefix with an underscore: _x
     error: integer literal out of range
       at <test>:3:15
           var x: u8 = -1;
@@ -2415,20 +1941,7 @@ fn main() i32 {
   return 0;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:3:7
-          var x: u8 = 255;
-              ^
-    help: prefix with an underscore: _x
-    warning: unused variable: y
-      at <test>:4:7
-          var y: i8 = -128;
-              ^
-    help: prefix with an underscore: _y
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: inferred literal overflowing i32 rejected" =
   run_src {|
@@ -2754,11 +2267,6 @@ let%expect_test "typecheck: int literal suffix that mismatches the target" =
   run_src "fn f() { var x: u8 = 5u16 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: u8 = 5u16 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:22
         fn f() { var x: u8 = 5u16 }
@@ -2820,11 +2328,6 @@ let%expect_test "typecheck: a never var needs a diverging init" =
   run_src "fn f() { var x: never = 0 }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: never = 0 }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:25
         fn f() { var x: never = 0 }
@@ -3068,14 +2571,7 @@ let%expect_test "typecheck: all-never if-expr binds as never" =
 extern "C" fn exit(c: i32) never;
 fn f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
 |};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:3:61
-        fn f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
-                                                                    ^~~~~~~~
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
@@ -3142,11 +2638,6 @@ let%expect_test "collapse: a block ending in a binding is unit" =
       at <test>:1:29
         fn f() i32 { var x: i32 = { var a: i32 = 1 };
                                     ^~~~~~~~~~~~~~ expected i32, found ()
-    warning: unused variable: a
-      at <test>:1:33
-        fn f() i32 { var x: i32 = { var a: i32 = 1 };
-                                        ^
-    help: prefix with an underscore: _a
     |}]
 
 let%expect_test "collapse: value if arms must agree" =
@@ -3198,41 +2689,6 @@ let%expect_test "collapse: continue as a value runs the step" =
  return x }; return 9 }|};
   [%expect {| ok |}]
 
-let%expect_test "collapse: discarded arithmetic warns" =
-  run_src "fn f() i32 { 1 + 2;\n return 5 }";
-  [%expect
-    {|
-    warning: discarded operation result
-      at <test>:1:14
-        fn f() i32 { 1 + 2;
-                     ^~~~~
-    help: use `var _ = ...` when this is intentional
-    ok
-    |}]
-
-let%expect_test "collapse: discarded call stays quiet" =
-  run_src {|
-extern "C" fn run() i32;
-fn f() { run() }
-|};
-  [%expect {| ok |}]
-
-let%expect_test "collapse: discarded tail arithmetic warns" =
-  run_src "fn f() { 1 + 2 }";
-  [%expect
-    {|
-    warning: discarded operation result
-      at <test>:1:10
-        fn f() { 1 + 2 }
-                 ^~~~~
-    help: use `var _ = ...` when this is intentional
-    ok
-    |}]
-
-let%expect_test "collapse: explicit discard stays quiet" =
-  run_src "fn f() { var _ = 1 + 2 }";
-  [%expect {| ok |}]
-
 let%expect_test "collapse: implicit return of a wrong tail type" =
   run_src "fn f() i32 { true }";
   [%expect
@@ -3266,11 +2722,6 @@ let%expect_test "typecheck: char is distinct from i32" =
   run_src "fn f() { var x: i32 = 'A' }";
   [%expect
     {|
-    warning: unused variable: x
-      at <test>:1:14
-        fn f() { var x: i32 = 'A' }
-                     ^
-    help: prefix with an underscore: _x
     error: type mismatch
       at <test>:1:23
         fn f() { var x: i32 = 'A' }
@@ -3412,20 +2863,10 @@ fn f() {
 |};
   [%expect
     {|
-    warning: unused variable: never_array
-      at <test>:5:7
-          var never_array = [stop(), stop()];
-              ^~~~~~~~~~~
-    help: prefix with an underscore: _never_array
     error: array element cannot have this type
       at <test>:5:22
           var never_array = [stop(), stop()];
                              ^~~~~~ on never
-    warning: unused variable: unit_array
-      at <test>:6:7
-          var unit_array = [noop(), noop()];
-              ^~~~~~~~~~
-    help: prefix with an underscore: _unit_array
     error: array element cannot have this type
       at <test>:6:21
           var unit_array = [noop(), noop()];
@@ -3470,20 +2911,6 @@ let%expect_test "typecheck: local aliases may repeat in separate blocks" =
   { type Value = bool; var _x: Value = true }
 }|};
   [%expect {| ok |}]
-
-let%expect_test "typecheck: an unreachable local declaration warns" =
-  run_src {|fn f() i32 {
-  return 1;
-  fn unused() i32 { 0 }
-}|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:3:3
-          fn unused() i32 { 0 }
-          ^~~~~~~~~~~~~~~~~~~~~
-    ok
-    |}]
 
 let%expect_test "typecheck: write to an array parameter" =
   run_src "fn f(a: [3]i32) { a[0] = 9 }";
@@ -3693,14 +3120,7 @@ let%expect_test "typecheck: a shadowed label leaves the outer loop diverging" =
   g();
 }
 fn g() {}|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:3:3
-          g();
-          ^~~
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: break inside loop" =
   run_src "fn f() { loop { break } }";
@@ -3712,14 +3132,7 @@ let%expect_test "typecheck: a loop with no break diverges" =
   g();
 }
 fn g() {}|};
-  [%expect
-    {|
-    warning: unreachable code
-      at <test>:3:3
-          g();
-          ^~~
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "typecheck: a loop takes its value from break" =
   run_src {|fn f() i32 {
@@ -4192,11 +3605,6 @@ let%expect_test "typecheck: a bare name binds and catches everything" =
   run_src "fn f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }";
   [%expect
     {|
-    warning: unused variable: m
-      at <test>:1:14
-        fn f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
-                     ^~~~~~
-    help: prefix with an underscore: _m
     error: arm never runs
       at <test>:1:46
         fn f(n: i32, m: i32) i32 { match n { m => 1, _ => 2 } }
@@ -4251,11 +3659,6 @@ let%expect_test "typecheck: binding block tail is unit" =
       at <test>:1:16
         fn f() i32 { { var x = 5; } }
                        ^~~~~~~~~ expected i32, found ()
-    warning: unused variable: x
-      at <test>:1:20
-        fn f() i32 { { var x = 5; } }
-                           ^
-    help: prefix with an underscore: _x
     |}]
 
 let%expect_test "typecheck: exact integer widening matrix" =
@@ -4580,18 +3983,6 @@ let%expect_test "typecheck: compound shift count must be an integer" =
       at <test>:2:9
           a <<= 1.0 }
                 ^~~ found f64
-    |}]
-
-let%expect_test "typecheck: cast has no effect" =
-  run_src "fn f(a: i32) i32 { return cast(i32, a) }";
-  [%expect
-    {|
-    warning: cast has no effect
-      at <test>:1:27
-        fn f(a: i32) i32 { return cast(i32, a) }
-                                  ^~~~~~~~~~~~ already i32
-    help: remove the cast
-    ok
     |}]
 
 let%expect_test "typecheck: a literal product overflows" =

@@ -30,7 +30,6 @@ type type_def =
 
 type result_use = Infer | Expect of ty | Discard
 type coverage = Covered | Missing of string list | Unbounded | Unknown
-type var_info = { name : Ast.name; ty : ty; used : bool ref; span : Ast.span }
 
 (* The running mark catches a value that asks for itself *)
 let force_deferred span cell ~(on_error : 'a) (compute : unit -> 'a) =
@@ -95,12 +94,11 @@ type ctx = {
 
 type local_env = {
   ctx : ctx;
-  scopes : (Symbol.key * var_info) list list;
+  scopes : (Symbol.key * ty) list list;
   ret_ty : ty;
   loops : loop_ctx list;
   entry_function : bool;
   in_declaration : bool;
-  suppress_warnings : bool;
   in_probe : bool;
 }
 
@@ -131,7 +129,6 @@ let make_env ctx =
     loops = [];
     entry_function = false;
     in_declaration = true;
-    suppress_warnings = ctx.initial_errors;
     in_probe = false;
   }
 
@@ -179,27 +176,11 @@ let clone_loop loop =
 let probing env =
   { env with loops = List.map clone_loop env.loops; in_probe = true }
 
-let warn_unused_in_scope env =
-  match env.scopes with
-  | scope :: _ when not env.suppress_warnings ->
-      List.iter
-        (fun (_, (info : var_info)) ->
-          let shown = Interner.text info.name in
-          if (not !(info.used)) && shown.[0] <> '_' then
-            Diagnostic.emit
-              (Diagnostic.warning info.span
-                 (Printf.sprintf "unused variable: %s" shown)
-              |> Diagnostic.help
-                   (Printf.sprintf "prefix with an underscore: _%s" shown)))
-        scope
-  | _ -> ()
-
-let extend_var ?(used = false) ?(deduplicate = false) env span name t =
+let extend_var ?(deduplicate = false) env span t =
   let key = Symbol.key (sym env span) in
-  let info = { name; ty = t; used = ref used; span } in
   match env.scopes with
   | scope :: _ when deduplicate && List.mem_assoc key scope -> env
-  | scope :: rest -> { env with scopes = ((key, info) :: scope) :: rest }
+  | scope :: rest -> { env with scopes = ((key, t) :: scope) :: rest }
   | [] -> assert false
 
 let lookup_var_opt env span =
@@ -211,11 +192,7 @@ let lookup_var_opt env span =
         | Some _ as found -> found
         | None -> find rest)
   in
-  match find env.scopes with
-  | Some info ->
-      info.used := true;
-      Some info.ty
-  | None -> None
+  find env.scopes
 
 (* A span the resolver never bound falls back so checking can carry on *)
 let symbol_in ctx span ~(missing : 'a) (read : Symbol.t -> 'a) =
@@ -375,20 +352,6 @@ let common_ty current candidate =
   | current, Types.TNull -> current
   | current, candidate ->
       Option.value (common_numeric_ty current candidate) ~default:current
-
-let is_unused_operation (e : expr) =
-  match e.desc with BinOp _ | UnOp _ -> true | _ -> false
-
-let warn_discarded_operation env e (te : Tast.texpr) =
-  if
-    (not env.suppress_warnings)
-    && (not (Diagnostic.has_errors ()))
-    && is_unused_operation e && te.ty <> Types.TUnit && te.ty <> Types.TNever
-    && te.ty <> Types.TError
-  then
-    Diagnostic.emit
-      (Diagnostic.warning te.span "discarded operation result"
-      |> Diagnostic.help "use `var _ = ...` when this is intentional")
 
 let verify_unit_result span = function
   | Expect want when not (Types.ty_equal (resolve_ty want) Types.TUnit) ->
@@ -561,12 +524,7 @@ let synth_conversion span (te : Tast.texpr) ty =
       else d
     in
     Diagnostic.emit d
-  end
-  else if te.ty = ty && not (Types.has_error ty) then
-    Diagnostic.emit
-      (Diagnostic.warning span "cast has no effect"
-      |> Diagnostic.label "already %s" (Types.show_ty ty)
-      |> Diagnostic.help "remove the cast");
+  end;
   if refused || Types.has_error ty then dummy_texpr
   else Tast.mk ty (Tast.TCast te)
 
@@ -750,10 +708,10 @@ and synth_desc env e =
       Tast.mk
         (if diverges then Types.TNever else Types.TUnit)
         (Tast.TWhile (label, tc, tb))
-  | For (label, { value = name; span = nspan }, iter, body) ->
-      synth_for env e.span label name nspan iter body
-  | Binding ({ value = name; span = nspan }, ann, init) ->
-      snd (check_binding env name nspan ann init)
+  | For (label, { span = nspan; _ }, iter, body) ->
+      synth_for env e.span label nspan iter body
+  | Binding ({ span = nspan; _ }, ann, init) ->
+      snd (check_binding env nspan ann init)
   | Return init -> synth_return env e.span init
   | Break (label, value) -> synth_break env e.span label value
   | Continue label ->
@@ -961,10 +919,7 @@ and check_value_for_use env (e : expr) use =
       { (check_if_discarded env e.span branches else_body) with span = e.span }
   | Discard, Match (scrutinee, arms) ->
       { (check_match env scrutinee arms Discard) with span = e.span }
-  | Discard, _ ->
-      let te = synth env e in
-      warn_discarded_operation env e te;
-      te
+  | Discard, _ -> synth env e
 
 (* Thread env so a binding is visible to later elements *)
 and check_block env span body use =
@@ -974,18 +929,11 @@ and check_block env span body use =
         verify_unit_result span use;
         (env, List.rev acc)
     | [ last ] ->
-        (* A dead tail keeps only its warning and its type need not match *)
+        (* The last line never runs after a return so its type can be anything *)
         let tail_use = if diverged then Infer else use in
-        if diverged then
-          if not env.suppress_warnings then
-            Diagnostic.emit
-              (Diagnostic.warning (block_item_span last) "unreachable code");
         let env, te = check_elem env last tail_use in
         (env, List.rev (te :: acc))
     | e :: rest ->
-        if diverged && not env.suppress_warnings then
-          Diagnostic.emit
-            (Diagnostic.warning (block_item_span e) "unreachable code");
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
         go env (diverged || te.ty = Types.TNever) (te :: acc) rest
@@ -997,27 +945,22 @@ and check_elem env item use : local_env * Tast.texpr =
   | Decl _ ->
       verify_unit_result (block_item_span item) use;
       (env, Tast.mk Types.TUnit Tast.TLocalDecl)
-  | Expr
-      ({ desc = Binding ({ value = name; span = nspan }, ann, init); _ } as e)
-    ->
-      let env', tbind = check_binding env name nspan ann init in
+  | Expr ({ desc = Binding ({ span = nspan; _ }, ann, init); _ } as e) ->
+      let env', tbind = check_binding env nspan ann init in
       if tbind.ty <> Types.TNever then verify_unit_result e.span use;
       (env', tbind)
   | Expr e -> (env, check_value_for_use env e use)
 
-(* Push a scope for the block then flag any leftover bindings *)
 and check_scoped_block ?loop env span body use =
   let base =
     match loop with
     | Some lc -> { env with loops = lc :: env.loops }
     | None -> env
   in
-  let inner = push_scope base in
-  let final_inner, tb = check_block inner span body use in
-  warn_unused_in_scope final_inner;
+  let _, tb = check_block (push_scope base) span body use in
   (tb, tblock_ty tb)
 
-and check_binding env name nspan ann init =
+and check_binding env nspan ann init =
   let t, te =
     match (ann, init) with
     | Some a, Some e ->
@@ -1039,7 +982,7 @@ and check_binding env name nspan ann init =
   in
   (* An init that diverges makes the binding itself dead so it carries never *)
   let node_ty = if te.ty = Types.TNever then Types.TNever else Types.TUnit in
-  ( extend_var env nspan name t,
+  ( extend_var env nspan t,
     Tast.mk node_ty (Tast.TBinding (sym env nspan, t, te)) )
 
 and synth_return env span init =
@@ -1153,7 +1096,7 @@ and synth_break env span label value =
   in
   Tast.mk Types.TNever (Tast.TBreak (label, tv))
 
-and synth_for env span label name nspan iter body =
+and synth_for env span label nspan iter body =
   let titer, elem_ty =
     match iter.desc with
     | Range (lo, hi) ->
@@ -1175,9 +1118,8 @@ and synth_for env span label name nspan iter body =
   in
   let loop = new_loop label ~valued:false in
   let inner = push_scope { env with loops = loop :: env.loops } in
-  let inner = extend_var inner nspan name elem_ty in
-  let final_inner, tb = check_block inner span body Discard in
-  warn_unused_in_scope final_inner;
+  let inner = extend_var inner nspan elem_ty in
+  let _, tb = check_block inner span body Discard in
   Tast.mk Types.TUnit (Tast.TFor (label, sym env nspan, elem_ty, titer, tb))
 
 (* Each discarded arm checks its own trailing value *)
@@ -1239,9 +1181,9 @@ and check_if env span (branches : (expr * block Ast.spanned) list) else_body
 and check_pattern env sty pat =
   match pat.pdesc with
   | PatWild -> (env, Some Tast.TPatWild)
-  | PatBind name ->
+  | PatBind _ ->
       let symbol = sym env pat.pspan in
-      (extend_var env pat.pspan name sty, Some (Tast.TPatBind (symbol, sty)))
+      (extend_var env pat.pspan sty, Some (Tast.TPatBind (symbol, sty)))
   | PatValue e -> (
       let te = check env e sty in
       (* TODO(43f6): comparing these needs more than the integer test an arm emits *)
@@ -1273,7 +1215,7 @@ and check_match env scrutinee arms use =
   (* An arm body can name its binder so the probe needs it in scope *)
   let arm_env a =
     match a.pat.pdesc with
-    | PatBind name -> extend_var (push_scope env) a.pat.pspan name ts.ty
+    | PatBind _ -> extend_var (push_scope env) a.pat.pspan ts.ty
     | _ -> env
   in
   let bodies = List.map (fun a -> (arm_env a, a.arm_body.Ast.value)) arms in
@@ -2071,11 +2013,9 @@ let check_func ?(is_extern = false) env fd =
   let func_env =
     push_scope { env with ret_ty; entry_function = is_entry_point }
   in
-  (* An extern has no body so its params can't be used and stay quiet *)
   let param_env =
     List.fold_left
-      (fun e ((ident : Ast.ident), t, span) ->
-        extend_var ~used:is_extern ~deduplicate:true e span ident.value t)
+      (fun e (_, t, span) -> extend_var ~deduplicate:true e span t)
       func_env params_typed
   in
 
@@ -2092,7 +2032,6 @@ let check_func ?(is_extern = false) env fd =
     match fd.ret with Some t -> t.tspan | None -> fd.func_name.span
   in
   let final_env, tbody0 = check_block param_env body_span fd.body body_use in
-  warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
     | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> Types.TNever

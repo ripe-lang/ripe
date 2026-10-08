@@ -83,15 +83,7 @@ fn main() i32 {
   return x;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: x
-      at <test>:4:9
-          { var x: i32 = 2 }
-                ^
-    help: prefix with an underscore: _x
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "resolve: same scope redeclare reads old binding" =
   run_src
@@ -113,15 +105,7 @@ fn main() i32 {
   return i;
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: i
-      at <test>:4:7
-          for i in 0..3 { }
-              ^
-    help: prefix with an underscore: _i
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "resolve: cannot assign to a function name" =
   run_src {|
