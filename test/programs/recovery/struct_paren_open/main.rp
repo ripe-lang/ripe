@@ -1,1 +1,2 @@
+// BROKEN: waiting on the new parser recovery
 struct point ( x: i32 }

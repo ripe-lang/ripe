@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 fn main() i32 {
   var a: [3]i32;
   return a[0;

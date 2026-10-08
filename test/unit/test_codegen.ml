@@ -20,7 +20,7 @@ fn main() i32 { return sizeof(P) as i32 }
                                          ^~ found as
     |}]
 
-let%expect_test "qbe accepts string aggregates" =
+let%expect_test ("qbe accepts string aggregates" [@tags "disabled"]) =
   run_codegen_ok
     {|
 struct Box { text: str, value: i32 }

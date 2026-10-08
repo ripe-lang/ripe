@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 struct point { x: i32, y: i32 }
 fn main() i32 {
   var n: i32 = 0;

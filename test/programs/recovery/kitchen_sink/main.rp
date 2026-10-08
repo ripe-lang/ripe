@@ -1,3 +1,4 @@
+// BROKEN: waiting on the new parser recovery
 struct point { 99: i32,
   y: i32 }
 

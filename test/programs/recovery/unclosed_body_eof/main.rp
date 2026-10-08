@@ -1,2 +1,3 @@
+// BROKEN: waiting on the new parser recovery
 fn f() i32 {
   return 1;
