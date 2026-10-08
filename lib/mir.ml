@@ -801,7 +801,7 @@ and lower_into state destination (expr : Tast.texpr) =
       store_value (Len (lower_expr state inner |> materialize state))
   | Tast.TDataPtr inner ->
       store_value (DataPtr (lower_expr state inner |> materialize state))
-  | Tast.TArrayLit elements -> lower_array_lit state (slot ()) expr elements
+  | Tast.TArrayLit elements -> lower_array_lit state (slot ()) elements
   | Tast.TStructLit (_, fields) -> lower_struct_lit state (slot ()) expr fields
   | Tast.TSliceExpr (base, lo, hi) ->
       lower_slice state (slot ()) expr base lo hi
@@ -874,11 +874,9 @@ and lower_deref state pointee pointer span =
   lower_null_check state pointee pointer span;
   add_projection (materialize state pointer) Deref
 
-(* %0 = undef
-   %0[0] = 7
+(* %0[0] = 7
    %0[1] = 8 *)
-and lower_array_lit state destination (expr : Tast.texpr) elements =
-  assign state destination (const expr.span expr.ty Undef);
+and lower_array_lit state destination elements =
   List.iteri
     (fun index (element : Tast.texpr) ->
       let index_operand =

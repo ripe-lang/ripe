@@ -723,7 +723,6 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
       local %2: usize temp
 
       block0:
-        %0 = undef
         %0[0] = 1
         %0[1] = 2
         %1 = len %0
@@ -797,7 +796,6 @@ let%expect_test "mir: an array literal writes each element in order" =
       local %1: usize temp
 
       block0:
-        %0 = undef
         %0[0] = 7
         %0[1] = 8
         %0[2] = 9
