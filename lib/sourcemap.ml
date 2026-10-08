@@ -26,7 +26,6 @@ let rec search starts pos lo hi =
     else search starts pos lo (mid - 1)
 
 let src t = t.src
-let line_count t = Array.length t.line_starts
 
 (* Offsets are global so anything indexing into `src` has to come through here *)
 let rel t pos = pos - t.base
