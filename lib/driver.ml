@@ -319,18 +319,7 @@ let compile ~stage ~out ~libraries ~search_roots ~stats ~filename =
     let codegen_start = Unix.gettimeofday () in
 
     let mir = Mir.build tdecls in
-    begin match Mir.verify mir with
-    | Ok () -> ()
-    | Error errors ->
-        List.iter
-          (fun error ->
-            Diagnostic.emit
-              (Diagnostic.internal ~span:error.Mir.error_span
-                 (Mir.show_error error)))
-          errors;
-        render_and_exit_if_failed program;
-        raise Exit
-    end;
+    Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
     let mir = Deadcode.strip mir in
 

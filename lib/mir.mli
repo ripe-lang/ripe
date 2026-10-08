@@ -90,8 +90,7 @@ type terminator = { desc : terminator_desc; span : Ast.span }
 and terminator_desc =
   | Jump of block_id
   | Branch of operand * block_id * block_id
-  | Assert of check * block_id * block_id
-  | Panic of check
+  | Check of check * block_id
   | ReturnValue of operand option
   | Unreachable
 
@@ -139,9 +138,6 @@ type program = {
   functions : func list;
 }
 
-type error = { function_name : string; error_span : Ast.span; message : string }
-
 val build : Tast.tdecl list -> program
 val dump : program -> string
-val show_error : error -> string
-val verify : program -> (unit, error list) result
+val verify : program -> unit

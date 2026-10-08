@@ -43,9 +43,12 @@ let program ?(structs = []) (function_ : M.func) : M.program =
 
 let verify (program : M.program) : unit =
   match Ripe.Mir.verify program with
-  | Ok () -> print_endline "ok"
-  | Error errors ->
-      List.iter (fun error -> print_endline (Ripe.Mir.show_error error)) errors
+  | () -> print_endline "ok"
+  | exception Ripe.Diagnostic.Errors ds ->
+      List.iter
+        (fun d ->
+          print_string (Option.value (Ripe.Diagnostic.detail_of d) ~default:""))
+        ds
 
 let verify_func ?structs function_ = verify (program ?structs function_)
 
@@ -103,7 +106,7 @@ let%expect_test "mir verifier: returns match the function type" =
     { M.desc = M.Const (M.Bool true); ty = Ripe.Types.TBool; span }
   in
   verify_func (func_with_block (term (M.ReturnValue (Some returned))));
-  [%expect {| f: return has type bool but function returns i32 |}]
+  [%expect {| f: return is bool but should be i32 |}]
 
 let%expect_test "mir verifier: every referenced local exists" =
   let returned = copy (Ripe.Types.TInt Ripe.Types.I32) 4 in
@@ -134,7 +137,23 @@ let%expect_test "mir verifier: aggregate call storage has the result type" =
   in
   verify_func ~structs:[ struct_decl ]
     (func_with_block ~statements:[ statement ] (term M.Unreachable));
-  [%expect {| f: aggregate result storage has type i32 but call returns pair |}]
+  [%expect {| f: call storage is i32 but should be pair |}]
+
+let%expect_test "mir verifier: a branch condition is a bool" =
+  let condition = copy (Ripe.Types.TInt Ripe.Types.I32) 0 in
+  verify_func (func_with_block (term (M.Branch (condition, 0, 0))));
+  [%expect {| f: condition is i32 but should be bool |}]
+
+let%expect_test "mir verifier: a constant fits its type" =
+  let returned : M.operand =
+    {
+      M.desc = M.Const (M.Bool true);
+      ty = Ripe.Types.TInt Ripe.Types.I32;
+      span;
+    }
+  in
+  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
+  [%expect {| f: constant true can't be i32 |}]
 
 let%expect_test "mir: continue uses one shared step block" =
   Pipeline.run_mir
@@ -157,7 +176,6 @@ fn f() i32 {
       local %3: bool temp
       local %4: bool temp
       local %5: i32 temp
-      local %6: i32 temp
 
       block0:
         %0 = 0
@@ -171,26 +189,22 @@ fn f() i32 {
 
       block2:
         %4 = copy %1 == 2
-        branch copy %4 block6 block7
+        branch copy %4 block5 block6
 
       block3:
-        %6 = copy %1 + 1
-        %1 = copy %6
+        %5 = copy %1 + 1
+        %1 = copy %5
         jump block1
 
       block4:
         return copy %0
 
       block5:
-        %5 = copy %0 + copy %1
-        %0 = copy %5
         jump block3
 
       block6:
+        %0 = copy %0 + copy %1
         jump block3
-
-      block7:
-        jump block5
     }
     |}]
 
@@ -215,38 +229,29 @@ fn main() i32 {
     {|
     fn _R4main() i32 {
       local %0 n: i32 user
-      local %1: i32 temp
-      local %2: bool temp
-      local %3: i32 temp
+      local %1: bool temp
 
       block0:
         %0 = 0
         jump block1
 
       block1:
-        jump block3
-
-      block2:
-        %3 = call @printf("n=%d\n", copy %0)
-        return copy %0
-
-      block3:
-        %1 = copy %0 + 1
-        %0 = copy %1
-        %2 = copy %0 == 4
-        branch copy %2 block6 block7
-
-      block4:
-        jump block1
-
-      block5:
-        jump block3
-
-      block6:
         jump block2
 
-      block7:
+      block2:
+        %0 = copy %0 + 1
+        %1 = copy %0 == 4
+        branch copy %1 block3 block4
+
+      block3:
         jump block5
+
+      block4:
+        jump block2
+
+      block5:
+        call @printf("n=%d\n", copy %0)
+        return copy %0
     }
     |}]
 
@@ -274,11 +279,8 @@ fn main() i32 {
       local %0 i: i32 user
       local %1 found: i32 user
       local %2 j: i32 user
-      local %3: i32 temp
-      local %4: bool temp
-      local %5: i32 temp
-      local %6: i32 temp
-      local %7: i32 temp
+      local %3: bool temp
+      local %4: i32 temp
 
       block0:
         %0 = 0
@@ -286,32 +288,24 @@ fn main() i32 {
 
       block1:
         %2 = 0
-        jump block3
-
-      block2:
-        %7 = call @printf("found=%d\n", copy %1)
-        return copy %1
-
-      block3:
-        %3 = copy %2 + 1
-        %2 = copy %3
-        %4 = copy %2 == 4
-        branch copy %4 block6 block7
-
-      block4:
-        jump block1
-
-      block5:
-        jump block3
-
-      block6:
-        %5 = copy %0 * 100
-        %6 = copy %5 + copy %2
-        %1 = copy %6
         jump block2
 
-      block7:
+      block2:
+        %2 = copy %2 + 1
+        %3 = copy %2 == 4
+        branch copy %3 block3 block4
+
+      block3:
+        %4 = copy %0 * 100
+        %1 = copy %4 + copy %2
         jump block5
+
+      block4:
+        jump block2
+
+      block5:
+        call @printf("found=%d\n", copy %1)
+        return copy %1
     }
     |}]
 
@@ -326,12 +320,9 @@ let%expect_test "mir: a bounds check splits the block it guards" =
 
       block0:
         %2 = len %0
-        assert_bounds copy %1 copy %2 block2 block1
+        check_bounds copy %1 copy %2 block1
 
       block1:
-        panic bounds copy %1 copy %2
-
-      block2:
         return copy %0[copy %1]
     }
     |}]
@@ -345,30 +336,23 @@ let%expect_test "mir: a -1 divisor skips the divide" =
       local %1 b: i32 param
       local %2: i32 temp
       local %3: bool temp
-      local %4: i32 temp
-      local %5: i32 temp
 
       block0:
-        assert_div_zero copy %1 block2 block1
+        check_div_zero copy %1 block1
 
       block1:
-        panic div_zero copy %1
+        %3 = copy %1 == -1
+        branch copy %3 block2 block3
 
       block2:
-        %3 = copy %1 == -1
-        branch copy %3 block3 block4
+        %2 = -copy %0
+        jump block4
 
       block3:
-        %4 = -copy %0
-        %2 = copy %4
-        jump block5
+        %2 = copy %0 / copy %1
+        jump block4
 
       block4:
-        %5 = copy %0 / copy %1
-        %2 = copy %5
-        jump block5
-
-      block5:
         return copy %2
     }
     |}]
@@ -440,15 +424,11 @@ fn f() pair {
 
     fn f() pair {
       local %0 result: pair result
-      local %1: i32 temp
-      local %2: i32 temp
 
       block0:
         %0 = zero
-        %1 = call @side(1)
-        %0.field1 = copy %1
-        %2 = call @side(2)
-        %0.field0 = copy %2
+        %0.field1 = call @side(1)
+        %0.field0 = call @side(2)
         return
     }
     |}]
@@ -512,18 +492,18 @@ let%expect_test "mir: an if used as a value writes one result local" =
       local %1: i32 temp
 
       block0:
-        branch copy %0 block2 block3
+        branch copy %0 block1 block2
 
       block1:
-        return copy %1
+        %1 = 1
+        jump block3
 
       block2:
-        %1 = 1
-        jump block1
+        %1 = 2
+        jump block3
 
       block3:
-        %1 = 2
-        jump block1
+        return copy %1
     }
     |}]
 
@@ -546,26 +526,26 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 
       block0:
         %2 = copy %0 == 1
-        branch copy %2 block3 block2
+        branch copy %2 block2 block1
 
       block1:
-        return copy %1
-
-      block2:
         %3 = copy %0 == 2
         branch copy %3 block5 block4
 
-      block3:
+      block2:
         %1 = 10
-        jump block1
+        jump block3
+
+      block3:
+        return copy %1
 
       block4:
         %1 = 0
-        jump block1
+        jump block3
 
       block5:
         %1 = 20
-        jump block1
+        jump block3
     }
     |}]
 
@@ -584,7 +564,6 @@ let%expect_test "mir: a range for counts without a bounds check" =
       local %2 for.hi: i32 temp
       local %3: bool temp
       local %4: i32 temp
-      local %5: i32 temp
 
       block0:
         %0 = 0
@@ -597,13 +576,12 @@ let%expect_test "mir: a range for counts without a bounds check" =
         branch copy %3 block2 block4
 
       block2:
-        %4 = copy %0 + copy %1
-        %0 = copy %4
+        %0 = copy %0 + copy %1
         jump block3
 
       block3:
-        %5 = copy %1 + 1
-        %1 = copy %5
+        %4 = copy %1 + 1
+        %1 = copy %4
         jump block1
 
       block4:
@@ -625,9 +603,8 @@ let%expect_test "mir: an inclusive range stops one step later" =
       local %1 i: i32 user
       local %2 for.hi: i32 temp
       local %3: bool temp
-      local %4: i32 temp
-      local %5: bool temp
-      local %6: i32 temp
+      local %4: bool temp
+      local %5: i32 temp
 
       block0:
         %0 = 0
@@ -640,20 +617,19 @@ let%expect_test "mir: an inclusive range stops one step later" =
         branch copy %3 block2 block4
 
       block2:
-        %4 = copy %0 + copy %1
-        %0 = copy %4
+        %0 = copy %0 + copy %1
         jump block3
 
       block3:
-        %5 = copy %1 == copy %2
-        branch copy %5 block4 block5
+        %4 = copy %1 == copy %2
+        branch copy %4 block4 block5
 
       block4:
         return copy %0
 
       block5:
-        %6 = copy %1 + 1
-        %1 = copy %6
+        %5 = copy %1 + 1
+        %1 = copy %5
         jump block1
     }
     |}]
@@ -677,8 +653,7 @@ let%expect_test "mir: a for over an array walks it by index" =
       local %6: *i32 temp
       local %7: usize temp
       local %8: bool temp
-      local %9: i32 temp
-      local %10: usize temp
+      local %9: usize temp
 
       block0:
         %1 = 0
@@ -695,13 +670,12 @@ let%expect_test "mir: a for over an array walks it by index" =
 
       block2:
         %5 = copy %2[copy %4]
-        %9 = copy %1 + copy %5
-        %1 = copy %9
+        %1 = copy %1 + copy %5
         jump block3
 
       block3:
-        %10 = copy %4 + 1
-        %4 = copy %10
+        %9 = copy %4 + 1
+        %4 = copy %9
         jump block1
 
       block4:
@@ -716,16 +690,8 @@ let%expect_test "mir: a slice expression carries a base and a length" =
     fn f(%1: [4]i32) []i32 {
       local %0 result: []i32 result
       local %1 a: [4]i32 param
-      local %2: usize temp
 
       block0:
-        %2 = len %1
-        assert_slice_bounds 1 3 copy %2 block2 block1
-
-      block1:
-        panic slice_bounds 1 3 copy %2
-
-      block2:
         %0 = slice %1 1 3
         return
     }
@@ -742,30 +708,11 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     {|
     fn f() i32 {
       local %0 a: [2]i32 user
-      local %1: usize temp
-      local %2: i32 temp
-      local %3: usize temp
 
       block0:
-        %0 = undef
         %0[0] = 1
         %0[1] = 2
-        %1 = len %0
-        assert_bounds 0 copy %1 block2 block1
-
-      block1:
-        panic bounds 0 copy %1
-
-      block2:
-        %2 = copy %0[0] + 5
-        %0[0] = copy %2
-        %3 = len %0
-        assert_bounds 0 copy %3 block4 block3
-
-      block3:
-        panic bounds 0 copy %3
-
-      block4:
+        %0[0] = copy %0[0] + 5
         return copy %0[0]
     }
     |}]
@@ -779,28 +726,23 @@ let%expect_test "mir: a shift guards against an out of range count" =
       local %1 b: i32 param
       local %2: i32 temp
       local %3: bool temp
-      local %4: i32 temp
 
       block0:
-        assert_negative_shift copy %1 block2 block1
+        check_negative_shift copy %1 block1
 
       block1:
-        panic negative_shift copy %1
+        %3 = copy %1 < 32
+        branch copy %3 block2 block3
 
       block2:
-        %3 = copy %1 < 32
-        branch copy %3 block3 block4
+        %2 = copy %0 << copy %1
+        jump block4
 
       block3:
-        %4 = copy %0 << copy %1
-        %2 = copy %4
-        jump block5
+        %2 = 0
+        jump block4
 
       block4:
-        %2 = 0
-        jump block5
-
-      block5:
         return copy %2
     }
     |}]
@@ -830,20 +772,11 @@ let%expect_test "mir: an array literal writes each element in order" =
     {|
     fn f() i32 {
       local %0 a: [3]i32 user
-      local %1: usize temp
 
       block0:
-        %0 = undef
         %0[0] = 7
         %0[1] = 8
         %0[2] = 9
-        %1 = len %0
-        assert_bounds 1 copy %1 block2 block1
-
-      block1:
-        panic bounds 1 copy %1
-
-      block2:
         return copy %0[1]
     }
     |}]
@@ -862,31 +795,26 @@ let%expect_test "mir: a loop yields the value its break carries" =
     fn f() i32 {
       local %0 n: i32 user
       local %1: i32 temp
-      local %2: i32 temp
-      local %3: bool temp
+      local %2: bool temp
 
       block0:
         %0 = 0
         jump block1
 
       block1:
-        %2 = copy %0 + 1
-        %0 = copy %2
-        %3 = copy %0 == 3
-        branch copy %3 block4 block5
+        %0 = copy %0 + 1
+        %2 = copy %0 == 3
+        branch copy %2 block2 block3
 
       block2:
-        return copy %1
+        %1 = copy %0
+        jump block4
 
       block3:
         jump block1
 
       block4:
-        %1 = copy %0
-        jump block2
-
-      block5:
-        jump block3
+        return copy %1
     }
     |}]
 
@@ -916,19 +844,13 @@ let%expect_test "mir: a deref through a pointer is a place projection" =
       local %0 p: *i32 param
 
       block0:
-        assert_null copy %0 block2 block1
+        check_null copy %0 block1
 
       block1:
-        panic null copy %0
+        %0.deref = 4
+        check_null copy %0 block2
 
       block2:
-        %0.deref = 4
-        assert_null copy %0 block4 block3
-
-      block3:
-        panic null copy %0
-
-      block4:
         return copy %0.deref
     }
     |}]

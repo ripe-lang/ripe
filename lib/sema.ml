@@ -473,18 +473,26 @@ let verify_bare_break env span lc =
         |> Diagnostic.secondary first
              (Printf.sprintf "breaks with %s" (show_ty env t)))
 
-(* An array already holds the data needed by a slice *)
-let adopt_slice want (te : Tast.texpr) =
-  match (resolve_ty want, resolve_ty te.ty) with
-  | Types.TSlice _, Types.TArray _ ->
+(* An array already holds the data needed by a slice and a null or string
+   literal just takes the pointer type it lands in *)
+let adopt want (te : Tast.texpr) =
+  match (resolve_ty want, resolve_ty te.ty, te.desc) with
+  | Types.TSlice _, Types.TArray (_, n), _ ->
       let zero = Tast.mk (Types.TInt Usize) (Tast.TInt 0L) in
-      let len = Tast.mk (Types.TInt Usize) (Tast.TLen te) in
+      let len = Tast.mk (Types.TInt Usize) (Tast.TInt (Int64.of_int n)) in
       Tast.mk want (Tast.TSliceExpr (te, zero, len))
+  | (Types.TPointer _ | Types.TPtr), Types.TNull, Tast.TNull
+  | Types.TCStr, Types.TPointer (Types.TInt I8), Tast.TCStr _ ->
+      { te with ty = want }
+  | (Types.TPointer _ | Types.TPtr), Types.TNull, _
+  | Types.TCStr, Types.TPointer (Types.TInt I8), _
+  | Types.TPointer (Types.TInt I8), Types.TCStr, _ ->
+      Tast.mk ~span:te.span want (Tast.TCast te)
   | _ -> te
 
 (* The count keeps its own type since it is only a number of positions *)
 let verify_shift_count env span (tr : Tast.texpr) =
-  if not (is_integer tr.ty) then
+  if not (is_integer tr.ty || tr.ty = Types.TNever) then
     Diagnostic.emit
       (Diagnostic.error span "shift count must be an integer"
       |> Diagnostic.found (show_ty env tr.ty))
@@ -651,6 +659,12 @@ let direct_callee env (callee : expr) =
       | Some symbol when Symbol.is_func symbol.Symbol.kind -> Some symbol
       | Some _ | None -> None)
   | _ -> None
+
+(* The C entry point exits with zero when main returns nothing *)
+let exit_zero env span =
+  if env.entry_function && env.ret_ty = Types.TInt I32 then
+    Some (Tast.mk ~span (Types.TInt I32) (Tast.TInt 0L))
+  else None
 
 let rec ty_of_ast env t =
   match t.tdesc with
@@ -874,14 +888,18 @@ and coerce_common env first rest =
   (coerce first :: List.map coerce rest, common)
 
 and coerce_common_pair env ~(contextual : expr -> bool) left right =
+  let against (typed : Tast.texpr) e =
+    if typed.ty = Types.TNever then synth_operand env e
+    else check_operand env e typed.ty
+  in
   if contextual left && not (contextual right) then
     let typed_right = synth_operand env right in
-    let common = typed_right.ty in
-    (check_operand env left common, typed_right, common)
+    let typed_left = against typed_right left in
+    (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else if contextual right then
     let typed_left = synth_operand env left in
-    let common = typed_left.ty in
-    (typed_left, check_operand env right common, common)
+    let typed_right = against typed_left right in
+    (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else
     let typed_left = synth_operand env left in
     let typed_right = synth_operand env right in
@@ -973,12 +991,13 @@ and positional_fields env span info
 
 and reconcile_if_result env (branches : (expr * block Ast.spanned) list) else_b
     =
-  reconcile_arms env
-    (List.map (fun (_, { Ast.value; _ }) -> value) branches @ [ else_b ])
+  reconcile_arms
+    (List.map (fun (_, { Ast.value; _ }) -> (env, value)) branches
+    @ [ (env, else_b) ])
 
 (* Literals bend to the common rigid type so they don't anchor it *)
-and reconcile_arms env bodies =
-  let add_candidate (rigid, flexible) body =
+and reconcile_arms bodies =
+  let add_candidate (rigid, flexible) (env, body) =
     let candidate = block_result_ty env body in
     if block_is_flexible body then (rigid, common_ty flexible candidate)
     else (common_ty rigid candidate, flexible)
@@ -1088,7 +1107,7 @@ and synth_return env span init =
       then
         Diagnostic.emit
           (Diagnostic.error span "empty return in non-unit function");
-      Tast.mk Types.TNever (Tast.TReturn None)
+      Tast.mk Types.TNever (Tast.TReturn (exit_zero env span))
   | Some e when env.ret_ty = Types.TNever ->
       Tast.mk Types.TNever (Tast.TReturn (Some (synth env e)))
   | Some e ->
@@ -1305,12 +1324,18 @@ and check_pattern env sty pat =
 
 and check_match env scrutinee arms use =
   let ts = synth env scrutinee in
-  let bodies = List.map (fun a -> a.arm_body.Ast.value) arms in
+  (* An arm body can name its binder so the probe needs it in scope *)
+  let arm_env a =
+    match a.pat.pdesc with
+    | PatBind name -> extend_var (push_scope env) a.pat.pspan name ts.ty
+    | _ -> env
+  in
+  let bodies = List.map (fun a -> (arm_env a, a.arm_body.Ast.value)) arms in
   match use with
   | Infer when is_probing env ->
       (* A probe only wants the type so don't build the tree twice *)
-      Tast.mk (reconcile_arms env bodies) Tast.TErrorExpr
-  | Infer -> check_match_arms env ts arms (Some (reconcile_arms env bodies))
+      Tast.mk (reconcile_arms bodies) Tast.TErrorExpr
+  | Infer -> check_match_arms env ts arms (Some (reconcile_arms bodies))
   | Expect w -> check_match_arms env ts arms (Some w)
   | Discard -> check_match_arms env ts arms None
 
@@ -1444,6 +1469,10 @@ and check_array_literal env (e : expr) want elements =
                (List.length elements));
       let typed = List.map (fun source -> check env source element) elements in
       Tast.mk (Types.TArray (element, length)) (Tast.TArrayLit typed)
+  | Types.TSlice element ->
+      let typed = List.map (fun source -> check env source element) elements in
+      let array = Types.TArray (element, List.length typed) in
+      coerce_expr env e want (Tast.mk array (Tast.TArrayLit typed))
   | _ -> check_by_synth env e want
 
 and check_desc env e want =
@@ -1483,7 +1512,7 @@ and check_desc env e want =
 
 and coerce_expr env e want te =
   let got = te.ty in
-  if compatible want got then adopt_slice want te
+  if compatible want got then adopt want te
   else if widens_to got want then Tast.mk ~span:e.span want (Tast.TCast te)
   else begin
     let mismatch =
@@ -1763,7 +1792,7 @@ and synth_index env span base idx =
       | RangeFull -> slice zero whole_length
       | _ ->
           let tidx = synth env idx in
-          if not (is_integer tidx.ty) then
+          if not (is_integer tidx.ty || tidx.ty = Types.TNever) then
             Diagnostic.emit
               (Diagnostic.error idx.span "array index must be an integer");
           Tast.mk elem (Tast.TIndex (tbase, tidx)))
@@ -2156,12 +2185,21 @@ let check_func ?(is_extern = false) env fd =
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    | true, last :: rest when last.ty = ret_ty && ret_ty <> Types.TNever ->
+    | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> Types.TNever
+      ->
         let ret =
           Tast.mk ~span:last.span Types.TNever (Tast.TReturn (Some last))
         in
         List.rev (ret :: rest)
-    | _ -> tbody0
+    | _, last :: _ when last.ty = Types.TNever -> tbody0
+    | _ -> (
+        match exit_zero final_env body_span with
+        | Some zero ->
+            tbody0
+            @ [
+                Tast.mk ~span:body_span Types.TNever (Tast.TReturn (Some zero));
+              ]
+        | None -> tbody0)
   in
 
   {

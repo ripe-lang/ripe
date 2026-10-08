@@ -53,7 +53,7 @@ let statement_refs add (s : statement) =
 let terminator_refs add (t : terminator) =
   match t.desc with
   | Branch (o, _, _) | ReturnValue (Some o) -> operand_refs add o
-  | Assert (c, _, _) | Panic c -> check_refs add c
+  | Check (c, _) -> check_refs add c
   | Jump _ | ReturnValue None | Unreachable -> ()
 
 let func_refs add f =

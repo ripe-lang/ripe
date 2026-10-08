@@ -1,0 +1,8 @@
+type slot = i64;
+
+fn get() slot { return 5 }
+fn f() i64 { get() }
+
+fn main() i32 {
+  return cast(i32, f());
+}
