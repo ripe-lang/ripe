@@ -273,14 +273,7 @@ and parse_typ st =
       Diagnostic.error (cur_span st) "expected type" |> found st |> fail
   | IDENT name ->
       advance st;
-      let rec path modules base =
-        if at st DOT then begin
-          advance st;
-          path (base :: modules) (expect_ident st)
-        end
-        else mkt lo st (Named (List.rev modules, base))
-      in
-      path [] (Interner.intern name)
+      mkt lo st (Named (Interner.intern name))
   (* [N]T fixed size array, []T slice *)
   | LBRACKET ->
       advance st;
@@ -340,26 +333,13 @@ and parse_abi st =
       NamedAbi (spanned name span)
   | _ -> Diagnostic.error (cur_span st) "expected ABI name" |> found st |> fail
 
-(* pub *)
-and parse_modifiers st =
-  let[@tail_mod_cons] rec go () =
-    match cur_token st with
-    | PUBLIC ->
-        advance st;
-        Pub :: go ()
-    | _ -> []
-  in
-  go ()
-
-(* pub, extern "C", pub extern "C" *)
-and parse_decl_modifiers st =
-  let mods = parse_modifiers st in
+(* extern "C" *)
+and parse_decl_abi st =
   if at st EXTERN then begin
     advance st;
-    let abi = parse_abi st in
-    (mods @ parse_modifiers st, abi)
+    parse_abi st
   end
-  else (mods, NoAbi)
+  else NoAbi
 
 (* x: i32, y: i32 *)
 and parse_fields st =
@@ -373,19 +353,14 @@ and parse_fields st =
   List.rev !fields
 
 (* struct point { x: i32, y: i32 } *)
-and parse_struct_def st mods =
+and parse_struct_def st =
   let lo = cur_pos st in
   expect st STRUCT;
   let name = expect_ident_span st in
   expect st LBRACE;
   let fields = parse_fields st in
   expect st RBRACE;
-  {
-    struct_name = name;
-    fields;
-    struct_modifiers = mods;
-    struct_span = span_from lo st;
-  }
+  { struct_name = name; fields; struct_span = span_from lo st }
 
 (* Red, Green, Blue *)
 and parse_variants st =
@@ -397,32 +372,22 @@ and parse_variants st =
   List.rev !variants
 
 (* enum Color { Red, Green, Blue } *)
-and parse_enum_def st mods =
+and parse_enum_def st =
   let lo = cur_pos st in
   expect st ENUM;
   let name = expect_ident_span st in
   expect st LBRACE;
   let variants = parse_variants st in
   expect st RBRACE;
-  {
-    enum_name = name;
-    variants;
-    enum_modifiers = mods;
-    enum_span = span_from lo st;
-  }
+  { enum_name = name; variants; enum_span = span_from lo st }
 
 (* type binop = (i32, i32) i32 *)
-and parse_alias_def st mods =
+and parse_alias_def st =
   let lo = cur_pos st in
   expect st TYPE;
   let name = expect_ident_span st in
   let typ = typ_after st ASSIGN in
-  {
-    alias_name = name;
-    alias_typ = typ;
-    alias_modifiers = mods;
-    alias_span = span_from lo st;
-  }
+  { alias_name = name; alias_typ = typ; alias_span = span_from lo st }
 
 (* x: i32 *)
 and parse_param st =
@@ -466,7 +431,7 @@ and parse_ret_type st =
   | _ -> Some (parse_typ st)
 
 (* fn add(a: i32, b: i32) i32 { ... }, extern "C" fn puts(s: cstr) i32 *)
-and parse_func_def st mods abi =
+and parse_func_def st abi =
   let lo = cur_pos st in
   expect st FUNC;
   let name = expect_ident_span st in
@@ -487,7 +452,6 @@ and parse_func_def st mods abi =
       params;
       ret;
       body;
-      func_modifiers = mods;
       variadic = Option.is_some variadic;
       extern_abi = abi;
       func_span = span_from lo st;
@@ -529,12 +493,12 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
   in
   infix (parse_prefix st context)
 
-(* point { x: 1 }, geometry.point { x: 1 } *)
-and parse_struct_lit st lo path name =
+(* point { x: 1 } *)
+and parse_struct_lit st lo name =
   expect st LBRACE;
   let fields = parse_struct_lit_fields st in
   expect st RBRACE;
-  mk lo st (StructLit (path, name, fields))
+  mk lo st (StructLit (name, fields))
 
 (* -x *)
 and parse_prefix st context =
@@ -561,40 +525,33 @@ and parse_prefix st context =
       in
       parse_postfix st lhs
 
-(* point, geometry.point, point { x: 1 } *)
+(* point, Color.Red, point { x: 1 } *)
 and parse_path st context lhs head =
   let lo = Span.lo lhs.span in
-  let modules, name, plain =
-    if at st DOT then begin
-      advance st;
-      let rec segments owners member =
-        if at st DOT then begin
-          advance st;
-          segments (member :: owners) (expect_ident_span st)
-        end
-        else (List.rev owners, member)
-      in
-      (* The last name is the member *)
-      let owners, member = segments [] (expect_ident_span st) in
-      let path =
-        { owner = Nonempty.make (spanned head lhs.span) owners; member }
-      in
-      let plain = path_expr path in
-      (path_names path, spanned member.value plain.span, plain)
-    end
-    else ([], spanned head lhs.span, lhs)
-  in
-  if not (at st LBRACE) then plain
+  if at st DOT then begin
+    advance st;
+    let rec segments owners member =
+      if at st DOT then begin
+        advance st;
+        segments (member :: owners) (expect_ident_span st)
+      end
+      else (List.rev owners, member)
+    in
+    (* The last name is the member *)
+    let owners, member = segments [] (expect_ident_span st) in
+    path_expr { owner = Nonempty.make (spanned head lhs.span) owners; member }
+  end
+  else if not (at st LBRACE) then lhs
   else
     match context with
     | NormalExpression when opens_struct_lit st ->
-        parse_struct_lit st lo modules name
+        parse_struct_lit st lo (spanned head lhs.span)
     | HeaderExpression when opens_struct_field st ->
         Diagnostic.error (cur_span st) "a struct literal can't go in a header"
         |> Diagnostic.label "this `{` starts the body"
         |> Diagnostic.help "wrap the literal in parentheses"
         |> fail
-    | NormalExpression | HeaderExpression -> plain
+    | NormalExpression | HeaderExpression -> lhs
 
 (* x.field, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =
@@ -817,18 +774,17 @@ and parse_stmt st =
       if at_value_end st then Expr (mk lo st (Return None))
       else Expr (mk lo st (Return (Some (parse_expr st))))
   | FUNC when peek_token st == LPAREN -> Expr (parse_expr st)
-  | PUBLIC | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
+  | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
   | _ -> Expr (parse_expr st)
 
-(* pub type small = i32 inside a body *)
+(* type small = i32, fn helper() { } *)
 and parse_local_decl st =
-  let modifiers = parse_modifiers st in
   let decl =
     match cur_token st with
-    | STRUCT -> LocalStruct (parse_struct_def st modifiers)
-    | TYPE -> LocalTypeAlias (parse_alias_def st modifiers)
-    | FUNC -> LocalFunc (fst (parse_func_def st modifiers NoAbi))
-    | ENUM -> LocalEnum (parse_enum_def st modifiers)
+    | STRUCT -> LocalStruct (parse_struct_def st)
+    | TYPE -> LocalTypeAlias (parse_alias_def st)
+    | FUNC -> LocalFunc (fst (parse_func_def st NoAbi))
+    | ENUM -> LocalEnum (parse_enum_def st)
     | EXTERN ->
         Diagnostic.error (cur_span st) "`extern` must be at the top level"
         |> fail
@@ -958,83 +914,46 @@ and parse_labeled_loop st =
       |> found st |> fail
 
 (* var n: i32 = 0, var flag: bool *)
-let parse_global st mods =
+let parse_global st =
   let lo = cur_pos st in
   let name, typ, init = parse_binding st GlobalBinding in
-  Global { name; typ; init; modifiers = mods; span = span_from lo st }
+  Global { name; typ; init; span = span_from lo st }
 
-(* pub fn f() i32 { } *)
+(* fn f() i32 { }, extern "C" fn puts(s: cstr) i32 *)
 let parse_decl st =
-  let mods, abi = parse_decl_modifiers st in
+  let abi = parse_decl_abi st in
   begin match cur_token st with
   | STRUCT | VAR | TYPE | ENUM -> abi_wants_func st abi
   | _ -> ()
   end;
   match cur_token st with
   | FUNC ->
-      let fd, imported = parse_func_def st mods abi in
+      let fd, imported = parse_func_def st abi in
       if imported then Extern fd else Func fd
-  | STRUCT -> Struct (parse_struct_def st mods)
-  | VAR -> parse_global st mods
-  | TYPE -> TypeAlias (parse_alias_def st mods)
-  | ENUM -> Enum (parse_enum_def st mods)
+  | STRUCT -> Struct (parse_struct_def st)
+  | VAR -> parse_global st
+  | TYPE -> TypeAlias (parse_alias_def st)
+  | ENUM -> Enum (parse_enum_def st)
   | _ ->
       Diagnostic.error (cur_span st) "expected declaration" |> found st |> fail
 
-(* import math.vector *)
-let parse_import st =
-  let lo = cur_pos st in
-  expect st IMPORT;
-  let[@tail_mod_cons] rec rest () =
-    if at st DOT then begin
-      advance st;
-      let name = expect_ident st in
-      name :: rest ()
-    end
-    else []
-  in
-  let first = expect_ident st in
-  let path = first :: rest () in
-  { path; span = span_from lo st }
-
-(* module math *)
-let parse_module_header st =
-  let lo = cur_pos st in
-  expect st MODULE;
-  let name = expect_ident st in
-  { name; span = span_from lo st }
-
-(* module m; import a.b; fn f() { } *)
-let parse_module st =
+(* var n = 0; fn f() { } *)
+let parse_file st =
   skip_semi st;
-  let start = cur_pos st in
-  let header = ref None in
-  let imports = ref [] in
   let decls = ref [] in
   while not (at st EOF) do
+    let decl = parse_decl st in
+    decls := decl :: !decls;
     let ends_in_brace =
-      match cur_token st with
-      | MODULE when cur_pos st = start ->
-          header := Some (parse_module_header st);
-          false
-      | MODULE ->
-          Diagnostic.error (cur_span st) "`module` must be the first item"
-          |> fail
-      | IMPORT ->
-          imports := parse_import st :: !imports;
-          false
-      | _ -> (
-          let decl = parse_decl st in
-          decls := decl :: !decls;
-          match decl with
-          | Func _ | Struct _ | Enum _ -> true
-          | Extern _ | Global _ | TypeAlias _ -> false)
+      match decl with
+      | Func _ | Struct _ | Enum _ -> true
+      | Extern _ | Global _ | TypeAlias _ -> false
     in
     if not (ends_in_brace || at st SEMI) then
       Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail;
     skip_semi st
   done;
-  { header = !header; imports = List.rev !imports; decls = List.rev !decls }
+  List.rev !decls
 
 (* The lexer already reported a bad token so we just stop *)
 let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span) lexbuf =
@@ -1045,7 +964,7 @@ let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span) lexbuf =
   in
   let current = read () in
   try
-    parse_module
+    parse_file
       { read; current; ahead = []; prev_end = Span.hi Span.dummy; opens = [] }
   with ParserError d ->
     Diagnostic.emit d;

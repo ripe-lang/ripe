@@ -24,7 +24,7 @@ let func ?(locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |])
   {
     M.name = "f";
     source_name = "f";
-    public = false;
+    export = false;
     abi = Ripe.Types.Ripe;
     params = [];
     result = None;
@@ -56,7 +56,7 @@ let%expect_test "mir: straight line scalar function" =
   Pipeline.run_mir "fn add(a: i32, b: i32) i32 { return a + b }";
   [%expect
     {|
-    fn add(%0: i32, %1: i32) i32 {
+    fn _R3add(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -169,7 +169,7 @@ fn f() i32 {
 |};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 sum: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -330,7 +330,7 @@ let%expect_test "mir: a bounds check splits the block it guards" =
   Pipeline.run_mir "fn get(a: []i32, i: usize) i32 { return a[i] }";
   [%expect
     {|
-    fn get(%0: []i32, %1: usize) i32 {
+    fn _R3get(%0: []i32, %1: usize) i32 {
       local %0 a: []i32 param
       local %1 i: usize param
       local %2: usize temp
@@ -348,7 +348,7 @@ let%expect_test "mir: a -1 divisor skips the divide" =
   Pipeline.run_mir "fn d(a: i32, b: i32) i32 { return a / b }";
   [%expect
     {|
-    fn d(%0: i32, %1: i32) i32 {
+    fn _R1d(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -378,7 +378,7 @@ let%expect_test "mir: a returned str literal goes through storage" =
   Pipeline.run_mir {|fn make() str { return "hello" }|};
   [%expect
     {|
-    fn make() str {
+    fn _R4make() str {
       local %0 result: str result
 
       block0:
@@ -400,7 +400,7 @@ fn f(a: i32, b: i32) i32 {
 |};
   [%expect
     {|
-    fn f(%0: i32, %1: i32) i32 {
+    fn _R1f(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2 positional: pair user
@@ -432,20 +432,20 @@ fn f() pair {
 |};
   [%expect
     {|
-    fn side(%0: i32) i32 {
+    fn _R4side(%0: i32) i32 {
       local %0 v: i32 param
 
       block0:
         return copy %0
     }
 
-    fn f() pair {
+    fn _R1f() pair {
       local %0 result: pair result
 
       block0:
         %0 = zero
-        %0.field1 = call @side(1)
-        %0.field0 = call @side(2)
+        %0.field1 = call @_R4side(1)
+        %0.field0 = call @_R4side(2)
         return
     }
     |}]
@@ -454,7 +454,7 @@ let%expect_test "mir: a short circuit and skips the right side" =
   Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a && b }";
   [%expect
     {|
-    fn f(%0: bool, %1: bool) bool {
+    fn _R1f(%0: bool, %1: bool) bool {
       local %0 a: bool param
       local %1 b: bool param
       local %2: bool temp
@@ -479,7 +479,7 @@ let%expect_test "mir: a short circuit or skips the right side" =
   Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a || b }";
   [%expect
     {|
-    fn f(%0: bool, %1: bool) bool {
+    fn _R1f(%0: bool, %1: bool) bool {
       local %0 a: bool param
       local %1 b: bool param
       local %2: bool temp
@@ -504,7 +504,7 @@ let%expect_test "mir: an if used as a value writes one result local" =
   Pipeline.run_mir "fn f(a: bool) i32 { return if a { 1 } else { 2 } }";
   [%expect
     {|
-    fn f(%0: bool) i32 {
+    fn _R1f(%0: bool) i32 {
       local %0 a: bool param
       local %1: i32 temp
 
@@ -535,7 +535,7 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 }|};
   [%expect
     {|
-    fn f(%0: i32) i32 {
+    fn _R1f(%0: i32) i32 {
       local %0 n: i32 param
       local %1: i32 temp
       local %2: bool temp
@@ -575,7 +575,7 @@ let%expect_test "mir: a range for counts without a bounds check" =
 }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 t: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -615,7 +615,7 @@ let%expect_test "mir: an inclusive range stops one step later" =
 }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 t: i32 user
       local %1 i: i32 user
       local %2 for.hi: i32 temp
@@ -660,7 +660,7 @@ let%expect_test "mir: a for over an array walks it by index" =
 }|};
   [%expect
     {|
-    fn f(%0: [3]i32) i32 {
+    fn _R1f(%0: [3]i32) i32 {
       local %0 a: [3]i32 param
       local %1 t: i32 user
       local %2: *i32 temp
@@ -704,7 +704,7 @@ let%expect_test "mir: a slice expression carries a base and a length" =
   Pipeline.run_mir "fn f(a: [4]i32) []i32 { return a[1..3] }";
   [%expect
     {|
-    fn f(%1: [4]i32) []i32 {
+    fn _R1f(%1: [4]i32) []i32 {
       local %0 result: []i32 result
       local %1 a: [4]i32 param
       local %2: usize temp
@@ -728,7 +728,7 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
 }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 a: [2]i32 user
       local %1: usize temp
       local %2: usize temp
@@ -754,7 +754,7 @@ let%expect_test "mir: a shift guards against an out of range count" =
   Pipeline.run_mir "fn f(a: i32, b: i32) i32 { return a << b }";
   [%expect
     {|
-    fn f(%0: i32, %1: i32) i32 {
+    fn _R1f(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
@@ -786,7 +786,7 @@ let%expect_test "mir: a variadic call marks where the fixed params stop" =
 fn f() i32 { return printf("%d %d\n", 1, 2) }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0: i32 temp
 
       block0:
@@ -803,7 +803,7 @@ let%expect_test "mir: an array literal writes each element in order" =
 }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 a: [3]i32 user
       local %1: usize temp
 
@@ -831,7 +831,7 @@ let%expect_test "mir: a loop yields the value its break carries" =
 }|};
   [%expect
     {|
-    fn f() i32 {
+    fn _R1f() i32 {
       local %0 n: i32 user
       local %1: i32 temp
       local %2: bool temp
@@ -867,7 +867,7 @@ struct Outer { i: Inner }
 fn f(o: Outer) i32 { return o.i.v }|};
   [%expect
     {|
-    fn f(%0: Outer) i32 {
+    fn _R1f(%0: Outer) i32 {
       local %0 o: Outer param
 
       block0:
@@ -882,7 +882,7 @@ let%expect_test "mir: a deref through a pointer is a place projection" =
 }|};
   [%expect
     {|
-    fn f(%0: *i32) i32 {
+    fn _R1f(%0: *i32) i32 {
       local %0 p: *i32 param
 
       block0:

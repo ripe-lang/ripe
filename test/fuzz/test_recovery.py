@@ -57,7 +57,7 @@ def extern_decl(i, n):
     picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
     ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
-    text = f'pub extern "C" fn e{i}({ps}) i32 {{\n  return 0;\n}}'
+    text = f'extern "C" fn e{i}({ps}) i32 {{\n  return 0;\n}}'
 
     return text, [f"var r{i} = e{i}({args})"], [f"r{i}"]
 
@@ -201,7 +201,7 @@ def cases(rng, runs):
 def main():
     seed, runs = harness.args(RUNS)
     rng = random.Random(seed)
-    argv = [harness.RIPEC] + harness.IMPORT + [harness.MAIN, "-o", harness.PROG]
+    argv = [harness.RIPEC, harness.MAIN, "-o", harness.PROG]
 
     ran = 0
     bad = []

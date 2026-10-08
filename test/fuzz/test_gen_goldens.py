@@ -7,7 +7,6 @@ import harness
 
 TEST_DIR = os.path.join(harness.REPO_ROOT, "test", "programs")
 BINARY = os.path.join(harness.RUN, harness.PROG)
-LABEL = "<import-path>"
 BUILD_TIMEOUT = 30
 
 USAGE = "test_gen_goldens.py <dir> [<dir> ...] [--write]"
@@ -15,7 +14,7 @@ USAGE = "test_gen_goldens.py <dir> [<dir> ...] [--write]"
 
 def golden_for(testdir, write):
     b = subprocess.run(
-        [harness.RIPEC] + harness.IMPORT + ["-o", BINARY, "main.rp"],
+        [harness.RIPEC, "-o", BINARY, "main.rp"],
         cwd=testdir,
         capture_output=True,
         text=True,
@@ -27,11 +26,7 @@ def golden_for(testdir, write):
         if b.returncode == 0:
             return "COMPILED CLEAN but has compilererr.txt"
 
-        new = (
-            (b.stdout + b.stderr)
-            .replace(os.path.realpath(testdir) + os.sep, "")
-            .replace(harness.REPO_ROOT + os.sep, LABEL + os.sep)
-        )
+        new = (b.stdout + b.stderr).replace(os.path.realpath(testdir) + os.sep, "")
     else:
         if b.returncode != 0:
             return "COMPILER ERROR:\n" + b.stdout + b.stderr

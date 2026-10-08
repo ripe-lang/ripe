@@ -1,77 +1,25 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let parse_src file src =
-  let st = Ripe.Lexer.make_state file in
+let parse_src src =
+  let st = Ripe.Lexer.make_state () in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   try Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
-  with Ripe.Parser.Failed ->
-    { Ripe.Ast.header = None; imports = []; decls = [] }
+  with Ripe.Parser.Failed -> []
 
-let parse_module ?(file = 0) src =
-  fst (Diag.run_stage (fun () -> parse_src file src))
+let parse src = fst (Diag.run_stage (fun () -> parse_src src))
 
-let parse ?(file = 0) src = (parse_module ~file src).decls
-
-let front_src module_id src =
+let front_src src =
   Diag.fresh ();
-  let decls = (parse_src 0 src).decls in
-  (decls, Ripe.Resolve.resolve ~module_id decls)
+  let decls = parse_src src in
+  (decls, Ripe.Resolve.resolve decls)
 
-let resolve_src module_id src =
-  let decls, uses = front_src module_id src in
+let resolve_src src =
+  let decls, uses = front_src src in
   (decls, fst (Diag.finish uses))
-
-let read_from files name =
-  match List.assoc_opt name files with
-  | Some src -> src
-  | None -> raise (Sys_error name)
-
-let list_from files dir =
-  let prefix = if String.is_empty dir then "" else dir ^ Filename.dir_sep in
-  let strip name =
-    String.sub name (String.length prefix)
-      (String.length name - String.length prefix)
-  in
-  let entries =
-    files |> List.map fst
-    |> List.filter (String.starts_with ~prefix)
-    |> List.map strip
-    |> List.filter (fun name -> not (String.contains name '/'))
-  in
-  if List.is_empty entries then raise (Sys_error dir) else entries
-
-let load_tree ?(search_roots = []) (files : (string * string) list) =
-  Diag.fresh ();
-  Ripe.Program.load ~read_file:(read_from files) ~list_dir:(list_from files)
-    ~search_roots ~root_filename:"main.rp" ()
-
-let load_program ?search_roots (files : (string * string) list) =
-  Ripe.Resolve.resolve_program (load_tree ?search_roots files)
-
-let run_resolve_program ?search_roots files =
-  let program = load_tree ?search_roots files in
-  let resolved = Ripe.Resolve.resolve_program program in
-  match Diag.finish resolved with
-  | _ -> print_endline "ok"
-  | exception Ripe.Diagnostic.Errors ds -> List.iter (Diag.render_in program) ds
-
-let run_program files =
-  let headline (d : Ripe.Diagnostic.t) =
-    print_endline (Ripe.Diagnostic.headline d)
-  in
-  try
-    let resolved = load_program files in
-    let checked =
-      Ripe.Sema.analyze resolved.Ripe.Resolve.uses resolved.Ripe.Resolve.decls
-    in
-    let _, warns = Diag.finish checked in
-    List.iter headline warns;
-    print_endline "ok"
-  with Ripe.Diagnostic.Errors ds -> List.iter headline ds
 
 (* the front of the pipeline every runner shares *)
 let check_src src =
-  let decls, uses = front_src 0 src in
+  let decls, uses = front_src src in
   Diag.finish (Ripe.Sema.analyze uses decls)
 
 let mir_src src =
@@ -80,7 +28,10 @@ let mir_src src =
   Ripe.Mir.verify program;
   program
 
-let source_of_src src _ = ("<test>", Ripe.Sourcemap.create ~base:0 src)
+let emit_src src =
+  Ripe.Codegenqbe.emit ~filename:"<test>"
+    ~source_map:(Ripe.Sourcemap.create src)
+    (mir_src src)
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
@@ -142,18 +93,14 @@ let run_src src =
 
 let run_codegen src =
   try
-    let il =
-      Ripe.Codegenqbe.emit ~source_of:(source_of_src src) (mir_src src)
-    in
+    let il = emit_src src in
     print_string il;
     check_qbe il
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
 let run_codegen_ok src =
   try
-    let il =
-      Ripe.Codegenqbe.emit ~source_of:(source_of_src src) (mir_src src)
-    in
+    let il = emit_src src in
     check_qbe il;
     print_endline "ok"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags

@@ -1,5 +1,0 @@
-import ffi;
-
-fn main() i32 {
-  return ffi.doubled(ffi.abs(-11));
-}

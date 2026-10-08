@@ -1,7 +1,0 @@
-pub type Coord = i32;
-
-pub struct Point { x: Coord, y: Coord }
-
-pub fn sum(p: Point) Coord {
-  return p.x + p.y;
-}

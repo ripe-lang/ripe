@@ -1,7 +1,0 @@
-import math;
-
-fn main() i32 {
-  var p = math.Point { x: 20, y: 22 };
-  var total: math.Coord = math.sum(p);
-  return total;
-}

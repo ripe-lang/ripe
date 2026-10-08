@@ -1,5 +1,0 @@
-import math;
-
-fn main() i32 {
-  return math.answer() + math.double(21);
-}

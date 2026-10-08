@@ -5,8 +5,8 @@
 type site = { file : int; line : int; col : int; func : int }
 
 type t = {
-  (* Offsets are global so a check inside an import lands on that file *)
-  source_of : int -> string * Sourcemap.t;
+  filename : string;
+  source_map : Sourcemap.t;
   mutable cur_func : string;
   (* Both lists stay reversed until they're emitted *)
   mutable strings : string list;
@@ -18,9 +18,10 @@ type t = {
   ids : (site, int) Hashtbl.t;
 }
 
-let create ~source_of =
+let create ~filename ~source_map =
   {
-    source_of;
+    filename;
+    source_map;
     cur_func = "";
     strings = [];
     strings_len = 0;
@@ -48,10 +49,9 @@ let record t span =
   if Span.lo span < 0 then Diagnostic.ice "runtime check has no source location";
   if String.is_empty t.cur_func then
     Diagnostic.ice "runtime check outside a function";
-  let filename, sm = t.source_of (Span.lo span) in
-  let line, col = Sourcemap.lookup sm (Span.lo span) in
+  let line, col = Sourcemap.lookup t.source_map (Span.lo span) in
   let site =
-    { file = intern t filename; line; col; func = intern t t.cur_func }
+    { file = intern t t.filename; line; col; func = intern t t.cur_func }
   in
   match Hashtbl.find_opt t.ids site with
   | Some id -> id

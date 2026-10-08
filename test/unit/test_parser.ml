@@ -785,26 +785,6 @@ let%expect_test
           ^
     |}]
 
-let%expect_test "parse: modifiers on fn" =
-  run_src "pub fn f() {}";
-  [%expect {| ok |}]
-
-let%expect_test "parse: modifiers on a global" =
-  run_src "pub var X: i32 = 1;";
-  [%expect {| ok |}]
-
-let%expect_test "parse: modifiers on a type alias" =
-  run_src "pub type binop = fn (i32, i32) i32;";
-  [%expect {| ok |}]
-
-let%expect_test "parse: modifier before extern" =
-  run_src {|pub extern "C" fn puts(s: cstr) i32;|};
-  [%expect {| ok |}]
-
-let%expect_test "parse: modifier after extern" =
-  run_src {|extern "C" pub fn puts(s: cstr) i32;|};
-  [%expect {| ok |}]
-
 let%expect_test "parse: stray token at top level" =
   run_src "return 1";
   [%expect
@@ -927,10 +907,6 @@ let%expect_test "parse: positional struct literal as call argument" =
 let%expect_test "parse: field access on positional struct literal" =
   parse_expr "pt { 1, 2 }.x";
   [%expect {| (. (struct pt 1 2) x) |}]
-
-let%expect_test "parse: qualified positional struct literal" =
-  parse_expr "geo.pt { 1, 2 }";
-  [%expect {| (struct geo.pt 1 2) |}]
 
 let%expect_test "parse: multiline positional struct literal" =
   run_src
@@ -1321,15 +1297,15 @@ let%expect_test "parse: extern inside a body" =
 let%expect_test "parse: extern definition inside a body" =
   run_src
     {|fn f() i32 {
-  pub extern "C" fn g(a: i32) i32 { return a }
+  extern "C" fn g(a: i32) i32 { return a }
   return 0;
 }|};
   [%expect
     {|
     error: `extern` must be at the top level
-      at <test>:2:7
-          pub extern "C" fn g(a: i32) i32 { return a }
-              ^~~~~~
+      at <test>:2:3
+          extern "C" fn g(a: i32) i32 { return a }
+          ^~~~~~
     |}]
 
 let%expect_test "parse: variadic declaration" =
@@ -1820,66 +1796,9 @@ let%expect_test
                ^ to match this `{`
     |}]
 
-let%expect_test "parse: spans from different files are distinct" =
-  let src = "fn f() {}" in
-  let first_span file =
-    match parse ~file src with
-    | Ripe.Ast.Func fd :: _ -> fd.func_span
-    | _ -> failwith "expected a function"
-  in
-  Printf.printf "%b" (first_span 0 = first_span 1);
-  [%expect {| false |}]
-
-let%expect_test "parse: module imports" =
-  let module_ = parse_module {|
-import io;
-import math.vector;
-|} in
-  List.iter
-    (fun import ->
-      Printf.printf "import %s\n"
-        (String.concat "." (List.map Ripe.Interner.text import.Ripe.Ast.path)))
-    module_.imports;
-  [%expect {|
-    import io
-    import math.vector
-    |}]
-
 let%expect_test "parse: regular assignment remains accepted" =
   run_src "fn f(b: i32) { var a = 1; a = b }";
   [%expect {| ok |}]
-
-let%expect_test "parse: a module header" =
-  let module_ = parse_module "module math;\nfn f() {}" in
-  (match module_.header with
-  | Some header -> print_endline (Ripe.Interner.text header.Ripe.Ast.name)
-  | None -> print_endline "<no header>");
-  [%expect {| math |}]
-
-let%expect_test "parse: a file without a module header" =
-  let module_ = parse_module "fn f() {}" in
-  print_endline (match module_.header with Some _ -> "yes" | None -> "no");
-  [%expect {| no |}]
-
-let%expect_test "parse: module must come before anything else" =
-  run_parse "import io;\nmodule math;";
-  [%expect
-    {|
-    error: `module` must be the first item
-      at <test>:2:1
-        module math;
-        ^~~~~~
-    |}]
-
-let%expect_test "parse: a dotted type path" =
-  (match parse "var p: math.vector.point;" with
-  | [ Ripe.Ast.Global { typ = Some t; _ } ] -> print_endline (dump_typ t)
-  | _ -> print_endline "<expected a global>");
-  [%expect {| math.vector.point |}]
-
-let%expect_test "parse: a dotted struct literal" =
-  parse_expr "math.Point { x: 1, y: 2 }";
-  [%expect {| (struct math.Point (x 1) (y 2)) |}]
 
 let%expect_test "parse: a dotted field read stays a field read" =
   parse_expr "math.origin.x";
@@ -1932,12 +1851,6 @@ let%expect_test "parse: declarations may appear in a block" =
   [%expect
     {|
     (block (local type Coord) (local struct Point) (local fn read (block (. p x)))) |}]
-
-let%expect_test "parse: pub on a local declaration is accepted" =
-  run_src {|fn f() {
-  pub type Coord = i32;
-}|};
-  [%expect {| ok |}]
 
 let%expect_test "parse: a bare loop takes a block" =
   parse_body "fn f() { loop { break } }";

@@ -23,21 +23,12 @@ type t = {
   syms : Symbol.t Span.Table.t;
   (* What a callee would have found if the value hadn't taken the name *)
   shadowed : Symbol.t Span.Table.t;
-  module_paths : (Symbol.module_id, string list) Hashtbl.t;
-  (* Sorted by base so a position finds its module by search *)
-  mutable file_modules : (int * Symbol.module_id) array;
-  imports : (Symbol.module_id * Ast.name list, scope) Hashtbl.t;
-  failed_imports : (Symbol.module_id * Ast.name list, unit) Hashtbl.t;
   prelude : scope;
   mutable local_decls : Ast.decl list;
 }
 
 type state = {
   out : t;
-  module_id : Symbol.module_id;
-  module_path : string list;
-  qualify : bool;
-  is_root : bool;
   top : scope;
   scope : scope;
   value_boundary : scope option;
@@ -45,21 +36,12 @@ type state = {
   header_hole : Ast.span option ref;
 }
 
-type resolved_program = { uses : t; decls : Ast.decl list }
-
-type qualified =
-  | Local
-  | Found of Symbol.t
-  | Missing of Ast.name list * Ast.name
-
 let prelude_symbol id name =
   {
     Symbol.id;
-    module_id = Symbol.prelude_module_id;
     name;
     link_name = name;
     kind = Symbol.Type;
-    visibility = Symbol.Public;
     entry_point = false;
     span = Ast.dummy_span;
     name_span = Ast.dummy_span;
@@ -73,28 +55,22 @@ let new_scope parent =
     parent;
   }
 
-(* A builtin sits in the outermost scope so a module can shadow it like any name *)
-let make_output modules =
+(* A builtin sits in the outermost scope so a program can shadow it like any name *)
+let make_output () =
   let prelude = new_scope None in
   let seed id (name, _) =
     Names.replace prelude.types (Interner.intern name) (prelude_symbol id name);
-    id + 1
+    id - 1
   in
-  ignore (List.fold_left seed 0 Types.builtins);
-  let out =
-    {
-      syms = Span.Table.create 16;
-      shadowed = Span.Table.create 16;
-      module_paths = Hashtbl.create modules;
-      file_modules = [||];
-      imports = Hashtbl.create modules;
-      failed_imports = Hashtbl.create modules;
-      prelude;
-      local_decls = [];
-    }
-  in
-  Hashtbl.add out.module_paths Symbol.prelude_module_id [];
-  out
+  (* We go negative so a builtin never grabs an id the program wants *)
+  ignore
+    (List.fold_left seed ((Symbol.unresolved_key :> int) - 1) Types.builtins);
+  {
+    syms = Span.Table.create 16;
+    shadowed = Span.Table.create 16;
+    prelude;
+    local_decls = [];
+  }
 
 (* This is the `--emit resolve` output *)
 let dump r =
@@ -102,8 +78,8 @@ let dump r =
     Span.Table.to_seq r.syms |> List.of_seq
     |> List.sort (fun (a, _) (b, _) -> compare a b)
     |> List.map (fun (sp, s) ->
-        Printf.sprintf "(%d,%d) -> #%d.%d %s %s\n" (Span.lo sp) (Span.hi sp)
-          s.Symbol.module_id s.Symbol.id
+        Printf.sprintf "(%d,%d) -> #%d %s %s\n" (Span.lo sp) (Span.hi sp)
+          s.Symbol.id
           (Symbol.show_kind s.Symbol.kind)
           s.Symbol.name)
     |> String.concat ""
@@ -111,8 +87,8 @@ let dump r =
   "Resolver output\n\n\
    Each line maps a source byte range to its definition.\n\
    * (start,end): source byte range\n\
-   * #module.id: declaration ID\n\
-   * #-module.id: built in declaration\n\
+   * #id: declaration ID\n\
+   * #-id: built in declaration\n\
    * kind name: resolved definition\n\n" ^ entries
 
 let sym_at r span =
@@ -122,11 +98,7 @@ let sym_at r span =
 
 let sym_at_opt r span = Span.Table.find_opt r.syms span
 let shadowed_at r span = Span.Table.find_opt r.shadowed span
-
-let qname_of r s =
-  let path = Hashtbl.find r.module_paths s.Symbol.module_id in
-  Qname.make (Symbol.key s) path s.Symbol.name
-
+let qname_of s = Qname.make (Symbol.key s) s.Symbol.name
 let local_decls r = List.rev r.local_decls
 
 let builtins r =
@@ -136,50 +108,20 @@ let builtins r =
   in
   List.filter_map entry Types.builtins
 
-(* A message inside math says add where one outside says math.add *)
-let module_at r pos =
-  let bases = r.file_modules in
-  let rec search lo hi =
-    if lo > hi then None
-    else
-      let mid = (lo + hi) / 2 in
-      let base, module_id = bases.(mid) in
-      if base > pos then search lo (mid - 1)
-      else if mid + 1 < Array.length bases && fst bases.(mid + 1) <= pos then
-        search (mid + 1) hi
-      else Some module_id
-  in
-  if Array.length bases = 0 || pos < 0 then None
-  else search 0 (Array.length bases - 1)
-
-let module_path_at r span =
-  Option.bind (module_at r (Span.lo span)) (Hashtbl.find_opt r.module_paths)
-  |> Option.value ~default:[]
-
 let main_name = Interner.intern "main"
-let is_entry st kind name = kind = Symbol.Func && st.is_root && name = main_name
+let is_entry kind name = kind = Symbol.Func && name = main_name
 
-(* The C main is a generated wrapper so the entry point needs its own name *)
-let declaration_link_name st kind name =
-  let text = Interner.text name in
-  if st.qualify || is_entry st kind name then
-    Mangle.declaration st.module_path text
-  else text
-
-let mint ?(visibility = Symbol.Private) ?link_name ?name_span st kind name span
-    =
+let mint ?link_name ?name_span st kind name span =
   let id = !(st.next_id) in
   st.next_id := id + 1;
   let link_name = Option.value ~default:(Interner.text name) link_name in
   let sym =
     {
       Symbol.id;
-      module_id = st.module_id;
       name = Interner.text name;
       link_name;
       kind;
-      visibility;
-      entry_point = is_entry st kind name;
+      entry_point = is_entry kind name;
       span;
       name_span = Option.value ~default:span name_span;
     }
@@ -194,7 +136,7 @@ let enter_scope st = { st with scope = new_scope (Some st.scope) }
 let declare_local st kind name span =
   Names.replace st.scope.values name (mint st kind name span)
 
-let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
+let declare_in ?link_name table st kind (ident : Ast.ident) span =
   let name = ident.value in
   match Names.find_opt table name with
   | Some prev ->
@@ -204,27 +146,27 @@ let declare_in ?link_name table st kind visibility (ident : Ast.ident) span =
         )
   | None ->
       let link_name =
-        Option.value ~default:(declaration_link_name st kind name) link_name
+        Option.value
+          ~default:(Mangle.declaration (Interner.text name))
+          link_name
       in
       Names.replace table name
-        (mint ~visibility ~link_name ~name_span:ident.span st kind name span)
+        (mint ~link_name ~name_span:ident.span st kind name span)
 
-let declare_global ?link_name st kind visibility ident span =
-  declare_in ?link_name st.top.values st kind visibility ident span
+let declare_global ?link_name st kind ident span =
+  declare_in ?link_name st.top.values st kind ident span
 
-let declare_type st visibility ident span =
-  declare_in st.top.types st Symbol.Type visibility ident span
+let declare_type st ident span =
+  declare_in st.top.types st Symbol.Type ident span
 
 let declare_local_type st ident span =
-  declare_in st.scope.types st Symbol.LocalType Symbol.Private ident span
+  declare_in st.scope.types st Symbol.LocalType ident span
 
 let declare_local_func st (ident : Ast.ident) span =
   let link_name =
-    Printf.sprintf "_Rlocal%d_%d_%s" st.module_id !(st.next_id)
-      (Interner.text ident.value)
+    Printf.sprintf "_Rlocal%d_%s" !(st.next_id) (Interner.text ident.value)
   in
-  declare_in ~link_name st.scope.items st Symbol.LocalFunc Symbol.Private ident
-    span
+  declare_in ~link_name st.scope.items st Symbol.LocalFunc ident span
 
 let value_or_item scope name =
   match Names.find_opt scope.values name with
@@ -256,9 +198,7 @@ let rec find_func_in_scope scope name =
 
 let is_item_value sym =
   match sym.Symbol.kind with
-  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc
-  | Symbol.Module ->
-      true
+  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc -> true
   | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local | Symbol.Param
   | Symbol.ForVar | Symbol.MatchBind ->
       false
@@ -303,54 +243,19 @@ let missing_value st ~what name span =
   | Some _ -> Diagnostic.error span "local function cannot capture variable"
   | None -> Diagnostic.error span "undefined %s" what
 
-(* The name comes off the symbol not off the spelling at the use site *)
-let check_visibility st span sym =
-  if
-    sym.Symbol.module_id <> st.module_id
-    && sym.Symbol.visibility = Symbol.Private
-  then
-    Diagnostic.emit
-      (Diagnostic.error span "private declaration"
-      |> Diagnostic.secondary sym.Symbol.span "declared private here")
+let use_symbol st span sym = Span.Table.replace st.out.syms span sym
+let find_type st name = find_type_in_scope st.scope name
 
-let use_symbol st span sym =
-  check_visibility st span sym;
-  Span.Table.replace st.out.syms span sym
-
-(* A nearer value binding wins so a local named math is not a module *)
-let find_module st path =
-  match path with
-  | [] -> None
-  | root :: _ ->
-      Option.bind (lookup st root) (function
-        | { Symbol.kind = Symbol.Module; _ } ->
-            Hashtbl.find_opt st.out.imports (st.module_id, path)
-        | _ -> None)
-
-let failed_import st path =
-  Hashtbl.mem st.out.failed_imports (st.module_id, path)
-
-(* math.Vec goes through the import and Vec walks out to the builtins *)
-let find_type st path name =
-  if List.is_empty path then find_type_in_scope st.scope name
-  else
-    let member scope = Names.find_opt scope.types name in
-    Option.bind (find_module st path) member
-
-let use_type st path name span =
-  match find_type st path name with
+let use_type st name span =
+  match find_type st name with
   | Some sym -> use_symbol st span sym
   | None ->
-      let shown = Ast.show_named path name in
-      if not (failed_import st path) then
-        Diagnostic.emit (Diagnostic.error span "undefined type");
-      ignore (mint st Symbol.Error (Interner.intern shown) span)
+      Diagnostic.emit (Diagnostic.error span "undefined type");
+      ignore (mint st Symbol.Error name span)
 
 (* Semantic analysis already reports an unknown struct literal *)
 let use_type_if_found st name span =
-  match find_type st [] name with
-  | Some sym -> use_symbol st span sym
-  | None -> ()
+  match find_type st name with Some sym -> use_symbol st span sym | None -> ()
 
 let use st ~what name span =
   match lookup st name with
@@ -362,7 +267,7 @@ let use st ~what name span =
       ignore (mint st Symbol.Error name span)
 
 let use_callee st ?(what = "function") name span =
-  match (lookup st name, find_type st [] name) with
+  match (lookup st name, find_type st name) with
   | None, Some sym -> use_symbol st span sym
   | value, _ ->
       (match value with
@@ -384,53 +289,16 @@ let declare_param st p =
       Span.Table.replace st.out.syms p.param_span prev
   | None -> declare_local st Symbol.Param name p.param_span
 
-let qualified_use st p =
-  let module_path, member = Ast.path_split p in
-  match find_module st module_path with
-  | None -> Local
-  | Some scope -> (
-      match Names.find_opt scope.values member with
-      | Some sym -> Found sym
-      | None -> Missing (module_path, member))
-
-let use_qualified st ~what p span =
-  match qualified_use st p with
-  | Local -> false
-  | Found sym ->
-      use_symbol st span sym;
-      true
-  | Missing (module_path, member) ->
-      (* The import already failed so every name under it would say the same thing twice *)
-      if not (failed_import st module_path) then
-        Diagnostic.emit (Diagnostic.error span "undefined %s" what);
-      (* The stages after this read a symbol back off every span they walk *)
-      ignore
-        (mint st Symbol.Error
-           (Interner.intern (Ast.show_named module_path member))
-           span);
-      true
-
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name st ~path ~name span =
+let use_type_name st name span =
   (* A nearer value wins so a local named str isn't the builtin type *)
-  if List.is_empty path && lookup st name <> None then false
+  if lookup st name <> None then false
   else
-    match find_type st path name with
+    match find_type st name with
     | None -> false
     | Some sym ->
         use_symbol st span sym;
         true
-
-let use_qualified_callee st p span =
-  match qualified_use st p with
-  | Local -> false
-  | Found sym ->
-      use_symbol st span sym;
-      true
-  | Missing _ ->
-      let path, name = Ast.path_split p in
-      use_type_name st ~path ~name span
-      || use_qualified st ~what:"function" p span
 
 let resolve_missing_value_root st name span =
   match find_type_in_scope st.scope name with
@@ -442,23 +310,17 @@ let resolve_missing_value_root st name span =
 let resolve_value_root st p =
   let { Ast.value = name; span } = Nonempty.hd p.Ast.owner in
   match lookup st name with
-  | Some { Symbol.kind = Symbol.Module; _ } -> false
   | Some sym ->
       use_symbol st span sym;
       true
   | None -> resolve_missing_value_root st name span
 
-let rec resolve_path st p span =
-  if
-    (not (use_qualified st ~what:"variable" p span))
-    && not (resolve_value_root st p)
-  then begin
+let rec resolve_path st p =
+  if not (resolve_value_root st p) then
     let prefix = Ast.owner_expr p in
-    let init, { Ast.value = name; _ } = Nonempty.destruct_last p.Ast.owner in
-    let path = List.map (fun n -> n.Ast.value) init in
-    if not (use_type_name st ~path ~name prefix.Ast.span) then
-      resolve_expr st prefix
-  end
+    match prefix.Ast.desc with
+    | Ident name when use_type_name st name prefix.Ast.span -> ()
+    | _ -> resolve_expr st prefix
 
 (* The name a header ends on is the one a struct literal would have opened *)
 and rightmost e =
@@ -488,9 +350,8 @@ and resolve_expr st e =
   | Call ({ desc = Ident name; span }, args) ->
       use_callee st name span;
       List.iter (resolve_expr st) args
-  | Call (({ desc = Path segs; _ } as callee), args) ->
-      if not (use_qualified_callee st segs callee.span) then
-        resolve_path st segs callee.span;
+  | Call ({ desc = Path segs; _ }, args) ->
+      resolve_path st segs;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
       resolve_expr st callee;
@@ -504,7 +365,7 @@ and resolve_expr st e =
       resolve_expr st r
   | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
   | RangeFull -> ()
-  | Path segs -> resolve_path st segs e.span
+  | Path segs -> resolve_path st segs
   | FieldAccess (inner, _) -> resolve_expr st inner
   | Cast (ty, inner) ->
       resolve_typ st ty;
@@ -514,9 +375,8 @@ and resolve_expr st e =
       resolve_expr st base;
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | StructLit (path, { value = name; span = name_span }, fields) ->
-      if List.is_empty path then use_type_if_found st name name_span
-      else use_type st path name name_span;
+  | StructLit ({ value = name; span = name_span }, fields) ->
+      use_type_if_found st name name_span;
       List.iter (fun (_, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | Match (scrutinee, arms) ->
@@ -562,7 +422,7 @@ and resolve_pattern st p =
 
 and resolve_typ st t =
   match t.tdesc with
-  | Named (path, name) -> use_type st path name t.tspan
+  | Named name -> use_type st name t.tspan
   | Pointer t | Slice t -> resolve_typ st t
   | Array (e, t) ->
       resolve_expr st e;
@@ -620,28 +480,10 @@ and resolve_decl st = function
   (* TODO(c111): nothing to walk until a variant can hold a type *)
   | Enum _ -> ()
 
-let visibility modifiers =
-  if List.mem Ast.Pub modifiers then Symbol.Public else Symbol.Private
-
+(* An extern fn with a body is there for C to call so it keeps its own name *)
 let foreign_link_name (fd : Ast.func_def) =
-  if fd.extern_abi <> Ast.NoAbi && List.mem Ast.Pub fd.func_modifiers then
-    Some (Interner.text fd.func_name.value)
+  if fd.extern_abi <> Ast.NoAbi then Some (Interner.text fd.func_name.value)
   else None
-
-let make_state ~out ~module_id ~module_path ~qualify ~is_root =
-  let top = new_scope (Some out.prelude) in
-  {
-    out;
-    module_id;
-    module_path;
-    qualify;
-    is_root;
-    top;
-    scope = top;
-    value_boundary = None;
-    next_id = ref 0;
-    header_hole = ref None;
-  }
 
 (* A top level name lands first so a body can forward reference *)
 let declare_decls st decls =
@@ -649,114 +491,30 @@ let declare_decls st decls =
     (function
       | Func fd ->
           declare_global ?link_name:(foreign_link_name fd) st Symbol.Func
-            (visibility fd.func_modifiers)
             fd.func_name fd.func_span
       | Extern fd ->
           declare_global
             ~link_name:(Interner.text fd.func_name.value)
-            st Symbol.Extern
-            (visibility fd.func_modifiers)
-            fd.func_name fd.func_span
-      | Global gd ->
-          declare_global st Symbol.Global (visibility gd.modifiers) gd.name
-            gd.span
-      | Struct sd ->
-          declare_type st
-            (visibility sd.struct_modifiers)
-            sd.struct_name sd.struct_span
-      | TypeAlias td ->
-          declare_type st
-            (visibility td.alias_modifiers)
-            td.alias_name td.alias_span
-      | Enum ed ->
-          declare_type st
-            (visibility ed.enum_modifiers)
-            ed.enum_name ed.enum_span)
+            st Symbol.Extern fd.func_name fd.func_span
+      | Global gd -> declare_global st Symbol.Global gd.name gd.span
+      | Struct sd -> declare_type st sd.struct_name sd.struct_span
+      | TypeAlias td -> declare_type st td.alias_name td.alias_span
+      | Enum ed -> declare_type st ed.enum_name ed.enum_span)
     decls
 
-let resolve ~module_id decls =
-  let out = make_output 1 in
-  Hashtbl.add out.module_paths module_id [];
+let resolve decls =
+  let out = make_output () in
+  let top = new_scope (Some out.prelude) in
   let st =
-    make_state ~out ~module_id ~module_path:[] ~qualify:false ~is_root:true
+    {
+      out;
+      top;
+      scope = top;
+      value_boundary = None;
+      next_id = ref 0;
+      header_hole = ref None;
+    }
   in
   declare_decls st decls;
   List.iter (resolve_decl st) decls;
   out
-
-let resolve_program program =
-  let count = Array.length program.Program.modules in
-  let out = make_output count in
-  let states = Hashtbl.create count in
-  let state_of module_ = Hashtbl.find states module_.Program.module_id in
-  let bases = ref [] in
-  let start module_ =
-    Hashtbl.add out.module_paths module_.Program.module_id module_.Program.path;
-    List.iter
-      (fun unit_ ->
-        bases :=
-          (unit_.Program.source.Program.base, module_.Program.module_id)
-          :: !bases)
-      module_.Program.units;
-    let is_root =
-      module_.Program.module_id = program.Program.root.Program.module_id
-    in
-    Hashtbl.add states module_.Program.module_id
-      (make_state ~out ~module_id:module_.Program.module_id
-         ~module_path:module_.Program.path ~qualify:true ~is_root)
-  in
-  (* The scope is shared so an import sees names declared after this *)
-  let failed_ids = Hashtbl.create count in
-  Array.iter
-    (fun module_ ->
-      if module_.Program.failed then
-        Hashtbl.replace failed_ids module_.Program.module_id ())
-    program.Program.modules;
-  let link_imports module_ =
-    let st = state_of module_ in
-    let bind_name dependency (import : Ast.import) target name =
-      match Names.find_opt st.top.values name with
-      | Some prev ->
-          Diagnostic.emit
-            (Diagnostic.error import.Ast.span "already defined"
-            |> Diagnostic.secondary prev.Symbol.span "previous definition here"
-            )
-      | None ->
-          Hashtbl.replace out.imports
-            (module_.Program.module_id, [ name ])
-            target.top;
-          if Hashtbl.mem failed_ids dependency.Program.target then
-            Hashtbl.replace out.failed_imports
-              (module_.Program.module_id, [ name ])
-              ();
-          Names.replace st.top.values name
-            (mint st Symbol.Module name import.Ast.span)
-    in
-    let bind dependency =
-      let target = Hashtbl.find states dependency.Program.target in
-      let import = dependency.Program.import in
-      match List.rev import.Ast.path with
-      | [] -> ()
-      | name :: _ -> bind_name dependency import target name
-    in
-    List.iter bind module_.Program.dependencies
-  in
-  let declare module_ =
-    declare_decls (state_of module_) (Program.module_decls module_)
-  in
-  let resolve module_ =
-    let st = state_of module_ in
-    List.iter (resolve_decl st) (Program.module_decls module_)
-  in
-  Array.iter start program.Program.modules;
-  out.file_modules <- Array.of_list !bases;
-  Array.sort (fun (a, _) (b, _) -> compare a b) out.file_modules;
-  Array.iter link_imports program.Program.modules;
-  (* Every module declares before any body resolves so imports go both ways *)
-  Array.iter declare program.Program.modules;
-  Array.iter resolve program.Program.modules;
-  let decls =
-    program.Program.modules |> Array.to_list
-    |> List.concat_map Program.module_decls
-  in
-  { uses = out; decls }

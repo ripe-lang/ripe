@@ -9,8 +9,6 @@ import sys
 import tempfile
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-IMPORT_PATH = os.path.dirname(os.path.dirname(TEST_DIR))
-IMPORT_PATH_LABEL = "<import-path>"
 TEST_TIMEOUT = 10
 BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
@@ -119,9 +117,7 @@ def c_sources(testdir):
 
 
 def scrub(text, testdir):
-    return text.replace(os.path.realpath(testdir) + os.sep, "").replace(
-        IMPORT_PATH + os.sep, IMPORT_PATH_LABEL + os.sep
-    )
+    return text.replace(os.path.realpath(testdir) + os.sep, "")
 
 
 def compare(actual, golden, label, promote):
@@ -148,7 +144,7 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
     object_file = os.path.join(workdir, "main.o")
     flags = extra_flags(testdir)
     sources = c_sources(testdir) if flags is None else []
-    command = [ripec, "-I", IMPORT_PATH]
+    command = [ripec]
     if flags is not None:
         command += flags
     elif sources:

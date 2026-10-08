@@ -47,7 +47,6 @@ type token =
   | CONTINUE
   | STRUCT
   | EXTERN
-  | PUBLIC
   | FUNC
   | CARET
   | TRUE
@@ -70,8 +69,6 @@ type token =
   | EOF
   | ERROR of string
   | TYPE
-  | IMPORT
-  | MODULE
   | LOOP
   | ENUM
   | MATCH
@@ -96,11 +93,8 @@ let keywords =
     ("null", NULL);
     ("extern", EXTERN);
     ("struct", STRUCT);
-    ("pub", PUBLIC);
     ("fn", FUNC);
     ("type", TYPE);
-    ("import", IMPORT);
-    ("module", MODULE);
     ("loop", LOOP);
     ("enum", ENUM);
     ("match", MATCH);
@@ -182,8 +176,8 @@ let show_token = function
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK
-    | CONTINUE | SIZEOF | NULL | EXTERN | STRUCT | PUBLIC | FUNC | TYPE | IMPORT
-    | MODULE | LOOP | ENUM | MATCH | CAST ) as t ->
+    | CONTINUE | SIZEOF | NULL | EXTERN | STRUCT | FUNC | TYPE | LOOP | ENUM
+    | MATCH | CAST ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token token =

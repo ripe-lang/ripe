@@ -2,20 +2,12 @@
 
 open Ripe
 
-let show path name = print_endline (Mangle.declaration path name)
+let show name = print_endline (Mangle.declaration name)
 
-let%expect_test "mangle: a name at the root" =
-  show [] "main";
+let%expect_test "mangle: a name gets its length up front" =
+  show "main";
   [%expect {| _R4main |}]
 
-let%expect_test "mangle: a name inside one module" =
-  show [ "math" ] "add";
-  [%expect {| _R4math3add |}]
-
-let%expect_test "mangle: a name inside a nested module" =
-  show [ "math"; "vector" ] "first";
-  [%expect {| _R4math6vector5first |}]
-
-let%expect_test "mangle: a component longer than nine characters" =
-  show [ "collections" ] "binary_search";
-  [%expect {| _R11collections13binary_search |}]
+let%expect_test "mangle: a name longer than nine characters" =
+  show "binary_search";
+  [%expect {| _R13binary_search |}]

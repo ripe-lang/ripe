@@ -1,7 +1,0 @@
-import math;
-
-fn main() i32 {
-  var big: i64 = 300;
-  var s: math.Small = cast(math.Small, big);
-  return cast(i32, s);
-}

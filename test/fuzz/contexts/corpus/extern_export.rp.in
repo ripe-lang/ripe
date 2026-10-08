@@ -1,4 +1,4 @@
-pub extern "C" fn doubled(x: i32) i32 {
+extern "C" fn doubled(x: i32) i32 {
   return x * 2;
 }
 

@@ -1,5 +1,0 @@
-import geometry;
-
-pub fn answer() i32 {
-  return geometry.area();
-}

@@ -3,4 +3,4 @@
 exception Failed
 
 val parse :
-  (Lexing.lexbuf -> Tokens.token * Ast.span) -> Lexing.lexbuf -> Ast.module_
+  (Lexing.lexbuf -> Tokens.token * Ast.span) -> Lexing.lexbuf -> Ast.decl list

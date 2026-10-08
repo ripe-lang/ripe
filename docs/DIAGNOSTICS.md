@@ -133,12 +133,12 @@ Known issue: I haven't fully fleshed out the warning system. I still don't have 
 This is not about grouping all unused variables into one message: but rather one cause, one diagnostic.
 
 ```text
-error: module not found: math
-  at main.rp:1:1
-    import math;
-    ^~~~~~~~~~~
+error: undefined variable
+  at main.rp:2:11
+    var n = missing;
+            ^~~~~~~
 
-(and not a second error for math.answer that was not found)
+(and not a second error for n + 1 on a type we don't know)
 ```
 
 ### 6. Long lines

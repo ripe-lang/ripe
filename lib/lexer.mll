@@ -5,12 +5,10 @@ open Tokens
 
 (* The state stays local to each lex session *)
 type state = {
-  base : int;
   strbuf : Buffer.t;
 }
 
-let make_state base = {
-  base;
+let make_state () = {
   strbuf = Buffer.create 64;
 }
 
@@ -21,10 +19,8 @@ let max_floatsuf_len = String.length "f32"
 let lexbuf_of_string src =
   Lexing.from_string ~with_positions:false src
 
-let lexbuf_span st lexbuf =
-  Span.make
-    (st.base + lexbuf.Lexing.lex_start_pos)
-    (st.base + lexbuf.Lexing.lex_curr_pos)
+let lexbuf_span lexbuf =
+  Span.make lexbuf.Lexing.lex_start_pos lexbuf.Lexing.lex_curr_pos
 
 let int_token ?suf text =
   match Int64.of_string_opt text with
@@ -197,9 +193,7 @@ and read_string st = parse
   (* The lexer continues until the string closes *)
   | '\\' [^ '\r' '\n'] {
       let span =
-        Span.make
-          (st.base + lexbuf.Lexing.lex_start_pos + 1)
-          (st.base + lexbuf.Lexing.lex_curr_pos)
+        Span.make (lexbuf.Lexing.lex_start_pos + 1) lexbuf.Lexing.lex_curr_pos
       in
       Diagnostic.emit (Diagnostic.error span "unknown escape");
       read_string st lexbuf
@@ -228,7 +222,7 @@ and read_block_comment st depth = parse
 {
 let read st lexbuf =
   let t = read_token st lexbuf in
-  let span = lexbuf_span st lexbuf in
+  let span = lexbuf_span lexbuf in
   begin match t with
   | ERROR msg -> Diagnostic.emit (Diagnostic.error span "%s" msg)
   | _ -> ()

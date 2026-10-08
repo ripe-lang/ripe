@@ -7,9 +7,6 @@ let dummy_span = Span.dummy
 (* x, point, Color *)
 type name = Interner.id
 
-let show_names names = String.concat "." (List.map Interner.text names)
-let show_named path name = show_names (path @ [ name ])
-
 (* The show deriver looks these printers up by name *)
 let pp_span = Span.pp
 let pp_name = Interner.pp
@@ -77,8 +74,6 @@ let show_unop_sym = function
   | Deref -> "*"
   | AddressOf -> "&"
 
-type modifier = Pub [@@deriving show { with_path = false }]
-
 type expr_desc =
   | Int of int64 * string option
   | Float of float * string option
@@ -103,7 +98,7 @@ type expr_desc =
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
-  | StructLit of name list * name spanned * (name option spanned * expr) list
+  | StructLit of name spanned * (name option spanned * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | While of loop_label option * expr * block
@@ -135,7 +130,7 @@ and local_decl =
   | LocalEnum of enum_def
 
 and typ_desc =
-  | Named of name list * name
+  | Named of name
   | Pointer of typ
   | FuncPtr of abi * typ list * typ option
   | Array of expr * typ
@@ -153,26 +148,14 @@ and field = { field_name : ident; field_typ : typ }
 and struct_def = {
   struct_name : ident;
   fields : field list;
-  struct_modifiers : modifier list;
   struct_span : span;
 }
 
-and type_alias_def = {
-  alias_name : ident;
-  alias_typ : typ;
-  alias_modifiers : modifier list;
-  alias_span : span;
-}
+and type_alias_def = { alias_name : ident; alias_typ : typ; alias_span : span }
 
 (* TODO(f1ac): every enum is an i32 and flags don't exist *)
 (* TODO(d737): a variant carries no explicit value and no payload *)
-and enum_def = {
-  enum_name : ident;
-  variants : ident list;
-  enum_modifiers : modifier list;
-  enum_span : span;
-}
-
+and enum_def = { enum_name : ident; variants : ident list; enum_span : span }
 and param = { param_name : ident; param_typ : typ; param_span : span }
 
 and func_def = {
@@ -180,7 +163,6 @@ and func_def = {
   params : param list;
   ret : typ option;
   body : block;
-  func_modifiers : modifier list;
   variadic : bool;
   extern_abi : abi;
   func_span : span;
@@ -205,7 +187,6 @@ type global_def = {
   name : ident;
   typ : typ option;
   init : expr option;
-  modifiers : modifier list;
   span : span;
 }
 [@@deriving show { with_path = false }]
@@ -226,16 +207,3 @@ let decl_of_local = function
   | LocalTypeAlias td -> TypeAlias td
   | LocalFunc fd -> Func fd
   | LocalEnum ed -> Enum ed
-
-type import = { path : name list; span : span }
-[@@deriving show { with_path = false }]
-
-type module_header = { name : name; span : span }
-[@@deriving show { with_path = false }]
-
-type module_ = {
-  header : module_header option;
-  imports : import list;
-  decls : decl list;
-}
-[@@deriving show { with_path = false }]

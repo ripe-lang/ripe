@@ -90,27 +90,6 @@ fn main() i32 { return value() }
            ^~~~~ previous definition here
     |}]
 
-let%expect_test "an import cycle prints its path after the source" =
-  let program =
-    Pipeline.load_tree
-      [
-        ("main.rp", "import a;\nfn main() i32 { return 0 }");
-        ("a.rp", "import b;\npub fn fa() {}");
-        ("b.rp", "import a;\npub fn fb() {}");
-      ]
-  in
-  List.iter (render_in program) (Diagnostic.take ());
-  [%expect
-    {|
-    error: import cycle
-      at <test>:1:1
-        import a;
-        ^~~~~~~~
-      module a
-        imports b from a.rp
-        imports a from b.rp
-    |}]
-
 let%expect_test "an internal error prints its detail and reporting URL" =
   let src = "fn main() i32 { return 0 }" in
   render src
@@ -140,7 +119,7 @@ let%expect_test "the headline drops the severity and keeps the message" =
 
 let%expect_test "the primary span and detail come back out" =
   let src = "abc\n" in
-  let d = Diagnostic.(error (span src "abc") "x" |> detail "the reason\n") in
+  let d = Diagnostic.internal ~span:(span src "abc") "the reason" in
   let show d =
     Printf.printf "%s %S\n"
       (match Diagnostic.primary d with

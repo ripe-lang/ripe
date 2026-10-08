@@ -6,7 +6,6 @@ type severity = Error | Warning | Note | Help
 
 exception Errors of t list
 
-val detail : string -> t -> t
 val detail_of : t -> string option
 val emit : t -> unit
 val error : Ast.span -> ('a, unit, string, t) format4 -> 'a
@@ -21,7 +20,6 @@ val label : ('a, unit, string, t -> t) format4 -> 'a
 val primary : t -> Ast.span option
 val quietly : (unit -> 'a) -> 'a
 val render : ctx -> t -> string
-val render_with : (int -> ctx) -> ctx -> t -> string
 val secondary : Ast.span -> string -> t -> t
 val severity_label : bool -> severity -> string
 val take : unit -> t list

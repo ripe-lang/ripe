@@ -21,7 +21,7 @@ let dump_ident (i : Ripe.Ast.ident) = Ripe.Interner.text i.value
 (* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
-  | Named (path, n) -> Ripe.Ast.show_named path n
+  | Named n -> Ripe.Interner.text n
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
   | Slice t -> "[]" ^ dump_typ t
@@ -75,9 +75,9 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ String.concat "" (List.map (fun e -> " " ^ dump_expr e) elems)
       ^ ")"
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
-  | StructLit (path, name, fields) ->
+  | StructLit (name, fields) ->
       "(struct "
-      ^ Ripe.Ast.show_named path name.value
+      ^ Ripe.Interner.text name.value
       ^ String.concat ""
           (List.map
              (fun ((f : _ Ripe.Ast.spanned), e) ->
@@ -148,7 +148,7 @@ and dump_block (body : Ripe.Ast.block) : string =
 
 let dump_tokens src =
   Diag.fresh ();
-  let st = Ripe.Lexer.make_state 0 in
+  let st = Ripe.Lexer.make_state () in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
     let t, _ = Ripe.Lexer.read st lexbuf in

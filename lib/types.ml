@@ -105,8 +105,7 @@ let builtins =
       ("ptr", TPtr);
     ]
 
-let rec show_ty_with show_name t =
-  let show_ty = show_ty_with show_name in
+let rec show_ty t =
   match t with
   | TInt k -> String.lowercase_ascii (show_int_kind k)
   | TFloat k -> String.lowercase_ascii (show_float_kind k)
@@ -118,14 +117,14 @@ let rec show_ty_with show_name t =
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TPtr -> "ptr"
-  | TStruct (name, []) -> show_name name
+  | TStruct (name, []) -> Qname.show name
   | TStruct (name, args) ->
-      Printf.sprintf "%s[%s]" (show_name name)
+      Printf.sprintf "%s[%s]" (Qname.show name)
         (String.concat ", " (List.map show_ty args))
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
-  | TAlias (name, _) -> show_name name
-  | TEnum name -> show_name name
+  | TAlias (name, _) -> Qname.show name
+  | TEnum name -> Qname.show name
   | TFunc (ps, r, abi) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TUnit -> " ()" | t -> " " ^ show_ty t in
@@ -140,10 +139,6 @@ let rec show_ty_with show_name t =
   | TError -> "<unknown type>"
   | TUnit -> "()"
 
-let show_ty t = show_ty_with Qname.show t
-
-(* A reader inside the module a name belongs to doesn't need its path *)
-let show_ty_in current t = show_ty_with (Qname.show_in current) t
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
 (* An alias is just another name for its base type so it doesn't make two types *)

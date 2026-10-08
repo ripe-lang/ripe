@@ -15,8 +15,6 @@ RIPEC = os.environ.get(
     "RIPEC", os.path.join(REPO_ROOT, "_build/install/default/bin/ripec")
 )
 
-IMPORT = ["-I", REPO_ROOT]
-
 WORK = os.path.join(FUZZ_DIR, "fuzzwork")
 OWNER = os.getpid()
 RUN = os.path.join(WORK, str(OWNER))
@@ -85,7 +83,7 @@ def run(src, argv=None):
 
     try:
         r = subprocess.run(
-            argv or [RIPEC] + IMPORT + ["--emit", "check", MAIN],
+            argv or [RIPEC, "--emit", "check", MAIN],
             cwd=d,
             capture_output=True,
             text=True,

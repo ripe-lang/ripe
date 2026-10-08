@@ -57,15 +57,6 @@ fn main() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "qbe accepts public declarations" =
-  run_codegen_ok
-    {|
-pub var count: i32 = 1;
-pub fn value() i32 { return count }
-fn main() i32 { return value() }
-|};
-  [%expect {| ok |}]
-
 let%expect_test "qbe accepts main allocation" =
   run_codegen_ok
     {|
@@ -155,7 +146,7 @@ let%expect_test "qbe hands a C export its aggregates by value" =
   run_codegen
     {|
 struct Pair { left: i32, right: i32 }
-pub extern "C" fn first(p: Pair) i32 { return p.left }
+extern "C" fn first(p: Pair) i32 { return p.left }
 |};
   [%expect
     {|
@@ -174,7 +165,7 @@ let%expect_test "qbe returns a C aggregate to the caller" =
   run_codegen_ok
     {|
 struct Pair { left: i32, right: i32 }
-pub extern "C" fn make(x: i32) Pair { return Pair { left: x, right: x } }
+extern "C" fn make(x: i32) Pair { return Pair { left: x, right: x } }
 fn main() i32 {
   var pair = make(2);
   return pair.left + pair.right;
@@ -186,7 +177,7 @@ let%expect_test "qbe keeps the Ripe ABI for a Ripe export" =
   run_codegen
     {|
 struct Pair { left: i32, right: i32 }
-pub extern "Ripe" fn first(p: Pair) i32 { return p.left }
+extern "Ripe" fn first(p: Pair) i32 { return p.left }
 |};
   [%expect
     {|
