@@ -77,10 +77,8 @@ let check_src src =
 let mir_src src =
   let tdecls = fst (check_src src) in
   let program = Ripe.Mir.build tdecls in
-  match Ripe.Mir.verify program with
-  | Ok () -> program
-  | Error errors ->
-      errors |> List.map Ripe.Mir.show_error |> String.concat "\n" |> failwith
+  Ripe.Mir.verify program;
+  program
 
 let source_of_src src _ = ("<test>", Ripe.Sourcemap.create ~base:0 src)
 

@@ -799,11 +799,13 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
       emit_jnz ctx
         (emit_mir_operand mctx condition)
         (mir_block_label ctx yes) (mir_block_label ctx no)
-  | Mir.Assert (check, ok, fail) ->
+  | Mir.Check (check, ok) ->
+      let fail = "@panic" ^ string_of_int ok in
       emit_jnz ctx
         (emit_mir_check_condition mctx check)
-        (mir_block_label ctx fail) (mir_block_label ctx ok)
-  | Mir.Panic check -> emit_mir_panic mctx terminator.Mir.span check
+        fail (mir_block_label ctx ok);
+      emit_label ctx fail;
+      emit_mir_panic mctx terminator.Mir.span check
   | Mir.ReturnValue None -> (
       match c_result_slot mctx.func mctx.bindings with
       | Some slot -> emit ctx "ret %s\n" slot

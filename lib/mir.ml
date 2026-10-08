@@ -95,8 +95,7 @@ type terminator = { desc : terminator_desc; span : Ast.span }
 and terminator_desc =
   | Jump of block_id
   | Branch of operand * block_id * block_id
-  | Assert of check * block_id * block_id
-  | Panic of check
+  | Check of check * block_id
   | ReturnValue of operand option
   | Unreachable
 
@@ -144,11 +143,6 @@ type program = {
   functions : func list;
 }
 
-type open_block = {
-  mutable statements : statement list;
-  mutable terminator : terminator option;
-}
-
 type loop_context = {
   label : Ast.name option;
   continue_block : block_id;
@@ -156,41 +150,127 @@ type loop_context = {
   result : (place * Types.ty) option;
 }
 
-type env = {
-  struct_layouts : Layout.t;
-  globals : (Symbol.key, string) Hashtbl.t;
-}
-
 type builder = {
-  env : env;
+  layouts : Layout.t;
+  global_names : (Symbol.key, string) Hashtbl.t;
   locals : local Dynarray.t;
   symbols : (Symbol.id, local_id) Hashtbl.t;
-  blocks : open_block Dynarray.t;
-  bare_return_zero : bool;
+  blocks : block Dynarray.t;
   mutable current : block_id;
   mutable loops : loop_context list;
   mutable result : local_id option;
 }
 
-type error = { function_name : string; error_span : Ast.span; message : string }
-
 type context = {
   structs : ty array Symbol.Table.t;
   globals : (string, ty) Hashtbl.t;
+  signatures : (string, ty list * ty) Hashtbl.t;
+  func : func;
 }
 
-type func_context = { program : context; func : func; errors : error list ref }
+let make_builder layouts global_names =
+  {
+    layouts;
+    global_names;
+    locals = Dynarray.create ();
+    symbols = Hashtbl.create 16;
+    blocks = Dynarray.make 1 { statements = []; terminator = None };
+    current = 0;
+    loops = [];
+    result = None;
+  }
 
-let build_struct_layouts (struct_decls : struct_decl list) =
-  let struct_layouts = Layout.create () in
-  List.iter
-    (fun (decl : struct_decl) ->
-      Layout.set_struct_fields struct_layouts (Qname.key decl.name) decl.fields)
-    struct_decls;
-  struct_layouts
+let finish_blocks (state : builder) =
+  Dynarray.to_array state.blocks
+  |> Array.map (fun (b : block) ->
+      { b with statements = List.rev b.statements })
+
+let add_local (state : builder) name storage ty span =
+  let id = Dynarray.length state.locals in
+  Dynarray.add_last state.locals { name; ty; storage; span };
+  id
+
+let declare state (symbol : Symbol.t) storage ty span =
+  let id = add_local state (Some symbol.name) storage ty span in
+  Hashtbl.add state.symbols symbol.id id;
+  id
+
+let new_block (state : builder) =
+  let id = Dynarray.length state.blocks in
+  Dynarray.add_last state.blocks { statements = []; terminator = None };
+  id
+
+let current_block (state : builder) = Dynarray.get state.blocks state.current
+let is_live state = Option.is_none (current_block state).terminator
+let switch state block = state.current <- block
+
+let emit (state : builder) desc span =
+  let b = current_block state in
+  if Option.is_none b.terminator then
+    Dynarray.set state.blocks state.current
+      { b with statements = { desc; span } :: b.statements }
+
+let terminate (state : builder) desc span =
+  let b = current_block state in
+  if Option.is_none b.terminator then
+    Dynarray.set state.blocks state.current
+      { b with terminator = Some { desc; span } }
+
+let loop_target state label span =
+  let target =
+    match (label, state.loops) with
+    | None, loop :: _ -> Some loop
+    | None, [] -> None
+    | Some label, loops ->
+        List.find_opt (fun loop -> loop.label = Some label.Ast.value) loops
+  in
+  match target with
+  | Some target -> target
+  | None -> Diagnostic.ice ~span "loop target does not exist"
+
+let local_place span id =
+  { base = Local id; projections = []; place_span = span }
+
+let add_projection place projection =
+  { place with projections = projection :: place.projections }
+
+let copy span ty place : operand = { desc = Copy place; ty; span }
+let const span ty desc : operand = { desc = Const desc; ty; span }
+
+let new_temp (state : builder) span ty =
+  local_place span (add_local state None Temp ty span)
+
+let store state destination ty span desc =
+  emit state (Assign (destination, { desc; ty })) span
+
+let assign state destination (assigned : operand) =
+  store state destination assigned.ty assigned.span (Use assigned)
+
+let temp_value state ty span desc =
+  let destination = new_temp state span ty in
+  store state destination ty span desc;
+  copy span ty destination
+
+let materialize state (operand : operand) =
+  match operand.desc with
+  | Copy place -> place
+  | Const _ ->
+      let destination = new_temp state operand.span operand.ty in
+      assign state destination operand;
+      destination
+
+let symbol_place (state : builder) span (symbol : Symbol.t) =
+  match Hashtbl.find_opt state.symbols symbol.id with
+  | Some id -> local_place span id
+  | None -> (
+      match Hashtbl.find_opt state.global_names (Symbol.key symbol) with
+      | Some name -> { base = Global name; projections = []; place_span = span }
+      | None ->
+          Diagnostic.ice ~span
+            (Printf.sprintf "no MIR place for symbol %s" symbol.name))
 
 (* TODO(7a4f): This is temporary until global inits fold again *)
-let literal (expr : Tast.texpr) =
+let constant_of (expr : Tast.texpr) =
   match expr.desc with
   (* The MIR keeps the value but not the variant name *)
   | Tast.TInt value | Tast.TVariant (_, value) -> Int value
@@ -208,138 +288,8 @@ let literal (expr : Tast.texpr) =
         (Diagnostic.Errors
            [ Diagnostic.error expr.span "global initializer must be a literal" ])
 
-let rec global_init (expr : Tast.texpr) =
-  match expr.desc with
-  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TIdent symbol; _ }) ->
-      GlobalAddress symbol.Symbol.link_name
-  | Tast.TArrayLit values -> GlobalArray (List.map global_init values)
-  | Tast.TStructLit (_, fields) ->
-      let compare_field_ids (left, _) (right, _) = Int.compare left right in
-      GlobalStruct
-        (List.map
-           (fun (field, value) -> (field, global_init value))
-           (List.sort compare_field_ids fields))
-  | _ -> GlobalConst (literal expr, expr.ty)
-
-let make_builder env (func : Tast.tfunc_def) =
-  let bare_return_zero =
-    func.entry_point && func.ret_ty = Types.TInt Types.I32
-  in
-  let blocks = Dynarray.create () in
-  Dynarray.add_last blocks ({ statements = []; terminator = None } : open_block);
-  {
-    env;
-    locals = Dynarray.create ();
-    symbols = Hashtbl.create 16;
-    blocks;
-    bare_return_zero;
-    current = 0;
-    loops = [];
-    result = None;
-  }
-
-let finish_blocks (state : builder) =
-  Dynarray.to_array state.blocks
-  |> Array.map (fun (b : open_block) : block ->
-      { statements = List.rev b.statements; terminator = b.terminator })
-
-let add_named (state : builder) name storage ty span =
-  let id = Dynarray.length state.locals in
-  Dynarray.add_last state.locals { name = Some name; ty; storage; span };
-  id
-
-let add_temp (state : builder) ty span =
-  let id = Dynarray.length state.locals in
-  Dynarray.add_last state.locals { name = None; ty; storage = Temp; span };
-  id
-
-let declare state (symbol : Symbol.t) storage ty span =
-  let id = add_named state symbol.name storage ty span in
-  Hashtbl.add state.symbols symbol.id id;
-  id
-
-let new_block (state : builder) =
-  let id = Dynarray.length state.blocks in
-  Dynarray.add_last state.blocks { statements = []; terminator = None };
-  id
-
-let current_block (state : builder) = Dynarray.get state.blocks state.current
-let is_live state = Option.is_none (current_block state).terminator
-let switch state block = state.current <- block
-
-let emit state desc span =
-  let block = current_block state in
-  if Option.is_none block.terminator then
-    block.statements <- { desc; span } :: block.statements
-
-let terminate state desc span =
-  let block = current_block state in
-  if Option.is_none block.terminator then
-    block.terminator <- Some { desc; span }
-
-let loop_target state label span =
-  let target =
-    match (label, state.loops) with
-    | None, loop :: _ -> Some loop
-    | None, [] -> None
-    | Some label, loops ->
-        List.find_opt (fun loop -> loop.label = Some label.Ast.value) loops
-  in
-  match target with
-  | Some target -> target
-  | None -> Diagnostic.ice ~span "loop target does not exist"
-
-let place place_span base = { base; projections = []; place_span }
-
-let add_projection place projection =
-  { place with projections = projection :: place.projections }
-
-let local_place span id = place span (Local id)
-let copy span ty place : operand = { desc = Copy place; ty; span }
-
-let constant (expr : Tast.texpr) desc : operand =
-  { desc = Const desc; ty = expr.ty; span = expr.span }
-
-let const_operand span ty desc : operand = { desc = Const desc; ty; span }
-
-let assign state destination assigned =
-  if is_live state then
-    emit state
-      (Assign (destination, { desc = Use assigned; ty = assigned.ty }))
-      assigned.span
-
-let temp_value_into state destination ty span desc =
-  emit state (Assign (destination, { desc; ty })) span;
-  copy span ty destination
-
-let new_temp (state : builder) span ty =
-  local_place span (add_temp state ty span)
-
-let temp_value state ty span desc =
-  temp_value_into state (new_temp state span ty) ty span desc
-
-let materialize state (operand : operand) =
-  match operand.desc with
-  | Copy place -> place
-  | Const _ ->
-      let destination = new_temp state operand.span operand.ty in
-      assign state destination operand;
-      destination
-
-let global_place (state : builder) span (symbol : Symbol.t) =
-  match Hashtbl.find_opt state.env.globals (Symbol.key symbol) with
-  | Some name -> place span (Global name)
-  | None ->
-      Diagnostic.ice ~span
-        (Printf.sprintf "no MIR place for symbol %s" symbol.Symbol.name)
-
-let symbol_place state span symbol =
-  match Hashtbl.find_opt state.symbols symbol.Symbol.id with
-  | Some id -> local_place span id
-  | None -> global_place state span symbol
-
 (* The surviving source operators keep their meaning *)
-let lower_unop op =
+let unop_of op =
   match op with
   | Ast.Neg -> Neg
   | Ast.Not -> Not
@@ -347,7 +297,7 @@ let lower_unop op =
   | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
   | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
-let lower_binop op =
+let binop_of op =
   match op with
   | Ast.Add -> Add
   | Ast.Sub -> Sub
@@ -367,199 +317,258 @@ let lower_binop op =
   | Ast.Rshift -> Rshift
   | Ast.And | Ast.Or -> Diagnostic.ice "short circuit reached MIR as a value"
 
-let emit_check state check span =
+let is_valued ty = ty <> Types.TUnit && ty <> Types.TNever
+
+(* check_bounds copy %1 copy %2 block1 *)
+let lower_check state check span =
   if is_live state then begin
-    let fail = new_block state in
     let ok = new_block state in
-    terminate state (Assert (check, ok, fail)) span;
-    switch state fail;
-    terminate state (Panic check) span;
+    terminate state (Check (check, ok)) span;
     switch state ok
   end
 
 (* A zero width pointee touches no memory *)
-let check_null (state : builder) pointee pointer span =
-  let structs = state.env.struct_layouts in
-  if Layout.ty_size structs pointee > 0 then
-    emit_check state (Null pointer) span
+(* check_null copy %0 block1 *)
+let lower_null_check (state : builder) pointee pointer span =
+  if Layout.ty_size state.layouts pointee > 0 then
+    lower_check state (Null pointer) span
 
 (* Plain and compound arithmetic guard the same two operators the same way *)
-let check_arithmetic state op left_ty right span =
+(* check_div_zero copy %1 block1, check_negative_shift copy %1 block1 *)
+let lower_arith_check state op left_ty right span =
   match op with
   | (Ast.Div | Ast.Mod) when not (is_float left_ty) ->
-      emit_check state (DivZero right) span
+      lower_check state (DivZero right) span
   | (Ast.Lshift | Ast.Rshift) when not (is_unsigned right.ty) ->
-      emit_check state (NegativeShift right) span
+      lower_check state (NegativeShift right) span
   | _ -> ()
 
-let has_value ty = ty <> Types.TUnit && ty <> Types.TNever
+(* The minimum integer and negative one need no hardware divide *)
+(* %3 = copy %1 == -1
+   branch copy %3 block1 block2
+   block1:
+     %2 = -copy %0
+     jump block3
+   block2:
+     %2 = copy %0 / copy %1
+     jump block3 *)
+let lower_div state destination span ty op (left : operand) (right : operand) =
+  let negative_one = const span right.ty (Int (-1L)) in
+  let divisor_is_negative_one =
+    temp_value state Types.TBool span (Binary (Eq, right, negative_one))
+  in
+  let wrap_block = new_block state in
+  let divide_block = new_block state in
+  let join_block = new_block state in
+  terminate state
+    (Branch (divisor_is_negative_one, wrap_block, divide_block))
+    span;
+  switch state wrap_block;
+  if op = Mod then assign state destination (const span ty (Int 0L))
+  else store state destination ty span (Unary (Neg, left));
+  terminate state (Jump join_block) span;
+  switch state divide_block;
+  store state destination ty span (Binary (op, left, right));
+  terminate state (Jump join_block) span;
+  switch state join_block
 
-let slot_if_valued state span ty =
-  if has_value ty then Some (new_temp state span ty) else None
+(* A count past the width drains every bit *)
+(* %3 = copy %1 < 32
+   branch copy %3 block1 block2
+   block1:
+     %2 = copy %0 << copy %1
+     jump block3
+   block2:
+     %2 = 0
+     jump block3 *)
+let lower_shift state destination span ty op (left : operand) (right : operand)
+    =
+  let bits = 8 * int_kind_size (int_kind_of ty) in
+  let width = const span right.ty (Int (Int64.of_int bits)) in
+  let count_in_range =
+    temp_value state Types.TBool span (Binary (Lt, right, width))
+  in
+  let shift_block = new_block state in
+  let drained_block = new_block state in
+  let join_block = new_block state in
+  terminate state (Branch (count_in_range, shift_block, drained_block)) span;
+  switch state shift_block;
+  store state destination ty span (Binary (op, left, right));
+  terminate state (Jump join_block) span;
+  switch state drained_block;
+  (* A signed right shift settles at the top bit *)
+  if op = Rshift && not (is_unsigned ty) then
+    let top = const span right.ty (Int (Int64.of_int (bits - 1))) in
+    store state destination ty span (Binary (Rshift, left, top))
+  else assign state destination (const span ty (Int 0L));
+  terminate state (Jump join_block) span;
+  switch state join_block
 
-let slot_value span ty = function
-  | Some slot -> copy span ty slot
-  | None -> const_operand span ty Undef
+(* %2 = copy %0 + copy %1 *)
+let lower_binary state destination span ty (op : Ast.binop) (left : operand)
+    (right : operand) =
+  let lowered = binop_of op in
+  match op with
+  | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
+      lower_div state destination span ty lowered left right
+  | Ast.Lshift | Ast.Rshift ->
+      lower_shift state destination span ty lowered left right
+  | _ -> store state destination ty span (Binary (lowered, left, right))
 
-let rec block_value state expr body =
+(* %1 = call @g()
+   %0 = 3 *)
+let rec lower_block state destination body =
   match List.rev body with
-  | [] -> constant expr Undef
+  | [] -> ()
   | last :: reversed ->
       List.iter (lower_statement state) (List.rev reversed);
-      if is_live state then lower_expr state last else constant expr Undef
+      if is_live state then lower_into state destination last
 
-and block_value_into state destination (expr : Tast.texpr) body =
-  match List.rev body with
-  | [] -> assign state destination (constant expr Undef)
-  | last :: reversed ->
-      List.iter (lower_statement state) (List.rev reversed);
-      if is_live state then lower_fresh_into state destination last
-
-and lower_short_circuit state (expr : Tast.texpr) left right short_value =
+(* branch copy %0 block1 block2
+   block1:
+     %2 = copy %1
+     jump block3
+   block2:
+     %2 = false
+     jump block3 *)
+and lower_short_circuit state destination (expr : Tast.texpr) left right
+    short_value =
   let right_block = new_block state in
   let short_block = new_block state in
   let join_block = new_block state in
-  let result = add_temp state Types.TBool expr.span in
-  lower_branch state left
+  lower_cond state left
     (if short_value then short_block else right_block)
     (if short_value then right_block else short_block);
   switch state short_block;
-  assign state
-    (local_place expr.span result)
-    (const_operand expr.span Types.TBool (Bool short_value));
+  let short = const expr.span Types.TBool (Bool short_value) in
+  Option.iter (fun d -> assign state d short) destination;
   terminate state (Jump join_block) expr.span;
   switch state right_block;
-  let right = lower_expr state right in
-  assign state (local_place expr.span result) right;
-  if is_live state then terminate state (Jump join_block) expr.span;
-  switch state join_block;
-  copy expr.span Types.TBool (local_place expr.span result)
+  lower_into state destination right;
+  terminate state (Jump join_block) expr.span;
+  switch state join_block
 
-and lower_if state (expr : Tast.texpr) branches else_body =
-  let result = slot_if_valued state expr.span expr.ty in
-  lower_if_into state expr result branches else_body;
-  slot_value expr.span expr.ty result
-
-and lower_if_into state expr result branches else_body =
+(* branch copy %0 block2 block3
+   block2:
+     %1 = 1
+     jump block1
+   block3:
+     %1 = 2
+     jump block1 *)
+and lower_if state destination (expr : Tast.texpr) branches else_body =
   let join = new_block state in
-  let lower_else = function
-    | Some body -> lower_arm state expr result join body
-    | None -> terminate state (Jump join) expr.span
-  in
   let rec lower_branches = function
-    | [] -> lower_else else_body
+    | [] ->
+        lower_arm state destination expr join
+          (Option.value else_body ~default:[])
     | (condition, body) :: rest ->
         let yes = new_block state in
         let no = new_block state in
-        lower_branch state condition yes no;
+        lower_cond state condition yes no;
         switch state yes;
-        lower_arm state expr result join body;
+        lower_arm state destination expr join body;
         switch state no;
         lower_branches rest
   in
   lower_branches branches;
-  finish_join state expr join
-
-(* A pattern walks the scrutinee and gathers what to compare and what to name *)
-and pattern_plan (place : place) (ty : ty) (pat : Tast.tpattern) =
-  match pat with
-  | Tast.TPatWild -> ([], [])
-  | Tast.TPatBind (symbol, bound_ty) -> ([], [ (symbol, bound_ty, place) ])
-  | Tast.TPatConst value -> ([ (place, ty, value) ], [])
+  switch state join
 
 (* One test per arm because a jump table only pays off on a dense range *)
-and lower_match state (expr : Tast.texpr) (scrutinee : Tast.texpr) arms =
-  let result = slot_if_valued state expr.span expr.ty in
-  lower_match_into state expr result scrutinee arms;
-  slot_value expr.span expr.ty result
-
-and lower_match_into state (expr : Tast.texpr) result (scrutinee : Tast.texpr)
+(* %2 = copy %0 == 1
+   branch copy %2 block3 block2
+   block2:
+     %3 = copy %0
+     %1 = copy %3
+     jump block1
+   block3:
+     %1 = 10
+     jump block1 *)
+and lower_match state destination (expr : Tast.texpr) (scrutinee : Tast.texpr)
     arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
   let join = new_block state in
-  let wanted ty value =
+  let ty = scrutinee.ty in
+  let wanted value =
     match resolve_ty ty with
     | Types.TBool -> Bool (value <> 0L)
     | Types.TChar -> Char (Int64.to_int value)
     | _ -> Int value
   in
-  let bind (symbol, bound_ty, place) =
-    let id = declare state symbol User bound_ty expr.span in
-    assign state (local_place expr.span id) (copy expr.span bound_ty place)
-  in
-  let rec lower_tests fail = function
-    | [] -> ()
-    | (place, ty, value) :: rest ->
-        let next = new_block state in
-        let against = const_operand expr.span ty (wanted ty value) in
-        let found = copy expr.span ty place in
+  let rec lower_arms = function
+    | [] -> terminate state Unreachable expr.span
+    | { tpat = Tast.TPatWild; tbody } :: _ ->
+        lower_arm state destination expr join tbody
+    | { tpat = Tast.TPatBind (symbol, bound_ty); tbody } :: _ ->
+        let id = declare state symbol User bound_ty expr.span in
+        assign state (local_place expr.span id)
+          (copy expr.span bound_ty subject);
+        lower_arm state destination expr join tbody
+    | { tpat = Tast.TPatConst value; tbody } :: rest ->
+        let no = new_block state in
+        let yes = new_block state in
+        let against = const expr.span ty (wanted value) in
+        let found = copy expr.span ty subject in
         let equal =
           temp_value state Types.TBool expr.span (Binary (Eq, found, against))
         in
-        terminate state (Branch (equal, next, fail)) expr.span;
-        switch state next;
-        lower_tests fail rest
-  in
-  let rec lower_arms = function
-    | [] -> terminate state Unreachable expr.span
-    | { tpat; tbody } :: rest -> (
-        let tests, binds = pattern_plan subject scrutinee.ty tpat in
-        let no = if List.is_empty tests then None else Some (new_block state) in
-        Option.iter (fun no -> lower_tests no tests) no;
-        List.iter bind binds;
-        lower_arm state expr result join tbody;
-        match no with
-        | Some no ->
-            switch state no;
-            lower_arms rest
-        | None -> ())
+        terminate state (Branch (equal, yes, no)) expr.span;
+        switch state yes;
+        lower_arm state destination expr join tbody;
+        switch state no;
+        lower_arms rest
   in
   lower_arms arms;
-  finish_join state expr join
+  switch state join
 
-and lower_arm state (expr : Tast.texpr) result join body =
-  (match result with
-  | Some result -> block_value_into state result expr body
-  | None -> List.iter (lower_statement state) body);
-  if is_live state then terminate state (Jump join) expr.span
+(* %1 = 10
+   jump block1 *)
+and lower_arm state destination (expr : Tast.texpr) join body =
+  lower_block state destination body;
+  terminate state (Jump join) expr.span
 
-and finish_join state (expr : Tast.texpr) join =
-  switch state join;
-  if expr.ty = Types.TNever then terminate state Unreachable expr.span
-
-and lower_branch state (expr : Tast.texpr) yes no =
+(* branch copy %0 block1 block2, jump block1 *)
+and lower_cond state (expr : Tast.texpr) yes no =
   match expr.desc with
   | Tast.TBool value ->
       terminate state (Jump (if value then yes else no)) expr.span
-  | Tast.TUnOp (Ast.Not, inner) -> lower_branch state inner no yes
+  | Tast.TUnOp (Ast.Not, inner) -> lower_cond state inner no yes
   | Tast.TBinOp (Ast.And, left, right) ->
       let middle = new_block state in
-      lower_branch state left middle no;
+      lower_cond state left middle no;
       switch state middle;
-      lower_branch state right yes no
+      lower_cond state right yes no
   | Tast.TBinOp (Ast.Or, left, right) ->
       let middle = new_block state in
-      lower_branch state left yes middle;
+      lower_cond state left yes middle;
       switch state middle;
-      lower_branch state right yes no
+      lower_cond state right yes no
   | _ ->
       let condition = lower_expr state expr in
       if is_live state then
         terminate state (Branch (condition, yes, no)) expr.span
 
+(* jump block1
+   block1:
+     %2 = copy %1 < copy %0
+     branch copy %2 block2 block3
+   block2:
+     %1 = copy %1 + 1
+     jump block1 *)
 and lower_while state span label condition body =
   let condition_block = new_block state in
   let body_block = new_block state in
   let exit_block = new_block state in
   terminate state (Jump condition_block) span;
   switch state condition_block;
-  lower_branch state condition body_block exit_block;
+  lower_cond state condition body_block exit_block;
   switch state body_block;
   lower_loop_body state span label condition_block exit_block None body;
   switch state exit_block
 
 (* The stack gives nested loop control the nearest matching target *)
+(* %1 = copy %1 + 1
+   jump block1 *)
 and lower_loop_body state span label continue_block break_block result body =
   let label = Option.map (fun label -> label.Ast.value) label in
   state.loops <- { label; continue_block; break_block; result } :: state.loops;
@@ -568,6 +577,14 @@ and lower_loop_body state span label continue_block break_block result body =
   if is_live state then terminate state (Jump continue_block) span
 
 (* An inclusive loop checks the limit before stepping so it can't overflow *)
+(* jump block1
+   block1:
+     %3 = copy %1 < copy %2
+     branch copy %3 block2 block4
+   block3:
+     %4 = copy %1 + 1
+     %1 = copy %4
+     jump block1 *)
 and lower_counted_loop state span label op ty counter limit element body =
   let condition_block = new_block state in
   let body_block = new_block state in
@@ -595,7 +612,7 @@ and lower_counted_loop state span label op ty counter limit element body =
     terminate state (Branch (last, exit_block, increment_block)) span;
     switch state increment_block
   end;
-  let one = const_operand span ty (Int 1L) in
+  let one = const span ty (Int 1L) in
   assign state counter (temp_value state ty span (Binary (Add, current, one)));
   terminate state (Jump condition_block) span;
   switch state exit_block
@@ -608,6 +625,8 @@ and lower_for state span label symbol elem_ty (iter : Tast.texpr) body =
       lower_range_for state span label symbol elem_ty lo hi Lte body
   | _ -> lower_each_for state span label symbol elem_ty iter body
 
+(* %1 = 0
+   %2 = 3 *)
 and lower_range_for state span label symbol elem_ty lo hi op body =
   let loop_id = declare state symbol User elem_ty symbol.Symbol.span in
   let lo = lower_expr state lo in
@@ -615,11 +634,18 @@ and lower_range_for state span label symbol elem_ty lo hi op body =
   let counter = local_place span loop_id in
   assign state counter lo;
   let limit =
-    local_place span (add_named state "for.hi" Temp elem_ty hi.span)
+    local_place span (add_local state (Some "for.hi") Temp elem_ty hi.span)
   in
   assign state limit hi;
   lower_counted_loop state span label op elem_ty counter limit None body
 
+(* %6 = data_ptr %0
+   %7 = len %0
+   %2 = copy %6
+   %3 = copy %7
+   %4 = 0
+   ...
+   %5 = copy %2[copy %4] *)
 and lower_each_for state span label symbol elem_ty iter body =
   let usize = Types.TInt Usize in
   let source = lower_expr state iter |> materialize state in
@@ -632,110 +658,37 @@ and lower_each_for state span label symbol elem_ty iter body =
     | _ -> source
   in
   let pointer_ty = Types.TPointer elem_ty in
-  let pointer_id = add_temp state pointer_ty span in
+  let pointer_place = new_temp state span pointer_ty in
   let length_place = new_temp state span usize in
   let index = new_temp state span usize in
   let loop_id = declare state symbol User elem_ty symbol.Symbol.span in
   let pointer = temp_value state pointer_ty span (DataPtr source) in
   let length = temp_value state usize span (Len source) in
-  assign state (local_place span pointer_id) pointer;
+  assign state pointer_place pointer;
   assign state length_place length;
-  assign state index (const_operand span usize (Int 0L));
-  let at_index =
-    {
-      base = Local pointer_id;
-      projections = [ Index (copy span usize index) ];
-      place_span = span;
-    }
-  in
+  assign state index (const span usize (Int 0L));
+  let at_index = add_projection pointer_place (Index (copy span usize index)) in
   let element = (local_place span loop_id, copy span elem_ty at_index) in
   lower_counted_loop state span label Lt usize index length_place (Some element)
     body
 
-and lower_loop state span label ty body =
-  let result = slot_if_valued state span ty in
-  lower_loop_into state span label ty result body;
-  slot_value span ty result
-
-and lower_loop_into state span label ty result body =
+(* jump block1
+   block1:
+     %2 = copy %0 == 1
+     branch copy %2 block4 block5
+   block4:
+     %1 = 1
+     jump block2 *)
+and lower_loop state destination span label ty body =
   let body_block = new_block state in
   let exit_block = new_block state in
   terminate state (Jump body_block) span;
   switch state body_block;
-  let result = Option.map (fun place -> (place, ty)) result in
+  let result = Option.map (fun place -> (place, ty)) destination in
   lower_loop_body state span label body_block exit_block result body;
   switch state exit_block
 
-(* The minimum integer and negative one need no hardware divide *)
-and lower_guarded_div state destination span ty op (left : operand)
-    (right : operand) =
-  let negative_one = const_operand span right.ty (Int (-1L)) in
-  let divisor_is_negative_one =
-    temp_value state Types.TBool span (Binary (Eq, right, negative_one))
-  in
-  let wrap_block = new_block state in
-  let divide_block = new_block state in
-  let join_block = new_block state in
-  terminate state
-    (Branch (divisor_is_negative_one, wrap_block, divide_block))
-    span;
-  switch state wrap_block;
-  let wrapped =
-    if op = Mod then const_operand span ty (Int 0L)
-    else temp_value state ty span (Unary (Neg, left))
-  in
-  assign state destination wrapped;
-  terminate state (Jump join_block) span;
-  switch state divide_block;
-  let divided = temp_value state ty span (Binary (op, left, right)) in
-  assign state destination divided;
-  terminate state (Jump join_block) span;
-  switch state join_block;
-  copy span ty destination
-
-(* A count past the width drains every bit *)
-and lower_guarded_shift state destination span ty op (left : operand)
-    (right : operand) =
-  let bits = 8 * int_kind_size (int_kind_of ty) in
-  let width = const_operand span right.ty (Int (Int64.of_int bits)) in
-  let count_in_range =
-    temp_value state Types.TBool span (Binary (Lt, right, width))
-  in
-  let shift_block = new_block state in
-  let drained_block = new_block state in
-  let join_block = new_block state in
-  terminate state (Branch (count_in_range, shift_block, drained_block)) span;
-  switch state shift_block;
-  let shifted = temp_value state ty span (Binary (op, left, right)) in
-  assign state destination shifted;
-  terminate state (Jump join_block) span;
-  switch state drained_block;
-  (* A signed right shift settles at the top bit *)
-  let drained =
-    if op = Rshift && not (is_unsigned ty) then
-      let top = const_operand span right.ty (Int (Int64.of_int (bits - 1))) in
-      temp_value state ty span (Binary (Rshift, left, top))
-    else const_operand span ty (Int 0L)
-  in
-  assign state destination drained;
-  terminate state (Jump join_block) span;
-  switch state join_block;
-  copy span ty destination
-
-and lower_binary state span ty op left right =
-  lower_binary_into state (new_temp state span ty) span ty op left right
-
-and lower_binary_into state destination span ty (op : Ast.binop)
-    (left : operand) (right : operand) =
-  let lowered = lower_binop op in
-  match op with
-  | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
-      lower_guarded_div state destination span ty lowered left right
-  | Ast.Lshift | Ast.Rshift ->
-      lower_guarded_shift state destination span ty lowered left right
-  | _ ->
-      temp_value_into state destination ty span (Binary (lowered, left, right))
-
+(* copy %0, 1 *)
 and lower_arg state expr =
   let value : operand = lower_expr state expr in
   if value.ty = Types.TUnit then None
@@ -743,95 +696,107 @@ and lower_arg state expr =
     Some (copy value.span value.ty (materialize state value))
   else Some value
 
-and lower_expr state expr =
+(* Literals and place reads come back as is and the rest lands in a temp *)
+(* 1, copy %0, copy %0.deref.field0, copy %1 *)
+and lower_expr state (expr : Tast.texpr) =
   match expr.desc with
-  | Tast.TErrorExpr ->
-      Diagnostic.ice ~span:expr.span "error expression reached MIR"
-  | Tast.TIdent _ when expr.ty = Types.TUnit -> constant expr Undef
+  | Tast.TIdent _ when expr.ty = Types.TUnit -> const expr.span expr.ty Undef
   | Tast.TInt _ | Tast.TVariant _ | Tast.TFloat _ | Tast.TBool _ | Tast.TNull
   | Tast.TCStr _ | Tast.TStr _ | Tast.TChar _ | Tast.TZero ->
-      constant expr (literal expr)
+      const expr.span expr.ty (constant_of expr)
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
-      constant expr (literal expr)
+      const expr.span expr.ty (constant_of expr)
   | Tast.TIdent symbol ->
       copy expr.span expr.ty (symbol_place state expr.span symbol)
-  | Tast.TCall (callee, args, variadic_start) ->
-      lower_call state expr callee args variadic_start
-  | Tast.TBinOp (Ast.And, left, right) ->
-      lower_short_circuit state expr left right false
-  | Tast.TBinOp (Ast.Or, left, right) ->
-      lower_short_circuit state expr left right true
-  | Tast.TAssign (None, ({ desc = Tast.TIdent _; _ } as left), right)
-    when left.ty <> Types.TUnit ->
-      let destination = lower_place state left in
-      lower_expr_into state destination right;
-      copy expr.span left.ty destination
-  | Tast.TAssign (None, left, right) ->
-      let assigned = lower_expr state right in
-      if left.ty <> Types.TUnit then begin
-        let destination = lower_place state left in
-        assign state destination assigned
-      end;
-      assigned
-  | Tast.TAssign (Some op, left, right) ->
-      lower_compound_assign state expr op left right
-  | Tast.TBinOp (op, left, right) ->
-      let left, right = lower_binop_operands state expr op left right in
-      lower_binary state expr.span expr.ty op left right
-  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TUnOp (Ast.Deref, inner); _ }) ->
-      lower_expr state inner
-  | Tast.TUnOp (Ast.AddressOf, ({ desc = Tast.TIdent symbol; _ } as inner))
-    when Symbol.is_func symbol.Symbol.kind ->
-      let function_value = lower_expr state inner in
-      { function_value with ty = expr.ty; span = expr.span }
-  | Tast.TUnOp (Ast.AddressOf, inner) ->
-      let inner = lower_place state inner in
-      temp_value state expr.ty expr.span (AddressOf inner)
-  | Tast.TUnOp (Ast.Deref, _) ->
-      let source = lower_place state expr in
-      copy expr.span expr.ty source
-  | Tast.TUnOp (op, inner) ->
-      let inner = lower_expr state inner in
-      temp_value state expr.ty expr.span (Unary (lower_unop op, inner))
-  | Tast.TFieldAccess _ | Tast.TIndex _ ->
-      let source = lower_place state expr in
-      copy expr.span expr.ty source
-  | Tast.TCast inner ->
-      let inner = lower_expr state inner in
-      temp_value state expr.ty expr.span (Cast inner)
-  | Tast.TSizeOf ty -> temp_value state expr.ty expr.span (SizeOf ty)
+  | Tast.TUnOp (Ast.Deref, _) | Tast.TFieldAccess _ | Tast.TIndex _ ->
+      copy expr.span expr.ty (lower_place state expr)
+  | _ when is_valued expr.ty ->
+      let slot = new_temp state expr.span expr.ty in
+      lower_into state (Some slot) expr;
+      copy expr.span expr.ty slot
+  | _ ->
+      lower_into state None expr;
+      const expr.span expr.ty Undef
+
+(* The destination is always fresh so writing into it early can't clobber a
+   read *)
+(* %1 = -copy %0, %1 = cast copy %0 to i64, %2 = address_of %1, %1 = len %0 *)
+and lower_into state destination (expr : Tast.texpr) =
+  let slot () =
+    match destination with
+    | Some slot -> slot
+    | None -> new_temp state expr.span expr.ty
+  in
+  let store_value desc =
+    Option.iter (fun d -> store state d expr.ty expr.span desc) destination
+  in
+  (match expr.desc with
+  | Tast.TErrorExpr ->
+      Diagnostic.ice ~span:expr.span "error expression reached MIR"
   | Tast.TRange _ | Tast.TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.span "range outside a for loop"
-  | Tast.TArrayLit _ | Tast.TSliceExpr _ | Tast.TStructLit _ ->
-      filled_temp state expr
+  | Tast.TCall (callee, args, variadic_start) ->
+      let destination = if is_valued expr.ty then Some (slot ()) else None in
+      lower_call state destination expr callee args variadic_start
+  | Tast.TBinOp (Ast.And, left, right) ->
+      lower_short_circuit state destination expr left right false
+  | Tast.TBinOp (Ast.Or, left, right) ->
+      lower_short_circuit state destination expr left right true
+  | Tast.TBinOp (op, left, right) ->
+      let left = lower_expr state left in
+      let right = lower_expr state right in
+      lower_arith_check state op left.ty right expr.span;
+      Option.iter
+        (fun d -> lower_binary state d expr.span expr.ty op left right)
+        destination
+  | Tast.TAssign (None, left, right) when left.ty = Types.TUnit ->
+      lower_into state None right
+  | Tast.TAssign (None, left, right) ->
+      let assigned = lower_expr state right in
+      assign state (lower_place state left) assigned
+  | Tast.TAssign (Some op, left, right) ->
+      lower_compound_assign state expr op left right
+  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TUnOp (Ast.Deref, inner); _ }) ->
+      lower_into state destination inner
+  | Tast.TUnOp (Ast.AddressOf, ({ desc = Tast.TIdent symbol; _ } as inner))
+    when Symbol.is_func symbol.Symbol.kind ->
+      let function_value = const expr.span expr.ty (constant_of inner) in
+      Option.iter (fun d -> assign state d function_value) destination
+  | Tast.TUnOp (Ast.AddressOf, inner) ->
+      store_value (AddressOf (lower_place state inner))
+  | Tast.TUnOp (Ast.Deref, _)
+  | Tast.TFieldAccess _ | Tast.TIndex _ | Tast.TIdent _ | Tast.TInt _
+  | Tast.TVariant _ | Tast.TFloat _ | Tast.TBool _ | Tast.TNull | Tast.TCStr _
+  | Tast.TStr _ | Tast.TChar _ | Tast.TZero ->
+      let value = lower_expr state expr in
+      Option.iter (fun d -> assign state d value) destination
+  | Tast.TUnOp (op, inner) ->
+      store_value (Unary (unop_of op, lower_expr state inner))
+  | Tast.TCast inner -> store_value (Cast (lower_expr state inner))
+  | Tast.TSizeOf ty -> store_value (SizeOf ty)
   | Tast.TLen inner ->
-      let inner = lower_expr state inner |> materialize state in
-      temp_value state expr.ty expr.span (Len inner)
+      store_value (Len (lower_expr state inner |> materialize state))
   | Tast.TDataPtr inner ->
-      let inner = lower_expr state inner |> materialize state in
-      temp_value state expr.ty expr.span (DataPtr inner)
-  | Tast.TLocalDecl -> constant expr Undef
-  | Tast.TLoop (label, body) -> lower_loop state expr.span label expr.ty body
-  | Tast.TBlock body -> block_value state expr body
-  | Tast.TIf (branches, else_body) -> lower_if state expr branches else_body
-  | Tast.TMatch (scrutinee, arms) -> lower_match state expr scrutinee arms
-  | Tast.TWhile (label, condition, body) ->
-      lower_while state expr.span label condition body;
-      constant expr Undef
-  | Tast.TFor (label, symbol, elem_ty, iter, body) ->
-      lower_for state expr.span label symbol elem_ty iter body;
-      constant expr Undef
-  | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _ ->
-      lower_statement state expr;
-      constant expr Undef
-  | Tast.TUnit -> constant expr Undef
+      store_value (DataPtr (lower_expr state inner |> materialize state))
+  | Tast.TArrayLit elements -> lower_array_lit state (slot ()) expr elements
+  | Tast.TStructLit (_, fields) -> lower_struct_lit state (slot ()) expr fields
+  | Tast.TSliceExpr (base, lo, hi) ->
+      lower_slice state (slot ()) expr base lo hi
+  | Tast.TLoop (label, body) ->
+      lower_loop state destination expr.span label expr.ty body
+  | Tast.TBlock body -> lower_block state destination body
+  | Tast.TIf (branches, else_body) ->
+      lower_if state destination expr branches else_body
+  | Tast.TMatch (scrutinee, arms) ->
+      lower_match state destination expr scrutinee arms
+  | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _
+  | Tast.TWhile _ | Tast.TFor _ ->
+      lower_statement state expr
+  | Tast.TLocalDecl | Tast.TUnit -> ());
+  if expr.ty = Types.TNever then terminate state Unreachable expr.span
 
-and lower_call state expr callee args variadic_start =
-  let destination = slot_if_valued state expr.span expr.ty in
-  emit_call state destination expr callee args variadic_start;
-  slot_value expr.span expr.ty destination
-
-and emit_call state destination expr callee args variadic_start =
+(* %0 = call @g(), call @puts(copy %1) *)
+and lower_call state destination expr callee args variadic_start =
   let args = List.filter_map (lower_arg state) args in
   let kind =
     match resolve_ty callee.ty with
@@ -847,58 +812,17 @@ and emit_call state destination expr callee args variadic_start =
   let call =
     { destination; callee; kind; args; return_ty = expr.ty; variadic_start }
   in
-  emit state (Call call) expr.span;
-  if expr.ty = Types.TNever then terminate state Unreachable expr.span
+  emit state (Call call) expr.span
 
-and lower_binop_operands state expr op left right =
-  let left = lower_expr state left in
-  let right = lower_expr state right in
-  check_arithmetic state op left.ty right expr.span;
-  (left, right)
-
-and lower_expr_into state destination expr =
-  match expr.desc with
-  | Tast.TCall (callee, args, variadic_start) ->
-      let result = if has_value expr.ty then Some destination else None in
-      emit_call state result expr callee args variadic_start
-  | Tast.TBinOp (op, left, right) when op <> Ast.And && op <> Ast.Or ->
-      let left, right = lower_binop_operands state expr op left right in
-      ignore
-        (lower_binary_into state destination expr.span expr.ty op left right)
-  | _ ->
-      let assigned = lower_expr state expr in
-      if is_live state then assign state destination assigned
-
-and lower_fresh_into state destination expr =
-  match expr.desc with
-  | Tast.TArrayLit elements ->
-      fill_array_literal state destination expr elements
-  | Tast.TStructLit (_, fields) ->
-      fill_struct_literal state destination expr fields
-  | Tast.TSliceExpr (base, lo, hi) ->
-      fill_slice state destination expr base lo hi
-  | Tast.TBlock body -> block_value_into state destination expr body
-  | Tast.TIf (branches, else_body) ->
-      lower_if_into state expr (Some destination) branches else_body
-  | Tast.TMatch (scrutinee, arms) ->
-      lower_match_into state expr (Some destination) scrutinee arms
-  | Tast.TLoop (label, body) ->
-      lower_loop_into state expr.span label expr.ty (Some destination) body
-  | _ -> lower_expr_into state destination expr
-
-and filled_temp state (expr : Tast.texpr) =
-  let slot = new_temp state expr.span expr.ty in
-  lower_fresh_into state slot expr;
-  copy expr.span expr.ty slot
-
+(* %0, @count, %0.deref.field0, %0[copy %1] *)
 and lower_place state expr =
   match expr.desc with
   | Tast.TIdent symbol -> symbol_place state expr.span symbol
-  | Tast.TUnOp (Ast.Deref, inner) -> deref_place state expr.ty inner expr.span
+  | Tast.TUnOp (Ast.Deref, inner) -> lower_deref state expr.ty inner expr.span
   | Tast.TFieldAccess (base, field) ->
       let source =
         match resolve_ty base.ty with
-        | Types.TPointer pointee -> deref_place state pointee base base.span
+        | Types.TPointer pointee -> lower_deref state pointee base base.span
         | _ -> lower_expr state base |> materialize state
       in
       add_projection source (Field field)
@@ -911,7 +835,7 @@ and lower_place state expr =
           let length =
             temp_value state (Types.TInt Usize) base.span (Len source)
           in
-          emit_check state (Bounds (index, length)) expr.span
+          lower_check state (Bounds (index, length)) expr.span
       | Types.TPointer _ -> ()
       | _ ->
           let message = "index on non indexed MIR place" in
@@ -919,106 +843,97 @@ and lower_place state expr =
       add_projection source (Index index)
   | _ -> lower_expr state expr |> materialize state
 
-and deref_place state pointee pointer span =
+(* check_null copy %0 block1
+   block1:
+     ... %0.deref *)
+and lower_deref state pointee pointer span =
   let pointer = lower_expr state pointer in
-  check_null state pointee pointer span;
+  lower_null_check state pointee pointer span;
   add_projection (materialize state pointer) Deref
 
-and fill_array_literal state destination (expr : Tast.texpr) elements =
-  let element_ty =
-    match resolve_ty expr.ty with
-    | Types.TArray (element, _) -> element
-    | _ -> Diagnostic.ice ~span:expr.span "array literal has non array type"
-  in
-  emit state
-    (Assign (destination, { desc = Use (constant expr Undef); ty = expr.ty }))
-    expr.span;
+(* %0 = undef
+   %0[0] = 7
+   %0[1] = 8 *)
+and lower_array_lit state destination (expr : Tast.texpr) elements =
+  assign state destination (const expr.span expr.ty Undef);
   List.iteri
     (fun index (element : Tast.texpr) ->
       let index_operand =
-        const_operand element.span (Types.TInt Usize) (Int (Int64.of_int index))
+        const element.span (Types.TInt Usize) (Int (Int64.of_int index))
       in
       let target = add_projection destination (Index index_operand) in
-      if is_aggregate element_ty then lower_fresh_into state target element
-      else
-        let assigned = lower_expr state element in
-        assign state target { assigned with ty = element_ty })
+      lower_into state (Some target) element)
     elements
 
-and fill_struct_literal state destination expr fields =
-  emit state
-    (Assign (destination, { desc = Use (constant expr Zero); ty = expr.ty }))
-    expr.span;
+(* %0 = zero
+   %0.field1 = call @side(1)
+   %0.field0 = call @side(2) *)
+and lower_struct_lit state destination (expr : Tast.texpr) fields =
+  assign state destination (const expr.span expr.ty Zero);
   List.iter
-    (fun (field, (value : Tast.texpr)) ->
-      let target = add_projection destination (Field field) in
-      if is_aggregate value.ty then lower_fresh_into state target value
-      else assign state target (lower_expr state value))
+    (fun (field, value) ->
+      lower_into state (Some (add_projection destination (Field field))) value)
     fields
 
-and fill_slice state destination expr base lo hi =
+(* %2 = len %1
+   check_slice_bounds 1 3 copy %2 block1
+   block1:
+     %0 = slice %1 1 3 *)
+and lower_slice state destination expr base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
   let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
-  emit_check state (SliceBounds (lo, hi, length)) expr.span;
+  lower_check state (SliceBounds (lo, hi, length)) expr.span;
   emit state (Slice (destination, base, lo, hi)) expr.span
 
+(* %0[0] = copy %0[0] + 5 *)
 and lower_compound_assign state (expr : Tast.texpr) op (left : Tast.texpr) right
     =
   let target = lower_place state left in
   let old = copy left.span left.ty target in
   let right = lower_expr state right in
-  check_arithmetic state op old.ty right expr.span;
-  let updated = lower_binary state expr.span left.ty op old right in
-  assign state target updated;
-  updated
+  lower_arith_check state op old.ty right expr.span;
+  lower_binary state target expr.span left.ty op old right
 
 (* A later break can widen the loop type the earlier ones settled on *)
-and widen_break state result_ty (value : Tast.texpr) (lowered : operand) =
-  if lowered.ty = Types.TNever || ty_equal lowered.ty result_ty then lowered
-  else temp_value state result_ty value.span (Cast lowered)
+(* %1 = 1, %1 = cast copy %0 to i64 *)
+and lower_break state (result, result_ty) (value : Tast.texpr) =
+  if value.ty = Types.TNever || ty_equal value.ty result_ty then
+    lower_into state (Some result) value
+  else store state result result_ty value.span (Cast (lower_expr state value))
 
+(* %1 = 0, return copy %1, jump block2 *)
 and lower_statement state expr =
   if is_live state then
     match expr.desc with
-    | Tast.TBinding (_, ty, init)
-      when ty = Types.TNever || init.ty = Types.TNever ->
-        ignore (lower_expr state init)
-    | Tast.TBinding (symbol, Types.TUnit, init) ->
-        ignore (declare state symbol User Types.TUnit symbol.Symbol.span);
-        ignore (lower_expr state init)
-    | Tast.TBinding (symbol, ty, init) ->
+    | Tast.TBinding (symbol, ty, init) when ty <> Types.TNever ->
         let id = declare state symbol User ty symbol.Symbol.span in
-        lower_fresh_into state (local_place expr.span id) init
+        let local = local_place expr.span id in
+        lower_into state (if is_valued ty then Some local else None) init
+    | Tast.TBinding (_, _, init) -> lower_into state None init
     | Tast.TReturn returned ->
         let returned =
           match (returned, state.result) with
           | Some value, Some result ->
-              lower_fresh_into state (local_place expr.span result) value;
+              lower_into state (Some (local_place expr.span result)) value;
               None
-          | Some value, None when value.ty = Types.TUnit ->
-              ignore (lower_expr state value);
+          | Some value, None when is_valued value.ty ->
+              Some (lower_expr state value)
+          | Some value, None ->
+              lower_into state None value;
               None
-          | Some value, None -> Some (lower_expr state value)
-          | None, _ when state.bare_return_zero ->
-              Some (const_operand expr.span (Types.TInt I32) (Int 0L))
           | None, _ -> None
         in
-        if is_live state then terminate state (ReturnValue returned) expr.span
+        terminate state (ReturnValue returned) expr.span
     | Tast.TBreak (label, value) ->
         let target = loop_target state label expr.span in
-        let break_with value =
-          match target.result with
-          | Some (result, result_ty) when is_aggregate result_ty ->
-              lower_fresh_into state result value
-          | Some (result, result_ty) ->
-              let lowered = lower_expr state value in
-              assign state result (widen_break state result_ty value lowered)
-          | None when value.ty = Types.TUnit -> ignore (lower_expr state value)
-          | None -> Diagnostic.ice ~span:expr.span "loop has no result"
-        in
-        Option.iter break_with value;
+        Option.iter
+          (fun value ->
+            match target.result with
+            | Some result -> lower_break state result value
+            | None -> lower_into state None value)
+          value;
         terminate state (Jump target.break_block) expr.span
     | Tast.TContinue label ->
         let target = loop_target state label expr.span in
@@ -1027,16 +942,31 @@ and lower_statement state expr =
         lower_while state expr.span label condition body
     | Tast.TFor (label, symbol, elem_ty, iter, body) ->
         lower_for state expr.span label symbol elem_ty iter body
-    | Tast.TLoop (label, body) ->
-        ignore (lower_loop state expr.span label expr.ty body)
-    | Tast.TBlock body -> List.iter (lower_statement state) body
-    | _ ->
-        ignore (lower_expr state expr);
-        if expr.ty = Types.TNever && is_live state then
-          terminate state Unreachable expr.span
+    | _ -> lower_into state None expr
 
-let build_func env (func : Tast.tfunc_def) =
-  let state = make_builder env func in
+let rec global_value_of (expr : Tast.texpr) =
+  match expr.desc with
+  | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TIdent symbol; _ }) ->
+      GlobalAddress symbol.Symbol.link_name
+  | Tast.TArrayLit values -> GlobalArray (List.map global_value_of values)
+  | Tast.TStructLit (_, fields) ->
+      let compare_field_ids (left, _) (right, _) = Int.compare left right in
+      GlobalStruct
+        (List.map
+           (fun (field, value) -> (field, global_value_of value))
+           (List.sort compare_field_ids fields))
+  | _ -> GlobalConst (constant_of expr, expr.ty)
+
+let build_global (global : Tast.tglobal_def) =
+  {
+    name = global.name;
+    ty = global.ty;
+    init = Option.map global_value_of global.init;
+    public = List.mem Ast.Pub global.modifiers;
+  }
+
+let build_func layouts global_names (func : Tast.tfunc_def) =
+  let state = make_builder layouts global_names in
   let span =
     match (func.body, func.params) with
     | first :: _, _ -> first.span
@@ -1046,23 +976,19 @@ let build_func env (func : Tast.tfunc_def) =
   (* A returned aggregate needs somewhere to live that outlives the frame *)
   (* TODO(73fc): A universal result slot would simplify inlining *)
   if Types.is_aggregate func.ret_ty then
-    state.result <- Some (add_named state "result" Result func.ret_ty span);
+    state.result <-
+      Some (add_local state (Some "result") Result func.ret_ty span);
   let params =
     List.filter_map
       (fun (symbol, ty) ->
-        if has_value ty then
+        if is_valued ty then
           Some (declare state symbol Param ty symbol.Symbol.span)
         else None)
       func.params
   in
   List.iter (lower_statement state) func.body;
   if is_live state then
-    if state.bare_return_zero then
-      terminate state
-        (ReturnValue (Some (const_operand span (Types.TInt Types.I32) (Int 0L))))
-        span
-    else if func.ret_ty = Types.TUnit then
-      terminate state (ReturnValue None) span
+    if func.ret_ty = Types.TUnit then terminate state (ReturnValue None) span
     else terminate state Unreachable span;
   {
     name = func.name;
@@ -1078,40 +1004,35 @@ let build_func env (func : Tast.tfunc_def) =
     span;
   }
 
-let struct_decl = function
-  | Tast.TStruct (name, fields, _) -> Some { name; fields; local = false }
-  | Tast.TLocalStruct (name, fields) -> Some { name; fields; local = true }
-  | _ -> None
-
-let global_decl = function
-  | Tast.TGlobal global when has_value global.ty -> Some global
-  | _ -> None
-
-let func_decl = function Tast.TFunc func -> Some func | _ -> None
-
-let build_global (global : Tast.tglobal_def) =
-  {
-    name = global.name;
-    ty = global.ty;
-    init = Option.map global_init global.init;
-    public = List.mem Ast.Pub global.modifiers;
-  }
-
 let build declarations =
-  let structs = List.filter_map struct_decl declarations in
-  let tglobals = List.filter_map global_decl declarations in
-  let names = Hashtbl.create 16 in
+  let structs, globals, funcs =
+    List.fold_right
+      (fun decl (structs, globals, funcs) ->
+        match decl with
+        | Tast.TStruct (name, fields, _) ->
+            ({ name; fields; local = false } :: structs, globals, funcs)
+        | Tast.TLocalStruct (name, fields) ->
+            ({ name; fields; local = true } :: structs, globals, funcs)
+        | Tast.TGlobal global when is_valued global.ty ->
+            (structs, global :: globals, funcs)
+        | Tast.TFunc func -> (structs, globals, func :: funcs)
+        | _ -> (structs, globals, funcs))
+      declarations ([], [], [])
+  in
+  let layouts = Layout.create () in
   List.iter
-    (fun (g : Tast.tglobal_def) -> Hashtbl.add names g.key g.name)
-    tglobals;
-  let env =
-    { struct_layouts = build_struct_layouts structs; globals = names }
-  in
-  let globals = List.map build_global tglobals in
-  let functions =
-    List.filter_map func_decl declarations |> List.map (build_func env)
-  in
-  { structs; globals; functions }
+    (fun (decl : struct_decl) ->
+      Layout.set_struct_fields layouts (Qname.key decl.name) decl.fields)
+    structs;
+  let global_names = Hashtbl.create 16 in
+  List.iter
+    (fun (g : Tast.tglobal_def) -> Hashtbl.add global_names g.key g.name)
+    globals;
+  {
+    structs;
+    globals = List.map build_global globals;
+    functions = List.map (build_func layouts global_names) funcs;
+  }
 
 let show_storage storage =
   match storage with
@@ -1229,9 +1150,8 @@ let show_terminator (value : terminator option) =
   | Some { desc = Jump target; _ } -> Printf.sprintf "jump block%d" target
   | Some { desc = Branch (condition, yes, no); _ } ->
       Printf.sprintf "branch %s block%d block%d" (show_operand condition) yes no
-  | Some { desc = Assert (assertion, ok, fail); _ } ->
-      Printf.sprintf "assert_%s block%d block%d" (show_check assertion) ok fail
-  | Some { desc = Panic failed; _ } -> "panic " ^ show_check failed
+  | Some { desc = Check (check, ok); _ } ->
+      Printf.sprintf "check_%s block%d" (show_check check) ok
   | Some { desc = ReturnValue None; _ } -> "return"
   | Some { desc = ReturnValue (Some value); _ } ->
       "return " ^ show_operand value
@@ -1281,234 +1201,259 @@ let dump (program : program) =
           (if index = 0 then "" else "\n") ^ show_function function_)
         program.functions)
 
-let show_error (error : error) =
-  Printf.sprintf "%s: %s" error.function_name error.message
+let fail ctx span fmt =
+  Printf.ksprintf
+    (fun message -> Diagnostic.ice ~span (ctx.func.name ^ ": " ^ message))
+    fmt
 
-let add ctx span message =
-  ctx.errors :=
-    { function_name = ctx.func.name; error_span = span; message }
-    :: !(ctx.errors)
+let expect ctx span what want got =
+  if not (ty_equal want got) then
+    fail ctx span "%s is %s but should be %s" what (show_ty got) (show_ty want)
+
+let expect_int ctx span what ty =
+  match resolve_ty ty with
+  | Types.TInt _ -> ()
+  | _ -> fail ctx span "%s is %s but should be an integer" what (show_ty ty)
+
+let element_of ctx span ty =
+  match resolve_ty ty with
+  | Types.TArray (inner, _) | Types.TSlice inner -> inner
+  | Types.TStr -> Types.TInt U8
+  | _ -> fail ctx span "%s has no elements" (show_ty ty)
 
 (* local %0 value: i32 user *)
-let local ctx span id =
-  if id < 0 || id >= Array.length ctx.func.locals then begin
-    add ctx span (Printf.sprintf "local %d does not exist" id);
-    None
-  end
-  else Some ctx.func.locals.(id).ty
+let local_of ctx span id =
+  if id < 0 || id >= Array.length ctx.func.locals then
+    fail ctx span "local %d does not exist" id;
+  ctx.func.locals.(id)
 
-(* copy %0 / 42 *)
-let rec operand ctx (operand : operand) =
-  match operand.desc with
-  | Const _ -> Some operand.ty
-  | Copy place_value ->
-      let place_ty = place ctx place_value in
-      (match place_ty with
-      | Some ty when not (ty_equal ty operand.ty) ->
-          add ctx operand.span
-            (Printf.sprintf "operand has type %s but place has type %s"
-               (show_ty operand.ty) (show_ty ty))
-      | Some _ | None -> ());
-      place_ty
+let constant_fits ty constant =
+  match (constant, resolve_ty ty) with
+  | Int _, (Types.TInt _ | Types.TEnum _)
+  | Float _, Types.TFloat _
+  | Bool _, Types.TBool
+  | Null, (Types.TNull | Types.TPointer _ | Types.TPtr)
+  | CStr _, (Types.TCStr | Types.TPointer (Types.TInt I8))
+  | Char _, Types.TChar
+  | Function _, (Types.TFunc _ | Types.TPointer (Types.TFunc _))
+  | Str _, Types.TStr
+  | (Zero | Undef), _ ->
+      true
+  | _ -> false
 
-and struct_field ctx span field name =
-  match Symbol.Table.find_opt ctx.program.structs (Qname.key name) with
-  | Some fields when field >= 0 && field < Array.length fields ->
-      Some fields.(field)
-  | Some _ ->
-      add ctx span (Printf.sprintf "field projection %d does not exist" field);
-      None
-  | None ->
-      add ctx span (Printf.sprintf "struct %s has no layout" (Qname.show name));
-      None
+(* copy %0, 42 *)
+let rec verify_operand ctx (operand : operand) =
+  (match operand.desc with
+  | Const constant ->
+      if not (constant_fits operand.ty constant) then
+        fail ctx operand.span "constant %s can't be %s" (show_constant constant)
+          (show_ty operand.ty)
+  | Copy source ->
+      expect ctx operand.span "operand" (verify_place ctx source) operand.ty);
+  operand.ty
 
-and deref_ty ctx span ty =
-  match resolve_ty ty with
-  | Types.TPointer inner -> Some inner
-  | _ ->
-      add ctx span "deref projection requires a pointer";
-      None
-
-and field_ty ctx span ty field =
-  match resolve_ty ty with
-  | Types.TStruct (name, _) -> struct_field ctx span field name
-  | _ ->
-      add ctx span "field projection requires a struct";
-      None
-
-and projection_ty ctx span ty = function
-  | Deref -> deref_ty ctx span ty
-  | Field field -> field_ty ctx span ty field
+and verify_projection ctx span ty = function
+  | Deref -> (
+      match resolve_ty ty with
+      | Types.TPointer inner -> inner
+      | _ -> fail ctx span "deref projection requires a pointer")
+  | Field field -> (
+      match resolve_ty ty with
+      | Types.TStruct (name, _) -> (
+          match Symbol.Table.find_opt ctx.structs (Qname.key name) with
+          | Some fields when field >= 0 && field < Array.length fields ->
+              fields.(field)
+          | Some _ -> fail ctx span "field projection %d does not exist" field
+          | None -> fail ctx span "struct %s has no layout" (Qname.show name))
+      | _ -> fail ctx span "field projection requires a struct")
   | Index index -> (
-      ignore (operand ctx index);
-      if
-        not (match resolve_ty index.ty with Types.TInt _ -> true | _ -> false)
-      then add ctx index.span "index projection requires an integer";
+      expect_int ctx index.span "index" (verify_operand ctx index);
       match resolve_ty ty with
       | Types.TArray (inner, _) | Types.TSlice inner | Types.TPointer inner ->
-          Some inner
-      | _ ->
-          add ctx span "index projection requires indexed storage";
-          None)
+          inner
+      | _ -> fail ctx span "index projection requires indexed storage")
 
-and project ctx span ty = function
-  | [] -> Some ty
-  | projection :: rest ->
-      Option.bind (project ctx span ty rest) (fun ty ->
-          projection_ty ctx span ty projection)
-
-and global ctx span name =
-  match Hashtbl.find_opt ctx.program.globals name with
-  | Some ty -> Some ty
-  | None ->
-      add ctx span (Printf.sprintf "global %s does not exist" name);
-      None
-
-(* %0 / @global / %0.deref.field0[copy %1] *)
-and place ctx (place : place) =
+(* %0, @global, %0.deref.field0[copy %1] *)
+and verify_place ctx (place : place) =
   let span = place.place_span in
-  let base_ty =
+  let base =
     match place.base with
-    | Local id -> local ctx span id
-    | Global name -> global ctx span name
+    | Local id -> (local_of ctx span id).ty
+    | Global name -> (
+        match Hashtbl.find_opt ctx.globals name with
+        | Some ty -> ty
+        | None -> fail ctx span "global %s does not exist" name)
   in
-  match base_ty with
-  | Some ty -> project ctx span ty place.projections
-  | None -> None
+  List.fold_right
+    (fun p ty -> verify_projection ctx span ty p)
+    place.projections base
 
-(* copy %0 / copy %0 + 1 / address_of %0 / len %0 *)
-let value ctx (value : value) =
-  (match value.desc with
-  | Use operand_value | Unary (_, operand_value) | Cast operand_value ->
-      ignore (operand ctx operand_value)
+(* copy %0, copy %0 + 1, address_of %0, len %0 *)
+let verify_value ctx span (value : value) =
+  let same o = expect ctx span "operand" value.ty (verify_operand ctx o) in
+  match value.desc with
+  | Use o | Unary ((Neg | BitNot), o) -> same o
+  | Unary (Not, o) ->
+      expect ctx span "not" Types.TBool value.ty;
+      same o
+  | Binary ((Eq | Neq | Lt | Gt | Lte | Gte), left, right) ->
+      expect ctx span "comparison" Types.TBool value.ty;
+      expect ctx span "right operand" (verify_operand ctx left)
+        (verify_operand ctx right)
+  | Binary ((Lshift | Rshift), left, right) ->
+      same left;
+      expect_int ctx span "shift count" (verify_operand ctx right)
   | Binary (_, left, right) ->
-      ignore (operand ctx left);
-      ignore (operand ctx right)
-  | AddressOf place_value | Len place_value | DataPtr place_value ->
-      ignore (place ctx place_value)
-  | SizeOf _ -> ());
-  value.ty
+      same left;
+      same right
+  | Cast o -> ignore (verify_operand ctx o)
+  | AddressOf source ->
+      expect ctx span "address"
+        (Types.TPointer (verify_place ctx source))
+        value.ty
+  | Len source ->
+      ignore (element_of ctx span (verify_place ctx source));
+      expect ctx span "length" (Types.TInt Usize) value.ty
+  | DataPtr source ->
+      let inner = element_of ctx span (verify_place ctx source) in
+      expect ctx span "data pointer" (Types.TPointer inner) value.ty
+  | SizeOf _ -> expect_int ctx span "size" value.ty
 
-(* bounds copy %0 copy %1 / null copy %0 *)
-let check ctx = function
+(* bounds copy %0 copy %1, null copy %0 *)
+let verify_check ctx span = function
   | Bounds (index, length) ->
-      ignore (operand ctx index);
-      ignore (operand ctx length)
+      expect_int ctx span "index" (verify_operand ctx index);
+      expect ctx span "length" (Types.TInt Usize) (verify_operand ctx length)
   | SliceBounds (lo, hi, length) ->
-      ignore (operand ctx lo);
-      ignore (operand ctx hi);
-      ignore (operand ctx length)
-  | Null checked | DivZero checked | NegativeShift checked ->
-      ignore (operand ctx checked)
+      expect_int ctx span "slice start" (verify_operand ctx lo);
+      expect_int ctx span "slice end" (verify_operand ctx hi);
+      expect ctx span "length" (Types.TInt Usize) (verify_operand ctx length)
+  | Null pointer -> (
+      match resolve_ty (verify_operand ctx pointer) with
+      | Types.TPointer _ | Types.TPtr | Types.TCStr -> ()
+      | ty -> fail ctx span "null check on %s" (show_ty ty))
+  | DivZero divisor ->
+      expect_int ctx span "divisor" (verify_operand ctx divisor)
+  | NegativeShift count ->
+      expect_int ctx span "shift count" (verify_operand ctx count)
 
+(* An extern never reaches MIR so its call is taken at its word *)
+let signature_of ctx span (call : call) =
+  match call.callee with
+  | Direct name -> (
+      match Hashtbl.find_opt ctx.signatures name with
+      | Some (params, return_ty) -> (Some params, return_ty)
+      | None -> (None, call.return_ty))
+  | Indirect callee -> (
+      match resolve_ty (verify_operand ctx callee) with
+      | Types.TFunc (params, return_ty, _) ->
+          (Some (List.filter is_valued params), return_ty)
+      | ty -> fail ctx span "callee is %s but should be a function" (show_ty ty)
+      )
+
+(* %0 = call @add(copy %1), call @puts(copy %1) *)
 let verify_call ctx span (call : call) =
-  (match call.callee with
-  | Direct _ -> ()
-  | Indirect callee -> ignore (operand ctx callee));
-  List.iter (fun arg -> ignore (operand ctx arg)) call.args;
-  let destination_ty = Option.bind call.destination (place ctx) in
-  if is_aggregate call.return_ty then
-    match destination_ty with
-    | Some ty when ty_equal ty call.return_ty -> ()
-    | Some ty ->
-        add ctx span
-          (Printf.sprintf
-             "aggregate result storage has type %s but call returns %s"
-             (show_ty ty) (show_ty call.return_ty))
-    | None -> add ctx span "aggregate call has no result storage"
-  else
-    match (call.return_ty, destination_ty) with
-    | (Types.TUnit | Types.TNever), None -> ()
-    | (Types.TUnit | Types.TNever), Some _ ->
-        add ctx span "unit call has result storage"
-    | return_ty, Some ty when ty_equal ty return_ty -> ()
-    | return_ty, Some ty ->
-        add ctx span
-          (Printf.sprintf "call result has type %s but call returns %s"
-             (show_ty ty) (show_ty return_ty))
-    | _, None -> add ctx span "call has no result storage"
+  let params, return_ty = signature_of ctx span call in
+  expect ctx span "call" return_ty call.return_ty;
+  let args = List.map (verify_operand ctx) call.args in
+  let fixed =
+    match call.variadic_start with
+    | Some n -> List.filteri (fun i _ -> i < n) args
+    | None -> args
+  in
+  Option.iter
+    (fun params ->
+      if List.compare_lengths params fixed <> 0 then
+        fail ctx span "call passes %d arguments but takes %d"
+          (List.length fixed) (List.length params);
+      List.iter2 (expect ctx span "argument") params fixed)
+    params;
+  match call.destination with
+  | Some destination ->
+      if not (is_valued return_ty) then
+        fail ctx span "unit call has result storage";
+      expect ctx span "call storage" return_ty (verify_place ctx destination)
+  | None ->
+      if is_valued return_ty then fail ctx span "call has no result storage"
 
-(* %0 = copy %1 / %0 = call @add(copy %1) *)
-let statement ctx (statement : statement) =
+(* %0 = copy %1, %0 = slice %1 1 3, %0 = call @add(copy %1) *)
+let verify_statement ctx (statement : statement) =
   let span = statement.span in
   match statement.desc with
-  | Assign (destination, assigned) -> (
-      let destination_ty = place ctx destination in
-      let assigned_ty = value ctx assigned in
-      match destination_ty with
-      | Some ty when not (Typred.compatible ty assigned_ty) ->
-          add ctx span
-            (Printf.sprintf "assignment stores %s in %s" (show_ty assigned_ty)
-               (show_ty ty))
-      | Some _ | None -> ())
+  | Assign (destination, assigned) ->
+      verify_value ctx span assigned;
+      expect ctx span "assignment" (verify_place ctx destination) assigned.ty
   | Slice (destination, source, lo, hi) ->
-      ignore (place ctx destination);
-      ignore (place ctx source);
-      ignore (operand ctx lo);
-      ignore (operand ctx hi)
+      let source_ty = verify_place ctx source in
+      let sliced =
+        match resolve_ty source_ty with
+        | Types.TStr -> Types.TStr
+        | _ -> Types.TSlice (element_of ctx span source_ty)
+      in
+      expect ctx span "slice" sliced (verify_place ctx destination);
+      expect_int ctx span "slice start" (verify_operand ctx lo);
+      expect_int ctx span "slice end" (verify_operand ctx hi)
   | Call call -> verify_call ctx span call
 
 (* block0 *)
-let block_exists ctx span id =
+let verify_target ctx span id =
   if id < 0 || id >= Array.length ctx.func.blocks then
-    add ctx span (Printf.sprintf "block %d does not exist" id)
+    fail ctx span "block %d does not exist" id
 
-let verify_return ctx span returned =
-  match (ctx.func.return_ty, returned) with
-  | Types.TUnit, None | Types.TNever, None -> ()
-  | Types.TUnit, Some value ->
-      ignore (operand ctx value);
-      add ctx span "unit function returns a runtime value"
-  | return_ty, Some value ->
-      ignore (operand ctx value);
-      if not (Typred.compatible return_ty value.ty) then
-        add ctx span
-          (Printf.sprintf "return has type %s but function returns %s"
-             (show_ty value.ty) (show_ty return_ty))
-  | return_ty, None ->
-      add ctx span
-        (Printf.sprintf "return has no value for %s" (show_ty return_ty))
-
-(* jump block1 / branch %0 block1 block2 / return %0 / unreachable *)
-let terminator ctx (terminator : terminator) =
+(* jump block1, branch %0 block1 block2, return %0, unreachable *)
+let verify_terminator ctx (terminator : terminator) =
   let span = terminator.span in
   match terminator.desc with
-  | Jump target -> block_exists ctx span target
+  | Jump target -> verify_target ctx span target
   | Branch (condition, yes, no) ->
-      ignore (operand ctx condition);
-      block_exists ctx span yes;
-      block_exists ctx span no
-  | Assert (assertion, ok, fail) ->
-      check ctx assertion;
-      block_exists ctx span ok;
-      block_exists ctx span fail
-  | Panic failed -> check ctx failed
-  | ReturnValue (Some value) when ctx.func.result <> None ->
-      ignore (operand ctx value);
-      add ctx span "return has a value but the result is storage"
-  | ReturnValue None when ctx.func.result <> None -> ()
-  | ReturnValue returned -> verify_return ctx span returned
+      expect ctx span "condition" Types.TBool (verify_operand ctx condition);
+      verify_target ctx span yes;
+      verify_target ctx span no
+  | Check (checked, ok) ->
+      verify_check ctx span checked;
+      verify_target ctx span ok
+  | ReturnValue returned -> (
+      match (returned, ctx.func.result) with
+      | Some _, Some _ ->
+          fail ctx span "return has a value but the result is storage"
+      | None, Some _ -> ()
+      | Some returned, None ->
+          expect ctx span "return" ctx.func.return_ty
+            (verify_operand ctx returned)
+      | None, None ->
+          if is_valued ctx.func.return_ty then
+            fail ctx span "return has no value for %s"
+              (show_ty ctx.func.return_ty))
   | Unreachable -> ()
 
-let verify_block ctx id (block : block) =
-  List.iter (statement ctx) block.statements;
-  match block.terminator with
-  | Some term -> terminator ctx term
-  | None ->
-      add ctx ctx.func.span (Printf.sprintf "block %d has no terminator" id)
-
 (* fn add(%0: i32, %1: i32) i32 { ... } *)
-let verify_func program func =
-  let ctx = { program; func; errors = ref [] } in
+let verify_func ctx =
+  let func = ctx.func in
   Array.iter
     (fun (local : local) ->
-      if Types.has_error local.ty then add ctx local.span "local has no type")
+      if Types.has_error local.ty then fail ctx local.span "local has no type")
     func.locals;
-  List.iter (fun id -> ignore (local ctx func.span id)) func.params;
-  Array.iteri (verify_block ctx) func.blocks;
-  List.rev !(ctx.errors)
+  List.iter
+    (fun id ->
+      if (local_of ctx func.span id).storage <> Param then
+        fail ctx func.span "local %d is not a param" id)
+    func.params;
+  Option.iter
+    (fun id ->
+      let result = local_of ctx func.span id in
+      if result.storage <> Result then
+        fail ctx func.span "local %d is not the result" id;
+      expect ctx func.span "result" func.return_ty result.ty)
+    func.result;
+  Array.iteri
+    (fun id (block : block) ->
+      List.iter (verify_statement ctx) block.statements;
+      match block.terminator with
+      | Some t -> verify_terminator ctx t
+      | None -> fail ctx func.span "block %d has no terminator" id)
+    func.blocks
 
-let make_context (program : program) =
+let verify (program : program) =
   let structs = Symbol.Table.create 8 in
   List.iter
     (fun (decl : struct_decl) ->
@@ -1519,9 +1464,12 @@ let make_context (program : program) =
   List.iter
     (fun (global : global) -> Hashtbl.replace globals global.name global.ty)
     program.globals;
-  { structs; globals }
-
-let verify program =
-  let context = make_context program in
-  let errors = List.concat_map (verify_func context) program.functions in
-  match errors with [] -> Ok () | _ -> Error errors
+  let signatures = Hashtbl.create 16 in
+  List.iter
+    (fun (func : func) ->
+      let params = List.map (fun id -> func.locals.(id).ty) func.params in
+      Hashtbl.replace signatures func.name (params, func.return_ty))
+    program.functions;
+  List.iter
+    (fun func -> verify_func { structs; globals; signatures; func })
+    program.functions
