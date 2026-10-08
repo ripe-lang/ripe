@@ -146,7 +146,7 @@ type program = {
 type loop_context = {
   label : Ast.name option;
   continue_block : block_id;
-  break_block : block_id option ref;
+  break_block : block_id;
   result : (place * Types.ty) option;
 }
 
@@ -199,15 +199,6 @@ let new_block (state : builder) =
   let id = Dynarray.length state.blocks in
   Dynarray.add_last state.blocks { statements = []; terminator = None };
   id
-
-(* A join only exists once some arm falls into it *)
-let join_block state join =
-  match !join with
-  | Some id -> id
-  | None ->
-      let id = new_block state in
-      join := Some id;
-      id
 
 let current_block (state : builder) = Dynarray.get state.blocks state.current
 let is_live state = Option.is_none (current_block state).terminator
@@ -473,16 +464,11 @@ and lower_short_circuit state destination (expr : Tast.texpr) left right
      %1 = 2
      jump block1 *)
 and lower_if state destination (expr : Tast.texpr) branches else_body =
-  let join = ref None in
+  let join = new_block state in
   let rec lower_branches = function
     | [] ->
         lower_arm state destination expr join
           (Option.value else_body ~default:[])
-    | [ (condition, body) ] when Option.is_none else_body ->
-        let yes = new_block state in
-        lower_cond state condition yes (join_block state join);
-        switch state yes;
-        lower_arm state destination expr join body
     | (condition, body) :: rest ->
         let yes = new_block state in
         let no = new_block state in
@@ -493,7 +479,7 @@ and lower_if state destination (expr : Tast.texpr) branches else_body =
         lower_branches rest
   in
   lower_branches branches;
-  Option.iter (switch state) !join
+  switch state join
 
 (* One test per arm because a jump table only pays off on a dense range *)
 (* %2 = copy %0 == 1
@@ -509,7 +495,7 @@ and lower_match state destination (expr : Tast.texpr) (scrutinee : Tast.texpr)
     arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
-  let join = ref None in
+  let join = new_block state in
   let ty = scrutinee.ty in
   let wanted value =
     match resolve_ty ty with
@@ -541,13 +527,13 @@ and lower_match state destination (expr : Tast.texpr) (scrutinee : Tast.texpr)
         lower_arms rest
   in
   lower_arms arms;
-  Option.iter (switch state) !join
+  switch state join
 
 (* %1 = 10
    jump block1 *)
 and lower_arm state destination (expr : Tast.texpr) join body =
   lower_block state destination body;
-  if is_live state then terminate state (Jump (join_block state join)) expr.span
+  terminate state (Jump join) expr.span
 
 (* branch copy %0 block1 block2, jump block1 *)
 and lower_cond state (expr : Tast.texpr) yes no =
@@ -584,8 +570,7 @@ and lower_while state span label condition body =
   switch state condition_block;
   lower_cond state condition body_block exit_block;
   switch state body_block;
-  lower_loop_body state span label condition_block (ref (Some exit_block)) None
-    body;
+  lower_loop_body state span label condition_block exit_block None body;
   switch state exit_block
 
 (* The stack gives nested loop control the nearest matching target *)
@@ -624,7 +609,7 @@ and lower_counted_loop state span label op ty counter limit element body =
   (match element with
   | Some (destination, value) -> assign state destination value
   | None -> ());
-  lower_loop_body state span label step_block (ref (Some exit_block)) None body;
+  lower_loop_body state span label step_block exit_block None body;
   switch state step_block;
   if op = Lte then begin
     let increment_block = new_block state in
@@ -703,12 +688,12 @@ and lower_each_for state span label symbol elem_ty iter body =
      jump block2 *)
 and lower_loop state destination span label ty body =
   let body_block = new_block state in
-  let exit = ref None in
+  let exit_block = new_block state in
   terminate state (Jump body_block) span;
   switch state body_block;
   let result = Option.map (fun place -> (place, ty)) destination in
-  lower_loop_body state span label body_block exit result body;
-  Option.iter (switch state) !exit
+  lower_loop_body state span label body_block exit_block result body;
+  switch state exit_block
 
 (* copy %0, 1 *)
 and lower_arg state expr =
@@ -964,7 +949,7 @@ and lower_statement state expr =
             | Some result -> lower_break state result value
             | None -> lower_into state None value)
           value;
-        terminate state (Jump (join_block state target.break_block)) expr.span
+        terminate state (Jump target.break_block) expr.span
     | Tast.TContinue label ->
         let target = loop_target state label expr.span in
         terminate state (Jump target.continue_block) expr.span
