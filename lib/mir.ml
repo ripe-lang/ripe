@@ -200,15 +200,6 @@ let new_block (state : builder) =
   Dynarray.add_last state.blocks { statements = []; terminator = None };
   id
 
-(* A join only exists once some arm falls into it *)
-let join_block state join =
-  match !join with
-  | Some id -> id
-  | None ->
-      let id = new_block state in
-      join := Some id;
-      id
-
 let current_block (state : builder) = Dynarray.get state.blocks state.current
 let is_live state = Option.is_none (current_block state).terminator
 let switch state block = state.current <- block
@@ -473,16 +464,11 @@ and lower_short_circuit state destination (expr : Tast.texpr) left right
      %1 = 2
      jump block1 *)
 and lower_if state destination (expr : Tast.texpr) branches else_body =
-  let join = ref None in
+  let join = new_block state in
   let rec lower_branches = function
     | [] ->
         lower_arm state destination expr join
           (Option.value else_body ~default:[])
-    | [ (condition, body) ] when Option.is_none else_body ->
-        let yes = new_block state in
-        lower_cond state condition yes (join_block state join);
-        switch state yes;
-        lower_arm state destination expr join body
     | (condition, body) :: rest ->
         let yes = new_block state in
         let no = new_block state in
@@ -493,7 +479,7 @@ and lower_if state destination (expr : Tast.texpr) branches else_body =
         lower_branches rest
   in
   lower_branches branches;
-  Option.iter (switch state) !join
+  switch state join
 
 (* One test per arm because a jump table only pays off on a dense range *)
 (* %2 = copy %0 == 1
@@ -509,7 +495,7 @@ and lower_match state destination (expr : Tast.texpr) (scrutinee : Tast.texpr)
     arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
-  let join = ref None in
+  let join = new_block state in
   let ty = scrutinee.ty in
   let wanted value =
     match resolve_ty ty with
@@ -541,13 +527,13 @@ and lower_match state destination (expr : Tast.texpr) (scrutinee : Tast.texpr)
         lower_arms rest
   in
   lower_arms arms;
-  Option.iter (switch state) !join
+  switch state join
 
 (* %1 = 10
    jump block1 *)
 and lower_arm state destination (expr : Tast.texpr) join body =
   lower_block state destination body;
-  if is_live state then terminate state (Jump (join_block state join)) expr.span
+  terminate state (Jump join) expr.span
 
 (* branch copy %0 block1 block2, jump block1 *)
 and lower_cond state (expr : Tast.texpr) yes no =

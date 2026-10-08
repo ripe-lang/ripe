@@ -189,7 +189,7 @@ fn f() i32 {
 
       block2:
         %4 = copy %1 == 2
-        branch copy %4 block5 block6
+        branch copy %4 block6 block7
 
       block3:
         %5 = copy %1 + 1
@@ -200,11 +200,14 @@ fn f() i32 {
         return copy %0
 
       block5:
+        %0 = copy %0 + copy %1
         jump block3
 
       block6:
-        %0 = copy %0 + copy %1
         jump block3
+
+      block7:
+        jump block5
     }
     |}]
 
@@ -245,16 +248,19 @@ fn main() i32 {
       block3:
         %0 = copy %0 + 1
         %1 = copy %0 == 4
-        branch copy %1 block5 block6
+        branch copy %1 block6 block7
 
       block4:
         unreachable
 
       block5:
-        jump block2
+        jump block3
 
       block6:
-        jump block3
+        jump block2
+
+      block7:
+        jump block5
     }
     |}]
 
@@ -300,18 +306,21 @@ fn main() i32 {
       block3:
         %2 = copy %2 + 1
         %3 = copy %2 == 4
-        branch copy %3 block5 block6
+        branch copy %3 block6 block7
 
       block4:
         unreachable
 
       block5:
+        jump block3
+
+      block6:
         %4 = copy %0 * 100
         %1 = copy %4 + copy %2
         jump block2
 
-      block6:
-        jump block3
+      block7:
+        jump block5
     }
     |}]
 
@@ -498,18 +507,18 @@ let%expect_test "mir: an if used as a value writes one result local" =
       local %1: i32 temp
 
       block0:
-        branch copy %0 block1 block2
+        branch copy %0 block2 block3
 
       block1:
-        %1 = 1
-        jump block3
+        return copy %1
 
       block2:
-        %1 = 2
-        jump block3
+        %1 = 1
+        jump block1
 
       block3:
-        return copy %1
+        %1 = 2
+        jump block1
     }
     |}]
 
@@ -532,26 +541,26 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 
       block0:
         %2 = copy %0 == 1
-        branch copy %2 block2 block1
+        branch copy %2 block3 block2
 
       block1:
+        return copy %1
+
+      block2:
         %3 = copy %0 == 2
         branch copy %3 block5 block4
 
-      block2:
-        %1 = 10
-        jump block3
-
       block3:
-        return copy %1
+        %1 = 10
+        jump block1
 
       block4:
         %1 = 0
-        jump block3
+        jump block1
 
       block5:
         %1 = 20
-        jump block3
+        jump block1
     }
     |}]
 
@@ -810,17 +819,20 @@ let%expect_test "mir: a loop yields the value its break carries" =
       block1:
         %0 = copy %0 + 1
         %2 = copy %0 == 3
-        branch copy %2 block3 block4
+        branch copy %2 block4 block5
 
       block2:
         return copy %1
 
       block3:
+        jump block1
+
+      block4:
         %1 = copy %0
         jump block2
 
-      block4:
-        jump block1
+      block5:
+        jump block3
     }
     |}]
 
