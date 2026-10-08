@@ -477,9 +477,9 @@ let verify_bare_break env span lc =
    literal just takes the pointer type it lands in *)
 let adopt want (te : Tast.texpr) =
   match (resolve_ty want, resolve_ty te.ty, te.desc) with
-  | Types.TSlice _, Types.TArray _, _ ->
+  | Types.TSlice _, Types.TArray (_, n), _ ->
       let zero = Tast.mk (Types.TInt Usize) (Tast.TInt 0L) in
-      let len = Tast.mk (Types.TInt Usize) (Tast.TLen te) in
+      let len = Tast.mk (Types.TInt Usize) (Tast.TInt (Int64.of_int n)) in
       Tast.mk want (Tast.TSliceExpr (te, zero, len))
   | (Types.TPointer _ | Types.TPtr), Types.TNull, Tast.TNull
   | Types.TCStr, Types.TPointer (Types.TInt I8), Tast.TCStr _ ->
