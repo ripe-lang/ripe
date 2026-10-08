@@ -660,6 +660,12 @@ let direct_callee env (callee : expr) =
       | Some _ | None -> None)
   | _ -> None
 
+(* The C entry point exits with zero when main returns nothing *)
+let exit_zero env span =
+  if env.entry_function && env.ret_ty = Types.TInt I32 then
+    Some (Tast.mk ~span (Types.TInt I32) (Tast.TInt 0L))
+  else None
+
 let rec ty_of_ast env t =
   match t.tdesc with
   | ErrorType -> Types.TError
@@ -1096,7 +1102,7 @@ and synth_return env span init =
       then
         Diagnostic.emit
           (Diagnostic.error span "empty return in non-unit function");
-      Tast.mk Types.TNever (Tast.TReturn None)
+      Tast.mk Types.TNever (Tast.TReturn (exit_zero env span))
   | Some e when env.ret_ty = Types.TNever ->
       Tast.mk Types.TNever (Tast.TReturn (Some (synth env e)))
   | Some e ->
@@ -2169,7 +2175,15 @@ let check_func ?(is_extern = false) env fd =
           Tast.mk ~span:last.span Types.TNever (Tast.TReturn (Some last))
         in
         List.rev (ret :: rest)
-    | _ -> tbody0
+    | _, last :: _ when last.ty = Types.TNever -> tbody0
+    | _ -> (
+        match exit_zero final_env body_span with
+        | Some zero ->
+            tbody0
+            @ [
+                Tast.mk ~span:body_span Types.TNever (Tast.TReturn (Some zero));
+              ]
+        | None -> tbody0)
   in
 
   {
