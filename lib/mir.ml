@@ -151,7 +151,6 @@ type loop_context = {
 }
 
 type builder = {
-  layouts : Layout.t;
   global_names : (Symbol.key, string) Hashtbl.t;
   locals : local Dynarray.t;
   symbols : (Symbol.id, local_id) Hashtbl.t;
@@ -168,9 +167,8 @@ type context = {
   func : func;
 }
 
-let make_builder layouts global_names =
+let make_builder global_names =
   {
-    layouts;
     global_names;
     locals = Dynarray.create ();
     symbols = Hashtbl.create 16;
@@ -327,21 +325,13 @@ let lower_check state check span =
     switch state ok
   end
 
-(* A zero width pointee touches no memory *)
-(* check_null copy %0 block1 *)
-let lower_null_check (state : builder) pointee pointer span =
-  if Layout.ty_size state.layouts pointee > 0 then
-    lower_check state (Null pointer) span
-
 (* Plain and compound arithmetic guard the same two operators the same way *)
 (* check_div_zero copy %1 block1, check_negative_shift copy %1 block1 *)
-let lower_arith_check state op left_ty (right : operand) span =
-  match (op, right.desc) with
-  | (Ast.Div | Ast.Mod), Const (Int n) when n <> 0L -> ()
-  | (Ast.Lshift | Ast.Rshift), Const (Int n) when n >= 0L -> ()
-  | (Ast.Div | Ast.Mod), _ when not (is_float left_ty) ->
+let lower_arith_check state op left_ty right span =
+  match op with
+  | (Ast.Div | Ast.Mod) when not (is_float left_ty) ->
       lower_check state (DivZero right) span
-  | (Ast.Lshift | Ast.Rshift), _ when not (is_unsigned right.ty) ->
+  | (Ast.Lshift | Ast.Rshift) when not (is_unsigned right.ty) ->
       lower_check state (NegativeShift right) span
   | _ -> ()
 
@@ -410,16 +400,11 @@ let lower_shift state destination span ty op (left : operand) (right : operand)
 let lower_binary state destination span ty (op : Ast.binop) (left : operand)
     (right : operand) =
   let lowered = binop_of op in
-  let bits () = Int64.of_int (8 * int_kind_size (int_kind_of ty)) in
-  match (op, right.desc) with
+  match op with
   | _ when not (is_live state) -> ()
-  | (Ast.Div | Ast.Mod), Const (Int n) when n <> -1L ->
-      store state destination ty span (Binary (lowered, left, right))
-  | (Ast.Div | Ast.Mod), _ when div_int_needs_check left.ty ->
+  | (Ast.Div | Ast.Mod) when div_int_needs_check left.ty ->
       lower_div state destination span ty lowered left right
-  | (Ast.Lshift | Ast.Rshift), Const (Int n) when n >= 0L && n < bits () ->
-      store state destination ty span (Binary (lowered, left, right))
-  | (Ast.Lshift | Ast.Rshift), _ ->
+  | Ast.Lshift | Ast.Rshift ->
       lower_shift state destination span ty lowered left right
   | _ -> store state destination ty span (Binary (lowered, left, right))
 
@@ -538,8 +523,6 @@ and lower_arm state destination (expr : Tast.texpr) join body =
 (* branch copy %0 block1 block2, jump block1 *)
 and lower_cond state (expr : Tast.texpr) yes no =
   match expr.desc with
-  | Tast.TBool value ->
-      terminate state (Jump (if value then yes else no)) expr.span
   | Tast.TUnOp (Ast.Not, inner) -> lower_cond state inner no yes
   | Tast.TBinOp (Ast.And, left, right) ->
       let middle = new_block state in
@@ -743,13 +726,7 @@ and lower_into state destination (expr : Tast.texpr) =
   | Tast.TRange _ | Tast.TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.span "range outside a for loop"
   | Tast.TCall (callee, args, variadic_start) ->
-      let destination =
-        match destination with
-        | _ when not (is_valued expr.ty) -> None
-        | Some d -> Some d
-        | None when is_aggregate expr.ty -> Some (slot ())
-        | None -> None
-      in
+      let destination = if is_valued expr.ty then Some (slot ()) else None in
       lower_call state destination expr callee args variadic_start
   | Tast.TBinOp (Ast.And, left, right) ->
       lower_short_circuit state destination expr left right false
@@ -787,7 +764,7 @@ and lower_into state destination (expr : Tast.texpr) =
       store_value (Len (lower_expr state inner |> materialize state))
   | Tast.TDataPtr inner ->
       store_value (DataPtr (lower_expr state inner |> materialize state))
-  | Tast.TArrayLit elements -> lower_array_lit state (slot ()) elements
+  | Tast.TArrayLit elements -> lower_array_lit state (slot ()) expr elements
   | Tast.TStructLit (_, fields) -> lower_struct_lit state (slot ()) expr fields
   | Tast.TSliceExpr (base, lo, hi) ->
       lower_slice state (slot ()) expr base lo hi
@@ -828,11 +805,11 @@ and lower_place state expr =
   match expr.desc with
   | Tast.TIdent symbol when not (Symbol.is_func symbol.Symbol.kind) ->
       symbol_place state expr.span symbol
-  | Tast.TUnOp (Ast.Deref, inner) -> lower_deref state expr.ty inner expr.span
+  | Tast.TUnOp (Ast.Deref, inner) -> lower_deref state inner expr.span
   | Tast.TFieldAccess (base, field) ->
       let source =
         match resolve_ty base.ty with
-        | Types.TPointer pointee -> lower_deref state pointee base base.span
+        | Types.TPointer _ -> lower_deref state base base.span
         | _ -> lower_expr state base |> materialize state
       in
       add_projection source (Field field)
@@ -840,10 +817,8 @@ and lower_place state expr =
       let base_value = lower_expr state base in
       let source = materialize state base_value in
       let index = lower_expr state index in
-      (match (resolve_ty base.ty, index.desc) with
-      | Types.TArray (_, n), Const (Int i) when i >= 0L && i < Int64.of_int n ->
-          ()
-      | (Types.TArray _ | Types.TSlice _), _ ->
+      (match resolve_ty base.ty with
+      | Types.TArray _ | Types.TSlice _ ->
           let length =
             temp_value state (Types.TInt Usize) base.span (Len source)
           in
@@ -857,14 +832,16 @@ and lower_place state expr =
 (* check_null copy %0 block1
    block1:
      ... %0.deref *)
-and lower_deref state pointee pointer span =
+and lower_deref state pointer span =
   let pointer = lower_expr state pointer in
-  lower_null_check state pointee pointer span;
+  lower_check state (Null pointer) span;
   add_projection (materialize state pointer) Deref
 
-(* %0[0] = 7
+(* %0 = undef
+   %0[0] = 7
    %0[1] = 8 *)
-and lower_array_lit state destination elements =
+and lower_array_lit state destination (expr : Tast.texpr) elements =
+  assign state destination (const expr.span expr.ty Undef);
   List.iteri
     (fun index (element : Tast.texpr) ->
       let index_operand =
@@ -888,18 +865,12 @@ and lower_struct_lit state destination (expr : Tast.texpr) fields =
    check_slice_bounds 1 3 copy %2 block1
    block1:
      %0 = slice %1 1 3 *)
-and lower_slice state destination expr (base : Tast.texpr) lo hi =
-  let base_ty = base.ty in
+and lower_slice state destination expr base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
-  (match (resolve_ty base_ty, lo.desc, hi.desc) with
-  | Types.TArray (_, n), Const (Int l), Const (Int h)
-    when 0L <= l && l <= h && h <= Int64.of_int n ->
-      ()
-  | _ ->
-      let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
-      lower_check state (SliceBounds (lo, hi, length)) expr.span);
+  let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
+  lower_check state (SliceBounds (lo, hi, length)) expr.span;
   emit state (Slice (destination, base, lo, hi)) expr.span
 
 (* %0[0] = copy %0[0] + 5 *)
@@ -980,8 +951,8 @@ let build_global (global : Tast.tglobal_def) =
     public = List.mem Ast.Pub global.modifiers;
   }
 
-let build_func layouts global_names (func : Tast.tfunc_def) =
-  let state = make_builder layouts global_names in
+let build_func global_names (func : Tast.tfunc_def) =
+  let state = make_builder global_names in
   let span =
     match (func.body, func.params) with
     | first :: _, _ -> first.span
@@ -1034,11 +1005,6 @@ let build declarations =
         | _ -> (structs, globals, funcs))
       declarations ([], [], [])
   in
-  let layouts = Layout.create () in
-  List.iter
-    (fun (decl : struct_decl) ->
-      Layout.set_struct_fields layouts (Qname.key decl.name) decl.fields)
-    structs;
   let global_names = Hashtbl.create 16 in
   List.iter
     (fun (g : Tast.tglobal_def) -> Hashtbl.add global_names g.key g.name)
@@ -1046,7 +1012,7 @@ let build declarations =
   {
     structs;
     globals = List.map build_global globals;
-    functions = List.map (build_func layouts global_names) funcs;
+    functions = List.map (build_func global_names) funcs;
   }
 
 let show_storage storage =
@@ -1389,8 +1355,7 @@ let verify_call ctx span (call : call) =
         fail ctx span "unit call has result storage";
       expect ctx span "call storage" return_ty (verify_place ctx destination)
   | None ->
-      if is_aggregate return_ty then
-        fail ctx span "aggregate call has no result storage"
+      if is_valued return_ty then fail ctx span "call has no result storage"
 
 (* %0 = copy %1, %0 = slice %1 1 3, %0 = call @add(copy %1) *)
 let verify_statement ctx (statement : statement) =
