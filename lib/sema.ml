@@ -473,13 +473,21 @@ let verify_bare_break env span lc =
         |> Diagnostic.secondary first
              (Printf.sprintf "breaks with %s" (show_ty env t)))
 
-(* An array already holds the data needed by a slice *)
-let adopt_slice want (te : Tast.texpr) =
-  match (resolve_ty want, resolve_ty te.ty) with
-  | Types.TSlice _, Types.TArray _ ->
+(* An array already holds the data needed by a slice and a null or string
+   literal just takes the pointer type it lands in *)
+let adopt want (te : Tast.texpr) =
+  match (resolve_ty want, resolve_ty te.ty, te.desc) with
+  | Types.TSlice _, Types.TArray _, _ ->
       let zero = Tast.mk (Types.TInt Usize) (Tast.TInt 0L) in
       let len = Tast.mk (Types.TInt Usize) (Tast.TLen te) in
       Tast.mk want (Tast.TSliceExpr (te, zero, len))
+  | (Types.TPointer _ | Types.TPtr), Types.TNull, Tast.TNull
+  | Types.TCStr, Types.TPointer (Types.TInt I8), Tast.TCStr _ ->
+      { te with ty = want }
+  | (Types.TPointer _ | Types.TPtr), Types.TNull, _
+  | Types.TCStr, Types.TPointer (Types.TInt I8), _
+  | Types.TPointer (Types.TInt I8), Types.TCStr, _ ->
+      Tast.mk ~span:te.span want (Tast.TCast te)
   | _ -> te
 
 (* The count keeps its own type since it is only a number of positions *)
@@ -1483,7 +1491,7 @@ and check_desc env e want =
 
 and coerce_expr env e want te =
   let got = te.ty in
-  if compatible want got then adopt_slice want te
+  if compatible want got then adopt want te
   else if widens_to got want then Tast.mk ~span:e.span want (Tast.TCast te)
   else begin
     let mismatch =
