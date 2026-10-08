@@ -1458,6 +1458,10 @@ and check_array_literal env (e : expr) want elements =
                (List.length elements));
       let typed = List.map (fun source -> check env source element) elements in
       Tast.mk (Types.TArray (element, length)) (Tast.TArrayLit typed)
+  | Types.TSlice element ->
+      let typed = List.map (fun source -> check env source element) elements in
+      let array = Types.TArray (element, List.length typed) in
+      coerce_expr env e want (Tast.mk array (Tast.TArrayLit typed))
   | _ -> check_by_synth env e want
 
 and check_desc env e want =

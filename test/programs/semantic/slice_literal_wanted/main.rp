@@ -1,0 +1,5 @@
+fn main() i32 {
+  var bytes: []u8 = [1, 2, 3];
+  var none: []i32 = [];
+  return cast(i32, bytes[2]) + cast(i32, none.len);
+}
