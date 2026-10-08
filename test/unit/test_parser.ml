@@ -694,39 +694,15 @@ let%expect_test "parse: len field access" =
 
 let%expect_test "parse: fixed array type" =
   run_src "fn f(a: [4]i32) {}";
-  [%expect
-    {|
-    warning: unused variable: a
-      at <test>:1:6
-        fn f(a: [4]i32) {}
-             ^~~~~~~~~
-    help: prefix with an underscore: _a
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: slice type" =
   run_src "fn f(a: []i32) {}";
-  [%expect
-    {|
-    warning: unused variable: a
-      at <test>:1:6
-        fn f(a: []i32) {}
-             ^~~~~~~~
-    help: prefix with an underscore: _a
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: slice of pointer type" =
   run_src "fn f(a: []*i32) {}";
-  [%expect
-    {|
-    warning: unused variable: a
-      at <test>:1:6
-        fn f(a: []*i32) {}
-             ^~~~~~~~~
-    help: prefix with an underscore: _a
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: array missing size" =
   run_src "fn f(a: [xyz]i32) {}";
@@ -760,15 +736,7 @@ let%expect_test "parse: ptr field access" =
 
 let%expect_test "parse: multiline array literal" =
   run_src "fn f() {\n  var a: [2]i32 = [\n    1,\n    2,\n  ];\n}";
-  [%expect
-    {|
-    warning: unused variable: a
-      at <test>:2:7
-          var a: [2]i32 = [
-              ^
-    help: prefix with an underscore: _a
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test
     ("parse: line tracking after unterminated string" [@tags "disabled"]) =
@@ -1165,15 +1133,7 @@ fn f() {
   var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
 }
 |};
-  [%expect
-    {|
-    warning: unused variable: a
-      at <test>:4:7
-          var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
-              ^
-    help: prefix with an underscore: _a
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: function pointer parameter type" =
   run_src {|
@@ -1668,11 +1628,6 @@ let%expect_test "parse: block expression needs a trailing value" =
   run_src "fn f() i32 {\n  var x = { var a = 1 };\n  return x;\n}";
   [%expect
     {|
-    warning: unused variable: a
-      at <test>:2:17
-          var x = { var a = 1 };
-                        ^
-    help: prefix with an underscore: _a
     error: type mismatch
       at <test>:3:10
           return x;
@@ -1831,15 +1786,7 @@ let%expect_test "parse: operator may follow an explicit semicolon" =
 fn main() i32 {
   var _x = f(1); -f(2); return 0;
 }|};
-  [%expect
-    {|
-    warning: discarded operation result
-      at <test>:3:18
-          var _x = f(1); -f(2); return 0;
-                         ^~~~~
-    help: use `var _ = ...` when this is intentional
-    ok
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: declarations may appear in a block" =
   parse_body

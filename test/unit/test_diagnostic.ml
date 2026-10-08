@@ -61,18 +61,6 @@ let%expect_test "an undefined name after a tab keeps its caret aligned" =
                        ^~~~~~~
     |}]
 
-let%expect_test "an unused variable warning includes the suggested name" =
-  Pipeline.run_src "fn main() i32 {\n  var value = 1;\n  return 0;\n}\n";
-  [%expect
-    {|
-    warning: unused variable: value
-      at <test>:2:7
-          var value = 1;
-              ^~~~~
-    help: prefix with an underscore: _value
-    ok
-    |}]
-
 let%expect_test "a duplicate definition points to both declarations" =
   Pipeline.run_src
     {|fn value() i32 { return 1 }

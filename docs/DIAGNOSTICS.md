@@ -126,8 +126,6 @@ There might be where the caret that is shown is a few dozen columns. This is jus
 | note | context belongs to another diagnostic |
 | help | closing suggestion |
 
-Known issue: I haven't fully fleshed out the warning system. I still don't have a way to opt out of it.
-
 ### 5. Avoid cascading
 
 This is not about grouping all unused variables into one message: but rather one cause, one diagnostic.
