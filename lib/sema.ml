@@ -2178,7 +2178,8 @@ let check_func ?(is_extern = false) env fd =
   warn_unused_in_scope final_env;
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    | true, last :: rest when last.ty = ret_ty && ret_ty <> Types.TNever ->
+    | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> Types.TNever
+      ->
         let ret =
           Tast.mk ~span:last.span Types.TNever (Tast.TReturn (Some last))
         in
