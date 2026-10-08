@@ -250,6 +250,7 @@ let tried_paths loader path =
   in
   loader.roots |> List.mapi show |> String.concat ""
 
+(* TODO(4213): This parses every import up front so a big stdlib costs us even when we use none of it *)
 let rec load_module loader stack origin path =
   match Hashtbl.find_opt loader.states path with
   | Some (Loading module_id) ->
