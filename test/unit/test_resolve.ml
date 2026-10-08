@@ -179,7 +179,9 @@ fn main() i32 {
 
     function w $_R4main() {
     @start
-    %_p =l copy $g
+    %m1 =l alloc8 8
+    storel $g, %m1
+    %_p =l copy %m1
     ret 0
     }
 

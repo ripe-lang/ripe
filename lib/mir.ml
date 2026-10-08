@@ -759,10 +759,6 @@ and lower_into state destination (expr : Tast.texpr) =
       lower_compound_assign state expr op left right
   | Tast.TUnOp (Ast.AddressOf, { desc = Tast.TUnOp (Ast.Deref, inner); _ }) ->
       lower_into state destination inner
-  | Tast.TUnOp (Ast.AddressOf, ({ desc = Tast.TIdent symbol; _ } as inner))
-    when Symbol.is_func symbol.Symbol.kind ->
-      let function_value = const expr.span expr.ty (constant_of inner) in
-      Option.iter (fun d -> assign state d function_value) destination
   | Tast.TUnOp (Ast.AddressOf, inner) ->
       store_value (AddressOf (lower_place state inner))
   | Tast.TUnOp (Ast.Deref, _)
@@ -818,7 +814,8 @@ and lower_call state destination expr callee args variadic_start =
 (* %0, @count, %0.deref.field0, %0[copy %1] *)
 and lower_place state expr =
   match expr.desc with
-  | Tast.TIdent symbol -> symbol_place state expr.span symbol
+  | Tast.TIdent symbol when not (Symbol.is_func symbol.Symbol.kind) ->
+      symbol_place state expr.span symbol
   | Tast.TUnOp (Ast.Deref, inner) -> lower_deref state expr.ty inner expr.span
   | Tast.TFieldAccess (base, field) ->
       let source =

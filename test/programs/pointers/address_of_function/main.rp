@@ -1,0 +1,6 @@
+fn four() i32 { return 4 }
+
+fn main() i32 {
+  var g: *fn() i32 = &four;
+  return (*g)() + (*g)();
+}
