@@ -854,8 +854,10 @@ and lower_place state expr =
       let base_value = lower_expr state base in
       let source = materialize state base_value in
       let index = lower_expr state index in
-      (match resolve_ty base.ty with
-      | Types.TArray _ | Types.TSlice _ ->
+      (match (resolve_ty base.ty, index.desc) with
+      | Types.TArray (_, n), Const (Int i) when i >= 0L && i < Int64.of_int n ->
+          ()
+      | (Types.TArray _ | Types.TSlice _), _ ->
           let length =
             temp_value state (Types.TInt Usize) base.span (Len source)
           in
@@ -900,12 +902,18 @@ and lower_struct_lit state destination (expr : Tast.texpr) fields =
    check_slice_bounds 1 3 copy %2 block1
    block1:
      %0 = slice %1 1 3 *)
-and lower_slice state destination expr base lo hi =
+and lower_slice state destination expr (base : Tast.texpr) lo hi =
+  let base_ty = base.ty in
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
-  let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
-  lower_check state (SliceBounds (lo, hi, length)) expr.span;
+  (match (resolve_ty base_ty, lo.desc, hi.desc) with
+  | Types.TArray (_, n), Const (Int l), Const (Int h)
+    when 0L <= l && l <= h && h <= Int64.of_int n ->
+      ()
+  | _ ->
+      let length = temp_value state (Types.TInt Usize) expr.span (Len base) in
+      lower_check state (SliceBounds (lo, hi, length)) expr.span);
   emit state (Slice (destination, base, lo, hi)) expr.span
 
 (* %0[0] = copy %0[0] + 5 *)
