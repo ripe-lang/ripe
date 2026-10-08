@@ -13,17 +13,12 @@ type func_sig = {
   param_hole : bool;
 }
 
-(* No field list means the braces never parsed *)
 type struct_info = {
-  field_tys : (Ast.name option * ty) list option;
+  field_tys : (Ast.name * ty) list;
   field_index : (Ast.name, int * ty) Hashtbl.t option;
 }
 
-type enum_info = {
-  variants_by_name : (Ast.name, int64) Hashtbl.t;
-  variants_known : bool;
-}
-
+type enum_info = { variants_by_name : (Ast.name, int64) Hashtbl.t }
 type 'a deferred = Unstarted | Running | Completed of 'a
 
 (* Structs aliases and builtins share one namespace of type names *)
@@ -287,28 +282,14 @@ let lookup_struct env span name =
       Diagnostic.emit (Diagnostic.error span "undefined struct");
       None
 
-let known_fields info = Option.value ~default:[] info.field_tys
-
-(* A hole could have held any name so a miss proves nothing *)
-let fields_have_a_hole info =
-  match info.field_tys with
-  | None -> true
-  | Some tys -> List.exists (fun (name, _) -> name = None) tys
-
 let find_field info name =
-  let hit =
-    match info.field_index with
-    | Some index -> Hashtbl.find_opt index name
-    | None ->
-        List.find_mapi
-          (fun field_id (field_name, ty) ->
-            if field_name = Some name then Some (field_id, ty) else None)
-          (known_fields info)
-  in
-  match hit with
-  | Some _ -> hit
-  | None when fields_have_a_hole info -> Some (0, Types.TError)
-  | None -> None
+  match info.field_index with
+  | Some index -> Hashtbl.find_opt index name
+  | None ->
+      List.find_mapi
+        (fun field_id (field_name, ty) ->
+          if field_name = name then Some (field_id, ty) else None)
+        info.field_tys
 
 (* Never has no value so a type holding one has none either *)
 let is_uninhabited env ty =
@@ -324,7 +305,7 @@ let is_uninhabited env ty =
     else
       match Symbol.Table.find_opt env.ctx.type_defs key with
       | Some (Struct_type { contents = Completed info }) ->
-          List.exists (fun (_, ft) -> go (key :: seen) ft) (known_fields info)
+          List.exists (fun (_, ft) -> go (key :: seen) ft) info.field_tys
       | _ -> false
   in
   go [] ty
@@ -353,7 +334,6 @@ let resolve_named_abi name span =
 let resolve_abi a =
   match a with
   | NoAbi -> Types.Ripe
-  | AbiError -> Types.AbiError
   | NamedAbi { value = name; span } -> resolve_named_abi name span
 
 let unresolved_named_ty env span =
@@ -545,7 +525,6 @@ let synth_variant env (inner : expr) info fname fspan =
   let name = qname_at env inner.span shown in
   match Hashtbl.find_opt info.variants_by_name fname with
   | Some value -> Tast.mk (Types.TEnum name) (Tast.TVariant (name, value))
-  | None when not info.variants_known -> dummy_texpr
   | None ->
       Diagnostic.emit
         (Diagnostic.error fspan "no variant"
@@ -668,7 +647,6 @@ let exit_zero env span =
 
 let rec ty_of_ast env t =
   match t.tdesc with
-  | ErrorType -> Types.TError
   | Named (path, name) -> named_ty env t.tspan (Ast.show_named path name)
   | Pointer t -> lift_ty (fun ty -> Types.TPointer ty) (ty_of_ast env t)
   | Array (e, t) -> array_ty_of_ast env e t
@@ -686,10 +664,9 @@ let rec ty_of_ast env t =
   | UnitType -> Types.TUnit
 
 and array_ty_of_ast env size element =
-  match (ty_of_ast env element, size.desc) with
-  | _, ErrorExpr -> Types.TError
-  | ty, _ when Types.has_error ty -> Types.TError
-  | ty, _ -> Types.TArray (ty, eval_array_size env size)
+  match ty_of_ast env element with
+  | ty when Types.has_error ty -> Types.TError
+  | ty -> Types.TArray (ty, eval_array_size env size)
 
 (* An array size may name a global not collected yet so type it now *)
 and pending_global_ty env span key fact =
@@ -718,7 +695,6 @@ and lookup_non_local env span =
       | Some fact -> pending_global_ty env span key fact
       | None -> (
           match Symbol.Table.find_opt env.ctx.func_sigs key with
-          | Some fsig when fsig.param_hole -> Types.TError
           | Some fsig -> Types.TFunc (fsig.param_tys, fsig.ret_ty, fsig.abi)
           | None ->
               Diagnostic.emit (Diagnostic.error span "undefined variable");
@@ -733,7 +709,6 @@ and stamp span (te : Tast.texpr) = { te with span }
 
 and synth_desc env e =
   match e.desc with
-  | ErrorExpr -> dummy_texpr
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
       check_int_literal env e (Types.TInt kind) (Types.TInt kind) n
@@ -945,9 +920,8 @@ and named_fields env span info (inits : (Ast.name option spanned * expr) list) =
   let written_fields = List.filter_map check_named_field inits in
   (* When you omit a fields they're 0 init *)
   let default_field field_id (fname, ft) =
-    match fname with
-    | Some name when Hashtbl.mem seen name -> None
-    | _ -> Some (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
+    if Hashtbl.mem seen fname then None
+    else Some (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
   in
   let rec defaults field_id fields =
     match fields with
@@ -959,35 +933,29 @@ and named_fields env span info (inits : (Ast.name option spanned * expr) list) =
         | None -> rest)
   in
   (* The written field order controls value evaluation *)
-  written_fields @ defaults 0 (known_fields info)
+  written_fields @ defaults 0 info.field_tys
 
 (* A positional literal must define every field *)
 and positional_fields env span info
     (inits : (Ast.name option spanned * expr) list) =
-  let expected = List.length (known_fields info) in
+  let expected = List.length info.field_tys in
   let found = List.length inits in
-  (* A hole shifts every field behind it so no count or pairing proves anything *)
-  if fields_have_a_hole info then (
-    walk_unpaired_args env (List.map (fun (_, init) -> init) inits);
-    [])
-  else begin
-    if Option.is_some info.field_tys && found <> expected then
-      Diagnostic.emit
-        (Diagnostic.error span "wrong number of fields"
-        |> Diagnostic.label "expected %d, found %d" expected found);
-    let rec zip field_id fields inits =
-      match (fields, inits) with
-      | [], inits ->
-          walk_unpaired_args env (List.map (fun (_, init) -> init) inits);
-          []
-      | (_, ft) :: fields, [] ->
-          (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
-          :: zip (field_id + 1) fields []
-      | (_, ft) :: fields, (_, init) :: inits ->
-          (field_id, check env init ft) :: zip (field_id + 1) fields inits
-    in
-    zip 0 (known_fields info) inits
-  end
+  if found <> expected then
+    Diagnostic.emit
+      (Diagnostic.error span "wrong number of fields"
+      |> Diagnostic.label "expected %d, found %d" expected found);
+  let rec zip field_id fields inits =
+    match (fields, inits) with
+    | [], inits ->
+        walk_unpaired_args env (List.map (fun (_, init) -> init) inits);
+        []
+    | (_, ft) :: fields, [] ->
+        (field_id, Tast.mk (zero_init_ty env span ft) Tast.TZero)
+        :: zip (field_id + 1) fields []
+    | (_, ft) :: fields, (_, init) :: inits ->
+        (field_id, check env init ft) :: zip (field_id + 1) fields inits
+  in
+  zip 0 info.field_tys inits
 
 and reconcile_if_result env (branches : (expr * block Ast.spanned) list) else_b
     =
@@ -1353,8 +1321,7 @@ and coverage_of env ty seen =
   | Types.TBool -> in_declared_order (absent 0L "false" (absent 1L "true" []))
   | Types.TEnum name -> (
       match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
-      | Some (Enum_type { contents = Completed info }) when info.variants_known
-        ->
+      | Some (Enum_type { contents = Completed info }) ->
           (* An alias can't spell its own variants so name the enum itself *)
           let shown = show_ty env (Types.TEnum name) in
           let gather variant value rest =
@@ -1410,7 +1377,7 @@ and check_match_arms env ts arms want =
     Option.map (fun tpat -> { tpat; tbody }) tpat
   in
   let tarms = List.filter_map check_arm arms in
-  (* An arm lost to a parse or type error looks like a hole it never left *)
+  (* An arm lost to an earlier error looks like a hole it never left *)
   let arms_all_arrived =
     List.compare_lengths tarms arms = 0 && not env.ctx.initial_errors
   in
@@ -1478,7 +1445,6 @@ and check_array_literal env (e : expr) want elements =
 and check_desc env e want =
   let target = resolve_ty want in
   match e.desc with
-  | ErrorExpr -> dummy_texpr
   | Int (value, None) -> check_int_literal env e want target value
   | Float (value, None) -> check_float_literal env e want target value
   | String value when target = Types.TStr -> Tast.mk want (Tast.TStr value)
@@ -1860,27 +1826,16 @@ and eval_array_size env e =
   | _ when Types.has_error te.ty -> 0
   | _ -> bad "array size must be a literal"
 
-let params_have_a_hole (fd : func_def) =
-  List.exists (fun p -> Option.is_none p.param_name.value) fd.params
-
-(* A parameter that never parsed leaves the count as unsure as a hole does *)
-let params_are_unsure (fd : func_def) =
-  params_have_a_hole fd
-  || List.exists (fun p -> p.param_typ.tdesc = Ast.ErrorType) fd.params
-
-(* A list that never closed swallowed whatever result type came after it *)
 let ret_ty_of env fd =
-  if params_have_a_hole fd then Types.TError
-  else match fd.ret with Some t -> ty_of_ast env t | None -> Types.TUnit
+  match fd.ret with Some t -> ty_of_ast env t | None -> Types.TUnit
 
 (* The signature pass enables forward calls *)
 let collect_func env fd =
   let abi = resolve_abi fd.extern_abi in
   let param_tys = List.map (fun p -> ty_of_ast env p.param_typ) fd.params in
   let ret_ty = ret_ty_of env fd in
-  let param_hole = params_are_unsure fd in
   Symbol.Table.replace env.ctx.func_sigs (key_at env fd.func_span)
-    { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole }
+    { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole = false }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken ctx span =
@@ -1892,15 +1847,11 @@ let reserve_struct_name ctx sd =
   if not (type_name_taken ctx sd.struct_span) then (
     let seen = Hashtbl.create 8 in
     let check_duplicate f =
-      match f.field_name.value with
-      | None -> ()
-      | Some name ->
-          if Hashtbl.mem seen name then
-            Diagnostic.emit
-              (Diagnostic.error f.field_name.span "duplicate field")
-          else Hashtbl.add seen name ()
+      if Hashtbl.mem seen f.field_name.value then
+        Diagnostic.emit (Diagnostic.error f.field_name.span "duplicate field")
+      else Hashtbl.add seen f.field_name.value ()
     in
-    Option.iter (List.iter check_duplicate) sd.fields;
+    List.iter check_duplicate sd.fields;
     Symbol.Table.replace ctx.type_defs
       (key_in ctx sd.struct_span)
       (Struct_type (ref Unstarted));
@@ -1910,25 +1861,22 @@ let fill_struct_fields env sd =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env sd.struct_span) with
   | Some (Struct_type body) ->
       let named_ty f = (f.field_name.value, ty_of_ast env f.field_typ) in
-      let field_tys = Option.map (List.map named_ty) sd.fields in
-      let known = Option.value ~default:[] field_tys in
+      let field_tys = List.map named_ty sd.fields in
       let field_index =
-        if List.compare_length_with known 8 <= 0 then None
+        if List.compare_length_with field_tys 8 <= 0 then None
         else
-          let index = Hashtbl.create (List.length known) in
+          let index = Hashtbl.create (List.length field_tys) in
           List.iteri
             (fun field_id (name, ty) ->
-              match name with
-              | Some name when not (Hashtbl.mem index name) ->
-                  Hashtbl.add index name (field_id, ty)
-              | _ -> ())
-            known;
+              if not (Hashtbl.mem index name) then
+                Hashtbl.add index name (field_id, ty))
+            field_tys;
           Some index
       in
       body := Completed { field_tys; field_index };
       Layout.set_struct_fields env.ctx.layouts
         (key_at env sd.struct_span)
-        (List.map snd known)
+        (List.map snd field_tys)
   | _ -> ()
 
 type visit = On_path | Finished
@@ -1996,29 +1944,20 @@ let verify_type_cycles ctx =
 (* A variant names no type so one pass settles the whole enum *)
 let reserve_enum_name ctx ed =
   if not (type_name_taken ctx ed.enum_span) then begin
-    let variants = Option.value ~default:[] ed.variants in
-    let variants_by_name = Hashtbl.create (List.length variants) in
-    (* A missing name still takes its ordinal so the rest keep their values *)
+    let variants_by_name = Hashtbl.create (List.length ed.variants) in
     let add next (v : Ast.ident) =
-      match v.value with
-      | None -> Int64.succ next
-      | Some name ->
-          if Hashtbl.mem variants_by_name name then begin
-            Diagnostic.emit (Diagnostic.error v.span "duplicate variant");
-            next
-          end
-          else begin
-            Hashtbl.add variants_by_name name next;
-            Int64.succ next
-          end
+      if Hashtbl.mem variants_by_name v.value then begin
+        Diagnostic.emit (Diagnostic.error v.span "duplicate variant");
+        next
+      end
+      else begin
+        Hashtbl.add variants_by_name v.value next;
+        Int64.succ next
+      end
     in
-    ignore (List.fold_left add 0L variants);
-    let variants_known =
-      Option.is_some ed.variants
-      && List.for_all (fun (v : Ast.ident) -> Option.is_some v.value) variants
-    in
+    ignore (List.fold_left add 0L ed.variants);
     Symbol.Table.replace ctx.type_defs (key_in ctx ed.enum_span)
-      (Enum_type (ref (Completed { variants_by_name; variants_known })))
+      (Enum_type (ref (Completed { variants_by_name })))
   end
 
 let reserve_alias_name ctx td =
@@ -2029,7 +1968,6 @@ let reserve_alias_name ctx td =
 let rec named_type_spans t =
   match t.tdesc with
   | Named _ -> [ t.tspan ]
-  | ErrorType -> []
   | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
   | FuncPtr (_, params, ret) ->
       List.concat_map named_type_spans params
@@ -2162,10 +2100,7 @@ let check_func ?(is_extern = false) env fd =
   let param_env =
     List.fold_left
       (fun e ((ident : Ast.ident), t, span) ->
-        match ident.value with
-        | None -> e
-        | Some name ->
-            extend_var ~used:is_extern ~deduplicate:true e span name t)
+        extend_var ~used:is_extern ~deduplicate:true e span ident.value t)
       func_env params_typed
   in
 
@@ -2204,10 +2139,10 @@ let check_func ?(is_extern = false) env fd =
 
   {
     key;
-    name = link_name_at env fd.func_span (Ast.ident_text fd.func_name);
+    name = link_name_at env fd.func_span (Interner.text fd.func_name.value);
     (* A qualified source name disambiguates panic reports *)
     source_name =
-      String.concat "." (env.reader_path @ [ Ast.ident_text fd.func_name ]);
+      String.concat "." (env.reader_path @ [ Interner.text fd.func_name.value ]);
     entry_point = is_entry_point;
     params;
     ret_ty;
@@ -2241,14 +2176,14 @@ let check_global env (gd : global_def) =
   in
   {
     key;
-    name = link_name_at env gd.span (Ast.ident_text gd.name);
+    name = link_name_at env gd.span (Interner.text gd.name.value);
     ty = t;
     init = tinit;
     modifiers = gd.modifiers;
   }
 
 let typed_struct_decl ctx sd fields =
-  let name = qname_in ctx sd.struct_span (Ast.ident_text sd.struct_name) in
+  let name = qname_in ctx sd.struct_span (Interner.text sd.struct_name.value) in
   let is_local =
     Option.exists
       (fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
@@ -2275,12 +2210,10 @@ let check_decls ctx =
             Symbol.Table.find_opt ctx.type_defs (key_in ctx sd.struct_span)
           with
           | Some (Struct_type { contents = Completed info }) ->
-              List.map snd (known_fields info)
+              List.map snd info.field_tys
           | _ ->
               let env = env_for_decl ctx decl in
-              List.map
-                (fun f -> ty_of_ast env f.field_typ)
-                (Option.value ~default:[] sd.fields)
+              List.map (fun f -> ty_of_ast env f.field_typ) sd.fields
         in
         typed_struct_decl ctx sd field_tys
     | Global gd ->
@@ -2297,9 +2230,10 @@ let check_decls ctx =
               ty_of_ast env td.alias_typ
         in
         Tast.TTypeAlias
-          (qname_in ctx td.alias_span (Ast.ident_text td.alias_name), t)
+          (qname_in ctx td.alias_span (Interner.text td.alias_name.value), t)
     | Enum ed ->
-        Tast.TEnum (qname_in ctx ed.enum_span (Ast.ident_text ed.enum_name))
+        Tast.TEnum
+          (qname_in ctx ed.enum_span (Interner.text ed.enum_name.value))
   in
   List.map check_declaration ctx.declarations
 

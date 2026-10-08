@@ -2042,8 +2042,8 @@ let%expect_test "parse: an enum declares its variants" =
   Green,
   Blue,
 }|} with
-  | [ Ripe.Ast.Enum { variants = Some variants; _ } ] ->
-      print_endline (String.concat " " (List.map Ripe.Ast.ident_text variants))
+  | [ Ripe.Ast.Enum { variants; _ } ] ->
+      print_endline (String.concat " " (List.map dump_ident variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| Red Green Blue |}]
 

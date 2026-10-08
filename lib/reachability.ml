@@ -17,7 +17,6 @@ and block_item_has_break ~own target = function
 
 and expr_has_break ~own target e =
   match e.desc with
-  | ErrorExpr -> false
   | Break (None, _) -> own
   | Break (Some l, _) -> target <> None && target = Some l.Ast.value
   | Block body -> block_has_break ~own target body

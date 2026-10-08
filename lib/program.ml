@@ -76,7 +76,7 @@ let parse_source ~base filename src =
   let read = Lexer.read (Lexer.make_state base) in
   match Parser.parse read lexbuf with
   | ast -> (source, ast, false)
-  | exception Parser.Unbalanced -> (source, empty_ast, true)
+  | exception Parser.Failed -> (source, empty_ast, true)
 
 let file_of_path source_root path =
   List.fold_left Filename.concat source_root path ^ ".rp"
@@ -123,12 +123,10 @@ let probe_header src =
   let lexbuf = Lexer.lexbuf_of_string src in
   let read = Lexer.read (Lexer.make_state 0) in
   let rec first_item () =
-    match read lexbuf with
-    | Tokens.SEMI, _, _ -> first_item ()
-    | tok, _, _ -> tok
+    match read lexbuf with Tokens.SEMI, _ -> first_item () | tok, _ -> tok
   in
   let module_name () =
-    match read lexbuf with Tokens.IDENT name, _, _ -> Some name | _ -> None
+    match read lexbuf with Tokens.IDENT name, _ -> Some name | _ -> None
   in
   Diagnostic.quietly (fun () ->
       match first_item () with Tokens.MODULE -> module_name () | _ -> None)
@@ -238,12 +236,12 @@ let read_unit loader filename =
   let src = loader.read_file filename in
   (* The lexer walks bytes so it would split a character in half *)
   if not (String.is_valid_utf_8 src) then raise (Invalid_utf8 filename);
-  let source, ast, unbalanced =
+  let source, ast, failed =
     parse_source
       ~base:(fresh_base loader filename (String.length src))
       filename src
   in
-  ({ source; ast }, unbalanced)
+  ({ source; ast }, failed)
 
 let tried_paths loader path =
   let show index root =
@@ -305,7 +303,7 @@ and load_new_module loader stack origin module_id path =
 and load_units loader stack module_id path merged filenames =
   let read = List.map (read_unit loader) filenames in
   let units = List.map fst read in
-  (* An unbalanced file has no declarations so importers would see only misses *)
+  (* A file that failed to parse has no declarations so importers would see only misses *)
   let failed = List.exists snd read in
   List.iter (check_header path merged) units;
   let dependencies =

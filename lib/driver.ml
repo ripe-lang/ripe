@@ -92,7 +92,7 @@ let emit_obj ~qbe target il =
 let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
   let rec loop () =
-    let t, _, _ = read lexbuf in
+    let t, _ = read lexbuf in
     Buffer.add_string buf (Tokens.show_token t);
     Buffer.add_char buf '\n';
     if t <> Tokens.EOF then loop ()

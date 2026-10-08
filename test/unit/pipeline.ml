@@ -4,7 +4,7 @@ let parse_src file src =
   let st = Ripe.Lexer.make_state file in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   try Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
-  with Ripe.Parser.Unbalanced ->
+  with Ripe.Parser.Failed ->
     { Ripe.Ast.header = None; imports = []; decls = [] }
 
 let parse_module ?(file = 0) src =

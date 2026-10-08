@@ -16,13 +16,11 @@ let tok_str (t : Ripe.Tokens.token) =
         "KW " ^ show_token other
       else show_token other
 
-let dump_ident (i : Ripe.Ast.ident) =
-  match i.value with Some n -> Ripe.Interner.text n | None -> "<missing>"
+let dump_ident (i : Ripe.Ast.ident) = Ripe.Interner.text i.value
 
 (* a compact s-expr for expr trees with no spans *)
 let rec dump_typ (t : Ripe.Ast.typ) =
   match t.tdesc with
-  | ErrorType -> "<error>"
   | Named (path, n) -> Ripe.Ast.show_named path n
   | Pointer p -> "*" ^ dump_typ p
   | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
@@ -35,7 +33,6 @@ let rec dump_typ (t : Ripe.Ast.typ) =
 
 and dump_expr (e : Ripe.Ast.expr) =
   match e.desc with
-  | ErrorExpr -> "<error>"
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | Bool b -> string_of_bool b
@@ -154,7 +151,7 @@ let dump_tokens src =
   let st = Ripe.Lexer.make_state 0 in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
   let rec go () =
-    let t, _, _ = Ripe.Lexer.read st lexbuf in
+    let t, _ = Ripe.Lexer.read st lexbuf in
     print_endline (tok_str t);
     if t <> Ripe.Tokens.EOF then go ()
   in
