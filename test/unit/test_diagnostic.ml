@@ -119,7 +119,7 @@ let%expect_test "the headline drops the severity and keeps the message" =
 
 let%expect_test "the primary span and detail come back out" =
   let src = "abc\n" in
-  let d = Diagnostic.(error (span src "abc") "x" |> detail "the reason\n") in
+  let d = Diagnostic.internal ~span:(span src "abc") "the reason" in
   let show d =
     Printf.printf "%s %S\n"
       (match Diagnostic.primary d with

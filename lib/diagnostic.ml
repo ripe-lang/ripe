@@ -52,17 +52,16 @@ let found text d = label "found %s" text d
 (* ^ previous definition here *)
 let secondary span message d = { d with labels = { span; message } :: d.labels }
 
-(*   looked in this module *)
-let detail s d = { d with detail = Some s }
-
 (* help: add `;` here *)
 let help s d = { d with suggestion = Some s }
 
 (* error: internal compiler error *)
 let internal ?span msg =
   let d =
-    error_no_span "internal compiler error"
-    |> detail (msg ^ "\n")
+    {
+      (error_no_span "internal compiler error") with
+      detail = Some (msg ^ "\n");
+    }
     |> help
          "this is a bug in ripec, please report it at \
           https://github.com/ripe-lang/ripe/issues"
@@ -243,13 +242,8 @@ let render_snippet ctx buf span label severity =
   Option.iter (Printf.bprintf buf " %s") label;
   Buffer.add_char buf '\n'
 
-let render_with (context_at : int -> ctx) default_ctx d =
+let render ctx d =
   let buf = Buffer.create 256 in
-  let ctx =
-    match d.primary with
-    | Some span -> context_at (Span.lo span)
-    | None -> default_ctx
-  in
   Printf.bprintf buf "%s: %s\n" (severity_label ctx.color d.severity) d.headline;
 
   (match d.primary with
@@ -257,16 +251,12 @@ let render_with (context_at : int -> ctx) default_ctx d =
   | None -> ());
 
   List.iter
-    (fun label ->
-      let label_ctx = context_at (Span.lo label.span) in
-      render_snippet label_ctx buf label.span (Some label.message) Note)
+    (fun label -> render_snippet ctx buf label.span (Some label.message) Note)
     (List.rev d.labels);
 
   Option.iter (Buffer.add_string buf) d.detail;
 
   Option.iter
-    (Printf.bprintf buf "%s: %s\n" (severity_label default_ctx.color Help))
+    (Printf.bprintf buf "%s: %s\n" (severity_label ctx.color Help))
     d.suggestion;
   Buffer.contents buf
-
-let render ctx d = render_with (fun _ -> ctx) ctx d
