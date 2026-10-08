@@ -991,12 +991,13 @@ and positional_fields env span info
 
 and reconcile_if_result env (branches : (expr * block Ast.spanned) list) else_b
     =
-  reconcile_arms env
-    (List.map (fun (_, { Ast.value; _ }) -> value) branches @ [ else_b ])
+  reconcile_arms
+    (List.map (fun (_, { Ast.value; _ }) -> (env, value)) branches
+    @ [ (env, else_b) ])
 
 (* Literals bend to the common rigid type so they don't anchor it *)
-and reconcile_arms env bodies =
-  let add_candidate (rigid, flexible) body =
+and reconcile_arms bodies =
+  let add_candidate (rigid, flexible) (env, body) =
     let candidate = block_result_ty env body in
     if block_is_flexible body then (rigid, common_ty flexible candidate)
     else (common_ty rigid candidate, flexible)
@@ -1323,12 +1324,18 @@ and check_pattern env sty pat =
 
 and check_match env scrutinee arms use =
   let ts = synth env scrutinee in
-  let bodies = List.map (fun a -> a.arm_body.Ast.value) arms in
+  (* An arm body can name its binder so the probe needs it in scope *)
+  let arm_env a =
+    match a.pat.pdesc with
+    | PatBind name -> extend_var (push_scope env) a.pat.pspan name ts.ty
+    | _ -> env
+  in
+  let bodies = List.map (fun a -> (arm_env a, a.arm_body.Ast.value)) arms in
   match use with
   | Infer when is_probing env ->
       (* A probe only wants the type so don't build the tree twice *)
-      Tast.mk (reconcile_arms env bodies) Tast.TErrorExpr
-  | Infer -> check_match_arms env ts arms (Some (reconcile_arms env bodies))
+      Tast.mk (reconcile_arms bodies) Tast.TErrorExpr
+  | Infer -> check_match_arms env ts arms (Some (reconcile_arms bodies))
   | Expect w -> check_match_arms env ts arms (Some w)
   | Discard -> check_match_arms env ts arms None
 

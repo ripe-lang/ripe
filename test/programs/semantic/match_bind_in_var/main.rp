@@ -1,0 +1,8 @@
+fn f(n: i64) i64 {
+  var o = match n { 0 => 2, x => x * 3, };
+  return o;
+}
+
+fn main() i32 {
+  return cast(i32, f(0) + f(4));
+}
