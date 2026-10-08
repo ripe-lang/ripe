@@ -707,8 +707,13 @@ let%expect_test "mir: a slice expression carries a base and a length" =
     fn f(%1: [4]i32) []i32 {
       local %0 result: []i32 result
       local %1 a: [4]i32 param
+      local %2: usize temp
 
       block0:
+        %2 = len %1
+        check_slice_bounds 1 3 copy %2 block1
+
+      block1:
         %0 = slice %1 1 3
         return
     }
@@ -725,11 +730,22 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     {|
     fn f() i32 {
       local %0 a: [2]i32 user
+      local %1: usize temp
+      local %2: usize temp
 
       block0:
+        %0 = undef
         %0[0] = 1
         %0[1] = 2
+        %1 = len %0
+        check_bounds 0 copy %1 block1
+
+      block1:
         %0[0] = copy %0[0] + 5
+        %2 = len %0
+        check_bounds 0 copy %2 block2
+
+      block2:
         return copy %0[0]
     }
     |}]
@@ -789,11 +805,17 @@ let%expect_test "mir: an array literal writes each element in order" =
     {|
     fn f() i32 {
       local %0 a: [3]i32 user
+      local %1: usize temp
 
       block0:
+        %0 = undef
         %0[0] = 7
         %0[1] = 8
         %0[2] = 9
+        %1 = len %0
+        check_bounds 1 copy %1 block1
+
+      block1:
         return copy %0[1]
     }
     |}]

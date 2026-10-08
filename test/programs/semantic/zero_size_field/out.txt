@@ -2,5 +2,4 @@
 8 16 0
 0 0
 3 2 8
-null read of a zero size type is fine
 exit: 0
