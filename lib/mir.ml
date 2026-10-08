@@ -743,13 +743,7 @@ and lower_into state destination (expr : Tast.texpr) =
   | Tast.TRange _ | Tast.TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.span "range outside a for loop"
   | Tast.TCall (callee, args, variadic_start) ->
-      let destination =
-        match destination with
-        | _ when not (is_valued expr.ty) -> None
-        | Some d -> Some d
-        | None when is_aggregate expr.ty -> Some (slot ())
-        | None -> None
-      in
+      let destination = if is_valued expr.ty then Some (slot ()) else None in
       lower_call state destination expr callee args variadic_start
   | Tast.TBinOp (Ast.And, left, right) ->
       lower_short_circuit state destination expr left right false
@@ -1389,8 +1383,7 @@ let verify_call ctx span (call : call) =
         fail ctx span "unit call has result storage";
       expect ctx span "call storage" return_ty (verify_place ctx destination)
   | None ->
-      if is_aggregate return_ty then
-        fail ctx span "aggregate call has no result storage"
+      if is_valued return_ty then fail ctx span "call has no result storage"
 
 (* %0 = copy %1, %0 = slice %1 1 3, %0 = call @add(copy %1) *)
 let verify_statement ctx (statement : statement) =
