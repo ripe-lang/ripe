@@ -1,5 +1,5 @@
 struct point { x: i32, y: i32 }
 type fn main() i32 {
-  p := point { x: 5, y: 4 };
+  p := point.{ x: 5, y: 4 };
   return p.x;
 }

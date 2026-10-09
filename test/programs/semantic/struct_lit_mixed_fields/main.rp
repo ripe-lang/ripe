@@ -5,11 +5,11 @@ struct pair {
 }
 
 fn named_after_positional() pair {
-  return pair { 1, y: 2 };
+  return pair.{ 1, y: 2 };
 }
 
 fn positional_after_named() pair {
-  return pair { x: 1, 2 };
+  return pair.{ x: 1, 2 };
 }
 
 fn main() i32 {

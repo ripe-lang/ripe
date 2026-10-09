@@ -1,6 +1,6 @@
 struct P { x: i32, y: i32 }
 
 fn main() i32 {
-  p : P = P { x: 12, y: 30 };
+  p : P = P.{ x: 12, y: 30 };
   return p.x + p.y;
 }

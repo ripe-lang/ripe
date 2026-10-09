@@ -1,7 +1,7 @@
 struct point { x: i32, y: i32 }
 
 fn main() i32 {
-  p : point = point { x: 7, y: 0 };
+  p : point = point.{ x: 7, y: 0 };
   px : *i32 = &(p.x);
   return *px;
 }

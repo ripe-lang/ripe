@@ -4,15 +4,15 @@ struct pair {
 }
 
 fn few() pair {
-  return pair { 1 };
+  return pair.{ 1 };
 }
 
 fn many() pair {
-  return pair { 1, 2, 3 };
+  return pair.{ 1, 2, 3 };
 }
 
 fn wrong_type() pair {
-  return pair { 1, true };
+  return pair.{ 1, true };
 }
 
 fn main() i32 {

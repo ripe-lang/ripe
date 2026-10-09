@@ -3,7 +3,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 struct point { x: i32, y: i32 }
 
 fn main() i32 {
-  p : point = point { x: 42, y: 7 };
+  p : point = point.{ x: 42, y: 7 };
   q : *point = &p;
   qq : **point = &q;
   qqq : ***point = &qq;

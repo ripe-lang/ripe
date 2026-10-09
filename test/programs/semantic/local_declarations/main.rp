@@ -1,13 +1,13 @@
 fn main() i32 {
   first := {
-    p := Point { x: 3 };
+    p := Point.{ x: 3 };
     struct Point { x: i32 }
     p.x
   };
 
   second := {
     struct Point { x: i32, y: i32 }
-    p := Point { x: 1, y: 5 };
+    p := Point.{ x: 1, y: 5 };
     p.y
   };
 

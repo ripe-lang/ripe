@@ -4,7 +4,7 @@ type pair = i32;
 LIMIT : i32 = 4;
 fn add(a: i32, b: i32) i32 { return a + b }
 fn main() i32 {
-  p := point { 5, 4 };
+  p := point.{ 5, 4 };
   _c := color.Red;
   return add(p.x, p.y);
 }

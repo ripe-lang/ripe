@@ -4,7 +4,7 @@ fn main() i32 {
   a : i32 = 1;
   b : i32 = 2;
   nothing();
-  _e := empty { };
+  _e := empty.{ };
   g : [2][2]i32 = [[1, 2], [3, 4]];
   n : i32;
   n = loop { break 5 };

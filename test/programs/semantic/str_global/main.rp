@@ -2,7 +2,7 @@ struct Box { text: str, value: i32 }
 
 G : str = "global";
 M : str = "mutable";
-B : Box = Box { text: "boxed", value: 7 };
+B : Box = Box.{ text: "boxed", value: 7 };
 E : str = "";
 
 fn main() i32 {

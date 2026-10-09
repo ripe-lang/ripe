@@ -1,4 +1,4 @@
 struct s { x: i32 }
-fn main() i32 { v := s { x: };
+fn main() i32 { v := s.{ x: };
   return v.x;
 }

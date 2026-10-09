@@ -17,7 +17,7 @@ fn main() i32 {
   y : i32 = 32;
   sum := deref_sum(&x, &y);
   neg := deref_negate(&x);
-  p : point = point { x: 0, y: 0 };
+  p : point = point.{ x: 0, y: 0 };
   bump(&p);
   bump(&p);
   return sum + neg + p.x;

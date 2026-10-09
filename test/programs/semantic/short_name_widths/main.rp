@@ -5,7 +5,7 @@ fn take(a: i64, b: f64) i64 {
 }
 
 fn main() i32 {
-  p : pair = pair { n: 4, f: 2.5 };
+  p : pair = pair.{ n: 4, f: 2.5 };
   sizes : i32 = sizeof(i64) + sizeof(f64);
   same := cast(i32, sizeof(i64) == sizeof(i64) && sizeof(f64) == sizeof(f64));
   return sizes + same + (cast(i32, take(p.n, p.f)));

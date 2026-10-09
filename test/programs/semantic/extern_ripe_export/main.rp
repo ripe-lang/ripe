@@ -1,7 +1,7 @@
 struct Pair { a: i32, b: i32 }
 
 extern "Ripe" fn make_pair(x: i32) Pair {
-  return Pair { a: x, b: x * 2 };
+  return Pair.{ a: x, b: x * 2 };
 }
 
 extern "Ripe" fn total(p: Pair) i32 {

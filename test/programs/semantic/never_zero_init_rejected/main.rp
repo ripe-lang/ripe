@@ -3,6 +3,6 @@ struct hole { a: never, b: i32 }
 fn main() i32 {
   bare : never;
   whole : hole;
-  partial := hole { b: 1 };
+  partial := hole.{ b: 1 };
   return 0;
 }

@@ -331,7 +331,7 @@ let%expect_test "typecheck: write to a binding's struct field" =
     {|
 struct P { x: i32, y: i32 }
 fn f() {
-  p : P = P { x: 1, y: 2 };
+  p : P = P.{ x: 1, y: 2 };
   p.x = 5;
 }
 |};
@@ -1392,7 +1392,7 @@ let%expect_test "typecheck: struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  p := pt { x: 3, y: 4 };
+  p := pt.{ x: 3, y: 4 };
   return p.x + p.y;
 }
 |};
@@ -1403,7 +1403,7 @@ let%expect_test "typecheck: empty struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  p := pt { };
+  p := pt.{ };
   return p.x;
 }
 |};
@@ -1413,14 +1413,14 @@ let%expect_test "typecheck: struct literal unknown field" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { z: 1 };
+  p := pt.{ z: 1 };
 }
 |};
   [%expect
     {|
     error: no field
       at <test>:4:13
-          p := pt { z: 1 };
+          p := pt.{ z: 1 };
                     ^
     |}]
 
@@ -1429,14 +1429,14 @@ let%expect_test "typecheck: struct literal duplicate field" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { x: 1, x: 2 };
+  p := pt.{ x: 1, x: 2 };
 }
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:4:19
-          p := pt { x: 1, x: 2 };
+          p := pt.{ x: 1, x: 2 };
                           ^
     |}]
 
@@ -1444,28 +1444,28 @@ let%expect_test "typecheck: struct literal wrong field type" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { x: true };
+  p := pt.{ x: true };
 }
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:16
-          p := pt { x: true };
+          p := pt.{ x: true };
                        ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: undefined struct literal" =
   run_src {|
 fn f() {
-  p := nope { x: 1 };
+  p := nope.{ x: 1 };
 }
 |};
   [%expect
     {|
     error: undefined struct
       at <test>:3:8
-          p := nope { x: 1 };
+          p := nope.{ x: 1 };
                ^~~~
     |}]
 
@@ -1473,7 +1473,7 @@ let%expect_test "typecheck: global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-origin : pt = pt { x: 1, y: 2 };
+origin : pt = pt.{ x: 1, y: 2 };
 fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
@@ -1483,7 +1483,7 @@ let%expect_test "typecheck: global struct literal calls a function" =
     {|
 struct pt { x: i32, y: i32 }
 fn g() i32 { return 1 }
-p : pt = pt { x: g(), y: 2 };
+p : pt = pt.{ x: g(), y: 2 };
 |};
   [%expect {| ok |}]
 
@@ -1492,7 +1492,7 @@ let%expect_test "typecheck: positional struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  p := pt { 3, 4 };
+  p := pt.{ 3, 4 };
   return p.x + p.y;
 }
 |};
@@ -1503,7 +1503,7 @@ let%expect_test "typecheck: positional struct literal of one field" =
     {|
 struct box { v: i32 }
 fn f() i32 {
-  b := box { 3 };
+  b := box.{ 3 };
   return b.v;
 }
 |};
@@ -1513,14 +1513,14 @@ let%expect_test "typecheck: positional struct literal too few fields" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { 1 };
+  p := pt.{ 1 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:4:8
-          p := pt { 1 };
+          p := pt.{ 1 };
                ^~~~~~~~ expected 2, found 1
     |}]
 
@@ -1528,14 +1528,14 @@ let%expect_test "typecheck: positional struct literal too many fields" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { 1, 2, 3 };
+  p := pt.{ 1, 2, 3 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:4:8
-          p := pt { 1, 2, 3 };
+          p := pt.{ 1, 2, 3 };
                ^~~~~~~~~~~~~~ expected 2, found 3
     |}]
 
@@ -1543,14 +1543,14 @@ let%expect_test "typecheck: positional struct literal wrong field type" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  p := pt { 1, true };
+  p := pt.{ 1, true };
 }
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:16
-          p := pt { 1, true };
+          p := pt.{ 1, true };
                        ^~~~ expected i32, found bool
     |}]
 
@@ -1560,7 +1560,7 @@ let%expect_test "typecheck: positional struct literal nested" =
 struct pt { x: i32, y: i32 }
 struct wrap { p: pt, tag: i32 }
 fn f() i32 {
-  w := wrap { pt { 1, 2 }, 3 };
+  w := wrap.{ pt.{ 1, 2 }, 3 };
   return w.p.x + w.tag;
 }
 |};
@@ -1570,7 +1570,7 @@ let%expect_test "typecheck: positional global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-origin : pt = pt { 1, 2 };
+origin : pt = pt.{ 1, 2 };
 fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
@@ -1580,15 +1580,15 @@ let%expect_test "typecheck: positional literal of a fieldless struct" =
 struct e {
 }
 fn f() {
-  _a := e { };
-  _b := e { 1 };
+  _a := e.{ };
+  _b := e.{ 1 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:6:9
-          _b := e { 1 };
+          _b := e.{ 1 };
                 ^~~~~~~ expected 0, found 1
     |}]
 
@@ -1663,7 +1663,7 @@ let%expect_test "typecheck: nested struct field type mismatch" =
 struct inner { a: i32 }
 struct outer { i: inner }
 fn f() {
-  o : outer = outer { i: inner { a: 1 } };
+  o : outer = outer.{ i: inner.{ a: 1 } };
   o.i.a = true;
 }
 |};
@@ -1680,7 +1680,7 @@ let%expect_test "typecheck: struct with array field initializes ok" =
     {|
 struct buf { data: [4]i32, n: i32 }
 fn f() i32 {
-  b : buf = buf { data: [1, 2, 3, 4], n: 4 };
+  b : buf = buf.{ data: [1, 2, 3, 4], n: 4 };
   return b.n;
 }
 |};
@@ -1690,7 +1690,7 @@ let%expect_test "typecheck: function returning struct ok" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-fn origin() pt { return pt { x: 0, y: 0 } }
+fn origin() pt { return pt.{ x: 0, y: 0 } }
 fn f() i32 { return origin().x }
 |};
   [%expect {| ok |}]
@@ -1714,7 +1714,7 @@ let%expect_test "typecheck: struct field whose type is another struct" =
 struct b_t { x: i32 }
 struct a { b: b_t }
 fn f() i32 {
-  v : a = a { b: b_t { x: 1 } };
+  v : a = a.{ b: b_t.{ x: 1 } };
   return v.b.x;
 }
 |};
@@ -1725,7 +1725,7 @@ let%expect_test "typecheck: array of structs iterates element type" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  pts : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
+  pts : [2]pt = [pt.{ x: 1, y: 2 }, pt.{ x: 3, y: 4 }];
   s : i32 = 0;
   for p in pts { s += p.x }
   return s;
@@ -1807,8 +1807,8 @@ let%expect_test "typecheck: struct equality rejected" =
     {|
 struct P { x: i32 }
 fn f() bool {
-  a : P = P { x: 1 };
-  b : P = P { x: 1 };
+  a : P = P.{ x: 1 };
+  b : P = P.{ x: 1 };
   return a == b;
 }
 |};
@@ -2011,7 +2011,7 @@ let%expect_test "typecheck: type alias of a struct allows field access" =
     {|
 struct Point { x: i32, y: i32 }
 type Pt = Point;
-fn f() i32 { p : Pt = Point { x: 1, y: 2 }; return p.x }
+fn f() i32 { p : Pt = Point.{ x: 1, y: 2 }; return p.x }
 |};
   [%expect {| ok |}]
 
@@ -2332,13 +2332,13 @@ fn f() { _s : S }
 let%expect_test "typecheck: an omitted never field cannot be zero init" =
   run_src {|
 struct S { x: never, y: i32 }
-fn f() { _s := S { y: 1 } }
+fn f() { _s := S.{ y: 1 } }
 |};
   [%expect
     {|
     error: cannot zero init this type
       at <test>:3:16
-        fn f() { _s := S { y: 1 } }
+        fn f() { _s := S.{ y: 1 } }
                        ^~~~~~~~~~ on never
     |}]
 
@@ -3669,7 +3669,7 @@ fn f(small: u8) i64 {
   wide : i64 = small;
   wide = small;
   wide += small;
-  box : Box = Box { value: small };
+  box : Box = Box.{ value: small };
   values : [2]i64 = [small, wide];
   return take(small) + box.value + values[0];
 }

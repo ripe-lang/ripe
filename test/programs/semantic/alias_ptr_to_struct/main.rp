@@ -3,7 +3,7 @@ struct Point { x: i32, y: i32 }
 type PtPtr = *Point;
 
 fn main() i32 {
-  p : Point = Point { x: 10, y: 20 };
+  p : Point = Point.{ x: 10, y: 20 };
   pp : PtPtr = &p;
   return pp.x + pp.y;
 }

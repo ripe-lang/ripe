@@ -4,7 +4,7 @@ struct pair {
 }
 
 fn make_pair(x: i32, y: i32) pair {
-  return pair { x: x, y: y };
+  return pair.{ x: x, y: y };
 }
 
 fn wrapper(x: i32, y: i32) pair {
