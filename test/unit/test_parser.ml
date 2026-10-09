@@ -1896,6 +1896,22 @@ let%expect_test "parse: a loop is a value in a binding" =
   parse_expr "x = loop { break 1 }";
   [%expect {| (= x (loop (block (break 1)))) |}]
 
+let%expect_test "parse: a while is a value in a binding" =
+  parse_body "fn f() { var y = while c { g() } }";
+  [%expect {| (block (var y (while c (block (call g))))) |}]
+
+let%expect_test "parse: a for is a value in a binding" =
+  parse_body "fn f() { var y = for i in xs { g() } }";
+  [%expect {| (block (var y (for i xs (block (call g))))) |}]
+
+let%expect_test "parse: a labeled while is a value in a binding" =
+  parse_body "fn f() { var y = outer: while c { break :outer } }";
+  [%expect {| (block (var y (while c (block (break))))) |}]
+
+let%expect_test "parse: a while statement needs no semicolon" =
+  parse_body "fn f() { while c { g() } var x = 1 }";
+  [%expect {| (block (while c (block (call g))) (var x 1)) |}]
+
 let%expect_test "parse: an enum declares its variants" =
   (match parse {|enum Color {
   Red,
