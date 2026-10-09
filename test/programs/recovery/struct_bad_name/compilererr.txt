@@ -4,5 +4,5 @@ error: expected identifier
            ^ found 3
 error: undefined struct
   at main.rp:3:8
-      p := point { 5 };
+      p := point.{ 5 };
            ^~~~~

@@ -3,7 +3,7 @@ main :: fn() -> i32 {
   Small :: i32;
   Side :: enum { Left, Right };
   helper :: fn(n: Small) -> i32 { return n + 1 };
-  v := Pair { 1, 2 };
+  v := Pair.{ 1, 2 };
   s := Side.Right;
   return helper(v.a) + v.b + match s { Side.Left => 0, _ => 1 };
 };

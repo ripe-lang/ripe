@@ -3,6 +3,6 @@ Meters :: i32;
 Line :: struct { start: Meters, stop: Meters };
 
 main :: fn() -> i32 {
-  l : Line = Line { start: 3, stop: 10 };
+  l : Line = Line.{ start: 3, stop: 10 };
   return l.stop - l.start;
 };

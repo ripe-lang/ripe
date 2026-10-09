@@ -26,7 +26,7 @@ let%expect_test ("qbe accepts string aggregates" [@tags "disabled"]) =
 Box :: struct { text: str, value: i32 };
 make :: fn() -> str { return "hello" };
 main :: fn() -> i32 {
-  box : Box = Box { text: "field", value: 1 };
+  box : Box = Box.{ text: "field", value: 1 };
   copy : str = make();
   return (box.text.len + copy.len) as i32;
 };
@@ -62,7 +62,7 @@ let%expect_test "qbe accepts main allocation" =
     {|
 Pair :: struct { left: i32, right: i32 };
 main :: fn() -> i32 {
-  pair := Pair { left: 1, right: 2 };
+  pair := Pair.{ left: 1, right: 2 };
   return pair.left + pair.right;
 };
 |};
@@ -73,7 +73,7 @@ let%expect_test "qbe accepts local structs" =
     {|
 main :: fn() -> i32 {
 Pair :: struct { left: i32, right: i32 };
-  pair := Pair { left: 1, right: 2 };
+  pair := Pair.{ left: 1, right: 2 };
   return pair.left + pair.right;
 };
 |};
@@ -85,7 +85,7 @@ let%expect_test "qbe accepts external struct calls" =
 Pair :: struct { left: i32, right: i32 };
 extern "C" fn consume(pair: Pair) i32;
 main :: fn() -> i32 {
-  pair := Pair { left: 1, right: 2 };
+  pair := Pair.{ left: 1, right: 2 };
   return consume(pair);
 };
 |};
@@ -165,7 +165,7 @@ let%expect_test "qbe returns a C aggregate to the caller" =
   run_codegen_ok
     {|
 Pair :: struct { left: i32, right: i32 };
-extern "C" fn make(x: i32) Pair { return Pair { left: x, right: x } }
+extern "C" fn make(x: i32) Pair { return Pair.{ left: x, right: x } }
 main :: fn() -> i32 {
   pair := make(2);
   return pair.left + pair.right;

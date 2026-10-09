@@ -4,7 +4,7 @@ Pair :: struct {
 };
 
 make_pair :: fn(x: i32, y: i32) -> Pair {
-  return Pair { x: x, y: y };
+  return Pair.{ x: x, y: y };
 };
 
 sum_pair :: fn(left: Pair, right: Pair) -> i32 {

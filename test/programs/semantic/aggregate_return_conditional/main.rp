@@ -5,9 +5,9 @@ Pair :: struct {
 
 choose :: fn(flag: bool) -> Pair {
   if flag {
-    return Pair { x: 1, y: 2 };
+    return Pair.{ x: 1, y: 2 };
   } else {
-    return Pair { x: 3, y: 4 };
+    return Pair.{ x: 3, y: 4 };
   }
 };
 

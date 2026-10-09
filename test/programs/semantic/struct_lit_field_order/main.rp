@@ -13,8 +13,8 @@ Triple :: struct {
 
 log : i32 = 0;
 
-reordered : Pair = Pair { y: 2, x: 1 };
-partial : Triple = Triple { c: 3, a: 1 };
+reordered : Pair = Pair.{ y: 2, x: 1 };
+partial : Triple = Triple.{ c: 3, a: 1 };
 
 mark :: fn(v: i32) -> i32 {
   log = log * 10 + v;
@@ -22,7 +22,7 @@ mark :: fn(v: i32) -> i32 {
 };
 
 main :: fn() -> i32 {
-  written := Pair { y: mark(1), x: mark(2) };
+  written := Pair.{ y: mark(1), x: mark(2) };
   printf("order %d\n", log);
   printf("written %d %d\n", written.x, written.y);
   printf("global %d %d\n", reordered.x, reordered.y);

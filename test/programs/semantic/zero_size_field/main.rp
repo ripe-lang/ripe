@@ -11,7 +11,7 @@ DivRes :: struct { quot: i32, u: (), e: Empty, rem: i32 };
 extern "C" fn div(num: i32, den: i32) DivRes;
 
 main :: fn() -> i32 {
-  s : Sep = Sep { x: 1, u: (), e: Empty {}, y: 2 };
+  s : Sep = Sep.{ x: 1, u: (), e: Empty.{}, y: 2 };
   s.y = s.y + 40;
 
   base : usize = cast(usize, &s.x);

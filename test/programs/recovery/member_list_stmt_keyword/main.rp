@@ -3,6 +3,6 @@ main :: fn() -> i32 {
   Pair :: struct { a: i32, b: i32 return
   Small :: i32;
   helper :: fn(n: Small) -> i32 { return n + 1 };
-  v := Pair { 1, 2 };
+  v := Pair.{ 1, 2 };
   return helper(v.a) + v.b;
 };

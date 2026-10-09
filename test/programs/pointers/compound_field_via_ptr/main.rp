@@ -1,7 +1,7 @@
 Point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : Point = Point { x: 10, y: 0 };
+  p : Point = Point.{ x: 10, y: 0 };
   pt : *Point = &p;
   pt.x += 5;
   return p.x;

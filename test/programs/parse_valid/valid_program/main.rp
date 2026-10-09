@@ -4,7 +4,7 @@ Pair :: i32;
 LIMIT : i32 = 4;
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 main :: fn() -> i32 {
-  p := Point { 5, 4 };
+  p := Point.{ 5, 4 };
   _c := Color.Red;
   return add(p.x, p.y);
 };
