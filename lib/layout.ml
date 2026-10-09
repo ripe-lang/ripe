@@ -29,20 +29,21 @@ let struct_fields t key =
   match entry_of t key with Some e -> e.field_tys | None -> no_fields
 
 let struct_field_ty t name index =
-  match entry_of t (Qname.key name) with
+  match entry_of t (Keyname.key name) with
   | Some e when index < Iarray.length e.field_tys ->
       Iarray.get e.field_tys index
   | _ ->
       Diagnostic.ice
-        (Printf.sprintf "unknown field %d on struct %s" index (Qname.show name))
+        (Printf.sprintf "unknown field %d on struct %s" index
+           (Keyname.show name))
 
 let rec layout_of t name =
   let entry =
-    match entry_of t (Qname.key name) with
+    match entry_of t (Keyname.key name) with
     | Some entry -> entry
     | None ->
         Diagnostic.ice
-          (Printf.sprintf "no layout recorded for struct %s" (Qname.show name))
+          (Printf.sprintf "no layout recorded for struct %s" (Keyname.show name))
   in
   match entry.cached with
   | Some (generation, layout) when generation = t.generation -> layout
@@ -87,5 +88,5 @@ let field_offset t name index =
   let layout = layout_of t name in
   if index >= Iarray.length layout.offsets then
     Diagnostic.ice
-      (Printf.sprintf "unknown field %d on struct %s" index (Qname.show name))
+      (Printf.sprintf "unknown field %d on struct %s" index (Keyname.show name))
   else Iarray.get layout.offsets index

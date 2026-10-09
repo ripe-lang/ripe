@@ -395,9 +395,9 @@ and emit_cast ctx v src_ty target_ty =
       narrow_int_to ctx tmp target_ty
 
 let qbe_struct_name ctx name =
-  Symbol.Table.find ctx.struct_names (Qname.key name)
+  Symbol.Table.find ctx.struct_names (Keyname.key name)
 
-let rec qbe_ext_ty (struct_name : Qname.t -> string) t =
+let rec qbe_ext_ty (struct_name : Keyname.t -> string) t =
   match resolve_ty t with
   | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
@@ -1017,11 +1017,11 @@ let emit ~filename ~source_map program =
   let struct_names = Symbol.Table.create 8 in
   List.iter
     (fun (decl : Mir.struct_decl) ->
-      let key = Qname.key decl.Mir.name in
+      let key = Keyname.key decl.Mir.name in
       Layout.set_struct_fields structs key decl.Mir.fields;
       let name =
         if decl.Mir.local then Printf.sprintf "_Rlocal%d" (key :> int)
-        else Qname.show decl.Mir.name
+        else Keyname.show decl.Mir.name
       in
       Symbol.Table.add struct_names key name)
     program.Mir.structs;
@@ -1050,7 +1050,7 @@ let emit ~filename ~source_map program =
   (* The QBE format requires member structs before containing structs *)
   let emitted = Symbol.Table.create (List.length program.Mir.structs) in
   let rec emit_struct name =
-    let key = Qname.key name in
+    let key = Keyname.key name in
     if not (Symbol.Table.mem emitted key) then begin
       Symbol.Table.add emitted key ();
       let fields = Layout.struct_fields ctx.structs key in

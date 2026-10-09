@@ -338,6 +338,7 @@ extern "C" fn puts(s: cstr) i32;
 extern "C" fn exported(x: i32) i32 { return x }
 extern "Ripe" fn unmangled(x: i32) i32 { return x }
 fn plain(x: i32) i32 { return x }
+fn binary_search() i32 { return 0 }
 |}
   in
   let show (decl : Ripe.Ast.decl) =
@@ -356,6 +357,7 @@ fn plain(x: i32) i32 { return x }
     exported -> exported
     unmangled -> unmangled
     plain -> _R5plain
+    binary_search -> _R13binary_search
     |}]
 
 let%expect_test "resolve: a local function may call a later sibling" =
@@ -432,14 +434,15 @@ let%expect_test "resolve: a span with no symbol comes back empty" =
     nothing none
     |}]
 
-let%expect_test "resolve: a symbol carries the qualified name it resolves to" =
+let%expect_test "resolve: a symbol keeps its key and source name" =
   let src = {|fn target() i32 { return 1 }|} in
   let decls, uses = resolve_src src in
   let _, recorded = decl_name_span (List.hd decls) in
   let sym = Ripe.Resolve.sym_at uses recorded in
-  let qname = Ripe.Resolve.qname_of sym in
-  Printf.printf "%s key matches %b\n" (Ripe.Qname.show qname)
-    (Ripe.Qname.key qname = Ripe.Symbol.key sym);
+  let keyname = Ripe.Resolve.keyname_of sym in
+  Printf.printf "%s key matches %b\n"
+    (Ripe.Keyname.show keyname)
+    (Ripe.Keyname.key keyname = Ripe.Symbol.key sym);
   [%expect {| target key matches true |}]
 
 let%expect_test "resolve: a function declared in a body is lifted out" =

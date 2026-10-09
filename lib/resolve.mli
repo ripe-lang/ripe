@@ -6,7 +6,7 @@ val resolve : Ast.decl list -> t
 val sym_at : t -> Ast.span -> Symbol.t
 val sym_at_opt : t -> Ast.span -> Symbol.t option
 val shadowed_at : t -> Ast.span -> Symbol.t option
-val qname_of : Symbol.t -> Qname.t
+val keyname_of : Symbol.t -> Keyname.t
 val local_decls : t -> Ast.decl list
 val builtins : t -> (Symbol.key * Types.ty) list
 

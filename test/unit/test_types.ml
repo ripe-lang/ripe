@@ -38,7 +38,7 @@ let%expect_test "types: a type prints the way it is written" =
     |}]
 
 let%expect_test "types: resolving walks down a chain of aliases" =
-  let deep = TAlias (qname 4 "Outer", word) in
+  let deep = TAlias (keyname 4 "Outer", word) in
   print_endline (show_ty (resolve_ty deep));
   print_endline (show_ty (resolve_ty (TInt I8)));
   [%expect {|
@@ -53,7 +53,7 @@ let%expect_test "types: erasing aliases reaches inside a compound type" =
   show (TArray (word, 2));
   show (TSlice word);
   show (TFunc ([ word ], word, Ripe));
-  show (TStruct (qname 1 "Point", [ word ]));
+  show (TStruct (keyname 1 "Point", [ word ]));
   [%expect
     {|
     i64
@@ -73,7 +73,7 @@ let%expect_test "types: an alias equals the type behind it" =
   show (TInt I32) TError;
   show (TPointer TError) (TInt I32);
   show (TArray (TError, 2)) (TInt I32);
-  show point (TStruct (qname 1 "Point", []));
+  show point (TStruct (keyname 1 "Point", []));
   [%expect
     {|
     Word equals i64 = true
@@ -92,10 +92,10 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
   show (TPointer TError);
   show (TArray (TError, 2));
   show (TSlice TError);
-  show (TAlias (qname 5 "Bad", TError));
+  show (TAlias (keyname 5 "Bad", TError));
   show (TFunc ([ TInt I32 ], TError, Ripe));
   show (TFunc ([ TError ], TUnit, Ripe));
-  show (TStruct (qname 1 "Point", [ TError ]));
+  show (TStruct (keyname 1 "Point", [ TError ]));
   show (TPointer (TInt I32));
   [%expect
     {|

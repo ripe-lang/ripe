@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* The key is what gets compared and the name is only for printing *)
+(* This keeps declaration identity and readable text together for later passes *)
 type t = { key : Symbol.key; base : string }
 [@@deriving show { with_path = false }]
 

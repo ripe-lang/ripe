@@ -208,11 +208,11 @@ let key_in ctx span =
 (* Two declarations can go by one name so lookups key on which one it is *)
 let key_at env span = key_in env.ctx span
 
-let qname_at env span fallback =
-  symbol_at env span ~missing:(Qname.unresolved fallback) Resolve.qname_of
+let keyname_at env span fallback =
+  symbol_at env span ~missing:(Keyname.unresolved fallback) Resolve.keyname_of
 
-let qname_in ctx span fallback =
-  symbol_in ctx span ~missing:(Qname.unresolved fallback) Resolve.qname_of
+let keyname_in ctx span fallback =
+  symbol_in ctx span ~missing:(Keyname.unresolved fallback) Resolve.keyname_of
 
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at env span fallback =
@@ -235,7 +235,7 @@ let lookup_func env span =
       }
 
 let lookup_struct env span name =
-  match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
+  match Symbol.Table.find_opt env.ctx.type_defs (Keyname.key name) with
   | Some (Struct_type { contents = Completed info }) -> Some info
   | _ ->
       Diagnostic.emit (Diagnostic.error span "undefined struct");
@@ -256,7 +256,7 @@ let is_uninhabited env ty =
     match resolve_ty ty with
     | Types.TNever -> true
     | Types.TArray (elem, n) -> n > 0 && go seen elem
-    | Types.TStruct (name, _) -> struct_holds_never seen (Qname.key name)
+    | Types.TStruct (name, _) -> struct_holds_never seen (Keyname.key name)
     | _ -> false
   (* A cyclic struct already errored and the walk still has to stop *)
   and struct_holds_never seen key =
@@ -303,11 +303,11 @@ let unresolved_named_ty env span =
 let named_ty env span shown =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
   | Some (Builtin_type ty) -> ty
-  | Some (Struct_type _) -> Types.TStruct (qname_at env span shown, [])
+  | Some (Struct_type _) -> Types.TStruct (keyname_at env span shown, [])
   | Some (Alias_type { contents = Completed aliased }) ->
-      Types.TAlias (qname_at env span shown, aliased)
+      Types.TAlias (keyname_at env span shown, aliased)
   | Some (Alias_type { contents = Unstarted | Running }) -> Types.TError
-  | Some (Enum_type _) -> Types.TEnum (qname_at env span shown)
+  | Some (Enum_type _) -> Types.TEnum (keyname_at env span shown)
   | None -> unresolved_named_ty env span
 
 (* The value of a block is its last element and unit when the block is empty *)
@@ -467,7 +467,7 @@ let adopt_int_literal span want target ~neg n =
 (* A variant is a compile time constant so nothing of the enum survives here *)
 let synth_variant env (inner : expr) info fname fspan =
   let shown = Interner.text fname in
-  let name = qname_at env inner.span shown in
+  let name = keyname_at env inner.span shown in
   match Hashtbl.find_opt info.variants_by_name fname with
   | Some value -> Tast.mk (Types.TEnum name) (Tast.TVariant (name, value))
   | None ->
@@ -507,7 +507,7 @@ let synth_struct_field env span te ty fname fspan =
           | None ->
               Diagnostic.emit
                 (Diagnostic.error fspan "no field"
-                |> Diagnostic.label "on struct %s" (Qname.show sname));
+                |> Diagnostic.label "on struct %s" (Keyname.show sname));
               dummy_texpr))
 
 let synth_conversion span (te : Tast.texpr) ty =
@@ -759,8 +759,8 @@ and synth_struct_lit env span name name_span inits =
         | ({ value = None; _ }, _) :: _ -> positional_fields env span info inits
         | _ -> named_fields env span info inits
       in
-      let qname = qname_at env name_span (Interner.text name) in
-      Tast.mk (Types.TStruct (qname, [])) (Tast.TStructLit (qname, fields))
+      let keyname = keyname_at env name_span (Interner.text name) in
+      Tast.mk (Types.TStruct (keyname, [])) (Tast.TStructLit (keyname, fields))
   | Some
       ( Struct_type { contents = Unstarted | Running }
       | Builtin_type _ | Alias_type _ | Enum_type _ )
@@ -1235,7 +1235,7 @@ and coverage_of env ty seen =
   | Types.TError -> Unknown
   | Types.TBool -> in_declared_order (absent 0L "false" (absent 1L "true" []))
   | Types.TEnum name -> (
-      match Symbol.Table.find_opt env.ctx.type_defs (Qname.key name) with
+      match Symbol.Table.find_opt env.ctx.type_defs (Keyname.key name) with
       | Some (Enum_type { contents = Completed info }) ->
           (* An alias can't spell its own variants so name the enum itself *)
           let shown = Types.show_ty (Types.TEnum name) in
@@ -1820,7 +1820,7 @@ let cyclic_structs defs iter_edges =
 let verify_type_cycles ctx =
   let rec stored_struct ty =
     match resolve_ty ty with
-    | Types.TStruct (name, _) -> Some (Qname.key name)
+    | Types.TStruct (name, _) -> Some (Keyname.key name)
     | Types.TArray (element, _) -> stored_struct element
     | _ -> None
   in
@@ -2086,7 +2086,9 @@ let check_global env (gd : global_def) =
   }
 
 let typed_struct_decl ctx sd fields =
-  let name = qname_in ctx sd.struct_span (Interner.text sd.struct_name.value) in
+  let name =
+    keyname_in ctx sd.struct_span (Interner.text sd.struct_name.value)
+  in
   let is_local =
     Option.exists
       (fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
@@ -2133,10 +2135,10 @@ let check_decls ctx =
               ty_of_ast env td.alias_typ
         in
         Tast.TTypeAlias
-          (qname_in ctx td.alias_span (Interner.text td.alias_name.value), t)
+          (keyname_in ctx td.alias_span (Interner.text td.alias_name.value), t)
     | Enum ed ->
         Tast.TEnum
-          (qname_in ctx ed.enum_span (Interner.text ed.enum_name.value))
+          (keyname_in ctx ed.enum_span (Interner.text ed.enum_name.value))
   in
   List.map check_declaration ctx.declarations
 

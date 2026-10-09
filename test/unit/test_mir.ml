@@ -114,7 +114,7 @@ let%expect_test "mir verifier: every referenced local exists" =
   [%expect {| f: local 4 does not exist |}]
 
 let%expect_test "mir verifier: aggregate call storage has the result type" =
-  let struct_name = Ripe.Qname.unresolved "pair" in
+  let struct_name = Ripe.Keyname.unresolved "pair" in
   let pair = Ripe.Types.TStruct (struct_name, []) in
   let call : M.call =
     {

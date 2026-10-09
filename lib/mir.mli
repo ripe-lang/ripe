@@ -117,7 +117,7 @@ type func = {
   span : Ast.span;
 }
 
-type struct_decl = { name : Qname.t; fields : Types.ty list; local : bool }
+type struct_decl = { name : Keyname.t; fields : Types.ty list; local : bool }
 
 type global_value =
   | GlobalConst of constant * Types.ty

@@ -122,7 +122,7 @@ type func = {
   span : Ast.span;
 }
 
-type struct_decl = { name : Qname.t; fields : Types.ty list; local : bool }
+type struct_decl = { name : Keyname.t; fields : Types.ty list; local : bool }
 
 type global_value =
   | GlobalConst of constant * Types.ty
@@ -1235,11 +1235,11 @@ and verify_projection ctx span ty = function
   | Field field -> (
       match resolve_ty ty with
       | Types.TStruct (name, _) -> (
-          match Symbol.Table.find_opt ctx.structs (Qname.key name) with
+          match Symbol.Table.find_opt ctx.structs (Keyname.key name) with
           | Some fields when field >= 0 && field < Array.length fields ->
               fields.(field)
           | Some _ -> fail ctx span "field projection %d does not exist" field
-          | None -> fail ctx span "struct %s has no layout" (Qname.show name))
+          | None -> fail ctx span "struct %s has no layout" (Keyname.show name))
       | _ -> fail ctx span "field projection requires a struct")
   | Index index -> (
       expect_int ctx index.span "index" (verify_operand ctx index);
@@ -1432,7 +1432,7 @@ let verify (program : program) =
   let structs = Symbol.Table.create 8 in
   List.iter
     (fun (decl : struct_decl) ->
-      Symbol.Table.replace structs (Qname.key decl.name)
+      Symbol.Table.replace structs (Keyname.key decl.name)
         (Array.of_list decl.fields))
     program.structs;
   let globals = Hashtbl.create 8 in
