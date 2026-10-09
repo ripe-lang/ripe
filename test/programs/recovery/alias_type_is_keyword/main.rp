@@ -1,5 +1,5 @@
 type count = struct
 fn main() i32 {
-  var n: count = 7;
+  n : count = 7;
   return n;
 }

@@ -1,4 +1,4 @@
 error: expected expression
-  at main.rp:2:32
-    fn main() i32 { var v = s { x: };
-                                   ^ found }
+  at main.rp:2:29
+    fn main() i32 { v := s { x: };
+                                ^ found }

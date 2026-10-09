@@ -2,7 +2,7 @@ fn div(n: i32) i32 { return n / { return 1 } }
 fn rem(n: i64) i64 { return n % { return 2 } }
 fn shift(n: i32) i32 { return { return 3 } >> n }
 fn compound(n: i32) i32 {
-  var x = n;
+  x := n;
   x /= { return 4 };
   return x;
 }

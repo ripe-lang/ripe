@@ -7,6 +7,6 @@ error: empty return in non-unit function
     fn a() i32 { return }
                  ^~~~~~
 error: expected expression
-  at main.rp:3:27
-    fn b() i32 { var z: i32 = ; return z }
-                              ^ found ;
+  at main.rp:3:24
+    fn b() i32 { z : i32 = ; return z }
+                           ^ found ;

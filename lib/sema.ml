@@ -54,20 +54,20 @@ type global_fact = {
 }
 
 type loop_result =
-  (* var value = loop {
+  (* value := loop {
        continue
      } *)
   | InferLoopResult
-  (* var value: i64 = loop {
+  (* value : i64 = loop {
        break 5
      } *)
   | ExpectLoopResult of ty
-  (* var value = loop {
+  (* value := loop {
        if condition { break 1 }
        break 2
      } *)
   | FlexibleLoopResult of ty * Ast.span * expr list
-  (* var value = loop {
+  (* value := loop {
        if condition { break known_i32 }
        break known_i64
      } *)

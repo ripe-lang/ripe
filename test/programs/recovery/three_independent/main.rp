@@ -1,4 +1,4 @@
 // BROKEN: waiting on the new parser recovery
 struct s { x: }
 fn a() i32 { return }
-fn b() i32 { var z: i32 = ; return z }
+fn b() i32 { z : i32 = ; return z }

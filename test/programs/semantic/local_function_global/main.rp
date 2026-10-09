@@ -1,4 +1,4 @@
-var base: i32 = 21;
+base : i32 = 21;
 
 fn main() i32 {
   fn read() i32 { base }

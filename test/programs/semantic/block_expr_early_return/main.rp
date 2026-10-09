@@ -1,7 +1,7 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn pick(n: i32) i32 {
-  var r = {
+  r := {
     if n == 0 { return 0 - 1 }
     n * 10
   };

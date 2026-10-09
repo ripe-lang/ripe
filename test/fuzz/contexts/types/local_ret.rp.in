@@ -1,5 +1,5 @@
 fn main() i32 {
   fn g() %%T%% { return %%L%% }
-  var _v = g();
+  _v := g();
   return 0;
 }

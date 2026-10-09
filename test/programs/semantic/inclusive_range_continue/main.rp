@@ -1,5 +1,5 @@
 fn main() i32 {
-  var s: i32 = 0;
+  s : i32 = 0;
   for i in 0..=5 {
     if i == 2 { continue }
     s += i;

@@ -1,7 +1,7 @@
 fn main() i32 {
-  var n = 7;
-  var cls = {
-    var r = 0;
+  n := 7;
+  cls := {
+    r := 0;
     if n > 5 { r = 100 } else { r = 1 }
     r
   };

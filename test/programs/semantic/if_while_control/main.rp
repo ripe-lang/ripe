@@ -8,8 +8,8 @@ fn sign(n: i32) i32 {
 }
 
 fn sum_to(n: i32) i32 {
-  var total: i32 = 0;
-  var i: i32 = 1;
+  total : i32 = 0;
+  i : i32 = 1;
   while i <= n {
     total += i;
     i += 1;
@@ -18,8 +18,8 @@ fn sum_to(n: i32) i32 {
 }
 
 fn main() i32 {
-  var a: i32 = abs(-7);
-  var s: i32 = sign(3);
-  var t: i32 = sum_to(10);
+  a : i32 = abs(-7);
+  s : i32 = sign(3);
+  t : i32 = sum_to(10);
   return t;
 }

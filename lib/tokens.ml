@@ -36,7 +36,6 @@ type token =
   | CARET_ASSIGN
   | LSHIFT_ASSIGN
   | RSHIFT_ASSIGN
-  | VAR
   | RETURN
   | IF
   | ELSE
@@ -78,7 +77,6 @@ type token =
 
 let keywords =
   [
-    ("var", VAR);
     ("return", RETURN);
     ("if", IF);
     ("else", ELSE);
@@ -175,9 +173,9 @@ let show_token = function
   | SEMI -> ";"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | ( VAR | RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK
-    | CONTINUE | SIZEOF | NULL | EXTERN | STRUCT | FUNC | TYPE | LOOP | ENUM
-    | MATCH | CAST ) as t ->
+  | ( RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK | CONTINUE
+    | SIZEOF | NULL | EXTERN | STRUCT | FUNC | TYPE | LOOP | ENUM | MATCH | CAST
+      ) as t ->
       fst (List.find (fun (_, t') -> t' = t) keywords)
 
 let show_found_token token =

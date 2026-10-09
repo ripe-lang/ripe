@@ -1,6 +1,6 @@
-var g: i32 = 41;
+g : i32 = 41;
 
-var p: *i32 = &g;
+p : *i32 = &g;
 
 fn main() i32 {
   *p += 1;

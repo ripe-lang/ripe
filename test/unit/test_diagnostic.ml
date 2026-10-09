@@ -42,13 +42,13 @@ let%expect_test "a return type mismatch shows the expected and actual types" =
     |}]
 
 let%expect_test "a parser error shows the token it found" =
-  Pipeline.run_src "fn main() i32 {\n  var = 1;\n  return 0;\n}\n";
+  Pipeline.run_src "fn main() i32 {\n  struct = 1;\n  return 0;\n}\n";
   [%expect
     {|
     error: expected identifier
-      at <test>:2:7
-          var = 1;
-              ^ found =
+      at <test>:2:10
+          struct = 1;
+                 ^ found =
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =
@@ -222,13 +222,13 @@ let%expect_test
     |}]
 
 let%expect_test "an undefined name after UTF text keeps its caret aligned" =
-  Pipeline.run_src "fn main() i32 {\n  var _s = \"é\"; return missing;\n}\n";
+  Pipeline.run_src "fn main() i32 {\n  _s := \"é\"; return missing;\n}\n";
   [%expect
     {|
     error: undefined variable
-      at <test>:2:24
-          var _s = "é"; return missing;
-                               ^~~~~~~
+      at <test>:2:21
+          _s := "é"; return missing;
+                            ^~~~~~~
     |}]
 
 let%expect_test "a long undefined name stops at the preview edge" =

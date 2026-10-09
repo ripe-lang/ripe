@@ -6,7 +6,7 @@ fn spin() never { loop {} }
 fn unreachable_arg(_a: never) i32 { return 1 }
 
 fn main() i32 {
-  if false { var _r = unreachable_arg(spin()) }
+  if false { _r := unreachable_arg(spin()) }
   printf("alive\n");
   return 0;
 }

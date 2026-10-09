@@ -12,7 +12,7 @@ fn choose(flag: bool) pair {
 }
 
 fn main() i32 {
-  var left = choose(true);
-  var right = choose(false);
+  left := choose(true);
+  right := choose(false);
   return left.x + left.y + right.x + right.y;
 }

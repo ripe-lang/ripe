@@ -1,5 +1,5 @@
 fn f() i32 {
-  var x = {
+  x := {
     return 7;
     99
   };

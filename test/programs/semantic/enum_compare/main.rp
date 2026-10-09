@@ -3,8 +3,8 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 enum Suit { Clubs, Diamonds, Hearts, Spades }
 
 fn main() i32 {
-  var a = Suit.Diamonds;
-  var b = Suit.Diamonds;
+  a := Suit.Diamonds;
+  b := Suit.Diamonds;
   printf("%d %d\n", a == b, a != Suit.Spades);
   b = Suit.Spades;
   printf("%d %d\n", a == b, a != b);

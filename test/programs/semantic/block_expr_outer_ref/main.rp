@@ -1,7 +1,7 @@
 fn main() i32 {
-  var base = 10;
-  var y = {
-    var step = 3;
+  base := 10;
+  y := {
+    step := 3;
     base + step
   };
   return y;

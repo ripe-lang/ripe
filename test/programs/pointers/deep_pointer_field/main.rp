@@ -3,10 +3,10 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 struct point { x: i32, y: i32 }
 
 fn main() i32 {
-  var p: point = point { x: 42, y: 7 };
-  var q: *point = &p;
-  var qq: **point = &q;
-  var qqq: ***point = &qq;
+  p : point = point { x: 42, y: 7 };
+  q : *point = &p;
+  qq : **point = &q;
+  qqq : ***point = &qq;
 
   printf("%d %d %d\n", q.x, (*qq).x, (**qqq).x);
 

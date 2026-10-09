@@ -9,7 +9,7 @@ ERRORS = 8000
 
 
 def body(inner):
-    return "fn main() i32 {\n  var x = 1;\n  %s;\n  return x;\n}\n" % inner
+    return "fn main() i32 {\n  x := 1;\n  %s;\n  return x;\n}\n" % inner
 
 
 SHAPES = {
@@ -20,12 +20,12 @@ SHAPES = {
         "x = " + "if true { " * DEPTH + "1" + " } else { 1 }" * DEPTH
     ),
     "binop": lambda: body("x = " + " + ".join(["x"] * WIDTH)),
-    "array": lambda: body("var _a = [" + ", ".join(["1"] * WIDTH) + "]"),
+    "array": lambda: body("_a := [" + ", ".join(["1"] * WIDTH) + "]"),
     "lines": lambda: body(";\n  ".join(["x = x + 1"] * WIDTH)),
     "unclosed": lambda: body("x = " + "(" * DEPTH + "1"),
     "errors_per_level": lambda: body("x = " * ERRORS + "x"),
     "errors_on_one_line": lambda: body(
-        " ".join("var _y%d: bool = 1;" % i for i in range(ERRORS))
+        " ".join("_y%d : bool = 1;" % i for i in range(ERRORS))
     ),
 }
 

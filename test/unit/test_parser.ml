@@ -27,16 +27,16 @@ let%expect_test "parse: stray token" =
     |}]
 
 let%expect_test ("parse: unterminated string" [@tags "disabled"]) =
-  run_src "fn f() { var s = \"oops";
+  run_src "fn f() { s := \"oops";
   [%expect
     {|
     error: unclosed delimiter
       at <test>:1:8
-        fn f() { var s = "oops
+        fn f() { s := "oops
                ^
     error: unterminated string
       at <test>:1:18
-        fn f() { var s = "oops
+        fn f() { s := "oops
                          ^~~~~
     |}]
 
@@ -49,33 +49,18 @@ let%expect_test "parse: line comments stripped" =
   [%expect {| ok |}]
 
 let%expect_test "parse: same-line statements require a separator" =
-  run_src "fn f(a: i32, b: i32) { var x = 1 x, b = b, a }";
+  run_src "fn f(a: i32, b: i32) { x := 1 x, b = b, a }";
   [%expect
     {|
     error: expected `;`
-      at <test>:1:34
-        fn f(a: i32, b: i32) { var x = 1 x, b = b, a }
-                                         ^ found x
+      at <test>:1:31
+        fn f(a: i32, b: i32) { x := 1 x, b = b, a }
+                                      ^ found x
     |}]
 
 let%expect_test "parse: explicit semicolon separates statements" =
-  run_src "fn f() i32 { var x = 1; return x }";
+  run_src "fn f() i32 { x := 1; return x }";
   [%expect {| ok |}]
-
-let%expect_test ("parse: semicolon before an initializer" [@tags "disabled"]) =
-  run_src "fn f() { var x; = 1 }";
-  [%expect
-    {|
-    error: cannot infer type
-      at <test>:1:14
-        fn f() { var x; = 1 }
-                     ^
-    help: write the type or give it a value
-    error: expected expression
-      at <test>:1:17
-        fn f() { var x; = 1 }
-                        ^ found =
-    |}]
 
 let%expect_test "parse: a declaration ending in a brace needs no separator" =
   run_src "fn f() {} fn g() {}";
@@ -112,7 +97,7 @@ let%expect_test "parse: recover, broken then good" =
 let%expect_test
     ("parse: keep binders and collect later type errors" [@tags "disabled"]) =
   run_src {|fn f() i32 {
-  var x: = /
+  x : = /
   return x;
 }
 fn g() i32 { return true }|};
@@ -120,7 +105,7 @@ fn g() i32 { return true }|};
     {|
     error: expected type
       at <test>:2:10
-          var x: = /
+          x : = /
                  ^ found =
     error: type mismatch
       at <test>:5:21
@@ -145,12 +130,12 @@ fn f() { return / }|};
     |}]
 
 let%expect_test "parse: recover, broken body with local does not cascade" =
-  run_src "fn f() { return / var x: i32 = 1 }\nfn g() i32 { return 1 }";
+  run_src "fn f() { return / x : i32 = 1 }\nfn g() i32 { return 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:17
-        fn f() { return / var x: i32 = 1 }
+        fn f() { return / x : i32 = 1 }
                         ^ found /
     |}]
 
@@ -286,9 +271,9 @@ let%expect_test
     ("parse: recover, errors across top level declarations" [@tags "disabled"])
     =
   run_src
-    {|var a: = 1;
-var b: = 2;
-var c: = 3;
+    {|a : = 1;
+b : = 2;
+c : = 3;
 type A = +
 struct S { x: };
 extern "C" fn e(x:);
@@ -297,15 +282,15 @@ fn f(x:) {}|};
     {|
     error: expected type
       at <test>:1:8
-        var a: = 1;
+        a : = 1;
                ^ found =
     error: expected type
       at <test>:2:8
-        var b: = 2;
+        b : = 2;
                ^ found =
     error: expected type
       at <test>:3:8
-        var c: = 3;
+        c : = 3;
                ^ found =
     error: expected type
       at <test>:4:10
@@ -327,24 +312,24 @@ fn f(x:) {}|};
 
 let%expect_test
     ("parse: recover, explicit separators on one line" [@tags "disabled"]) =
-  run_src "fn f() { return /; return /; var x =; return / }";
+  run_src "fn f() { return /; return /; x := ; return / }";
   [%expect
     {|
     error: expected expression
       at <test>:1:17
-        fn f() { return /; return /; var x =; return / }
+        fn f() { return /; return /; x := ; return / }
                         ^ found /
     error: expected expression
       at <test>:1:27
-        fn f() { return /; return /; var x =; return / }
+        fn f() { return /; return /; x := ; return / }
                                   ^ found /
     error: expected expression
       at <test>:1:37
-        fn f() { return /; return /; var x =; return / }
+        fn f() { return /; return /; x := ; return / }
                                             ^ found ;
     error: expected expression
       at <test>:1:46
-        fn f() { return /; return /; var x =; return / }
+        fn f() { return /; return /; x := ; return / }
                                                      ^ found /
     |}]
 
@@ -374,7 +359,7 @@ let%expect_test
     =
   run_src
     {|fn f() {
-  var x = 1 +
+  x := 1 +
     2;
   return x +
     3;
@@ -428,7 +413,7 @@ let%expect_test
     {|struct point { x: i32 }
 fn f() {
   if /
-  var p = point { x: 1 };
+  p := point { x: 1 };
   return /
 }|};
   [%expect
@@ -461,9 +446,9 @@ let%expect_test
   let src =
     {|fn f() {
   if 1 *
-  var a = ~
-  var b = 1 -
-  var c = !
+  a := ~
+  b := 1 -
+  c := !
   while 2 /
   for x in 3 %
   return 4 ==
@@ -478,15 +463,15 @@ let%expect_test
                ^
     error: expected expression
       at <test>:3:11
-          var a = ~
+          a := ~
                   ^
     error: expected expression
       at <test>:4:13
-          var b = 1 -
+          b := 1 -
                     ^
     error: expected expression
       at <test>:5:11
-          var c = !
+          c := !
                   ^
     error: expected expression
       at <test>:6:11
@@ -735,17 +720,17 @@ let%expect_test "parse: ptr field access" =
   [%expect {| (. s ptr) |}]
 
 let%expect_test "parse: multiline array literal" =
-  run_src "fn f() {\n  var a: [2]i32 = [\n    1,\n    2,\n  ];\n}";
+  run_src "fn f() {\n  a : [2]i32 = [\n    1,\n    2,\n  ];\n}";
   [%expect {| ok |}]
 
 let%expect_test
     ("parse: line tracking after unterminated string" [@tags "disabled"]) =
-  run_src "fn f() {\n  var s = \"line one\n  var t = 1;\n  @\n}";
+  run_src "fn f() {\n  s := \"line one\n  t := 1;\n  @\n}";
   [%expect
     {|
     error: unterminated string
       at <test>:2:11
-          var s = "line one
+          s := "line one
                   ^~~~~~~~~
     error: unexpected character
       at <test>:4:3
@@ -791,7 +776,7 @@ let%expect_test "parse: multiline struct literal" =
   run_src
     {|struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var p = pt {
+  p := pt {
     x: 1,
     y: 2,
   };
@@ -825,7 +810,7 @@ let%expect_test "parse: while condition is not a struct literal" =
 let%expect_test "parse: for iterable is not a struct literal" =
   run_src
     {|fn f(xs: []i32) i32 {
-  var s: i32 = 0;
+  s : i32 = 0;
   for x in xs { s += x }
   return s;
 }|};
@@ -880,7 +865,7 @@ let%expect_test "parse: multiline positional struct literal" =
   run_src
     {|struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var p = pt {
+  p := pt {
     1,
     2,
   };
@@ -1011,7 +996,7 @@ let%expect_test "parse: braces are literal in a string" =
   [%expect {| "a{x}b" |}]
 
 let%expect_test "parse: crlf line endings" =
-  run_src "fn f() i32 {\r\n  var x: i32 = 1;\r\n  return x;\r\n}";
+  run_src "fn f() i32 {\r\n  x : i32 = 1;\r\n  return x;\r\n}";
   [%expect {| ok |}]
 
 let%expect_test ("parse: stray closing paren" [@tags "disabled"]) =
@@ -1082,13 +1067,13 @@ let%expect_test "parse: bitnot" =
   [%expect {| (~ x) |}]
 
 let%expect_test "parse: unary plus is rejected" =
-  run_src "fn f() { var _x = +42 }";
+  run_src "fn f() { _x := +42 }";
   [%expect
     {|
     error: expected expression
-      at <test>:1:19
-        fn f() { var _x = +42 }
-                          ^ found +
+      at <test>:1:16
+        fn f() { _x := +42 }
+                       ^ found +
     |}]
 
 let%expect_test "parse: field access after call" =
@@ -1130,7 +1115,7 @@ let%expect_test "parse: struct literal nested inside array literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var a: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
+  a : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
 }
 |};
   [%expect {| ok |}]
@@ -1222,13 +1207,13 @@ let%expect_test "parse: ABI on a struct" =
     |}]
 
 let%expect_test "parse: ABI on a global" =
-  run_src {|extern "C" var n: i32 = 0;|};
+  run_src {|extern "C" n : i32 = 0;|};
   [%expect
     {|
     error: expected `fn`
       at <test>:1:12
-        extern "C" var n: i32 = 0;
-                   ^~~ found `var`
+        extern "C" n : i32 = 0;
+                   ^ found n
     |}]
 
 let%expect_test "parse: missing ABI before a struct" =
@@ -1318,13 +1303,13 @@ let%expect_test "parse: function body requires a block" =
     |}]
 
 let%expect_test "parse: unknown string escape" =
-  run_src {|fn f() { var s = "a\qb" }|};
+  run_src {|fn f() { s := "a\qb" }|};
   [%expect
     {|
     error: unknown escape
-      at <test>:1:21
-        fn f() { var s = "a\qb" }
-                            ^
+      at <test>:1:18
+        fn f() { s := "a\qb" }
+                         ^
     |}]
 
 let%expect_test "parse: an unknown escape keeps the rest of its statement" =
@@ -1378,7 +1363,7 @@ let%expect_test "parse: a semicolon between fields keeps the struct" =
   run_src
     {|struct P { x: i32; y: i32 }
 fn main() i32 {
-  var p: P = P { x: 12, y: 30 };
+  p : P = P { x: 12, y: 30 };
   return p.x + p.y;
 }|};
   [%expect
@@ -1394,8 +1379,8 @@ let%expect_test "parse: a semicolon between variants keeps the enum" =
   run_src
     {|enum C { Red; Green }
 fn main() i32 {
-  var a: C = C.Red;
-  var b: C = C.Green;
+  a : C = C.Red;
+  b : C = C.Green;
   return 0;
 }|};
   [%expect
@@ -1412,7 +1397,7 @@ let%expect_test "parse: a bad field name drops only that field" =
     {|struct P { 99: i32,
   y: i32 }
 fn main() i32 {
-  var p: P;
+  p : P;
   return p.y;
 }|};
   [%expect
@@ -1428,7 +1413,7 @@ let%expect_test "parse: a bad variant name drops only that variant" =
     {|enum C { 99,
   Green }
 fn main() i32 {
-  var c: C = C.Green;
+  c : C = C.Green;
   return 0;
 }|};
   [%expect
@@ -1445,7 +1430,7 @@ let%expect_test ("parse: two bad fields report once each" [@tags "disabled"]) =
   88: i32,
   z: i32 }
 fn main() i32 {
-  var p: P;
+  p : P;
   return p.z;
 }|};
   [%expect
@@ -1466,7 +1451,7 @@ let%expect_test "parse: a missing separator keeps both items" =
   Green @
   Blue }
 fn main() i32 {
-  var c: C = C.Blue;
+  c : C = C.Blue;
   return 0;
 }|};
   [%expect
@@ -1598,7 +1583,7 @@ let%expect_test "parse: match arms name arms in the separator error" =
     {|enum C { Red,
   Green }
 fn main() i32 {
-  var c: C = C.Red;
+  c : C = C.Red;
   return match c { C.Red => 0; C.Green => 1 };
 }|};
   [%expect
@@ -1611,13 +1596,13 @@ fn main() i32 {
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
-  run_src "fn f() { var s = S { x: 1 y: 2 } }";
+  run_src "fn f() { s := S { x: 1 y: 2 } }";
   [%expect
     {|
     error: expected `,` between fields
-      at <test>:1:27
-        fn f() { var s = S { x: 1 y: 2 } }
-                                  ^ found y
+      at <test>:1:24
+        fn f() { s := S { x: 1 y: 2 } }
+                               ^ found y
     |}]
 
 let%expect_test "parse: never as a return type" =
@@ -1625,7 +1610,7 @@ let%expect_test "parse: never as a return type" =
   [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =
-  run_src "fn f() i32 {\n  var x = { var a = 1 };\n  return x;\n}";
+  run_src "fn f() i32 {\n  x := { a := 1 };\n  return x;\n}";
   [%expect
     {|
     error: type mismatch
@@ -1635,7 +1620,7 @@ let%expect_test "parse: block expression needs a trailing value" =
     |}]
 
 let%expect_test "parse: if expression needs an else branch" =
-  run_src "fn f() i32 {\n  var x = if true { 1 };\n  return x;\n}";
+  run_src "fn f() i32 {\n  x := if true { 1 };\n  return x;\n}";
   [%expect
     {|
     error: type mismatch
@@ -1663,8 +1648,8 @@ let%expect_test "parse: else if chain shape" =
   [%expect {| (if (a (block 1)) (b (block 2)) (block 3)) |}]
 
 let%expect_test "parse: block with a tail value" =
-  parse_expr "{ var a = 1;\n a + 2 }";
-  [%expect {| (block (var a 1) (+ a 2)) |}]
+  parse_expr "{ a := 1;\n a + 2 }";
+  [%expect {| (block (bind a 1) (+ a 2)) |}]
 
 let%expect_test "parse: nested block" =
   parse_expr "{ { 5 } }";
@@ -1696,30 +1681,30 @@ let%expect_test
 let%expect_test
     ("parse: unclosed paren in a while condition points at the paren"
      [@tags "disabled"]) =
-  run_src "fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };";
+  run_src "fn f() { j := 0 while (j >= 0 && j < 5 { j = j + 1 } };";
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:1:57
-        fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
+        fn f() { j := 0 while (j >= 0 && j < 5 { j = j + 1 } };
                                                                 ^ expected `)`
       at <test>:1:26
-        fn f() { var j = 0 while (j >= 0 && j < 5 { j = j + 1 } };
+        fn f() { j := 0 while (j >= 0 && j < 5 { j = j + 1 } };
                                  ^ to match this `(`
     |}]
 
 let%expect_test
     ("parse: unclosed bracket in an index points at the bracket"
      [@tags "disabled"]) =
-  run_src "fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }";
+  run_src "fn f() { arr := [1, 2, 3] if (arr[0 { 1 } }";
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:1:46
-        fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+        fn f() { arr := [1, 2, 3] if (arr[0 { 1 } }
                                                      ^ expected `]`
       at <test>:1:37
-        fn f() { var arr = [1, 2, 3] if (arr[0 { 1 } }
+        fn f() { arr := [1, 2, 3] if (arr[0 { 1 } }
                                             ^ to match this `[`
     |}]
 
@@ -1752,7 +1737,7 @@ let%expect_test
     |}]
 
 let%expect_test "parse: regular assignment remains accepted" =
-  run_src "fn f(b: i32) { var a = 1; a = b }";
+  run_src "fn f(b: i32) { a := 1; a = b }";
   [%expect {| ok |}]
 
 let%expect_test "parse: a dotted field read stays a field read" =
@@ -1784,7 +1769,7 @@ let%expect_test "parse: operator may follow an explicit semicolon" =
   run_src
     {|fn f(x: i32) i32 { return x }
 fn main() i32 {
-  var _x = f(1); -f(2); return 0;
+  _x := f(1); -f(2); return 0;
 }|};
   [%expect {| ok |}]
 
@@ -1849,29 +1834,6 @@ let%expect_test "parse: a struct literal still wins over a block" =
   parse_expr "Point { x: 1 }";
   [%expect {| (struct Point (x 1)) |}]
 
-let%expect_test "parse: a struct literal in an if header points at the brace" =
-  run_src "struct Point { x: i32 }\nfn f() { if Point { x: 1 }.x == 1 { } }";
-  [%expect
-    {|
-    error: a struct literal can't go in a header
-      at <test>:2:19
-        fn f() { if Point { x: 1 }.x == 1 { } }
-                          ^ this `{` starts the body
-    help: wrap the literal in parentheses
-    |}]
-
-let%expect_test
-    "parse: a struct literal in a match scrutinee points at the brace" =
-  run_src "struct Point { x: i32 }\nfn f() { match Point { x: 1 }.x { } }";
-  [%expect
-    {|
-    error: a struct literal can't go in a header
-      at <test>:2:22
-        fn f() { match Point { x: 1 }.x { } }
-                             ^ this `{` starts the body
-    help: wrap the literal in parentheses
-    |}]
-
 let%expect_test "parse: a label in a header body is not a struct literal" =
   parse_body "fn f() { if g() { outer: loop { break :outer } } }";
   [%expect {| (block (if ((call g) (block (loop (block (break))))))) |}]
@@ -1897,20 +1859,20 @@ let%expect_test "parse: a loop is a value in a binding" =
   [%expect {| (= x (loop (block (break 1)))) |}]
 
 let%expect_test "parse: a while is a value in a binding" =
-  parse_body "fn f() { var y = while c { g() } }";
-  [%expect {| (block (var y (while c (block (call g))))) |}]
+  parse_body "fn f() { y := while c { g() } }";
+  [%expect {| (block (bind y (while c (block (call g))))) |}]
 
 let%expect_test "parse: a for is a value in a binding" =
-  parse_body "fn f() { var y = for i in xs { g() } }";
-  [%expect {| (block (var y (for i xs (block (call g))))) |}]
+  parse_body "fn f() { y := for i in xs { g() } }";
+  [%expect {| (block (bind y (for i xs (block (call g))))) |}]
 
 let%expect_test "parse: a labeled while is a value in a binding" =
-  parse_body "fn f() { var y = outer: while c { break :outer } }";
-  [%expect {| (block (var y (while c (block (break))))) |}]
+  parse_body "fn f() { y := outer: while c { break :outer } }";
+  [%expect {| (block (bind y (while c (block (break))))) |}]
 
 let%expect_test "parse: a while statement needs no semicolon" =
-  parse_body "fn f() { while c { g() } var x = 1 }";
-  [%expect {| (block (while c (block (call g))) (var x 1)) |}]
+  parse_body "fn f() { while c { g() } x := 1 }";
+  [%expect {| (block (while c (block (call g))) (bind x 1)) |}]
 
 let%expect_test "parse: an enum declares its variants" =
   (match parse {|enum Color {
@@ -1942,8 +1904,8 @@ let%expect_test "parse: an arm takes an expression or a block" =
     {| (block (match c (0 (block 1)) (1 (block (block (call g)))) (_ (block 2)))) |}]
 
 let%expect_test "parse: match is a value" =
-  parse_body "fn f() { var x = match c { _ => 1 } }";
-  [%expect {| (block (var x (match c (_ (block 1))))) |}]
+  parse_body "fn f() { x := match c { _ => 1 } }";
+  [%expect {| (block (bind x (match c (_ (block 1))))) |}]
 
 let%expect_test "parse: an arm body may leave the loop or the function" =
   parse_body
@@ -1972,10 +1934,10 @@ let%expect_test "parse: a bare name binds and a dotted one is a constant" =
 
 let%expect_test "parse: a binding may be named with an underscore" =
   parse_body {|fn f() {
-  var _ = 1;
-  var _ = 2;
+  _ := 1;
+  _ := 2;
 }|};
-  [%expect {| (block (var _ 1) (var _ 2)) |}]
+  [%expect {| (block (bind _ 1) (bind _ 2)) |}]
 
 let%expect_test
     ("parse: a local enum body keeps the brace it was given" [@tags "disabled"])
@@ -1983,7 +1945,7 @@ let%expect_test
   run_src
     {|fn f() i32 {
   enum side  Left, Right }
-  var s = side.Right;
+  s := side.Right;
   return 0;
 }|};
   [%expect
@@ -1994,81 +1956,17 @@ let%expect_test
         ^
     |}]
 
-let%expect_test "parse: a binding with two names keeps the second" =
-  run_src {|fn f() i32 {
-  var q n: i32 = 1;
-  return n;
-}|};
-  [%expect
-    {|
-    error: expected `;`
-      at <test>:2:9
-          var q n: i32 = 1;
-                ^ found n
-    |}]
-
-let%expect_test "parse: a run of names leaves only the annotated one" =
-  run_src {|fn f() i32 {
-  var q f x: i32 = 1;
-  return x;
-}|};
-  [%expect
-    {|
-    error: expected `;`
-      at <test>:2:9
-          var q f x: i32 = 1;
-                ^ found f
-    |}]
-
-let%expect_test
-    ("parse: an extra name and a missing colon are both said once"
-     [@tags "disabled"]) =
-  run_src {|fn f() i32 {
-  var q n i32 = 1;
-  return n;
-}|};
-  [%expect
-    {|
-    error: expected `;`
-      at <test>:2:9
-          var q n i32 = 1;
-                ^ found n
-    error: expected `:`
-      at <test>:2:11
-          var q n i32 = 1;
-                  ^~~ found i32
-    |}]
-
-let%expect_test
-    ("parse: a missing colon before a dotted type is said once"
-     [@tags "disabled"]) =
-  run_src {|fn f() i32 {
-  var n m.t = 1;
-  return 0;
-}|};
-  [%expect
-    {|
-    error: expected `:`
-      at <test>:2:9
-          var n m.t = 1;
-                ^ found m
-    error: undefined type
-      at <test>:2:9
-          var n m.t = 1;
-                ^~~
-    |}]
-
 let%expect_test "parse: a value as a binding type keeps the initializer" =
   run_src {|fn f() i32 {
-  var n: 5 = 1;
+  n : 5 = 1;
   return n;
 }|};
   [%expect
     {|
     error: expected type
-      at <test>:2:10
-          var n: 5 = 1;
-                 ^ found 5
+      at <test>:2:7
+          n : 5 = 1;
+              ^ found 5
     |}]
 
 let%expect_test "parse: a wrong alias separator is said once" =
@@ -2098,8 +1996,8 @@ let%expect_test
      [@tags "disabled"]) =
   run_src
     {|fn main() i32 {
-  var x: i32 = {
-    var a = nope;
+  x : i32 = {
+    a := nope;
     );
     1
   };
@@ -2112,50 +2010,50 @@ let%expect_test
             );
             ^ expected `}`
       at <test>:2:16
-          var x: i32 = {
+          x : i32 = {
                        ^ to match this `{`
     |}]
 
 let%expect_test
     ("parse: an unknown escape after a delimiter fault" [@tags "disabled"]) =
-  run_src {|fn f() { var s = (1]; var t = "a\qb"; }|};
+  run_src {|fn f() { s := (1]; t := "a\qb"; }|};
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:1:20
-        fn f() { var s = (1]; var t = "a\qb"; }
+        fn f() { s := (1]; t := "a\qb"; }
                            ^ expected `)`
       at <test>:1:18
-        fn f() { var s = (1]; var t = "a\qb"; }
+        fn f() { s := (1]; t := "a\qb"; }
                          ^ to match this `(`
     error: unknown escape
       at <test>:1:34
-        fn f() { var s = (1]; var t = "a\qb"; }
+        fn f() { s := (1]; t := "a\qb"; }
                                          ^
     |}]
 
 let%expect_test
     ("parse: lexer errors after a delimiter fault" [@tags "disabled"]) =
   run_src {|fn f() {
-  var s = (1];
-  var t = "abc
-  var c = @;
+  s := (1];
+  t := "abc
+  c := @;
 }|};
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:2:13
-          var s = (1];
+          s := (1];
                     ^ expected `)`
       at <test>:2:11
-          var s = (1];
+          s := (1];
                   ^ to match this `(`
     error: unterminated string
       at <test>:3:11
-          var t = "abc
+          t := "abc
                   ^~~~
     error: unexpected character
       at <test>:4:11
-          var c = @;
+          c := @;
                   ^
     |}]

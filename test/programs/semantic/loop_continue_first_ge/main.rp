@@ -1,7 +1,7 @@
 fn first_ge(threshold: i32) i32 {
-  var i: i32 = 0;
+  i : i32 = 0;
   while i < 100 {
-    var keep: i32 = if i >= threshold { i } else { i = i + 1; continue };
+    keep : i32 = if i >= threshold { i } else { i = i + 1; continue };
     return keep;
   }
   return -1;

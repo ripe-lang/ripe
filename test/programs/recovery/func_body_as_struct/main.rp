@@ -1,6 +1,6 @@
 fn twice(n: i32) i32 { return n * 2 }
 struct main() i32 {
-  var f: fn (i32) i32 = twice;
-  var g: extern "C" fn (i32) i32 = twice;
+  f : fn (i32) i32 = twice;
+  g : extern "C" fn (i32) i32 = twice;
   return f(1);
 }

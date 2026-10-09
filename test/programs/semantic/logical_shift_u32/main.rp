@@ -1,6 +1,6 @@
 fn main() i32 {
-  var a: u32 = 4294967288;
-  var b: u32 = a >> 1;
+  a : u32 = 4294967288;
+  b : u32 = a >> 1;
   if b == 2147483644 { return 1 }
   return 0;
 }

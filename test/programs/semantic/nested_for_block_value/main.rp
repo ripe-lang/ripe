@@ -1,8 +1,8 @@
 fn compute() i32 {
-  var total: i32 = 0;
+  total : i32 = 0;
   for i in 0..3 {
-    var sub: i32 = {
-      var s: i32 = 0;
+    sub : i32 = {
+      s : i32 = 0;
       for j in 0..3 {
         if (i + j) % 2 == 0 {
           s = s + 1;

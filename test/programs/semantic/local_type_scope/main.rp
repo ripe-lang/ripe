@@ -1,13 +1,13 @@
 fn main() i32 {
-  var first = {
+  first := {
     struct Value { number: i32 }
-    var value = Value { number: 5 };
+    value := Value { number: 5 };
     value.number
   };
 
-  var second = {
+  second := {
     struct Value { number: i32, extra: i32 }
-    var value = Value { number: 1, extra: 7 };
+    value := Value { number: 1, extra: 7 };
     value.extra
   };
 

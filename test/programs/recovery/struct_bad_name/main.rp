@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
 struct 3point { x: i32 }
 fn main() i32 {
-  var p = point { 5 };
+  p := point { 5 };
   return p.x;
 }

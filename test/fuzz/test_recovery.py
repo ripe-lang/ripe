@@ -35,13 +35,13 @@ def struct_decl(i, n):
     body = "\n".join(f"  {NAMES[j]}: {t}," for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
 
-    return f"struct S{i} {{\n{body}\n}}", [f"var s{i} = S{i} {{ {args} }}"], []
+    return f"struct S{i} {{\n{body}\n}}", [f"s{i} := S{i} {{ {args} }}"], []
 
 
 def enum_decl(i, n):
     body = "\n".join(f"  V{j}," for j in range(n))
 
-    return f"enum E{i} {{\n{body}\n}}", [f"var _e{i} = E{i}.V0"], []
+    return f"enum E{i} {{\n{body}\n}}", [f"_e{i} := E{i}.V0"], []
 
 
 def func_decl(i, n):
@@ -50,7 +50,7 @@ def func_decl(i, n):
     args = ", ".join(lit for _, lit in picks)
     text = f"fn f{i}({ps}) i32 {{\n  return 0;\n}}"
 
-    return text, [f"var r{i} = f{i}({args})"], [f"r{i}"]
+    return text, [f"r{i} := f{i}({args})"], [f"r{i}"]
 
 
 def extern_decl(i, n):
@@ -59,7 +59,7 @@ def extern_decl(i, n):
     args = ", ".join(lit for _, lit in picks)
     text = f'extern "C" fn e{i}({ps}) i32 {{\n  return 0;\n}}'
 
-    return text, [f"var r{i} = e{i}({args})"], [f"r{i}"]
+    return text, [f"r{i} := e{i}({args})"], [f"r{i}"]
 
 
 # Main never calls this one because the linker has no symbol to find
@@ -154,7 +154,7 @@ def make_case(rng):
     if rng.random() < 0.15:
         src = "struct P {\n  x: i32,\n}\n"
         src += rng.choice(CLOSERS) + "\n"
-        src += "fn main() i32 {\n  var p: P;\n  return p.x;\n}\n"
+        src += "fn main() i32 {\n  p : P;\n  return p.x;\n}\n"
 
         return src, False, "delim", 1, None
 

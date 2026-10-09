@@ -1,4 +1,4 @@
 fn main() i32 {
-  var s: str;
+  s : str;
   return cast(i32, s.len) + 3;
 }

@@ -13,11 +13,11 @@ fn bump(p: *point) {
 }
 
 fn main() i32 {
-  var x: i32 = 10;
-  var y: i32 = 32;
-  var sum = deref_sum(&x, &y);
-  var neg = deref_negate(&x);
-  var p: point = point { x: 0, y: 0 };
+  x : i32 = 10;
+  y : i32 = 32;
+  sum := deref_sum(&x, &y);
+  neg := deref_negate(&x);
+  p : point = point { x: 0, y: 0 };
   bump(&p);
   bump(&p);
   return sum + neg + p.x;

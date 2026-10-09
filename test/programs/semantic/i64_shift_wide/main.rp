@@ -1,6 +1,6 @@
 fn main() i32 {
-  var a: i64 = 1;
-  var b: i64 = a << 40;
+  a : i64 = 1;
+  b : i64 = a << 40;
   if b == 1099511627776 { return 1 }
   return 0;
 }

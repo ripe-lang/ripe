@@ -1,10 +1,10 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var a: char = 'A';
-  var newline: char = '\n';
-  var emoji: char = '😀';
-  var lo: char = '\0';
+  a : char = 'A';
+  newline : char = '\n';
+  emoji : char = '😀';
+  lo : char = '\0';
   printf("%d %d %d %d\n", cast(i32, a), cast(i32, newline), cast(i32, emoji), cast(i32, lo));
   if a == 'A' { printf("eq\n") }
   if a < 'B' { printf("lt\n") }

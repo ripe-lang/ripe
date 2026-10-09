@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-var log: i32 = 0;
+log : i32 = 0;
 
 fn mark(v: i32) i32 { log = log * 10 + v; return v }
 

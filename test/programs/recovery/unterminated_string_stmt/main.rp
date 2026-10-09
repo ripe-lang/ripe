@@ -1,4 +1,4 @@
 fn main() i32 {
-  var s = "oops
+  s := "oops
   return 0;
 }

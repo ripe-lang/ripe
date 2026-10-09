@@ -1,4 +1,4 @@
 fn main() i32 {
-  var b: bool = 3 > 4;
+  b : bool = 3 > 4;
   return match b { true => 1, false => 0 };
 }

@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var inner = 0;
-  var outer = 0;
+  inner := 0;
+  outer := 0;
   for _i in 0..3 {
     for j in 0..3 {
       printf("%d", if j == 1 { continue } else { j });
@@ -12,7 +12,7 @@ fn main() i32 {
     outer += 1;
   }
 
-  var skipped = 0;
+  skipped := 0;
   for i in 0..4 {
     for j in 0..2 {
       skipped += j;

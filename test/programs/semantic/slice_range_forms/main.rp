@@ -1,13 +1,13 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn sum(s: []i32) i32 {
-  var t: i32 = 0;
+  t : i32 = 0;
   for i in 0..s.len { t += s[i] }
   return t;
 }
 
 fn main() i32 {
-  var a: [4]i32 = [1, 2, 4, 8];
+  a : [4]i32 = [1, 2, 4, 8];
 
   printf("%d %d\n", cast(i32, a[..].len), sum(a[..]));
   printf("%d %d\n", cast(i32, a[1..].len), sum(a[1..]));
@@ -20,7 +20,7 @@ fn main() i32 {
   printf("%d %d %d %d\n", sum(a[..]), sum(a[0..]), sum(a[..4]), sum(a[..=3]));
 
   // A slice can be resliced with the same forms
-  var s: []i32 = a[..];
+  s : []i32 = a[..];
   printf("%d %d %d\n", sum(s[..]), sum(s[2..]), sum(s[..=1]));
 
   return sum(a[..]);

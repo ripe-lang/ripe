@@ -11,6 +11,6 @@ extern "C" fn total(p: Pair) i32 {
 extern "C" fn step(x: i32) i32 { return x + 1 }
 
 fn main() i32 {
-  var p = make_pair(7);
+  p := make_pair(7);
   return step(total(p));
 }

@@ -1,12 +1,12 @@
 error: cannot zero init this type
-  at main.rp:4:13
-      var bare: never;
-                ^~~~~ on never
+  at main.rp:4:10
+      bare : never;
+             ^~~~~ on never
 error: cannot zero init this type
-  at main.rp:5:14
-      var whole: hole;
-                 ^~~~ on hole
+  at main.rp:5:11
+      whole : hole;
+              ^~~~ on hole
 error: cannot zero init this type
-  at main.rp:6:17
-      var partial = hole { b: 1 };
-                    ^~~~~~~~~~~~~ on never
+  at main.rp:6:14
+      partial := hole { b: 1 };
+                 ^~~~~~~~~~~~~ on never

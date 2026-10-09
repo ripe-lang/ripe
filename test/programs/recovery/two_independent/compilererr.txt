@@ -3,6 +3,6 @@ error: expected type
     fn a(x: y: i32) i32 { return 0 }
           ^
 error: expected expression
-  at main.rp:2:27
-    fn b() i32 { var z: i32 = ; return z }
-                              ^ found ;
+  at main.rp:2:24
+    fn b() i32 { z : i32 = ; return z }
+                           ^ found ;

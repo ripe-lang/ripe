@@ -1,8 +1,8 @@
 fn search() i32 {
-  var found: i32 = -1;
+  found : i32 = -1;
   for i in 0..5 {
     for j in 0..5 {
-      var prod: i32 = if i * j == 6 { i * 10 + j } else { continue };
+      prod : i32 = if i * j == 6 { i * 10 + j } else { continue };
       found = prod;
       return found;
     }

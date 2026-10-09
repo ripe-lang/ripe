@@ -1,13 +1,13 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var n = 0;
+  n := 0;
   for i in 0..10 {
     printf("%d", if i == 3 { break } else { i });
     n += 1;
   }
 
-  var m = 0;
+  m := 0;
   for i in 0..=10 {
     m += 1 + if i == 2 { break } else { i };
   }

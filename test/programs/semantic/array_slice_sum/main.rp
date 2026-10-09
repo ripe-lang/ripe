@@ -1,5 +1,5 @@
 fn sum(xs: []i32) i32 {
-  var total: i32 = 0;
+  total : i32 = 0;
   for x in xs {
     total += x;
   }
@@ -7,13 +7,13 @@ fn sum(xs: []i32) i32 {
 }
 
 fn main() i32 {
-  var a: [5]i32 = [1, 2, 3, 4, 5];
+  a : [5]i32 = [1, 2, 3, 4, 5];
   a[0] = 10;
-  var doubled: i32 = 0;
+  doubled : i32 = 0;
   for i in 0..a.len {
     doubled += a[i] * 2;
   }
-  var whole: i32 = sum(a);
-  var middle: i32 = sum(a[1..4]);
+  whole : i32 = sum(a);
+  middle : i32 = sum(a[1..4]);
   return doubled + whole + middle - 47;
 }

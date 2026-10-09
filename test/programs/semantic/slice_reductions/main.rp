@@ -1,5 +1,5 @@
 fn sum(xs: []i32) i32 {
-  var total: i32 = 0;
+  total : i32 = 0;
   for x in xs {
     total += x;
   }
@@ -7,7 +7,7 @@ fn sum(xs: []i32) i32 {
 }
 
 fn max(xs: []i32) i32 {
-  var best: i32 = xs[0];
+  best : i32 = xs[0];
   for x in xs {
     if x > best {
       best = x;
@@ -17,11 +17,11 @@ fn max(xs: []i32) i32 {
 }
 
 fn main() i32 {
-  var scores: [5]i32 = [30, 10, 50, 20, 40];
+  scores : [5]i32 = [30, 10, 50, 20, 40];
   for i in 0..scores.len {
     scores[i] += 1;
   }
-  var total: i32 = sum(scores);
-  var top: i32 = max(scores);
+  total : i32 = sum(scores);
+  top : i32 = max(scores);
   return total - top - 100;
 }

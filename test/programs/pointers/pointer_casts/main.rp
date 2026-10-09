@@ -8,25 +8,25 @@ type BinOp = fn (i32, i32) i32;
 fn add(a: i32, b: i32) i32 { return a + b }
 
 fn main() i32 {
-  var raw: ptr = malloc(sizeof(point));
-  var p: *point = cast(*point, raw);
+  raw : ptr = malloc(sizeof(point));
+  p : *point = cast(*point, raw);
   p.x = 40;
   p.y = 2;
 
-  var address: usize = cast(usize, p);
-  var back: *point = cast(*point, address);
-  var wide: u64 = cast(u64, p);
-  var signed: isize = cast(isize, p);
+  address : usize = cast(usize, p);
+  back : *point = cast(*point, address);
+  wide : u64 = cast(u64, p);
+  signed : isize = cast(isize, p);
 
-  var bytes: *u8 = cast(*u8, p);
-  var deep: **u8 = cast(**u8, p);
-  var rows: *[2]i32 = cast(*[2]i32, p);
-  var fp: *BinOp = cast(*BinOp, p);
-  var indirect: *fn (i32, i32) i32 = cast(*fn (i32, i32) i32, p);
-  var erased: ptr = cast(ptr, p);
+  bytes : *u8 = cast(*u8, p);
+  deep : **u8 = cast(**u8, p);
+  rows : *[2]i32 = cast(*[2]i32, p);
+  fp : *BinOp = cast(*BinOp, p);
+  indirect : *fn (i32, i32) i32 = cast(*fn (i32, i32) i32, p);
+  erased : ptr = cast(ptr, p);
 
-  var op: BinOp = add;
-  var call_through: *BinOp = &op;
+  op : BinOp = add;
+  call_through : *BinOp = &op;
 
   printf("%d %d %d\n", back.x, back.y, cast(i32, *bytes));
   printf("%d %d %d\n", cast(i32, cast(usize, deep) - address), cast(i32, wide - cast(u64, address)),

@@ -2,7 +2,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   printf("%.2f\n", 3.14);
-  var x: f32 = 3.5;
+  x : f32 = 3.5;
   printf("%.2f\n", x);
   return 0;
 }
