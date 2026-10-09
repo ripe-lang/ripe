@@ -1,6 +1,6 @@
 fn main() i32 {
   n : i32 = 0;
-  outer: loop {
+  loop :outer {
     n = n + 1;
     if n > 2 { break :outer }
   }

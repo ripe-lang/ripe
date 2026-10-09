@@ -61,10 +61,10 @@ let%expect_test "reachability: a break inside an inner loop is not this one's" =
     |}]
 
 let%expect_test "reachability: a labeled break reaches out of an inner loop" =
-  breaks "outer: while true { while y { break :outer } }";
-  breaks "outer: while true { while y { break :inner } }";
-  breaks "outer: while true { while y { break } }";
-  breaks "outer: while true { break :outer }";
+  breaks "while :outer true { while y { break :outer } }";
+  breaks "while :outer true { while y { break :inner } }";
+  breaks "while :outer true { while y { break } }";
+  breaks "while :outer true { break :outer }";
   [%expect {|
     true
     false
@@ -77,7 +77,7 @@ let%expect_test "reachability: an unlabeled loop ignores a labeled break" =
   [%expect {| false |}]
 
 let%expect_test "reachability: an inner loop with the same label shadows it" =
-  breaks "outer: while true { outer: while y { break :outer } }";
+  breaks "while :outer true { while :outer y { break :outer } }";
   [%expect {| false |}]
 
 let%expect_test "reachability: a break hides in an initializer or a return" =

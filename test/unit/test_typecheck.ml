@@ -2587,10 +2587,10 @@ let%expect_test "collapse: a binding is not a value operand" =
   run_src "fn f() i32 { x : i32 = y : i32 = 5;\n return x }";
   [%expect
     {|
-    error: expected a loop after a label
-      at <test>:1:28
+    error: expected `;`
+      at <test>:1:26
         fn f() i32 { x : i32 = y : i32 = 5;
-                                   ^~~ found i32
+                                 ^ found :
     |}]
 
 let%expect_test "collapse: a block ending in a binding is unit" =
@@ -3068,7 +3068,7 @@ let%expect_test "typecheck: a str global" =
 let%expect_test "typecheck: a labeled break exits an outer loop" =
   run_src
     {|fn f() {
-  outer: while true { while true { break :outer } }
+  while :outer true { while true { break :outer } }
   g();
 }
 fn g() {}|};
@@ -3077,7 +3077,7 @@ fn g() {}|};
 let%expect_test "typecheck: a shadowed label leaves the outer loop diverging" =
   run_src
     {|fn f() {
-  outer: while true { outer: while true { break :outer } }
+  while :outer true { while :outer true { break :outer } }
   g();
 }
 fn g() {}|};

@@ -1789,7 +1789,7 @@ let%expect_test "parse: a bare loop takes a block" =
   [%expect {| (block (loop (block (break)))) |}]
 
 let%expect_test "parse: a loop takes a label" =
-  run_src "fn f() { outer: loop { loop { break :outer } } }";
+  run_src "fn f() { loop :outer { loop { break :outer } } }";
   [%expect {| ok |}]
 
 let%expect_test "parse: a loop rejects a condition" =
@@ -1835,7 +1835,7 @@ let%expect_test "parse: a struct literal still wins over a block" =
   [%expect {| (struct Point (x 1)) |}]
 
 let%expect_test "parse: a label in a header body is not a struct literal" =
-  parse_body "fn f() { if g() { outer: loop { break :outer } } }";
+  parse_body "fn f() { if g() { loop :outer { break :outer } } }";
   [%expect {| (block (if ((call g) (block (loop (block (break))))))) |}]
 
 let%expect_test "parse: break takes a value" =
@@ -1843,7 +1843,7 @@ let%expect_test "parse: break takes a value" =
   [%expect {| (block (loop (block (break 42)))) |}]
 
 let%expect_test "parse: break takes a label and a value" =
-  parse_body "fn f() { outer: loop { loop { break :outer 42 } } }";
+  parse_body "fn f() { loop :outer { loop { break :outer 42 } } }";
   [%expect {| (block (loop (block (loop (block (break 42)))))) |}]
 
 let%expect_test "parse: a bare break ends at a semicolon" =
@@ -1867,7 +1867,7 @@ let%expect_test "parse: a for is a value in a binding" =
   [%expect {| (block (bind y (for i xs (block (call g))))) |}]
 
 let%expect_test "parse: a labeled while is a value in a binding" =
-  parse_body "fn f() { y := outer: while c { break :outer } }";
+  parse_body "fn f() { y := while :outer c { break :outer } }";
   [%expect {| (block (bind y (while c (block (break))))) |}]
 
 let%expect_test "parse: a while statement needs no semicolon" =
