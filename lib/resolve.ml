@@ -136,6 +136,9 @@ let enter_scope st = { st with scope = new_scope (Some st.scope) }
 let declare_local st kind name span =
   Names.replace st.scope.values name (mint st kind name span)
 
+let declaration_link_name name =
+  "_R" ^ string_of_int (String.length name) ^ name
+
 let declare_in ?link_name table st kind (ident : Ast.ident) span =
   let name = ident.value in
   match Names.find_opt table name with
@@ -147,7 +150,7 @@ let declare_in ?link_name table st kind (ident : Ast.ident) span =
   | None ->
       let link_name =
         Option.value
-          ~default:(Mangle.declaration (Interner.text name))
+          ~default:(declaration_link_name (Interner.text name))
           link_name
       in
       Names.replace table name

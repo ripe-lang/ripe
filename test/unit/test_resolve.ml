@@ -338,6 +338,7 @@ extern "C" fn puts(s: cstr) i32;
 extern "C" fn exported(x: i32) i32 { return x }
 extern "Ripe" fn unmangled(x: i32) i32 { return x }
 fn plain(x: i32) i32 { return x }
+fn binary_search() i32 { return 0 }
 |}
   in
   let show (decl : Ripe.Ast.decl) =
@@ -356,6 +357,7 @@ fn plain(x: i32) i32 { return x }
     exported -> exported
     unmangled -> unmangled
     plain -> _R5plain
+    binary_search -> _R13binary_search
     |}]
 
 let%expect_test "resolve: a local function may call a later sibling" =
