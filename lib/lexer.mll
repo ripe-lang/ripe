@@ -3,15 +3,6 @@
 {
 open Tokens
 
-(* The state stays local to each lex session *)
-type state = {
-  strbuf : Buffer.t;
-}
-
-let make_state () = {
-  strbuf = Buffer.create 64;
-}
-
 let max_intsuf_len = String.length "isize"
 let max_floatsuf_len = String.length "f32"
 
@@ -79,15 +70,15 @@ let floatsuf = 'f' ("32" | "64")
 let white   = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 
-rule read_token st = parse
+rule read_token = parse
   | "\xEF\xBB\xBF" {
-      if lexbuf.Lexing.lex_start_pos = 0 then read_token st lexbuf
+      if lexbuf.Lexing.lex_start_pos = 0 then read_token lexbuf
       else ERROR "unexpected character"
     }
-  | white { read_token st lexbuf }
-  | "//" [^ '\n' '\r']* { read_token st lexbuf }
-  | "/*" { read_block_comment st 0 lexbuf }
-  | newline { read_token st lexbuf }
+  | white { read_token lexbuf }
+  | "//" [^ '\n' '\r']* { read_token lexbuf }
+  | "/*" { read_block_comment 0 lexbuf }
+  | newline { read_token lexbuf }
   | ('0' ['x' 'X'] hexdigs intsuf?) as n { radix_int_token n }
   | ('0' ['b' 'B'] bindigs intsuf?) as n { radix_int_token n }
   | ('0' ['o' 'O'] octdigs intsuf?) as n { radix_int_token n }
@@ -172,8 +163,7 @@ rule read_token st = parse
     }
   | '"' {
       let start = lexbuf.Lexing.lex_start_pos in
-      Buffer.clear st.strbuf;
-      let t = read_string st lexbuf in
+      let t = read_string (Buffer.create 16) lexbuf in
       (* The span includes quotes *)
       lexbuf.Lexing.lex_start_pos <- start;
       t
@@ -182,46 +172,46 @@ rule read_token st = parse
   | _ { ERROR "unexpected character" }
 
 
-and read_string st = parse
-  | '"' { STRING (Buffer.contents st.strbuf) }
-  | '\\' 'n' { Buffer.add_char st.strbuf '\n'; read_string st lexbuf }
-  | '\\' 'r' { Buffer.add_char st.strbuf '\r'; read_string st lexbuf }
-  | '\\' 't' { Buffer.add_char st.strbuf '\t'; read_string st lexbuf }
-  | '\\' '\\' { Buffer.add_char st.strbuf '\\'; read_string st lexbuf }
-  | '\\' '"' { Buffer.add_char st.strbuf '"'; read_string st lexbuf }
-  | '\\' '0' { Buffer.add_char st.strbuf '\000'; read_string st lexbuf }
+and read_string strbuf = parse
+  | '"' { STRING (Buffer.contents strbuf) }
+  | '\\' 'n' { Buffer.add_char strbuf '\n'; read_string strbuf lexbuf }
+  | '\\' 'r' { Buffer.add_char strbuf '\r'; read_string strbuf lexbuf }
+  | '\\' 't' { Buffer.add_char strbuf '\t'; read_string strbuf lexbuf }
+  | '\\' '\\' { Buffer.add_char strbuf '\\'; read_string strbuf lexbuf }
+  | '\\' '"' { Buffer.add_char strbuf '"'; read_string strbuf lexbuf }
+  | '\\' '0' { Buffer.add_char strbuf '\000'; read_string strbuf lexbuf }
   (* The lexer continues until the string closes *)
   | '\\' [^ '\r' '\n'] {
       let span =
         Span.make (lexbuf.Lexing.lex_start_pos + 1) lexbuf.Lexing.lex_curr_pos
       in
       Diagnostic.emit (Diagnostic.error span "unknown escape");
-      read_string st lexbuf
+      read_string strbuf lexbuf
     }
-  | '\\' { read_string st lexbuf }
+  | '\\' { read_string strbuf lexbuf }
   (* The newline goes back so the next line lexes as code *)
   | newline {
       lexbuf.Lexing.lex_curr_pos <- lexbuf.Lexing.lex_start_pos;
       ERROR "unterminated string"
     }
   | [^ '"' '\\' '\r' '\n']+  {
-      Buffer.add_string st.strbuf (Lexing.lexeme lexbuf);
-      read_string st lexbuf
+      Buffer.add_string strbuf (Lexing.lexeme lexbuf);
+      read_string strbuf lexbuf
     }
   | eof { ERROR "unterminated string" }
 
-and read_block_comment st depth = parse
-  | "/*" { read_block_comment st (depth + 1) lexbuf }
+and read_block_comment depth = parse
+  | "/*" { read_block_comment (depth + 1) lexbuf }
   | "*/"    {
-      if depth = 0 then read_token st lexbuf
-      else read_block_comment st (depth - 1) lexbuf
+      if depth = 0 then read_token lexbuf
+      else read_block_comment (depth - 1) lexbuf
     }
   | eof { ERROR "unterminated block comment" }
-  | _ { read_block_comment st depth lexbuf }
+  | _ { read_block_comment depth lexbuf }
 
 {
-let read st lexbuf =
-  let t = read_token st lexbuf in
+let read lexbuf =
+  let t = read_token lexbuf in
   let span = lexbuf_span lexbuf in
   begin match t with
   | ERROR msg -> Diagnostic.emit (Diagnostic.error span "%s" msg)

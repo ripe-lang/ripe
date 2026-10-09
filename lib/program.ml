@@ -12,6 +12,5 @@ let load ~(read_file : string -> string) filename =
   if String.length src > Span.max_offset then raise (Source_too_large filename);
   let source_map = Sourcemap.create src in
   let lexbuf = Lexer.lexbuf_of_string src in
-  let read = Lexer.read (Lexer.make_state ()) in
-  let decls = try Parser.parse read lexbuf with Parser.Failed -> [] in
+  let decls = try Parser.parse Lexer.read lexbuf with Parser.Failed -> [] in
   { filename; source_map; decls }

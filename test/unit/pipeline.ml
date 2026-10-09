@@ -1,10 +1,8 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
 let parse_src src =
-  let st = Ripe.Lexer.make_state () in
   let lexbuf = Ripe.Lexer.lexbuf_of_string src in
-  try Ripe.Parser.parse (Ripe.Lexer.read st) lexbuf
-  with Ripe.Parser.Failed -> []
+  try Ripe.Parser.parse Ripe.Lexer.read lexbuf with Ripe.Parser.Failed -> []
 
 let parse src = fst (Diag.run_stage (fun () -> parse_src src))
 

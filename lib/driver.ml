@@ -132,7 +132,7 @@ let file_tokens filename =
   if not (String.is_valid_utf_8 src) then
     die (Printf.sprintf "not valid UTF-8: %s" filename);
   let lexbuf = Lexer.lexbuf_of_string src in
-  dump_tokens (Lexer.read (Lexer.make_state ())) lexbuf
+  dump_tokens Lexer.read lexbuf
 
 let load filename =
   try Program.load ~read_file filename with
