@@ -3,8 +3,8 @@ fn third_is_three(p: *i32) bool {
 }
 
 fn main() i32 {
-  var x: i32 = 3;
-  var hit: i32 = 0;
+  x : i32 = 3;
+  hit : i32 = 0;
   if third_is_three(null) { hit += 100 }
   if third_is_three(&x) { hit += 7 }
   return hit;

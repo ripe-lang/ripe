@@ -1,7 +1,7 @@
-var g: i32 = 0;
+g : i32 = 0;
 
 fn bump(c: bool) {
-  if c { var g: i32 = 5 }
+  if c { g : i32 = 5 }
   g = 10;
 }
 

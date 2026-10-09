@@ -1,12 +1,12 @@
 struct Box { text: str, value: i32 }
 
-var G: str = "global";
-var M: str = "mutable";
-var B: Box = Box { text: "boxed", value: 7 };
-var E: str = "";
+G : str = "global";
+M : str = "mutable";
+B : Box = Box { text: "boxed", value: 7 };
+E : str = "";
 
 fn main() i32 {
-  var total: usize = G.len + M.len + B.text.len + E.len;
+  total : usize = G.len + M.len + B.text.len + E.len;
   M = "changed";
   total = total + M.len;
   return cast(i32, total + cast(usize, B.value));

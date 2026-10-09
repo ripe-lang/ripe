@@ -1,2 +1,2 @@
-var G: %%T%% = %%L%%;
+G : %%T%% = %%L%%;
 fn main() i32 { return 0 }

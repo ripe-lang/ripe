@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var i = 0;
-  var s = 0;
+  i := 0;
+  s := 0;
   loop {
     i += 1;
     if i > 6 { break }

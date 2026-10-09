@@ -1,6 +1,6 @@
 fn main() i32 {
-  var n = 0;
-  var answer = loop {
+  n := 0;
+  answer := loop {
     n += 1;
     if n == 7 { break n * 6 }
   };

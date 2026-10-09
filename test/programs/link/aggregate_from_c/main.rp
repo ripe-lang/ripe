@@ -26,7 +26,7 @@ extern "C" fn blend(m: Mixed) Mixed {
 }
 
 extern "C" fn total(h: Held) i32 {
-  var sum: i32 = 0;
+  sum : i32 = 0;
   for i in 0..4 {
     sum = sum + h.v[i];
   }

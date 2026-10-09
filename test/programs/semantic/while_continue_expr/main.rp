@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var i = 0;
-  var seen = 0;
+  i := 0;
+  seen := 0;
   while i < 5 {
     i += 1;
     printf("%d", if i == 3 { continue } else { i });

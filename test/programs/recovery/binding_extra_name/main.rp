@@ -1,5 +1,0 @@
-fn twice(n: i32) i32 { return n * 2 }
-fn main() i32 {
-  var q f: fn (i32) i32 = twice;
-  return f(4);
-}

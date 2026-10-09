@@ -26,8 +26,8 @@ let%expect_test ("qbe accepts string aggregates" [@tags "disabled"]) =
 struct Box { text: str, value: i32 }
 fn make() str { return "hello" }
 fn main() i32 {
-  var box: Box = Box { text: "field", value: 1 };
-  var copy: str = make();
+  box : Box = Box { text: "field", value: 1 };
+  copy : str = make();
   return (box.text.len + copy.len) as i32;
 }
 |};
@@ -51,7 +51,7 @@ let%expect_test "qbe accepts checked operations" =
   run_codegen_ok
     {|
 fn main() i32 {
-  var values: [2]i32 = [10, 20];
+  values : [2]i32 = [10, 20];
   return values[1];
 }
 |};
@@ -62,7 +62,7 @@ let%expect_test "qbe accepts main allocation" =
     {|
 struct Pair { left: i32, right: i32 }
 fn main() i32 {
-  var pair = Pair { left: 1, right: 2 };
+  pair := Pair { left: 1, right: 2 };
   return pair.left + pair.right;
 }
 |};
@@ -73,7 +73,7 @@ let%expect_test "qbe accepts local structs" =
     {|
 fn main() i32 {
 struct Pair { left: i32, right: i32 }
-  var pair = Pair { left: 1, right: 2 };
+  pair := Pair { left: 1, right: 2 };
   return pair.left + pair.right;
 }
 |};
@@ -85,7 +85,7 @@ let%expect_test "qbe accepts external struct calls" =
 struct Pair { left: i32, right: i32 }
 extern "C" fn consume(pair: Pair) i32;
 fn main() i32 {
-  var pair = Pair { left: 1, right: 2 };
+  pair := Pair { left: 1, right: 2 };
   return consume(pair);
 }
 |};
@@ -97,7 +97,7 @@ let%expect_test "qbe accepts external struct returns" =
 struct Pair { left: i32, right: i32 }
 extern "C" fn produce() Pair;
 fn main() i32 {
-  var pair = produce();
+  pair := produce();
   return pair.left;
 }
 |};
@@ -109,7 +109,7 @@ let%expect_test "qbe accepts Ripe struct returns" =
 struct Pair { left: i32, right: i32 }
 extern "Ripe" fn produce() Pair;
 fn main() i32 {
-  var pair = produce();
+  pair := produce();
   return pair.left;
 }
 |};
@@ -119,10 +119,10 @@ let%expect_test "qbe accepts scalar locals" =
   run_codegen_ok
     {|
 fn main() i32 {
-  var value: i32 = 1;
+  value : i32 = 1;
   value = value + 2;
-  var addressed: i32 = 3;
-  var pointer = &addressed;
+  addressed : i32 = 3;
+  pointer := &addressed;
   *pointer = value;
   return addressed;
 }
@@ -135,8 +135,8 @@ let%expect_test "qbe accepts extern aggregate arguments" =
 extern "C" fn takes_slice(s: []i32) i32;
 extern "C" fn takes_str(s: str) i32;
 fn main() i32 {
-  var xs: [4]i32 = [1, 2, 3, 4];
-  var view: []i32 = xs[0..4];
+  xs : [4]i32 = [1, 2, 3, 4];
+  view : []i32 = xs[0..4];
   return takes_slice(view) + takes_str("hi");
 }
 |};
@@ -167,7 +167,7 @@ let%expect_test "qbe returns a C aggregate to the caller" =
 struct Pair { left: i32, right: i32 }
 extern "C" fn make(x: i32) Pair { return Pair { left: x, right: x } }
 fn main() i32 {
-  var pair = make(2);
+  pair := make(2);
   return pair.left + pair.right;
 }
 |};

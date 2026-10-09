@@ -2,7 +2,7 @@ fn spin() never { loop {} }
 fn take(n: never) i32 { return 0 }
 struct hole { a: never }
 fn main() i32 {
-  var p: *never = null;
-  var n = if false { spin() } else { 1 };
+  p : *never = null;
+  n := if false { spin() } else { 1 };
   return n;
 }

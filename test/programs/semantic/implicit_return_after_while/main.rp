@@ -1,8 +1,8 @@
 fn gcd(a: i32, b: i32) i32 {
-  var x: i32 = a;
-  var y: i32 = b;
+  x : i32 = a;
+  y : i32 = b;
   while y != 0 {
-    var t: i32 = y;
+    t : i32 = y;
     y = x % y;
     x = t;
   }

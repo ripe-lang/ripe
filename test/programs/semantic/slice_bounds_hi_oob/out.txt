@@ -1,4 +1,4 @@
 panic: slice bounds [0:6] out of range for length 5
-  at main.rp:3:18
+  at main.rp:3:15
   in main
 exit: 79

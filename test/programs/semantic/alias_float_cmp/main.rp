@@ -1,9 +1,9 @@
 type Temp = f32;
 
 fn main() i32 {
-  var a: Temp = 3.0;
-  var b: Temp = 10.0;
-  var n: i32 = 0;
+  a : Temp = 3.0;
+  b : Temp = 10.0;
+  n : i32 = 0;
   if a < b { n = n + 1 }
   if b > a { n = n + 1 }
   if a <= a { n = n + 1 }

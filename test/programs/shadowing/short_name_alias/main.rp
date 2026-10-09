@@ -1,7 +1,7 @@
 type small = i32;
 
 fn main() i32 {
-  var a: small = 5;
+  a : small = 5;
   if sizeof(small) == 4 {
     return cast(i32, a);
   }

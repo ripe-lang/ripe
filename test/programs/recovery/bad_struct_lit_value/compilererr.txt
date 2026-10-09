@@ -1,4 +1,4 @@
 error: expected expression
-  at main.rp:3:18
-      var v = s { x: };
-                     ^ found }
+  at main.rp:3:15
+      v := s { x: };
+                  ^ found }

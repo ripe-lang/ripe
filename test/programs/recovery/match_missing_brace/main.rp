@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
 fn main() i32 {
-  var x = 1;
+  x := 1;
   return match x
     1 => 1,
     _ => 0,

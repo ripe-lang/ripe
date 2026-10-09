@@ -33,28 +33,28 @@ let%expect_test "typecheck: unbound variable" =
     |}]
 
 let%expect_test "typecheck: type mismatch in a binding" =
-  run_src "fn f() { var x: bool = 42 }";
+  run_src "fn f() { x : bool = 42 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:24
-        fn f() { var x: bool = 42 }
-                               ^~ expected bool, found i32
+      at <test>:1:21
+        fn f() { x : bool = 42 }
+                            ^~ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: int literal a float can't hold exactly" =
-  run_src "fn f() { var x: f32 = 16777217 }";
+  run_src "fn f() { x : f32 = 16777217 }";
   [%expect
     {|
     error: integer literal loses precision
-      at <test>:1:23
-        fn f() { var x: f32 = 16777217 }
-                              ^~~~~~~~ becomes 16777216
+      at <test>:1:20
+        fn f() { x : f32 = 16777217 }
+                           ^~~~~~~~ becomes 16777216
     help: write 16777217.0 to accept the rounding
     |}]
 
 let%expect_test "typecheck: float suffix disagrees with the annotation" =
-  run_src "fn f() { var x: f64 = 1.5f32 }";
+  run_src "fn f() { x : f64 = 1.5f32 }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: wrong number of arguments" =
@@ -71,13 +71,13 @@ fn f() { g(1) }
     |}]
 
 let%expect_test "typecheck: null assigned to non-pointer" =
-  run_src "fn f() { var x: i32 = null }";
+  run_src "fn f() { x : i32 = null }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:23
-        fn f() { var x: i32 = null }
-                              ^~~~ expected i32, found null
+      at <test>:1:20
+        fn f() { x : i32 = null }
+                           ^~~~ expected i32, found null
     |}]
 
 let%expect_test "typecheck: identity function" =
@@ -85,11 +85,11 @@ let%expect_test "typecheck: identity function" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: null assigned to pointer" =
-  run_src "fn f() { var p: *i32 = null }";
+  run_src "fn f() { p : *i32 = null }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array does not coerce to slice under a pointer" =
-  run_src "fn takes(p: *[]i32) { }\nfn f() { var a: [3]i32;\n  takes(&a) }";
+  run_src "fn takes(p: *[]i32) { }\nfn f() { a : [3]i32;\n  takes(&a) }";
   [%expect
     {|
     error: type mismatch
@@ -105,7 +105,7 @@ let%expect_test "typecheck: break inside while" =
 let%expect_test "typecheck: a diverging binding ends a value block" =
   run_src {|
 fn d() never { loop {} }
-fn f() i32 { var _x = d() }
+fn f() i32 { _x := d() }
 |};
   [%expect {| ok |}]
 
@@ -135,7 +135,7 @@ let%expect_test "typecheck: fn ptr assign and call" =
     {|
 fn add(a: i32, b: i32) i32 { return a + b }
 fn f() {
-  var op: fn (i32, i32) i32 = add;
+  op : fn (i32, i32) i32 = add;
   op(1, 2);
 }
 |};
@@ -146,7 +146,7 @@ let%expect_test "typecheck: fn ptr inferred from function name" =
     {|
 fn add(a: i32, b: i32) i32 { return a + b }
 fn f() {
-  var op = add;
+  op := add;
   op(1, 2);
 }
 |};
@@ -157,21 +157,21 @@ let%expect_test "typecheck: fn ptr signature mismatch" =
     {|
 fn add(a: i32, b: i32) i32 { return a + b }
 fn f() {
-  var op: fn (i32) i32 = add;
+  op : fn (i32) i32 = add;
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:26
-          var op: fn (i32) i32 = add;
-                                 ^~~ expected fn (i32) i32, found fn (i32, i32) i32
+      at <test>:4:23
+          op : fn (i32) i32 = add;
+                              ^~~ expected fn (i32) i32, found fn (i32, i32) i32
     |}]
 
 let%expect_test "typecheck: non-callable variable" =
   run_src {|
 fn f() {
-  var x: i32 = 5;
+  x : i32 = 5;
   x(1);
 }
 |};
@@ -188,8 +188,8 @@ let%expect_test "typecheck: a value shadowing a type still converts" =
     {|
 type word = i64;
 fn f() {
-  var word: i32 = 5;
-  var _w = cast(word, word);
+  word : i32 = 5;
+  _w := cast(word, word);
 }
 |};
   [%expect {| ok |}]
@@ -198,7 +198,7 @@ let%expect_test "typecheck: a value shadowing a fn is not a call" =
   run_src {|
 fn f() {
   fn point() {}
-  var point: i32 = 5;
+  point : i32 = 5;
   point(1);
 }
 |};
@@ -220,7 +220,7 @@ let%expect_test "typecheck: a shadowed fn wins the note over a type" =
 fn f() {
   struct point { x: i32, y: i32 }
   fn point() {}
-  var point: i32 = 5;
+  point : i32 = 5;
   point(1);
 }
 |};
@@ -250,7 +250,7 @@ let%expect_test "typecheck: fn ptr wrong arity at call" =
     {|
 fn add(a: i32, b: i32) i32 { return a + b }
 fn f() {
-  var op: fn (i32, i32) i32 = add;
+  op : fn (i32, i32) i32 = add;
   op(1);
 }
 |};
@@ -266,7 +266,7 @@ let%expect_test "typecheck: fn ptr forward reference" =
   run_src
     {|
 fn f() {
-  var op: fn (i32, i32) i32 = add;
+  op : fn (i32, i32) i32 = add;
   op(1, 2);
 }
 fn add(a: i32, b: i32) i32 { return a + b }
@@ -279,7 +279,7 @@ let%expect_test "typecheck: fn ptr returning fn ptr" =
 fn add(a: i32, b: i32) i32 { return a + b }
 fn get_op() fn (i32, i32) i32 { return add }
 fn f() {
-  var op = get_op();
+  op := get_op();
   op(1, 2);
 }
 |};
@@ -289,7 +289,7 @@ let%expect_test "typecheck: unit fn ptr zero args" =
   run_src {|
 fn noop() {}
 fn f() {
-  var p: fn () = noop;
+  p : fn () = noop;
   p();
 }
 |};
@@ -297,14 +297,14 @@ fn f() {
 
 let%expect_test "typecheck: global read from function" =
   run_src {|
-var X: i32 = 42;
+X : i32 = 42;
 fn f() i32 { return X }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global var read and write" =
+let%expect_test "typecheck: global read and write" =
   run_src {|
-var n: i32 = 0;
+n : i32 = 0;
 fn f() i32 {
   n = n + 1;
   return n;
@@ -312,9 +312,9 @@ fn f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global var zero init" =
+let%expect_test "typecheck: global zero init" =
   run_src {|
-var flag: bool;
+flag : bool;
 fn f() bool { return flag }
 |};
   [%expect {| ok |}]
@@ -322,25 +322,25 @@ fn f() bool { return flag }
 let%expect_test "typecheck: global forward reference" =
   run_src {|
 fn f() i32 { return X }
-var X: i32 = 7;
+X : i32 = 7;
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: write to a var struct field" =
+let%expect_test "typecheck: write to a binding's struct field" =
   run_src
     {|
 struct P { x: i32, y: i32 }
 fn f() {
-  var p: P = P { x: 1, y: 2 };
+  p : P = P { x: 1, y: 2 };
   p.x = 5;
 }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: write to a var array element" =
+let%expect_test "typecheck: write to a binding's array element" =
   run_src {|
 fn f() {
-  var arr: [3]i32 = [1, 2, 3];
+  arr : [3]i32 = [1, 2, 3];
   arr[0] = 9;
 }
 |};
@@ -348,9 +348,9 @@ fn f() {
 
 let%expect_test "typecheck: write through a pointer" =
   run_src {|
-var g: i32 = 0;
+g : i32 = 0;
 fn f() {
-  var p: *i32 = &g;
+  p : *i32 = &g;
   *p = 5;
 }
 |};
@@ -359,16 +359,16 @@ fn f() {
 let%expect_test "typecheck: global initializer calls a function" =
   run_src {|
 fn g() i32 { return 1 }
-var X: i32 = g();
+X : i32 = g();
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array size expression" =
   run_src
     {|
-var N: i32 = 4;
+N : i32 = 4;
 fn f() i32 {
-  var a: [N * 2 + 1]i32;
+  a : [N * 2 + 1]i32;
   a[8] = 1;
   return a[8];
 }
@@ -376,15 +376,15 @@ fn f() i32 {
   [%expect
     {|
     error: array size must be a literal
-      at <test>:4:11
-          var a: [N * 2 + 1]i32;
-                  ^~~~~~~~~
+      at <test>:4:8
+          a : [N * 2 + 1]i32;
+               ^~~~~~~~~
     |}]
 
 let%expect_test "typecheck: array size with a suffix" =
   run_src {|
 fn f() i32 {
-  var a: [2u8]i32 = [1, 2];
+  a : [2u8]i32 = [1, 2];
   return a[1];
 }
 |};
@@ -392,14 +392,14 @@ fn f() i32 {
 
 let%expect_test "typecheck: negative array size" =
   run_src {|
-var a: [0 - 1]i32;
+a : [0 - 1]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
-      at <test>:2:9
-        var a: [0 - 1]i32;
-                ^~~~~
+      at <test>:2:6
+        a : [0 - 1]i32;
+             ^~~~~
     |}]
 
 let%expect_test "typecheck: bad array size in a param errors once" =
@@ -416,82 +416,82 @@ fn f(a: [0 - 1]i32) {}
 
 let%expect_test "typecheck: huge array size" =
   run_src {|
-var a: [9999999999i64]i32;
+a : [9999999999i64]i32;
 |};
   [%expect
     {|
     error: array size is too large: 9999999999
-      at <test>:2:9
-        var a: [9999999999i64]i32;
-                ^~~~~~~~~~~~~
+      at <test>:2:6
+        a : [9999999999i64]i32;
+             ^~~~~~~~~~~~~
     |}]
 
 let%expect_test "typecheck: huge unsigned array size" =
   run_src {|
-var a: [cast(u64, 0 - 1)]i32;
+a : [cast(u64, 0 - 1)]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
-      at <test>:2:9
-        var a: [cast(u64, 0 - 1)]i32;
-                ^~~~~~~~~~~~~~~~
+      at <test>:2:6
+        a : [cast(u64, 0 - 1)]i32;
+             ^~~~~~~~~~~~~~~~
     |}]
 
 let%expect_test "typecheck: array size literal with a type suffix" =
   run_src {|
-var a: [2u8]i32;
+a : [2u8]i32;
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array size literal suffix still range checks" =
   run_src {|
-var a: [300u8]i32;
+a : [300u8]i32;
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:2:9
-        var a: [300u8]i32;
-                ^~~~~ does not fit in u8
+      at <test>:2:6
+        a : [300u8]i32;
+             ^~~~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: float array size" =
   run_src {|
-var a: [1.5]i32;
+a : [1.5]i32;
 |};
   [%expect
     {|
     error: array size must be an integer
-      at <test>:2:9
-        var a: [1.5]i32;
-                ^~~
+      at <test>:2:6
+        a : [1.5]i32;
+             ^~~
     |}]
 
-let%expect_test "typecheck: array size names a var" =
+let%expect_test "typecheck: array size names a global" =
   run_src {|
-var n: i32 = 3;
-var a: [n]i32;
+n : i32 = 3;
+a : [n]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
-      at <test>:3:9
-        var a: [n]i32;
-                ^
+      at <test>:3:6
+        a : [n]i32;
+             ^
     |}]
 
 let%expect_test "typecheck: array size calls a function" =
   run_src {|
 fn g() i32 { return 3 }
-var a: [g()]i32;
+a : [g()]i32;
 |};
   [%expect
     {|
     error: array size must be a literal
-      at <test>:3:9
-        var a: [g()]i32;
-                ^~~
+      at <test>:3:6
+        a : [g()]i32;
+             ^~~
     |}]
 
 let%expect_test "typecheck: int arithmetic ok" =
@@ -501,21 +501,21 @@ let%expect_test "typecheck: int arithmetic ok" =
 let%expect_test "typecheck: mixed int widths" =
   run_src {|
 fn f() {
-  var a: i32 = 1;
-  var b: i64 = 2;
-  var c = a + b;
+  a : i32 = 1;
+  b : i64 = 2;
+  c := a + b;
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: bool arithmetic rejected" =
-  run_src "fn f() { var x = true + false }";
+  run_src "fn f() { x := true + false }";
   [%expect
     {|
     error: invalid operand
-      at <test>:1:18
-        fn f() { var x = true + false }
-                         ^~~~ cannot apply `+` to bool
+      at <test>:1:15
+        fn f() { x := true + false }
+                      ^~~~ cannot apply `+` to bool
     |}]
 
 let%expect_test "typecheck: comparison yields bool" =
@@ -523,37 +523,37 @@ let%expect_test "typecheck: comparison yields bool" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: logical and/or require bool" =
-  run_src "fn f() { var x = 1 && 2 }";
+  run_src "fn f() { x := 1 && 2 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:18
-        fn f() { var x = 1 && 2 }
-                         ^ expected bool, found i32
+      at <test>:1:15
+        fn f() { x := 1 && 2 }
+                      ^ expected bool, found i32
     error: type mismatch
-      at <test>:1:23
-        fn f() { var x = 1 && 2 }
-                              ^ expected bool, found i32
+      at <test>:1:20
+        fn f() { x := 1 && 2 }
+                           ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: not on non-bool" =
-  run_src "fn f() { var x = !1 }";
+  run_src "fn f() { x := !1 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:19
-        fn f() { var x = !1 }
-                          ^ expected bool, found i32
+      at <test>:1:16
+        fn f() { x := !1 }
+                       ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: address of rvalue rejected" =
-  run_src "fn f() { var x = &5 }";
+  run_src "fn f() { x := &5 }";
   [%expect
     {|
     error: cannot take address of expression
-      at <test>:1:19
-        fn f() { var x = &5 }
-                          ^
+      at <test>:1:16
+        fn f() { x := &5 }
+                       ^
     |}]
 
 let%expect_test "typecheck: shift on int ok" =
@@ -565,13 +565,13 @@ let%expect_test "typecheck: shift literal takes target type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: bitwise on bool rejected" =
-  run_src "fn f() { var x = true & false }";
+  run_src "fn f() { x := true & false }";
   [%expect
     {|
     error: invalid operand
-      at <test>:1:18
-        fn f() { var x = true & false }
-                         ^~~~ cannot apply `&` to bool
+      at <test>:1:15
+        fn f() { x := true & false }
+                      ^~~~ cannot apply `&` to bool
     |}]
 
 let%expect_test "typecheck: int to int cast" =
@@ -583,51 +583,50 @@ let%expect_test "typecheck: sizeof has usize type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cast bool to ptr rejected" =
-  run_src "fn f() { var p: *i32 = cast(*i32, true) }";
+  run_src "fn f() { p : *i32 = cast(*i32, true) }";
   [%expect
     {|
     error: invalid conversion
-      at <test>:1:24
-        fn f() { var p: *i32 = cast(*i32, true) }
-                               ^~~~~~~~~~~~~~~~ cannot convert bool to *i32
+      at <test>:1:21
+        fn f() { p : *i32 = cast(*i32, true) }
+                            ^~~~~~~~~~~~~~~~ cannot convert bool to *i32
     |}]
 
 let%expect_test ("typecheck: cast cstr to float rejected" [@tags "disabled"]) =
-  run_src {|fn f() { var x: f32 = "hi"f32() }|};
+  run_src {|fn f() { x : f32 = "hi"f32() }|};
   [%expect
     {|
     error: type mismatch
       at <test>:1:23
-        fn f() { var x: f32 = "hi"f32() }
+        fn f() { x : f32 = "hi"f32() }
                               ^~~~ expected f32, found *i8
     error: expected `;`
       at <test>:1:27
-        fn f() { var x: f32 = "hi"f32() }
+        fn f() { x : f32 = "hi"f32() }
                                   ^~~ found f32
     |}]
 
 let%expect_test "typecheck: cast struct to float rejected" =
-  run_src
-    {|
+  run_src {|
 struct S { x: i32 }
-fn f() { var s: S; var y: f64 = cast(f64, s) }
+fn f() { s : S; y : f64 = cast(f64, s) }
 |};
   [%expect
     {|
     error: invalid conversion
-      at <test>:3:33
-        fn f() { var s: S; var y: f64 = cast(f64, s) }
-                                        ^~~~~~~~~~~~ cannot convert S to f64
+      at <test>:3:27
+        fn f() { s : S; y : f64 = cast(f64, s) }
+                                  ^~~~~~~~~~~~ cannot convert S to f64
     |}]
 
 let%expect_test "typecheck: cast int to bool rejected" =
-  run_src "fn f() { var b: bool = cast(bool, 256) }";
+  run_src "fn f() { b : bool = cast(bool, 256) }";
   [%expect
     {|
     error: invalid conversion
-      at <test>:1:24
-        fn f() { var b: bool = cast(bool, 256) }
-                               ^~~~~~~~~~~~~~~ cannot convert i32 to bool
+      at <test>:1:21
+        fn f() { b : bool = cast(bool, 256) }
+                            ^~~~~~~~~~~~~~~ cannot convert i32 to bool
     help: compare with zero instead e.g. `x != 0`
     |}]
 
@@ -692,8 +691,8 @@ let%expect_test "typecheck: nested loops break ok" =
 let%expect_test "typecheck: redeclare local shadows" =
   run_src {|
 fn f() {
-  var x: i32 = 1;
-  var x: i32 = 2;
+  x : i32 = 1;
+  x : i32 = 2;
 }
 |};
   [%expect {| ok |}]
@@ -701,39 +700,38 @@ fn f() {
 let%expect_test "typecheck: shadow can change type and the new type wins" =
   run_src {|
 fn f() i64 {
-  var x: i32 = 1;
-  var x: i64 = 2;
+  x : i32 = 1;
+  x : i64 = 2;
   return x;
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: shadow reads the old binding in its initializer" =
-  run_src
-    {|
+  run_src {|
 fn f() i32 {
-  var x: i32 = 1;
-  var x: i32 = x + 4;
+  x : i32 = 1;
+  x : i32 = x + 4;
   return x;
 }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: type annot mismatch on var" =
-  run_src "fn f() { var x: bool = 1 }";
+let%expect_test "typecheck: type annot mismatch on a binding" =
+  run_src "fn f() { x : bool = 1 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:24
-        fn f() { var x: bool = 1 }
-                               ^ expected bool, found i32
+      at <test>:1:21
+        fn f() { x : bool = 1 }
+                            ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: use before decl" =
   run_src {|
 fn f() {
   x;
-  var x: i32 = 1;
+  x : i32 = 1;
 }
 |};
   [%expect
@@ -747,39 +745,38 @@ fn f() {
 let%expect_test "typecheck: deref non-pointer" =
   run_src {|
 fn f() {
-  var x: i32 = 1;
-  var y = *x;
+  x : i32 = 1;
+  y := *x;
 }
 |};
   [%expect
     {|
     error: cannot dereference
-      at <test>:4:12
-          var y = *x;
-                   ^ on i32
+      at <test>:4:9
+          y := *x;
+                ^ on i32
     |}]
 
 let%expect_test "typecheck: a failed check does not cascade" =
   run_src {|
 fn f() {
-  var n: i32 = 1;
-  var _y = *n.x + 1;
+  n : i32 = 1;
+  _y := *n.x + 1;
 }
 |};
   [%expect
     {|
     error: type has no fields
-      at <test>:4:13
-          var _y = *n.x + 1;
-                    ^~~ on i32
+      at <test>:4:10
+          _y := *n.x + 1;
+                 ^~~ on i32
     |}]
 
 let%expect_test "typecheck: address-of and deref roundtrip" =
-  run_src
-    {|
+  run_src {|
 fn f() i32 {
-  var x: i32 = 5;
-  var p: *i32 = &x;
+  x : i32 = 5;
+  p : *i32 = &x;
   return *p;
 }
 |};
@@ -808,16 +805,16 @@ fn f(p: pt) i32 { return p.z }
 let%expect_test "typecheck: field access on non-struct" =
   run_src {|
 fn f() {
-  var x: i32 = 1;
-  var y = x.foo;
+  x : i32 = 1;
+  y := x.foo;
 }
 |};
   [%expect
     {|
     error: type has no fields
-      at <test>:4:11
-          var y = x.foo;
-                  ^~~~~ on i32
+      at <test>:4:8
+          y := x.foo;
+               ^~~~~ on i32
     |}]
 
 let%expect_test "typecheck: field access auto-deref through ptr" =
@@ -875,7 +872,7 @@ let%expect_test "typecheck: extern decl callable" =
     {|
 extern "C" fn puts(s: *i8) i32;
 fn f() {
-  var p: *i8 = null;
+  p : *i8 = null;
   puts(p);
 }
 |};
@@ -910,129 +907,129 @@ let%expect_test "typecheck: an unsupported ABI on a definition" =
     |}]
 
 let%expect_test "typecheck: array literal inferred" =
-  run_src "fn f() { var a = [1, 2, 3]; a[0] }";
+  run_src "fn f() { a := [1, 2, 3]; a[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array annotated ok" =
-  run_src "fn f() { var a: [3]i32 = [1, 2, 3]; a[0] }";
+  run_src "fn f() { a : [3]i32 = [1, 2, 3]; a[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array element type mismatch" =
-  run_src "fn f() { var a: [2]i32 = [1, true] }";
+  run_src "fn f() { a : [2]i32 = [1, true] }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:30
-        fn f() { var a: [2]i32 = [1, true] }
-                                     ^~~~ expected i32, found bool
+      at <test>:1:27
+        fn f() { a : [2]i32 = [1, true] }
+                                  ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: array wrong element count" =
-  run_src "fn f() { var a: [3]i32 = [1, 2] }";
+  run_src "fn f() { a : [3]i32 = [1, 2] }";
   [%expect
     {|
     error: wrong number of arguments
-      at <test>:1:26
-        fn f() { var a: [3]i32 = [1, 2] }
-                                 ^~~~~~ expected 3 elements, found 2
+      at <test>:1:23
+        fn f() { a : [3]i32 = [1, 2] }
+                              ^~~~~~ expected 3 elements, found 2
     |}]
 
 let%expect_test "typecheck: heterogeneous inferred literal" =
-  run_src "fn f() { var a = [1, true]; a[0] }";
+  run_src "fn f() { a := [1, true]; a[0] }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:19
-        fn f() { var a = [1, true]; a[0] }
-                          ^ expected bool, found i32
+      at <test>:1:16
+        fn f() { a := [1, true]; a[0] }
+                       ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: empty array literal needs annotation" =
-  run_src "fn f() { var a = [] }";
+  run_src "fn f() { a := [] }";
   [%expect
     {|
     error: cannot infer type of empty array literal
-      at <test>:1:18
-        fn f() { var a = [] }
-                         ^~
+      at <test>:1:15
+        fn f() { a := [] }
+                      ^~
     |}]
 
 let%expect_test "typecheck: index non-array" =
-  run_src "fn f() { var x: i32 = 0; x[0] }";
+  run_src "fn f() { x : i32 = 0; x[0] }";
   [%expect
     {|
     error: cannot index
-      at <test>:1:26
-        fn f() { var x: i32 = 0; x[0] }
-                                 ^~~~ on i32
+      at <test>:1:23
+        fn f() { x : i32 = 0; x[0] }
+                              ^~~~ on i32
     |}]
 
 let%expect_test "typecheck: index non-integer" =
-  run_src "fn f() { var a: [2]i32 = [1, 2]; a[true] }";
+  run_src "fn f() { a : [2]i32 = [1, 2]; a[true] }";
   [%expect
     {|
     error: array index must be an integer
-      at <test>:1:36
-        fn f() { var a: [2]i32 = [1, 2]; a[true] }
-                                           ^~~~
+      at <test>:1:33
+        fn f() { a : [2]i32 = [1, 2]; a[true] }
+                                        ^~~~
     |}]
 
 let%expect_test "typecheck: index result type" =
-  run_src "fn f() i32 { var a: [2]i32 = [1, 2]; return a[0] }";
+  run_src "fn f() i32 { a : [2]i32 = [1, 2]; return a[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: len is usize" =
-  run_src "fn f() usize { var a: [2]i32 = [1, 2]; return a.len }";
+  run_src "fn f() usize { a : [2]i32 = [1, 2]; return a.len }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: len mismatched with i32" =
-  run_src "fn f() i32 { var a: [2]i32 = [1, 2]; return a.len }";
+  run_src "fn f() i32 { a : [2]i32 = [1, 2]; return a.len }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:45
-        fn f() i32 { var a: [2]i32 = [1, 2]; return a.len }
-                                                    ^~~~~ expected i32, found usize
+      at <test>:1:42
+        fn f() i32 { a : [2]i32 = [1, 2]; return a.len }
+                                                 ^~~~~ expected i32, found usize
     |}]
 
 let%expect_test "typecheck: array no such field" =
-  run_src "fn f() { var a: [2]i32 = [1, 2]; a.foo }";
+  run_src "fn f() { a : [2]i32 = [1, 2]; a.foo }";
   [%expect
     {|
     error: no field
-      at <test>:1:36
-        fn f() { var a: [2]i32 = [1, 2]; a.foo }
-                                           ^~~ on [2]i32
+      at <test>:1:33
+        fn f() { a : [2]i32 = [1, 2]; a.foo }
+                                        ^~~ on [2]i32
     |}]
 
 let%expect_test "typecheck: assign to index" =
-  run_src "fn f() { var a: [2]i32 = [1, 2]; a[0] = 9 }";
+  run_src "fn f() { a : [2]i32 = [1, 2]; a[0] = 9 }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: index element assign type mismatch" =
-  run_src "fn f() { var a: [2]i32 = [1, 2]; a[0] = true }";
+  run_src "fn f() { a : [2]i32 = [1, 2]; a[0] = true }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:41
-        fn f() { var a: [2]i32 = [1, 2]; a[0] = true }
-                                                ^~~~ expected i32, found bool
+      at <test>:1:38
+        fn f() { a : [2]i32 = [1, 2]; a[0] = true }
+                                             ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: for over range ok (branch 2)" =
-  run_src "fn f() { for i in 0..5 { var x = i } }";
+  run_src "fn f() { for i in 0..5 { x := i } }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: for over inclusive range ok (branch 2)" =
-  run_src "fn f() { for i in 0..=5 { var x = i } }";
+  run_src "fn f() { for i in 0..=5 { x := i } }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: for over array binds element type" =
   run_src
     {|
 fn f() {
-  var a: [3]i32 = [1, 2, 3];
-  for x in a { var y: i32 = x }
+  a : [3]i32 = [1, 2, 3];
+  for x in a { y : i32 = x }
 }
 |};
   [%expect {| ok |}]
@@ -1041,47 +1038,47 @@ let%expect_test "typecheck: for over array wrong element use" =
   run_src
     {|
 fn f() {
-  var a: [3]i32 = [1, 2, 3];
-  for x in a { var y: bool = x }
+  a : [3]i32 = [1, 2, 3];
+  for x in a { y : bool = x }
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:30
-          for x in a { var y: bool = x }
-                                     ^ expected bool, found i32
+      at <test>:4:27
+          for x in a { y : bool = x }
+                                  ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: for over non-iterable" =
-  run_src "fn f() { for x in 5 { var y = x } }";
+  run_src "fn f() { for x in 5 { y := x } }";
   [%expect
     {|
     error: cannot iterate
       at <test>:1:19
-        fn f() { for x in 5 { var y = x } }
+        fn f() { for x in 5 { y := x } }
                           ^ on i32
     |}]
 
 let%expect_test "typecheck: range bounds must be integers (branch 2)" =
-  run_src "fn f() { for i in true..5 { var x = i } }";
+  run_src "fn f() { for i in true..5 { x := i } }";
   [%expect
     {|
     error: range bounds must be integers
       at <test>:1:19
-        fn f() { for i in true..5 { var x = i } }
+        fn f() { for i in true..5 { x := i } }
                           ^~~~
     error: type mismatch
       at <test>:1:25
-        fn f() { for i in true..5 { var x = i } }
+        fn f() { for i in true..5 { x := i } }
                                 ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
   run_src {|
 fn f() {
-  var n: i64 = 5;
-  for i in 0..n { var x = i }
+  n : i64 = 5;
+  for i in 0..n { x := i }
 }
 |};
   [%expect {| ok |}]
@@ -1090,7 +1087,7 @@ let%expect_test "typecheck: range over len needs no cast (branch 1)" =
   run_src
     {|
 fn f() {
-  var a: [4]i32 = [1, 2, 3, 4];
+  a : [4]i32 = [1, 2, 3, 4];
   for i in 0..a.len { a[i] = 0 }
 }
 |};
@@ -1100,8 +1097,8 @@ let%expect_test
     "typecheck: typed left endpoint bends the literal right (branch 2)" =
   run_src {|
 fn f() {
-  var n: i64 = 5;
-  for i in n..10 { var x = i }
+  n : i64 = 5;
+  for i in n..10 { x := i }
 }
 |};
   [%expect {| ok |}]
@@ -1110,8 +1107,8 @@ let%expect_test "typecheck: slice bound over len needs no cast (branch 1)" =
   run_src
     {|
 fn f() {
-  var a: [4]i32 = [1, 2, 3, 4];
-  var s: []i32 = a[0..a.len];
+  a : [4]i32 = [1, 2, 3, 4];
+  s : []i32 = a[0..a.len];
 }
 |};
   [%expect {| ok |}]
@@ -1120,9 +1117,9 @@ let%expect_test "typecheck: two typed endpoints still must match (branch 2)" =
   run_src
     {|
 fn f() {
-  var m: i32 = 0;
-  var n: i64 = 5;
-  for i in m..n { var x = i }
+  m : i32 = 0;
+  n : i64 = 5;
+  for i in m..n { x := i }
 }
 |};
   [%expect {| ok |}]
@@ -1140,7 +1137,7 @@ let%expect_test "typecheck: a bare array is not a slice param" =
     {|
 fn sum(xs: []i32) i32 { return 0 }
 fn f() i32 {
-  var a: [3]i32 = [1, 2, 3];
+  a : [3]i32 = [1, 2, 3];
   return sum(a);
 }
 |};
@@ -1151,7 +1148,7 @@ let%expect_test "typecheck: slice element wrong type rejected" =
     {|
 fn sum(xs: []i32) {}
 fn f() {
-  var a: [2]f32 = [1.0, 2.0];
+  a : [2]f32 = [1.0, 2.0];
   sum(a);
 }
 |};
@@ -1165,17 +1162,16 @@ fn f() {
 
 let%expect_test "typecheck: sub-slice ok" =
   run_src
-    "fn f() i32 { var a: [4]i32 = [1,2,3,4]; var s: []i32 = a[1..3]; return \
-     s[0] }";
+    "fn f() i32 { a : [4]i32 = [1,2,3,4]; s : []i32 = a[1..3]; return s[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice of a slice ok" =
   run_src
     {|
 fn f() i32 {
-  var a: [5]i32 = [1, 2, 3, 4, 5];
-  var s: []i32 = a[1..5];
-  var t: []i32 = s[1..3];
+  a : [5]i32 = [1, 2, 3, 4, 5];
+  s : []i32 = a[1..5];
+  t : []i32 = s[1..3];
   return t[0];
 }
 |};
@@ -1206,28 +1202,26 @@ let%expect_test "typecheck: returning a slice from a slice call ok" =
 
 let%expect_test "typecheck: inclusive range slice ok (branch 2)" =
   run_src
-    "fn f() i32 { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..=2]; return \
-     s[2] }";
+    "fn f() i32 { a : [3]i32 = [1,2,3]; s : []i32 = a[0..=2]; return s[2] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
-  run_src "fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }";
+  run_src "fn f() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] }";
   [%expect
     {|
     error: range bounds must be integers
-      at <test>:1:52
-        fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
-                                                           ^~~~
+      at <test>:1:46
+        fn f() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] }
+                                                     ^~~~
     error: type mismatch
-      at <test>:1:58
-        fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[true..2] }
-                                                                 ^ expected bool, found i32
+      at <test>:1:52
+        fn f() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] }
+                                                           ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: slice .len is usize" =
   run_src
-    "fn f() usize { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..3]; return \
-     s.len }";
+    "fn f() usize { a : [3]i32 = [1,2,3]; s : []i32 = a[0..3]; return s.len }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice .ptr is pointer" =
@@ -1235,59 +1229,59 @@ let%expect_test "typecheck: slice .ptr is pointer" =
     {|
 fn first(p: *i32) i32 { return 0 }
 fn f() i32 {
-  var a: [3]i32 = [1, 2, 3];
-  var s: []i32 = a[0..3];
+  a : [3]i32 = [1, 2, 3];
+  s : []i32 = a[0..3];
   return first(s.ptr);
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice does not coerce back to array" =
-  run_src "fn f() { var a: [3]i32 = [1,2,3]; var b: [3]i32 = a[0..3] }";
+  run_src "fn f() { a : [3]i32 = [1,2,3]; b : [3]i32 = a[0..3] }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:51
-        fn f() { var a: [3]i32 = [1,2,3]; var b: [3]i32 = a[0..3] }
-                                                          ^~~~~~~ expected [3]i32, found []i32
+      at <test>:1:45
+        fn f() { a : [3]i32 = [1,2,3]; b : [3]i32 = a[0..3] }
+                                                    ^~~~~~~ expected [3]i32, found []i32
     |}]
 
 let%expect_test "typecheck: for over slice binds element" =
   run_src
     {|
 fn f() {
-  var a: [3]i32 = [1, 2, 3];
-  var s: []i32 = a[0..3];
-  for x in s { var y: i32 = x }
+  a : [3]i32 = [1, 2, 3];
+  s : []i32 = a[0..3];
+  for x in s { y : i32 = x }
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: slice index element assignable" =
-  run_src "fn f() { var a: [3]i32 = [1,2,3]; var s: []i32 = a[0..3]; s[0] = 9 }";
+  run_src "fn f() { a : [3]i32 = [1,2,3]; s : []i32 = a[0..3]; s[0] = 9 }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: compound assign to array element" =
-  run_src "fn f() i32 { var a: [3]i32 = [1,2,3]; a[0] += 5; return a[0] }";
+  run_src "fn f() i32 { a : [3]i32 = [1,2,3]; a[0] += 5; return a[0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: multidimensional array" =
-  run_src "fn f() i32 { var m: [2][2]i32 = [[1,2],[3,4]]; return m[1][0] }";
+  run_src "fn f() i32 { m : [2][2]i32 = [[1,2],[3,4]]; return m[1][0] }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: multidim wrong inner count" =
-  run_src "fn f() { var m: [2][2]i32 = [[1,2],[3]] }";
+  run_src "fn f() { m : [2][2]i32 = [[1,2],[3]] }";
   [%expect
     {|
     error: wrong number of arguments
-      at <test>:1:36
-        fn f() { var m: [2][2]i32 = [[1,2],[3]] }
-                                           ^~~ expected 2 elements, found 1
+      at <test>:1:33
+        fn f() { m : [2][2]i32 = [[1,2],[3]] }
+                                        ^~~ expected 2 elements, found 1
     |}]
 
 let%expect_test "typecheck: global array" =
   run_src {|
-var g: [3]i32 = [7, 8, 9];
+g : [3]i32 = [7, 8, 9];
 fn f() i32 { return g[1] }
 |};
   [%expect {| ok |}]
@@ -1295,7 +1289,7 @@ fn f() i32 { return g[1] }
 let%expect_test "typecheck: global array element calls a function" =
   run_src {|
 fn k() i32 { return 1 }
-var g: [2]i32 = [k(), 2];
+g : [2]i32 = [k(), 2];
 |};
   [%expect {| ok |}]
 
@@ -1303,8 +1297,8 @@ let%expect_test "typecheck: iterate array of arrays" =
   run_src
     {|
 fn f() i32 {
-  var m: [2][2]i32 = [[1, 2], [3, 4]];
-  var s: i32 = 0;
+  m : [2][2]i32 = [[1, 2], [3, 4]];
+  s : i32 = 0;
   for row in m { s += row[0] }
   return s;
 }
@@ -1332,7 +1326,7 @@ let%expect_test "typecheck: range in condition is an error" =
     |}]
 
 let%expect_test "typecheck: for over array literal" =
-  run_src "fn f() i32 { var s: i32 = 0; for x in [1,2,3] { s += x }; return s }";
+  run_src "fn f() i32 { s : i32 = 0; for x in [1,2,3] { s += x }; return s }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array literal as slice argument" =
@@ -1344,34 +1338,12 @@ fn f() i32 { return sum([1, 2, 3]) }
   [%expect {| ok |}]
 
 let%expect_test "typecheck: scalar zero init" =
-  run_src "fn f() i32 { var x: i32; return x }";
+  run_src "fn f() i32 { x : i32; return x }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array zero init" =
-  run_src "fn f() i32 { var a: [3]i32; return a[0] }";
+  run_src "fn f() i32 { a : [3]i32; return a[0] }";
   [%expect {| ok |}]
-
-let%expect_test "typecheck: var without type or value cannot infer" =
-  run_src "fn f() { var x }";
-  [%expect
-    {|
-    error: cannot infer type
-      at <test>:1:14
-        fn f() { var x }
-                     ^
-    help: write the type or give it a value
-    |}]
-
-let%expect_test "typecheck: cannot infer does not cascade into the assignment" =
-  run_src "fn f() { var x;\n  x = [1,2,3,4] }";
-  [%expect
-    {|
-    error: cannot infer type
-      at <test>:1:14
-        fn f() { var x;
-                     ^
-    help: write the type or give it a value
-    |}]
 
 let%expect_test "typecheck: missing return on a path" =
   run_src "fn f(n: i32) i32 { if n > 0 { return 1 } }";
@@ -1406,7 +1378,7 @@ let%expect_test "typecheck: inner loop break does not exit outer" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: break under if still needs a return" =
-  run_src "fn f() i32 { var c: bool = true;\n while true { if c { break } } }";
+  run_src "fn f() i32 { c : bool = true;\n while true { if c { break } } }";
   [%expect
     {|
     error: type mismatch
@@ -1420,7 +1392,7 @@ let%expect_test "typecheck: struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var p = pt { x: 3, y: 4 };
+  p := pt { x: 3, y: 4 };
   return p.x + p.y;
 }
 |};
@@ -1431,7 +1403,7 @@ let%expect_test "typecheck: empty struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var p = pt { };
+  p := pt { };
   return p.x;
 }
 |};
@@ -1441,15 +1413,15 @@ let%expect_test "typecheck: struct literal unknown field" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { z: 1 };
+  p := pt { z: 1 };
 }
 |};
   [%expect
     {|
     error: no field
-      at <test>:4:16
-          var p = pt { z: 1 };
-                       ^
+      at <test>:4:13
+          p := pt { z: 1 };
+                    ^
     |}]
 
 let%expect_test "typecheck: struct literal duplicate field" =
@@ -1457,52 +1429,51 @@ let%expect_test "typecheck: struct literal duplicate field" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { x: 1, x: 2 };
+  p := pt { x: 1, x: 2 };
 }
 |};
   [%expect
     {|
     error: duplicate field
-      at <test>:4:22
-          var p = pt { x: 1, x: 2 };
-                             ^
+      at <test>:4:19
+          p := pt { x: 1, x: 2 };
+                          ^
     |}]
 
 let%expect_test "typecheck: struct literal wrong field type" =
-  run_src
-    {|
+  run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { x: true };
+  p := pt { x: true };
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:19
-          var p = pt { x: true };
-                          ^~~~ expected i32, found bool
+      at <test>:4:16
+          p := pt { x: true };
+                       ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: undefined struct literal" =
   run_src {|
 fn f() {
-  var p = nope { x: 1 };
+  p := nope { x: 1 };
 }
 |};
   [%expect
     {|
     error: undefined struct
-      at <test>:3:11
-          var p = nope { x: 1 };
-                  ^~~~
+      at <test>:3:8
+          p := nope { x: 1 };
+               ^~~~
     |}]
 
-let%expect_test "typecheck: var global struct literal" =
+let%expect_test "typecheck: global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-var origin: pt = pt { x: 1, y: 2 };
+origin : pt = pt { x: 1, y: 2 };
 fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
@@ -1512,7 +1483,7 @@ let%expect_test "typecheck: global struct literal calls a function" =
     {|
 struct pt { x: i32, y: i32 }
 fn g() i32 { return 1 }
-var p: pt = pt { x: g(), y: 2 };
+p : pt = pt { x: g(), y: 2 };
 |};
   [%expect {| ok |}]
 
@@ -1521,7 +1492,7 @@ let%expect_test "typecheck: positional struct literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var p = pt { 3, 4 };
+  p := pt { 3, 4 };
   return p.x + p.y;
 }
 |};
@@ -1532,7 +1503,7 @@ let%expect_test "typecheck: positional struct literal of one field" =
     {|
 struct box { v: i32 }
 fn f() i32 {
-  var b = box { 3 };
+  b := box { 3 };
   return b.v;
 }
 |};
@@ -1542,47 +1513,45 @@ let%expect_test "typecheck: positional struct literal too few fields" =
   run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { 1 };
+  p := pt { 1 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
-      at <test>:4:11
-          var p = pt { 1 };
-                  ^~~~~~~~ expected 2, found 1
+      at <test>:4:8
+          p := pt { 1 };
+               ^~~~~~~~ expected 2, found 1
     |}]
 
 let%expect_test "typecheck: positional struct literal too many fields" =
-  run_src
-    {|
+  run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { 1, 2, 3 };
+  p := pt { 1, 2, 3 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
-      at <test>:4:11
-          var p = pt { 1, 2, 3 };
-                  ^~~~~~~~~~~~~~ expected 2, found 3
+      at <test>:4:8
+          p := pt { 1, 2, 3 };
+               ^~~~~~~~~~~~~~ expected 2, found 3
     |}]
 
 let%expect_test "typecheck: positional struct literal wrong field type" =
-  run_src
-    {|
+  run_src {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  var p = pt { 1, true };
+  p := pt { 1, true };
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:19
-          var p = pt { 1, true };
-                          ^~~~ expected i32, found bool
+      at <test>:4:16
+          p := pt { 1, true };
+                       ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: positional struct literal nested" =
@@ -1591,7 +1560,7 @@ let%expect_test "typecheck: positional struct literal nested" =
 struct pt { x: i32, y: i32 }
 struct wrap { p: pt, tag: i32 }
 fn f() i32 {
-  var w = wrap { pt { 1, 2 }, 3 };
+  w := wrap { pt { 1, 2 }, 3 };
   return w.p.x + w.tag;
 }
 |};
@@ -1601,7 +1570,7 @@ let%expect_test "typecheck: positional global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
-var origin: pt = pt { 1, 2 };
+origin : pt = pt { 1, 2 };
 fn f() i32 { return origin.x }
 |};
   [%expect {| ok |}]
@@ -1611,16 +1580,16 @@ let%expect_test "typecheck: positional literal of a fieldless struct" =
 struct e {
 }
 fn f() {
-  var _a = e { };
-  var _b = e { 1 };
+  _a := e { };
+  _b := e { 1 };
 }
 |};
   [%expect
     {|
     error: wrong number of fields
-      at <test>:6:12
-          var _b = e { 1 };
-                   ^~~~~~~ expected 0, found 1
+      at <test>:6:9
+          _b := e { 1 };
+                ^~~~~~~ expected 0, found 1
     |}]
 
 let%expect_test "typecheck: duplicate struct field" =
@@ -1694,7 +1663,7 @@ let%expect_test "typecheck: nested struct field type mismatch" =
 struct inner { a: i32 }
 struct outer { i: inner }
 fn f() {
-  var o: outer = outer { i: inner { a: 1 } };
+  o : outer = outer { i: inner { a: 1 } };
   o.i.a = true;
 }
 |};
@@ -1711,7 +1680,7 @@ let%expect_test "typecheck: struct with array field initializes ok" =
     {|
 struct buf { data: [4]i32, n: i32 }
 fn f() i32 {
-  var b: buf = buf { data: [1, 2, 3, 4], n: 4 };
+  b : buf = buf { data: [1, 2, 3, 4], n: 4 };
   return b.n;
 }
 |};
@@ -1729,14 +1698,14 @@ fn f() i32 { return origin().x }
 let%expect_test "typecheck: unit call result cannot be assigned" =
   run_src {|
 fn g() { }
-fn f() { var x: i32 = g() }
+fn f() { x : i32 = g() }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:3:23
-        fn f() { var x: i32 = g() }
-                              ^~~ expected i32, found ()
+      at <test>:3:20
+        fn f() { x : i32 = g() }
+                           ^~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: struct field whose type is another struct" =
@@ -1745,7 +1714,7 @@ let%expect_test "typecheck: struct field whose type is another struct" =
 struct b_t { x: i32 }
 struct a { b: b_t }
 fn f() i32 {
-  var v: a = a { b: b_t { x: 1 } };
+  v : a = a { b: b_t { x: 1 } };
   return v.b.x;
 }
 |};
@@ -1756,8 +1725,8 @@ let%expect_test "typecheck: array of structs iterates element type" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() i32 {
-  var pts: [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
-  var s: i32 = 0;
+  pts : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
+  s : i32 = 0;
   for p in pts { s += p.x }
   return s;
 }
@@ -1767,7 +1736,7 @@ fn f() i32 {
 let%expect_test "typecheck: cast int to float ok" =
   run_src {|
 fn f() f64 {
-  var a: i32 = 3;
+  a : i32 = 3;
   return cast(f64, a);
 }
 |};
@@ -1776,7 +1745,7 @@ fn f() f64 {
 let%expect_test "typecheck: cast float to int ok" =
   run_src {|
 fn f() i32 {
-  var a: f64 = 3.5;
+  a : f64 = 3.5;
   return cast(i32, a);
 }
 |};
@@ -1787,7 +1756,7 @@ let%expect_test "typecheck: array size mismatch as argument" =
     {|
 fn take(a: [4]i32) {}
 fn f() {
-  var a: [3]i32 = [1, 2, 3];
+  a : [3]i32 = [1, 2, 3];
   take(a);
 }
 |};
@@ -1820,8 +1789,8 @@ let%expect_test "typecheck: bool relational comparison rejected" =
   run_src
     {|
 fn f() bool {
-  var a: bool = true;
-  var b: bool = false;
+  a : bool = true;
+  b : bool = false;
   return a < b;
 }
 |};
@@ -1838,8 +1807,8 @@ let%expect_test "typecheck: struct equality rejected" =
     {|
 struct P { x: i32 }
 fn f() bool {
-  var a: P = P { x: 1 };
-  var b: P = P { x: 1 };
+  a : P = P { x: 1 };
+  b : P = P { x: 1 };
   return a == b;
 }
 |};
@@ -1905,39 +1874,38 @@ fn g() i32 {
 let%expect_test "typecheck: int literal out of range rejected" =
   run_src {|
 fn main() i32 {
-  var x: u8 = 300;
+  x : u8 = 300;
   return 0;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:15
-          var x: u8 = 300;
-                      ^~~ does not fit in u8
+      at <test>:3:12
+          x : u8 = 300;
+                   ^~~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: negative literal into unsigned rejected" =
   run_src {|
 fn main() i32 {
-  var x: u8 = -1;
+  x : u8 = -1;
   return 0;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:15
-          var x: u8 = -1;
-                      ^~ does not fit in u8
+      at <test>:3:12
+          x : u8 = -1;
+                   ^~ does not fit in u8
     |}]
 
 let%expect_test "typecheck: int literal at type bound accepted" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var x: u8 = 255;
-  var y: i8 = -128;
+  x : u8 = 255;
+  y : i8 = -128;
   return 0;
 }
 |};
@@ -1946,83 +1914,79 @@ fn main() i32 {
 let%expect_test "typecheck: inferred literal overflowing i32 rejected" =
   run_src {|
 fn main() i32 {
-  var x = 3000000000;
+  x := 3000000000;
   return x;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:11
-          var x = 3000000000;
-                  ^~~~~~~~~~ does not fit in i32
+      at <test>:3:8
+          x := 3000000000;
+               ^~~~~~~~~~ does not fit in i32
     |}]
 
 let%expect_test "typecheck: i64 max accepted" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var _x: i64 = 9223372036854775807;
+  _x : i64 = 9223372036854775807;
   return 0;
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: u64 max accepted" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var _x: u64 = 18446744073709551615;
+  _x : u64 = 18446744073709551615;
   return 0;
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: i64 max plus one rejected" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var _x: i64 = 9223372036854775808;
+  _x : i64 = 9223372036854775808;
   return 0;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:17
-          var _x: i64 = 9223372036854775808;
-                        ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+      at <test>:3:14
+          _x : i64 = 9223372036854775808;
+                     ^~~~~~~~~~~~~~~~~~~ does not fit in i64
     |}]
 
 let%expect_test "typecheck: literal above u64 max rejected by lexer" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var _x: u64 = 18446744073709551616
+  _x : u64 = 18446744073709551616
   return 0;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:17
-          var _x: u64 = 18446744073709551616
-                        ^~~~~~~~~~~~~~~~~~~~
+      at <test>:3:14
+          _x : u64 = 18446744073709551616
+                     ^~~~~~~~~~~~~~~~~~~~
     |}]
 
 let%expect_test "typecheck: negative literal into u64 rejected" =
   run_src {|
 fn main() i32 {
-  var _x: u64 = -1;
+  _x : u64 = -1;
   return 0;
 }
 |};
   [%expect
     {|
     error: integer literal out of range
-      at <test>:3:17
-          var _x: u64 = -1;
-                        ^~ does not fit in u64
+      at <test>:3:14
+          _x : u64 = -1;
+                     ^~ does not fit in u64
     |}]
 
 let%expect_test "typecheck: non-i32 main rejected" =
@@ -2036,10 +2000,9 @@ let%expect_test "typecheck: non-i32 main rejected" =
     |}]
 
 let%expect_test "typecheck: type alias is transparent to its base" =
-  run_src
-    {|
+  run_src {|
 type Meters = i32;
-fn f() i32 { var d: Meters = 5; return d + 1 }
+fn f() i32 { d : Meters = 5; return d + 1 }
 |};
   [%expect {| ok |}]
 
@@ -2048,7 +2011,7 @@ let%expect_test "typecheck: type alias of a struct allows field access" =
     {|
 struct Point { x: i32, y: i32 }
 type Pt = Point;
-fn f() i32 { var p: Pt = Point { x: 1, y: 2 }; return p.x }
+fn f() i32 { p : Pt = Point { x: 1, y: 2 }; return p.x }
 |};
   [%expect {| ok |}]
 
@@ -2057,7 +2020,7 @@ let%expect_test "typecheck: type alias of a function pointer is callable" =
     {|
 type BinOp = fn (i32, i32) i32;
 fn add(a: i32, b: i32) i32 { return a + b }
-fn f() i32 { var op: BinOp = add; return op(2, 3) }
+fn f() i32 { op : BinOp = add; return op(2, 3) }
 |};
   [%expect {| ok |}]
 
@@ -2066,7 +2029,7 @@ let%expect_test "typecheck: alias of an array coerces to a slice" =
     {|
 type Row = [3]i32;
 fn take(s: []i32) i32 { return s[0] }
-fn f() i32 { var r: Row = [1, 2, 3]; return take(r) }
+fn f() i32 { r : Row = [1, 2, 3]; return take(r) }
 |};
   [%expect {| ok |}]
 
@@ -2074,14 +2037,14 @@ let%expect_test "typecheck: aggregate cast sees through an alias element" =
   run_src
     {|
 type Meters = i32;
-fn f() i32 { var a: [3]Meters = [1, 2, 3]; var b: [3]i32 = a as [3]i32; return b[1] }
+fn f() i32 { a : [3]Meters = [1, 2, 3]; b : [3]i32 = a as [3]i32; return b[1] }
 |};
   [%expect
     {|
     error: expected `;`
-      at <test>:3:62
-        fn f() i32 { var a: [3]Meters = [1, 2, 3]; var b: [3]i32 = a as [3]i32; return b[1] }
-                                                                     ^~ found as
+      at <test>:3:56
+        fn f() i32 { a : [3]Meters = [1, 2, 3]; b : [3]i32 = a as [3]i32; return b[1] }
+                                                               ^~ found as
     |}]
 
 let%expect_test "typecheck: alias is transparent under a slice and a pointer" =
@@ -2091,9 +2054,9 @@ type Meters = i32;
 fn take_slice(s: []i32) i32 { return s[0] }
 fn take_ptr(p: *i32) i32 { return *p }
 fn f() i32 {
-  var a: [3]Meters = [1, 2, 3];
-  var s: []Meters = a;
-  var m: Meters = 7;
+  a : [3]Meters = [1, 2, 3];
+  s : []Meters = a;
+  m : Meters = 7;
   return take_slice(s) + take_ptr(&m);
 }
 |};
@@ -2103,7 +2066,7 @@ let%expect_test "typecheck: alias and base compare with each other" =
   run_src
     {|
 type Meters = i32;
-fn f() bool { var m: Meters = 5; var b: i32 = 5; return m == b }
+fn f() bool { m : Meters = 5; b : i32 = 5; return m == b }
 |};
   [%expect {| ok |}]
 
@@ -2112,8 +2075,8 @@ let%expect_test "typecheck: type alias keeps every comparison of its base" =
     {|
 type Meters = i32;
 fn f() bool {
-  var a: Meters = 5;
-  var b: Meters = 6;
+  a : Meters = 5;
+  b : Meters = 6;
   return a == b || a != b || a < b || a > b || a <= b || a >= b;
 }
 |};
@@ -2124,8 +2087,8 @@ let%expect_test "typecheck: type alias keeps arithmetic and bitwise operators" =
     {|
 type Meters = i32;
 fn f() i32 {
-  var a: Meters = 12;
-  var b: Meters = 5;
+  a : Meters = 12;
+  b : Meters = 5;
   return a + b - a * b / (a % b) + (a & b) + (a | b) + (a ^ b) + (a << 1) + (a >> 1);
 }
 |};
@@ -2136,9 +2099,9 @@ let%expect_test "typecheck: type alias of a float keeps its operators" =
     {|
 type Temp = f32;
 fn f() bool {
-  var a: Temp = 1.5;
-  var b: Temp = 2.5;
-  var c: Temp = a + b - a * b / a;
+  a : Temp = 1.5;
+  b : Temp = 2.5;
+  c : Temp = a + b - a * b / a;
   c += 1.0;
   return -c < b && a <= b && a == a && b >= a;
 }
@@ -2148,21 +2111,21 @@ fn f() bool {
 let%expect_test "typecheck: type alias of a float still has no remainder" =
   run_src {|
 type Temp = f32;
-fn f() f32 { var a: Temp = 5.0; return a % a }
+fn f() f32 { a : Temp = 5.0; return a % a }
 |};
   [%expect
     {|
     error: invalid operand
-      at <test>:3:40
-        fn f() f32 { var a: Temp = 5.0; return a % a }
-                                               ^ cannot apply `%` to Temp
+      at <test>:3:37
+        fn f() f32 { a : Temp = 5.0; return a % a }
+                                            ^ cannot apply `%` to Temp
     |}]
 
 let%expect_test "typecheck: type alias mixes with its base in comparisons" =
   run_src
     {|
 type Meters = i32;
-fn f() bool { var a: Meters = 5; var raw: i32 = 6; return a < raw && raw > a }
+fn f() bool { a : Meters = 5; raw : i32 = 6; return a < raw && raw > a }
 |};
   [%expect {| ok |}]
 
@@ -2264,13 +2227,13 @@ let%expect_test "typecheck: int literal suffix pins the type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: int literal suffix that mismatches the target" =
-  run_src "fn f() { var x: u8 = 5u16 }";
+  run_src "fn f() { x : u8 = 5u16 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:22
-        fn f() { var x: u8 = 5u16 }
-                             ^~~~ expected u8, found u16
+      at <test>:1:19
+        fn f() { x : u8 = 5u16 }
+                          ^~~~ expected u8, found u16
     |}]
 
 let%expect_test "typecheck: int literal suffix out of range" =
@@ -2294,24 +2257,24 @@ let%expect_test "typecheck: negative unsigned suffix" =
     |}]
 
 let%expect_test "typecheck: assignment in condition is not a value" =
-  run_src "fn f() { var b: bool = false; if b = true { } }";
+  run_src "fn f() { b : bool = false; if b = true { } }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:34
-        fn f() { var b: bool = false; if b = true { } }
-                                         ^~~~~~~~ expected bool, found ()
+      at <test>:1:31
+        fn f() { b : bool = false; if b = true { } }
+                                      ^~~~~~~~ expected bool, found ()
     help: did you mean `==` to compare?
     |}]
 
 let%expect_test "typecheck: chained assignment is not a value" =
-  run_src "fn f() { var a: i32 = 0; var b: i32 = 0; a = b = 5 }";
+  run_src "fn f() { a : i32 = 0; b : i32 = 0; a = b = 5 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:46
-        fn f() { var a: i32 = 0; var b: i32 = 0; a = b = 5 }
-                                                     ^~~~~ expected i32, found ()
+      at <test>:1:40
+        fn f() { a : i32 = 0; b : i32 = 0; a = b = 5 }
+                                               ^~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: assign to for loop variable" =
@@ -2324,20 +2287,20 @@ let%expect_test "typecheck: assign to for loop variable" =
                                  ^
     |}]
 
-let%expect_test "typecheck: a never var needs a diverging init" =
-  run_src "fn f() { var x: never = 0 }";
+let%expect_test "typecheck: a never binding needs a diverging init" =
+  run_src "fn f() { x : never = 0 }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:25
-        fn f() { var x: never = 0 }
-                                ^ expected never, found i32
+      at <test>:1:22
+        fn f() { x : never = 0 }
+                             ^ expected never, found i32
     |}]
 
-let%expect_test "typecheck: never as a var type" =
+let%expect_test "typecheck: never as a binding type" =
   run_src {|
 fn d() never { loop {} }
-fn f() { var _x: never = d() }
+fn f() { _x : never = d() }
 |};
   [%expect {| ok |}]
 
@@ -2346,7 +2309,7 @@ let%expect_test "typecheck: never as a param type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: never as a pointee type" =
-  run_src "fn f() { var _p: *never = null }";
+  run_src "fn f() { _p : *never = null }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: never as a field type" =
@@ -2356,37 +2319,37 @@ let%expect_test "typecheck: never as a field type" =
 let%expect_test "typecheck: a never field cannot be zero init" =
   run_src {|
 struct S { x: never }
-fn f() { var _s: S }
+fn f() { _s : S }
 |};
   [%expect
     {|
     error: cannot zero init this type
-      at <test>:3:18
-        fn f() { var _s: S }
-                         ^ on S
+      at <test>:3:15
+        fn f() { _s : S }
+                      ^ on S
     |}]
 
 let%expect_test "typecheck: an omitted never field cannot be zero init" =
   run_src {|
 struct S { x: never, y: i32 }
-fn f() { var _s = S { y: 1 } }
+fn f() { _s := S { y: 1 } }
 |};
   [%expect
     {|
     error: cannot zero init this type
-      at <test>:3:19
-        fn f() { var _s = S { y: 1 } }
-                          ^~~~~~~~~~ on never
+      at <test>:3:16
+        fn f() { _s := S { y: 1 } }
+                       ^~~~~~~~~~ on never
     |}]
 
 let%expect_test "typecheck: a never element cannot be zero init" =
-  run_src "fn f() { var _a: [2]never }";
+  run_src "fn f() { _a : [2]never }";
   [%expect
     {|
     error: cannot zero init this type
-      at <test>:1:18
-        fn f() { var _a: [2]never }
-                         ^~~~~~~~ on [2]never
+      at <test>:1:15
+        fn f() { _a : [2]never }
+                      ^~~~~~~~ on [2]never
     |}]
 
 let%expect_test "typecheck: return in a never function is rejected" =
@@ -2428,7 +2391,7 @@ let%expect_test "typecheck: function pointer may return never" =
   run_src
     {|
 extern "C" fn exit(code: i32) never;
-fn f() { var stop: extern "C" fn (i32) never = exit;
+fn f() { stop : extern "C" fn (i32) never = exit;
  stop(1) }
 |};
   [%expect {| ok |}]
@@ -2544,24 +2507,24 @@ let%expect_test "typecheck: if-expr never arm bends to the other arm" =
   run_src
     {|
 extern "C" fn exit(c: i32) never;
-fn f() i32 { var y = if true { 10 } else { exit(1) }; return y }
+fn f() i32 { y := if true { 10 } else { exit(1) }; return y }
 |};
   [%expect {| ok |}]
 
 let%expect_test
     ("typecheck: if-expr arm type is order independent" [@tags "disabled"]) =
   run_src
-    {|fn f() i32 { var x: i64 = 5;
- var y = if true { x } else { 10 }; return y as i32 }|};
+    {|fn f() i32 { x : i64 = 5;
+ y := if true { x } else { 10 }; return y as i32 }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:44
-         var y = if true { x } else { 10 }; return y as i32 }
+         y := if true { x } else { 10 }; return y as i32 }
                                                    ^ expected i32, found i64
     error: expected `;`
       at <test>:2:46
-         var y = if true { x } else { 10 }; return y as i32 }
+         y := if true { x } else { 10 }; return y as i32 }
                                                      ^~ found as
     |}]
 
@@ -2569,7 +2532,7 @@ let%expect_test "typecheck: all-never if-expr binds as never" =
   run_src
     {|
 extern "C" fn exit(c: i32) never;
-fn f() i32 { var _y = if true { exit(3) } else { exit(4) }; return 0 }
+fn f() i32 { _y := if true { exit(3) } else { exit(4) }; return 0 }
 |};
   [%expect {| ok |}]
 
@@ -2577,7 +2540,7 @@ let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
     {|
 extern "C" fn exit(c: i32) never;
-fn f() i32 { var y = if true { if false { 10 } else { exit(1) } } else
+fn f() i32 { y := if true { if false { 10 } else { exit(1) } } else
  { 20 }; return y }
 |};
   [%expect {| ok |}]
@@ -2586,17 +2549,17 @@ let%expect_test
     ("typecheck: nested concrete arm anchors the outer if-expr"
      [@tags "disabled"]) =
   run_src
-    {|fn f() i32 { var x: i64 = 7;
- var y = if true { if false { x } else { 5 } } else { 10 }; return y as i32 }|};
+    {|fn f() i32 { x : i64 = 7;
+ y := if true { if false { x } else { 5 } } else { 10 }; return y as i32 }|};
   [%expect
     {|
     error: type mismatch
       at <test>:2:68
-         var y = if true { if false { x } else { 5 } } else { 10 }; return y as i32 }
+         y := if true { if false { x } else { 5 } } else { 10 }; return y as i32 }
                                                                            ^ expected i32, found i64
     error: expected `;`
       at <test>:2:70
-         var y = if true { if false { x } else { 5 } } else { 10 }; return y as i32 }
+         y := if true { if false { x } else { 5 } } else { 10 }; return y as i32 }
                                                                              ^~ found as
     |}]
 
@@ -2607,11 +2570,11 @@ let%expect_test "collapse: trailing if is an implicit return" =
   [%expect {| ok |}]
 
 let%expect_test "collapse: trailing block is an implicit return" =
-  run_src "fn f(x: i32) i32 { { var a = x * 2;\n a + 1 } }";
+  run_src "fn f(x: i32) i32 { { a := x * 2;\n a + 1 } }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: nested block tail flows to the return" =
-  run_src "fn f() i32 { { var a: i32 = 1;\n { a + 2 } } }";
+  run_src "fn f() i32 { { a : i32 = 1;\n { a + 2 } } }";
   [%expect {| ok |}]
 
 let%expect_test "collapse: deeply nested implicit return" =
@@ -2621,50 +2584,49 @@ let%expect_test "collapse: deeply nested implicit return" =
   [%expect {| ok |}]
 
 let%expect_test "collapse: a binding is not a value operand" =
-  run_src "fn f() i32 { var x: i32 = var y: i32 = 5;\n return x }";
+  run_src "fn f() i32 { x : i32 = y : i32 = 5;\n return x }";
   [%expect
     {|
-    error: expected expression
-      at <test>:1:27
-        fn f() i32 { var x: i32 = var y: i32 = 5;
-                                  ^~~ found `var`
+    error: expected a loop after a label
+      at <test>:1:28
+        fn f() i32 { x : i32 = y : i32 = 5;
+                                   ^~~ found i32
     |}]
 
 let%expect_test "collapse: a block ending in a binding is unit" =
-  run_src "fn f() i32 { var x: i32 = { var a: i32 = 1 };\n return x }";
+  run_src "fn f() i32 { x : i32 = { a : i32 = 1 };\n return x }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:29
-        fn f() i32 { var x: i32 = { var a: i32 = 1 };
-                                    ^~~~~~~~~~~~~~ expected i32, found ()
+      at <test>:1:26
+        fn f() i32 { x : i32 = { a : i32 = 1 };
+                                 ^~~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "collapse: value if arms must agree" =
-  run_src
-    "fn f(c: bool) i32 { var x: i32 = if c { 1 } else { true };\n return x }";
+  run_src "fn f(c: bool) i32 { x : i32 = if c { 1 } else { true };\n return x }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:52
-        fn f(c: bool) i32 { var x: i32 = if c { 1 } else { true };
-                                                           ^~~~ expected i32, found bool
+      at <test>:1:49
+        fn f(c: bool) i32 { x : i32 = if c { 1 } else { true };
+                                                        ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "collapse: a never arm coerces to the live arm" =
   run_src
-    {|fn f(c: bool) i32 { var x: i32 = if c { 1 } else { return 0 };
+    {|fn f(c: bool) i32 { x : i32 = if c { 1 } else { return 0 };
  return x }|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: value if without else is unit" =
-  run_src "fn f(c: bool) i32 { var x: i32 = if c { 1 };\n return x }";
+  run_src "fn f(c: bool) i32 { x : i32 = if c { 1 };\n return x }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:34
-        fn f(c: bool) i32 { var x: i32 = if c { 1 };
-                                         ^~~~~~~~~~ expected i32, found ()
+      at <test>:1:31
+        fn f(c: bool) i32 { x : i32 = if c { 1 };
+                                      ^~~~~~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "collapse: while true with no break is never" =
@@ -2677,14 +2639,14 @@ let%expect_test "collapse: never function may loop forever" =
 
 let%expect_test "collapse: break in a value arm inside a loop" =
   run_src
-    {|fn f() i32 { while true { var x: i32 = if false { 1 } else { break };
+    {|fn f() i32 { while true { x : i32 = if false { 1 } else { break };
  return x }; return 0 }|};
   [%expect {| ok |}]
 
 let%expect_test "collapse: continue as a value runs the step" =
   run_src
-    {|fn f() i32 { var i: i32 = 0;
- while i < 3 { var x: i32 = if i == 2 { i } else { i = i + 1;
+    {|fn f() i32 { i : i32 = 0;
+ while i < 3 { x : i32 = if i == 2 { i } else { i = i + 1;
  continue };
  return x }; return 9 }|};
   [%expect {| ok |}]
@@ -2704,28 +2666,27 @@ let%expect_test "collapse: return if with diverging arms" =
   [%expect {| ok |}]
 
 let%expect_test "collapse: break as a value outside a loop still errors" =
-  run_src "fn f() i32 { var x: i32 = if true { 1 } else { break };\n return x }";
+  run_src "fn f() i32 { x : i32 = if true { 1 } else { break };\n return x }";
   [%expect
     {|
     error: `break` outside a loop
-      at <test>:1:48
-        fn f() i32 { var x: i32 = if true { 1 } else { break };
-                                                       ^~~~~
+      at <test>:1:45
+        fn f() i32 { x : i32 = if true { 1 } else { break };
+                                                    ^~~~~
     |}]
 
 let%expect_test "collapse: nested value block anchors its type" =
-  run_src
-    "fn f() i64 { var x: i64 = { var a: i64 = 3;\n { a + 1 } };\n return x }";
+  run_src "fn f() i64 { x : i64 = { a : i64 = 3;\n { a + 1 } };\n return x }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: char is distinct from i32" =
-  run_src "fn f() { var x: i32 = 'A' }";
+  run_src "fn f() { x : i32 = 'A' }";
   [%expect
     {|
     error: type mismatch
-      at <test>:1:23
-        fn f() { var x: i32 = 'A' }
-                              ^~~ expected i32, found char
+      at <test>:1:20
+        fn f() { x : i32 = 'A' }
+                           ^~~ expected i32, found char
     |}]
 
 let%expect_test "typecheck: no arithmetic on a char" =
@@ -2743,7 +2704,7 @@ let%expect_test "typecheck: no arithmetic on a char" =
     |}]
 
 let%expect_test "typecheck: char casts to and from an integer" =
-  run_src "fn f() i32 { var c: char = cast(char, 65); return cast(i32, c) }";
+  run_src "fn f() i32 { c : char = cast(char, 65); return cast(i32, c) }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: chars compare for equality and order" =
@@ -2766,7 +2727,7 @@ let%expect_test ("typecheck: char does not cast to a float" [@tags "disabled"])
     |}]
 
 let%expect_test "typecheck: binding a unit call" =
-  run_src "fn foo() { }; fn f() { var _value = foo() }";
+  run_src "fn foo() { }; fn f() { _value := foo() }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: newline operator continues into unit call" =
@@ -2800,7 +2761,7 @@ type Meters = i32;
 
 let%expect_test "typecheck: a global names a type declared later" =
   run_src {|
-var width: Meters = 3;
+width : Meters = 3;
 type Meters = i32;
 |};
   [%expect {| ok |}]
@@ -2857,20 +2818,20 @@ let%expect_test "typecheck: inferred storage rejects never and unit" =
 extern "C" fn stop() never;
 fn noop() {}
 fn f() {
-  var never_array = [stop(), stop()];
-  var unit_array = [noop(), noop()];
+  never_array := [stop(), stop()];
+  unit_array := [noop(), noop()];
 }
 |};
   [%expect
     {|
     error: array element cannot have this type
-      at <test>:5:22
-          var never_array = [stop(), stop()];
-                             ^~~~~~ on never
+      at <test>:5:19
+          never_array := [stop(), stop()];
+                          ^~~~~~ on never
     error: array element cannot have this type
-      at <test>:6:21
-          var unit_array = [noop(), noop()];
-                            ^~~~~~ on ()
+      at <test>:6:18
+          unit_array := [noop(), noop()];
+                         ^~~~~~ on ()
     |}]
 
 let%expect_test "typecheck: singular argument count" =
@@ -2889,8 +2850,8 @@ let%expect_test "typecheck: nonliteral operand types binary expression" =
   run_src
     {|
 fn add_two(x: i64) i64 {
-  var left = 1 + x;
-  var right = x + 1;
+  left := 1 + x;
+  right := x + 1;
   return left + right;
 }
 |};
@@ -2898,7 +2859,7 @@ fn add_two(x: i64) i64 {
 
 let%expect_test "typecheck: a local type may be used before its declaration" =
   run_src {|fn f() i32 {
-  var x: Coord = 4;
+  x : Coord = 4;
   type Coord = i32;
   x
 }|};
@@ -2907,8 +2868,8 @@ let%expect_test "typecheck: a local type may be used before its declaration" =
 let%expect_test "typecheck: local aliases may repeat in separate blocks" =
   run_src
     {|fn f() {
-  { type Value = i32; var _x: Value = 1 }
-  { type Value = bool; var _x: Value = true }
+  { type Value = i32; _x : Value = 1 }
+  { type Value = bool; _x : Value = true }
 }|};
   [%expect {| ok |}]
 
@@ -2951,7 +2912,7 @@ let%expect_test "typecheck: write through a pointer parameter" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: write to a copy of an array parameter" =
-  run_src "fn f(a: [3]i32) { var local: [3]i32 = a; local[0] = 9 }";
+  run_src "fn f(a: [3]i32) { local : [3]i32 = a; local[0] = 9 }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: write to a scalar parameter" =
@@ -2986,26 +2947,26 @@ let%expect_test "typecheck: if arms still agree where the value is used" =
   run_src
     {|
 extern "C" fn printf(fmt: *i8, ...) i32;
-fn f() i32 { var x = if true { printf("x") } else {}; return x }
+fn f() i32 { x := if true { printf("x") } else {}; return x }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:3:51
-        fn f() i32 { var x = if true { printf("x") } else {}; return x }
-                                                          ^~ expected i32, found ()
+      at <test>:3:48
+        fn f() i32 { x := if true { printf("x") } else {}; return x }
+                                                       ^~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: i64 is i64" =
-  run_src "fn f() i64 { var a: i64 = 1;\n  return a }";
+  run_src "fn f() i64 { a : i64 = 1;\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: f64 is f64" =
-  run_src "fn f() f64 { var a: f64 = 1.5;\n  return a }";
+  run_src "fn f() f64 { a : f64 = 1.5;\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: i64 is not i32" =
-  run_src "fn f() i32 { var a: i64 = 1;\n  return a }";
+  run_src "fn f() i32 { a : i64 = 1;\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -3015,7 +2976,7 @@ let%expect_test "typecheck: i64 is not i32" =
     |}]
 
 let%expect_test "typecheck: f64 is not f32" =
-  run_src "fn f() f32 { var a: f64 = 1.5;\n  return a }";
+  run_src "fn f() f32 { a : f64 = 1.5;\n  return a }";
   [%expect
     {|
     error: type mismatch
@@ -3025,73 +2986,73 @@ let%expect_test "typecheck: f64 is not f32" =
     |}]
 
 let%expect_test "typecheck: literal too big for i64" =
-  run_src "fn f() { var _a: i64 = 9223372036854775808 }";
+  run_src "fn f() { _a : i64 = 9223372036854775808 }";
   [%expect
     {|
     error: integer literal out of range
-      at <test>:1:24
-        fn f() { var _a: i64 = 9223372036854775808 }
-                               ^~~~~~~~~~~~~~~~~~~ does not fit in i64
+      at <test>:1:21
+        fn f() { _a : i64 = 9223372036854775808 }
+                            ^~~~~~~~~~~~~~~~~~~ does not fit in i64
     |}]
 
 let%expect_test "typecheck: type alias" =
-  run_src "type small = i32;\nfn f() i32 { var a: small = 1;\n  return a }";
+  run_src "type small = i32;\nfn f() i32 { a : small = 1;\n  return a }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str literal and len" =
-  run_src "fn f() usize { var s: str = \"hello\";\n  return s.len }";
+  run_src "fn f() usize { s : str = \"hello\";\n  return s.len }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str is not cstr" =
-  run_src "fn f() { var s: str = \"a\";\n  var _c: cstr = s }";
+  run_src "fn f() { s : str = \"a\";\n  _c : cstr = s }";
   [%expect
     {|
     error: type mismatch
-      at <test>:2:18
-          var _c: cstr = s }
-                         ^ expected cstr, found str
+      at <test>:2:15
+          _c : cstr = s }
+                      ^ expected cstr, found str
     |}]
 
 let%expect_test "typecheck: cstr is not str" =
-  run_src "fn f() { var s: cstr = \"a\";\n  var _t: str = s }";
+  run_src "fn f() { s : cstr = \"a\";\n  _t : str = s }";
   [%expect
     {|
     error: type mismatch
-      at <test>:2:17
-          var _t: str = s }
-                        ^ expected str, found cstr
+      at <test>:2:14
+          _t : str = s }
+                     ^ expected str, found cstr
     |}]
 
 let%expect_test "typecheck: a bare literal is still cstr" =
-  run_src "fn f() { var _s = \"a\" }";
+  run_src "fn f() { _s := \"a\" }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str has a ptr field" =
-  run_src "fn f() { var s: str = \"a\";\n  var _p = s.ptr }";
+  run_src "fn f() { s : str = \"a\";\n  _p := s.ptr }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str ptr is a byte pointer" =
-  run_src "fn f() { var s: str = \"a\";\n  var _p: f32 = s.ptr }";
+  run_src "fn f() { s : str = \"a\";\n  _p : f32 = s.ptr }";
   [%expect
     {|
     error: type mismatch
-      at <test>:2:17
-          var _p: f32 = s.ptr }
-                        ^~~~~ expected f32, found *u8
+      at <test>:2:14
+          _p : f32 = s.ptr }
+                     ^~~~~ expected f32, found *u8
     |}]
 
 let%expect_test "typecheck: str cannot be indexed" =
-  run_src "fn f() { var s: str = \"a\";\n  var _b = s[0] }";
+  run_src "fn f() { s : str = \"a\";\n  _b := s[0] }";
   [%expect
     {|
     error: cannot index
-      at <test>:2:12
-          var _b = s[0] }
-                   ^~~~ on str
+      at <test>:2:9
+          _b := s[0] }
+                ^~~~ on str
     |}]
 
 let%expect_test "typecheck: str cannot be compared" =
-  run_src "fn f() bool { var s: str = \"a\";\n  return s == \"a\" }";
+  run_src "fn f() bool { s : str = \"a\";\n  return s == \"a\" }";
   [%expect
     {|
     error: invalid operand
@@ -3101,7 +3062,7 @@ let%expect_test "typecheck: str cannot be compared" =
     |}]
 
 let%expect_test "typecheck: a str global" =
-  run_src "var g: str = \"a\";";
+  run_src "g : str = \"a\";";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a labeled break exits an outer loop" =
@@ -3207,13 +3168,13 @@ let%expect_test "typecheck: a valued break after a bare one is rejected" =
 
 let%expect_test "typecheck: unknown variant" =
   run_src {|enum Color { Red }
-fn f() { var _c = Color.Green }|};
+fn f() { _c := Color.Green }|};
   [%expect
     {|
     error: no variant
-      at <test>:2:25
-        fn f() { var _c = Color.Green }
-                                ^~~~~ on enum Color
+      at <test>:2:22
+        fn f() { _c := Color.Green }
+                             ^~~~~ on enum Color
     |}]
 
 let%expect_test "typecheck: duplicate variant" =
@@ -3227,61 +3188,60 @@ let%expect_test "typecheck: duplicate variant" =
     |}]
 
 let%expect_test "typecheck: enum has no arithmetic" =
-  run_src
-    {|enum Color { Red, Green }
-fn f() { var _c = Color.Red + Color.Green }|};
+  run_src {|enum Color { Red, Green }
+fn f() { _c := Color.Red + Color.Green }|};
   [%expect
     {|
     error: invalid operand
-      at <test>:2:19
-        fn f() { var _c = Color.Red + Color.Green }
-                          ^~~~~~~~~ cannot apply `+` to Color
+      at <test>:2:16
+        fn f() { _c := Color.Red + Color.Green }
+                       ^~~~~~~~~ cannot apply `+` to Color
     |}]
 
 let%expect_test "typecheck: enum does not cast to an integer" =
   run_src {|enum Color { Red }
-fn f() { var _c = cast(i32, Color.Red) }|};
+fn f() { _c := cast(i32, Color.Red) }|};
   [%expect
     {|
     error: invalid conversion
-      at <test>:2:19
-        fn f() { var _c = cast(i32, Color.Red) }
-                          ^~~~~~~~~~~~~~~~~~~~ cannot convert Color to i32
+      at <test>:2:16
+        fn f() { _c := cast(i32, Color.Red) }
+                       ^~~~~~~~~~~~~~~~~~~~ cannot convert Color to i32
     |}]
 
 let%expect_test "typecheck: two enums are two types" =
   run_src
     {|enum Color { Red }
 enum Fruit { Apple }
-fn f() { var _c = Color.Red == Fruit.Apple }|};
+fn f() { _c := Color.Red == Fruit.Apple }|};
   [%expect
     {|
     error: type mismatch
-      at <test>:3:32
-        fn f() { var _c = Color.Red == Fruit.Apple }
-                                       ^~~~~~~~~~~ expected Color, found Fruit
+      at <test>:3:29
+        fn f() { _c := Color.Red == Fruit.Apple }
+                                    ^~~~~~~~~~~ expected Color, found Fruit
     |}]
 
 let%expect_test "typecheck: an enum is not an integer" =
   run_src {|enum Color { Red }
-fn f() { var _c: i32 = Color.Red }|};
+fn f() { _c : i32 = Color.Red }|};
   [%expect
     {|
     error: type mismatch
-      at <test>:2:24
-        fn f() { var _c: i32 = Color.Red }
-                               ^~~~~~~~~ expected i32, found Color
+      at <test>:2:21
+        fn f() { _c : i32 = Color.Red }
+                            ^~~~~~~~~ expected i32, found Color
     |}]
 
 let%expect_test "typecheck: a type is not a value" =
   run_src {|struct Point { x: i32 }
-fn f() { var _p = Point.x }|};
+fn f() { _p := Point.x }|};
   [%expect
     {|
     error: expected a value
-      at <test>:2:19
-        fn f() { var _p = Point.x }
-                          ^~~~~ this names a type
+      at <test>:2:16
+        fn f() { _p := Point.x }
+                       ^~~~~ this names a type
     |}]
 
 let%expect_test "typecheck: an enum match must name every variant" =
@@ -3630,7 +3590,7 @@ let%expect_test "typecheck: unit type and value" =
   run_src
     {|fn pass(value: ()) () { value }
 fn make() () { () }
-fn use() { var value = make(); pass(value) }|};
+fn use() { value := make(); pass(value) }|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: unit return mismatch" =
@@ -3644,54 +3604,54 @@ let%expect_test "typecheck: unit return mismatch" =
     |}]
 
 let%expect_test "typecheck: explicit semicolon preserves block tail" =
-  run_src "fn f() i32 { { var x = 5; x; } }";
+  run_src "fn f() i32 { { x := 5; x; } }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: unterminated block tail returns its value" =
-  run_src "fn f() i32 { { var x = 5; x } }";
+  run_src "fn f() i32 { { x := 5; x } }";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: binding block tail is unit" =
-  run_src "fn f() i32 { { var x = 5; } }";
+  run_src "fn f() i32 { { x := 5; } }";
   [%expect
     {|
     error: type mismatch
       at <test>:1:16
-        fn f() i32 { { var x = 5; } }
-                       ^~~~~~~~~ expected i32, found ()
+        fn f() i32 { { x := 5; } }
+                       ^~~~~~ expected i32, found ()
     |}]
 
 let%expect_test "typecheck: exact integer widening matrix" =
   run_src
     {|
 fn f(si8: i8, si16: i16, si32: i32, ui8: u8, ui16: u16, ui32: u32) {
-  var _a: i16 = si8;
-  var _b: i32 = si8;
-  var _c: i64 = si8;
-  var _d: isize = si8;
-  var _e: i32 = si16;
-  var _f: i64 = si16;
-  var _g: isize = si16;
-  var _h: i64 = si32;
-  var _i: isize = si32;
-  var _j: u16 = ui8;
-  var _k: u32 = ui8;
-  var _l: u64 = ui8;
-  var _m: usize = ui8;
-  var _n: i16 = ui8;
-  var _o: i32 = ui8;
-  var _p: i64 = ui8;
-  var _q: isize = ui8;
-  var _r: u32 = ui16;
-  var _s: u64 = ui16;
-  var _t: usize = ui16;
-  var _u: i32 = ui16;
-  var _v: i64 = ui16;
-  var _w: isize = ui16;
-  var _x: u64 = ui32;
-  var _y: usize = ui32;
-  var _z: i64 = ui32;
-  var _aa: isize = ui32;
+  _a : i16 = si8;
+  _b : i32 = si8;
+  _c : i64 = si8;
+  _d : isize = si8;
+  _e : i32 = si16;
+  _f : i64 = si16;
+  _g : isize = si16;
+  _h : i64 = si32;
+  _i : isize = si32;
+  _j : u16 = ui8;
+  _k : u32 = ui8;
+  _l : u64 = ui8;
+  _m : usize = ui8;
+  _n : i16 = ui8;
+  _o : i32 = ui8;
+  _p : i64 = ui8;
+  _q : isize = ui8;
+  _r : u32 = ui16;
+  _s : u64 = ui16;
+  _t : usize = ui16;
+  _u : i32 = ui16;
+  _v : i64 = ui16;
+  _w : isize = ui16;
+  _x : u64 = ui32;
+  _y : usize = ui32;
+  _z : i64 = ui32;
+  _aa : isize = ui32;
 }
 |};
   [%expect {| ok |}]
@@ -3706,11 +3666,11 @@ let%expect_test "typecheck: widening reaches expected value positions" =
 struct Box { value: i64 }
 fn take(value: i64) i64 { return value }
 fn f(small: u8) i64 {
-  var wide: i64 = small;
+  wide : i64 = small;
   wide = small;
   wide += small;
-  var box: Box = Box { value: small };
-  var values: [2]i64 = [small, wide];
+  box : Box = Box { value: small };
+  values : [2]i64 = [small, wide];
   return take(small) + box.value + values[0];
 }
 |};
@@ -3729,22 +3689,22 @@ let%expect_test "typecheck: inferred numeric joins ignore source order" =
   run_src
     {|
 fn f(small: i8, wide: i64, single: f32, double: f64) i64 {
-  var a = small + wide;
-  var b = wide + small;
-  var _c = single + double;
-  var _d = double + single;
-  var _e = small < wide;
-  var _f = wide > small;
-  var _g = small & wide;
-  var _h = wide | small;
-  var i = [small, wide];
-  var j = [wide, small];
-  var k = if true { small } else { wide };
-  var l = if true { wide } else { small };
-  var m = match true { true => small, false => wide };
-  var n = match true { true => wide, false => small };
-  var o = loop { if false { break small }; break wide };
-  var p = loop { if false { break wide }; break small };
+  a := small + wide;
+  b := wide + small;
+  _c := single + double;
+  _d := double + single;
+  _e := small < wide;
+  _f := wide > small;
+  _g := small & wide;
+  _h := wide | small;
+  i := [small, wide];
+  j := [wide, small];
+  k := if true { small } else { wide };
+  l := if true { wide } else { small };
+  m := match true { true => small, false => wide };
+  n := match true { true => wide, false => small };
+  o := loop { if false { break small }; break wide };
+  p := loop { if false { break wide }; break small };
   for _index in small..wide {}
   return a + b + i[0] + j[1] + k + l + m + n + o + p;
 }
@@ -3756,53 +3716,53 @@ let%expect_test "typecheck: lossy numeric conversions stay explicit" =
     {|
 fn f(si8: i8, ui8: u8, ui16: u16, si64: i64, size: isize,
     double: f64, integer: i32) {
-  var _a: u16 = si8;
-  var _b: i8 = ui8;
-  var _c: u8 = ui16;
-  var _d: isize = si64;
-  var _e: i64 = size;
-  var _f: f32 = double;
-  var _g: f64 = integer;
+  _a : u16 = si8;
+  _b : i8 = ui8;
+  _c : u8 = ui16;
+  _d : isize = si64;
+  _e : i64 = size;
+  _f : f32 = double;
+  _g : f64 = integer;
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:17
-          var _a: u16 = si8;
-                        ^~~ expected u16, found i8
+      at <test>:4:14
+          _a : u16 = si8;
+                     ^~~ expected u16, found i8
     error: type mismatch
-      at <test>:5:16
-          var _b: i8 = ui8;
-                       ^~~ expected i8, found u8
+      at <test>:5:13
+          _b : i8 = ui8;
+                    ^~~ expected i8, found u8
     error: type mismatch
-      at <test>:6:16
-          var _c: u8 = ui16;
-                       ^~~~ expected u8, found u16
+      at <test>:6:13
+          _c : u8 = ui16;
+                    ^~~~ expected u8, found u16
     error: type mismatch
-      at <test>:7:19
-          var _d: isize = si64;
-                          ^~~~ expected isize, found i64
+      at <test>:7:16
+          _d : isize = si64;
+                       ^~~~ expected isize, found i64
     error: type mismatch
-      at <test>:8:17
-          var _e: i64 = size;
-                        ^~~~ expected i64, found isize
+      at <test>:8:14
+          _e : i64 = size;
+                     ^~~~ expected i64, found isize
     error: type mismatch
-      at <test>:9:17
-          var _f: f32 = double;
-                        ^~~~~~ expected f32, found f64
+      at <test>:9:14
+          _f : f32 = double;
+                     ^~~~~~ expected f32, found f64
     error: type mismatch
-      at <test>:10:17
-          var _g: f64 = integer;
-                        ^~~~~~~ expected f64, found i32
+      at <test>:10:14
+          _g : f64 = integer;
+                     ^~~~~~~ expected f64, found i32
     |}]
 
 let%expect_test "typecheck: numeric joins infer a third safe type" =
   run_src
     {|
 fn f(signed: i32, unsigned: u32) {
-  var _a = signed + unsigned;
-  var _b = unsigned + signed;
+  _a := signed + unsigned;
+  _b := unsigned + signed;
 }
 |};
   [%expect {| ok |}]
@@ -3815,8 +3775,8 @@ let%expect_test "typecheck: loop literals follow a later rigid type" =
   run_src
     {|
 fn f(wide: u64) u64 {
-  var a = loop { if false { break 1 }; break wide };
-  var b = loop { if false { break wide }; break 1 };
+  a := loop { if false { break 1 }; break wide };
+  b := loop { if false { break wide }; break 1 };
   return a + b;
 }
 |};
@@ -3846,18 +3806,18 @@ let%expect_test "typecheck: smallest common integer type" =
     {|
 fn f(si8: i8, si16: i16, si32: i32, si64: i64,
     ui8: u8, ui16: u16, ui32: u32, ui64: u64) {
-  var a = si8 + ui8;
-  var b = si16 + ui16;
-  var c = si32 + ui32;
-  var d = si32 + ui16;
-  var e = si64 + ui32;
-  var g = ui32 + ui64;
-  var _a: i16 = a;
-  var _b: i32 = b;
-  var _c: i64 = c;
-  var _d: i32 = d;
-  var _e: i64 = e;
-  var _g: u64 = g;
+  a := si8 + ui8;
+  b := si16 + ui16;
+  c := si32 + ui32;
+  d := si32 + ui16;
+  e := si64 + ui32;
+  g := ui32 + ui64;
+  _a : i16 = a;
+  _b : i32 = b;
+  _c : i64 = c;
+  _d : i32 = d;
+  _e : i64 = e;
+  _g : u64 = g;
 }
 |};
   [%expect {| ok |}]
@@ -3866,12 +3826,12 @@ let%expect_test "typecheck: common integer type reaches inferred positions" =
   run_src
     {|
 fn f(signed: i32, unsigned: u32) i64 {
-  var a = signed + unsigned;
-  var _b = signed < unsigned;
-  var _c = [signed, unsigned];
-  var d = if true { signed } else { unsigned };
-  var e = match true { true => signed, false => unsigned };
-  var g = loop { if false { break signed }; break unsigned };
+  a := signed + unsigned;
+  _b := signed < unsigned;
+  _c := [signed, unsigned];
+  d := if true { signed } else { unsigned };
+  e := match true { true => signed, false => unsigned };
+  g := loop { if false { break signed }; break unsigned };
   for _index in signed..unsigned {}
   return a + d + e + g;
 }
@@ -3882,20 +3842,20 @@ let%expect_test "typecheck: no common integer type without i128" =
   run_src
     {|
 fn f(signed: i64, unsigned: u64) {
-  var _a = signed + unsigned;
-  var _b = unsigned + signed;
+  _a := signed + unsigned;
+  _b := unsigned + signed;
 }
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:3:21
-          var _a = signed + unsigned;
-                            ^~~~~~~~ expected i64, found u64
+      at <test>:3:18
+          _a := signed + unsigned;
+                         ^~~~~~~~ expected i64, found u64
     error: type mismatch
-      at <test>:4:23
-          var _b = unsigned + signed;
-                              ^~~~~~ expected u64, found i64
+      at <test>:4:20
+          _b := unsigned + signed;
+                           ^~~~~~ expected u64, found i64
     |}]
 
 let%expect_test "typecheck: expected loop result does not widen" =
@@ -3924,7 +3884,7 @@ let%expect_test "typecheck: diverging break value does not fix loop type" =
 fn stop() never { loop {} }
 fn f() {
   loop { if false { break stop() }; break }
-  var _value = 1;
+  _value := 1;
 }
 |};
   [%expect {| ok |}]
@@ -3934,7 +3894,7 @@ let%expect_test "typecheck: widening reaches field assignment" =
     {|
 struct Box { x: i32 }
 fn f(value: i8) i32 {
-  var box: Box;
+  box : Box;
   box.x = value;
   return box.x;
 }
@@ -3948,17 +3908,17 @@ fn take(value: i64) i64 { value }
 fn tail(value: i32) i64 { value }
 fn apply(f: fn (i64) i64, value: i8) i64 { f(value) }
 fn f(small: i8, index: u8) i64 {
-  var left: i64 = 0;
-  var right: i64 = 0;  
+  left : i64 = 0;
+  right : i64 = 0;  
   left = small;
   right = small;
-  var nested: i64 = { small };
-  var negative: i64 = -small;
-  var values: [2]i32 = [small, small];
-  var _element = values[index];
-  var _from = values[index..];
-  var _to = values[..index];
-  var pattern = match 1i64 { 1 => small, _ => 0i64 };
+  nested : i64 = { small };
+  negative : i64 = -small;
+  values : [2]i32 = [small, small];
+  _element := values[index];
+  _from := values[index..];
+  _to := values[..index];
+  pattern := match 1i64 { 1 => small, _ => 0i64 };
   return left + right + nested + negative + pattern +
       tail(small) + apply(take, small);
 }
@@ -3966,7 +3926,7 @@ fn f(small: i8, index: u8) i64 {
   [%expect {| ok |}]
 
 let%expect_test "typecheck: shift count must be an integer" =
-  run_src "fn f() i32 { var a: i32 = 1;\n  return a << 1.0 }";
+  run_src "fn f() i32 { a : i32 = 1;\n  return a << 1.0 }";
   [%expect
     {|
     error: shift count must be an integer
@@ -3976,7 +3936,7 @@ let%expect_test "typecheck: shift count must be an integer" =
     |}]
 
 let%expect_test "typecheck: compound shift count must be an integer" =
-  run_src "fn f() { var a: i32 = 1;\n  a <<= 1.0 }";
+  run_src "fn f() { a : i32 = 1;\n  a <<= 1.0 }";
   [%expect
     {|
     error: shift count must be an integer
@@ -4064,7 +4024,7 @@ let%expect_test "typecheck: an unknown return type hides the missing value" =
   run_src
     "fn f() nope { if true { return 1 } }\n\
      fn g() nope { loop { break } }\n\
-     fn h() { var _p = *f }";
+     fn h() { _p := *f }";
   [%expect
     {|
     error: undefined type

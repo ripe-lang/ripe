@@ -1,7 +1,7 @@
 fn main() i32 {
-  var x = {
-    var inner = {
-      var a = 2;
+  x := {
+    inner := {
+      a := 2;
       a + 3
     };
     inner * 4

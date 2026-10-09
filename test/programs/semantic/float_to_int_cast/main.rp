@@ -1,5 +1,5 @@
 fn main() i32 {
-  var f: f64 = 2.5;
-  var g: f64 = f * 2.0;
+  f : f64 = 2.5;
+  g : f64 = f * 2.0;
   return cast(i32, g);
 }

@@ -1,7 +1,7 @@
 fn main() i32 {
-  var n = 7;
-  var scaled = if n > 5 {
-    var factor = 4;
+  n := 7;
+  scaled := if n > 5 {
+    factor := 4;
     n * factor
   } else {
     n

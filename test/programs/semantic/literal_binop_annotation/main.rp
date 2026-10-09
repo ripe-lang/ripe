@@ -1,16 +1,16 @@
 // BROKEN: a global init can't be an expression yet
 
-var A: i64 = 1 + 2;
+A : i64 = 1 + 2;
 
 fn main() i32 {
-  var a: i64 = 1 + 2;
+  a : i64 = 1 + 2;
   if a != 3 { return 1 }
   if A != 3 { return 2 }
 
-  var b: i64 = (1 + 2) * 3 - 4;
+  b : i64 = (1 + 2) * 3 - 4;
   if b != 5 { return 3 }
 
-  var c: u8 = 1 & 3 | 4;
+  c : u8 = 1 & 3 | 4;
   if c != 5 { return 4 }
 
   return 0;

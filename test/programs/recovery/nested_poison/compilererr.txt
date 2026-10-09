@@ -1,12 +1,12 @@
 error: undefined type
-  at main.rp:2:11
-      var p: *nosuch = null;
-              ^~~~~~
+  at main.rp:2:8
+      p : *nosuch = null;
+           ^~~~~~
 error: undefined type
-  at main.rp:3:13
-      var a: [1]nosuch;
+  at main.rp:3:10
+      a : [1]nosuch;
+             ^~~~~~
+error: undefined type
+  at main.rp:4:13
+      f : fn () nosuch;
                 ^~~~~~
-error: undefined type
-  at main.rp:4:16
-      var f: fn () nosuch;
-                   ^~~~~~

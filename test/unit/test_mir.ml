@@ -159,7 +159,7 @@ let%expect_test "mir: continue uses one shared step block" =
   Pipeline.run_mir
     {|
 fn f() i32 {
-  var sum: i32 = 0;
+  sum : i32 = 0;
   for i in 0..5 {
     if i == 2 { continue }
     sum += i;
@@ -217,7 +217,7 @@ let%expect_test "mir: labeled break targets the outer loop" =
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var n = 0;
+  n := 0;
   outer: loop {
     loop {
       n += 1;
@@ -271,9 +271,9 @@ let%expect_test "mir: labeled break writes the outer loop value" =
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var i = 0;
-  var found = outer: loop {
-    var j = 0;
+  i := 0;
+  found := outer: loop {
+    j := 0;
     loop {
       j += 1;
       if j == 4 { break :outer i * 100 + j }
@@ -393,8 +393,8 @@ let%expect_test "mir: a positional struct literal lowers like a named one" =
 struct pair { x: i32, y: i32 }
 
 fn f(a: i32, b: i32) i32 {
-  var positional = pair { a, b };
-  var named = pair { y: b, x: a };
+  positional := pair { a, b };
+  named := pair { y: b, x: a };
   return positional.x + named.y;
 }
 |};
@@ -569,7 +569,7 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
     {|fn f() i32 {
-  var t: i32 = 0;
+  t : i32 = 0;
   for i in 0..3 { t += i }
   return t;
 }|};
@@ -609,7 +609,7 @@ let%expect_test "mir: a range for counts without a bounds check" =
 let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
     {|fn f() i32 {
-  var t: i32 = 0;
+  t : i32 = 0;
   for i in 0..=3 { t += i }
   return t;
 }|};
@@ -654,7 +654,7 @@ let%expect_test "mir: an inclusive range stops one step later" =
 let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
     {|fn f(a: [3]i32) i32 {
-  var t: i32 = 0;
+  t : i32 = 0;
   for v in a { t += v }
   return t;
 }|};
@@ -722,7 +722,7 @@ let%expect_test "mir: a slice expression carries a base and a length" =
 let%expect_test "mir: a compound assign reuses the place it writes" =
   Pipeline.run_mir
     {|fn f() i32 {
-  var a: [2]i32 = [1, 2];
+  a : [2]i32 = [1, 2];
   a[0] += 5;
   return a[0];
 }|};
@@ -796,9 +796,8 @@ fn f() i32 { return printf("%d %d\n", 1, 2) }|};
     |}]
 
 let%expect_test "mir: an array literal writes each element in order" =
-  Pipeline.run_mir
-    {|fn f() i32 {
-  var a: [3]i32 = [7, 8, 9];
+  Pipeline.run_mir {|fn f() i32 {
+  a : [3]i32 = [7, 8, 9];
   return a[1];
 }|};
   [%expect
@@ -823,7 +822,7 @@ let%expect_test "mir: an array literal writes each element in order" =
 let%expect_test "mir: a loop yields the value its break carries" =
   Pipeline.run_mir
     {|fn f() i32 {
-  var n = 0;
+  n := 0;
   return loop {
     n += 1;
     if n == 3 { break n }

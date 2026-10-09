@@ -1,5 +1,5 @@
 fn main() i32 {
   type A = %%T%%;
-  var _v: A = %%L%%;
+  _v : A = %%L%%;
   return 0;
 }

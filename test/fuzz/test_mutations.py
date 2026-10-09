@@ -37,7 +37,6 @@ ALPHABET = (
     "struct",
     "enum",
     "type",
-    "var",
     "return",
     "if",
     "else",

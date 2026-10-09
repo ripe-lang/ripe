@@ -43,7 +43,7 @@ let is_type_start = function
   | _ -> false
 
 let is_stmt_keyword = function
-  | VAR | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH -> true
+  | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH -> true
   | _ -> false
 
 let is_stmt_start tok = is_expr_start tok || is_stmt_keyword tok
@@ -115,8 +115,6 @@ let opens_struct_lit st =
 
 let opens_struct_field st =
   match (peek_token st, (peek_nth st 1).token) with
-  | IDENT _, COLON -> (
-      match (peek_nth st 2).token with WHILE | FOR | LOOP -> false | _ -> true)
   | tok, COMMA -> is_expr_start tok
   | _ -> false
 
@@ -246,13 +244,6 @@ and binding_name st context =
       spanned (Interner.intern "_") span
   | _ -> expect_ident_span st
 
-and binding_annotation st =
-  match (cur_token st, peek_token st) with
-  | COLON, _ -> Some (typ_after st COLON)
-  | IDENT _, (ASSIGN | SEMI | RBRACE | EOF | DOT) ->
-      Diagnostic.error (cur_span st) "expected `:`" |> found st |> fail
-  | _ -> None
-
 and binding_initializer st =
   expect st ASSIGN;
   parse_expr st
@@ -300,16 +291,16 @@ and parse_typ st =
         { inner with tspan = span_from lo st }
   | _ -> Diagnostic.error (cur_span st) "expected type" |> found st |> fail
 
-(* var x: i32, var x = 42, var x *)
+(* x : i32, x : i32 = 42, x := 42 *)
 and parse_binding st context =
-  expect st VAR;
   let name = binding_name st context in
-  begin match (cur_token st, peek_token st) with
-  | IDENT _, (IDENT _ | COLON) ->
-      Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail
-  | _ -> ()
-  end;
-  let typ = binding_annotation st in
+  let typ =
+    if peek_token st == ASSIGN then begin
+      expect st COLON;
+      None
+    end
+    else Some (typ_after st COLON)
+  in
   let init = if at st ASSIGN then Some (binding_initializer st) else None in
   (name, typ, init)
 
@@ -747,7 +738,7 @@ and parse_stmts st =
   skip_semi st;
   go ()
 
-(* var n = 1, if c { }, return x *)
+(* n := 1, if c { }, return x *)
 and parse_stmt st =
   let lo = cur_pos st in
   match cur_token st with
@@ -756,11 +747,14 @@ and parse_stmt st =
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
   | LOOP -> Expr (parse_loop st)
-  | IDENT _ when peek_token st == COLON -> Expr (parse_labeled_loop st)
+  | IDENT _
+    when peek_token st == COLON
+         && List.mem (peek_nth st 1).token [ WHILE; FOR; LOOP ] ->
+      Expr (parse_labeled_loop st)
   | LBRACE ->
       let body = (parse_block st).value in
       Expr (mk lo st (Block body))
-  | VAR ->
+  | (IDENT _ | UNDERSCORE) when peek_token st == COLON ->
       let name, ann, e = parse_binding st LocalBinding in
       Expr (mk lo st (Binding (name, ann, e)))
   | BREAK ->
@@ -915,7 +909,7 @@ and parse_labeled_loop st =
       Diagnostic.error (cur_span st) "expected a loop after a label"
       |> found st |> fail
 
-(* var n: i32 = 0, var flag: bool *)
+(* n : i32 = 0, flag : bool *)
 let parse_global st =
   let lo = cur_pos st in
   let name, typ, init = parse_binding st GlobalBinding in
@@ -925,7 +919,7 @@ let parse_global st =
 let parse_decl st =
   let abi = parse_decl_abi st in
   begin match cur_token st with
-  | STRUCT | VAR | TYPE | ENUM -> abi_wants_func st abi
+  | STRUCT | IDENT _ | TYPE | ENUM -> abi_wants_func st abi
   | _ -> ()
   end;
   match cur_token st with
@@ -933,13 +927,13 @@ let parse_decl st =
       let fd, imported = parse_func_def st abi in
       if imported then Extern fd else Func fd
   | STRUCT -> Struct (parse_struct_def st)
-  | VAR -> parse_global st
+  | IDENT _ -> parse_global st
   | TYPE -> TypeAlias (parse_alias_def st)
   | ENUM -> Enum (parse_enum_def st)
   | _ ->
       Diagnostic.error (cur_span st) "expected declaration" |> found st |> fail
 
-(* var n = 0; fn f() { } *)
+(* n := 0; fn f() { } *)
 let parse_file st =
   skip_semi st;
   let decls = ref [] in

@@ -1,16 +1,16 @@
 fn main() i32 {
-  var p: *nosuch = null;
-  var a: [1]nosuch;
-  var f: fn () nosuch;
-  var _x = p.field;
-  var _y = *p;
-  var _z = f();
-  var _w = a[0];
-  var _v = cast(i32, p);
-  var _u = -p;
-  var _t = a.ptr;
-  var _s = a[0..1];
-  var _r = [p, p];
-  var _q = &p;
+  p : *nosuch = null;
+  a : [1]nosuch;
+  f : fn () nosuch;
+  _x := p.field;
+  _y := *p;
+  _z := f();
+  _w := a[0];
+  _v := cast(i32, p);
+  _u := -p;
+  _t := a.ptr;
+  _s := a[0..1];
+  _r := [p, p];
+  _q := &p;
   return 0;
 }

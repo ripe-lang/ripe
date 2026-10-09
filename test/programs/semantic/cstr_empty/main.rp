@@ -1,7 +1,7 @@
 extern "C" fn strlen(s: cstr) i32;
 
 fn main() i32 {
-  var empty: cstr = "";
-  var hello: cstr = "hello";
+  empty : cstr = "";
+  hello : cstr = "hello";
   return strlen(empty) + strlen(hello);
 }

@@ -1,4 +1,4 @@
 error: expected `;`
-  at main.rp:1:16
-    var total: i32 struct 3;
-                   ^~~~~~ found `struct`
+  at main.rp:1:13
+    total : i32 struct 3;
+                ^~~~~~ found `struct`

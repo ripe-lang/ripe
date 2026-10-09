@@ -14,22 +14,22 @@ extern "C" fn c_blend(m: Mixed) Mixed;
 extern "C" fn c_bump(w: *Wide);
 
 fn main() i32 {
-  var p: Point = c_shift(Point{x: 10, y: 20}, 5);
+  p : Point = c_shift(Point{x: 10, y: 20}, 5);
   printf("point %ld %ld\n", cast(i64, p.x), cast(i64, p.y));
 
-  var w: Wide = c_widen(Wide{a: 100, b: 200});
+  w : Wide = c_widen(Wide{a: 100, b: 200});
   printf("wide %ld %ld\n", w.a, w.b);
 
-  var b: Big = c_grow(Big{a: 1, b: 2, c: 3}, 10);
+  b : Big = c_grow(Big{a: 1, b: 2, c: 3}, 10);
   printf("big %ld %ld %ld\n", b.a, b.b, b.c);
 
-  var f: Pair = c_scale(Pair{x: 1.5, y: 2.5}, 4.0);
+  f : Pair = c_scale(Pair{x: 1.5, y: 2.5}, 4.0);
   printf("pair %ld %ld\n", cast(i64, f.x), cast(i64, f.y));
 
-  var m: Mixed = c_blend(Mixed{n: 7, f: 0.25});
+  m : Mixed = c_blend(Mixed{n: 7, f: 0.25});
   printf("mixed %ld %ld\n", cast(i64, m.n), cast(i64, m.f * 100.0));
 
-  var own: Wide = Wide{a: 41, b: 51};
+  own : Wide = Wide{a: 41, b: 51};
   c_bump(&own);
   printf("bump %ld %ld\n", own.a, own.b);
   return 0;

@@ -1,4 +1,4 @@
 fn main() i32 {
-  var v: ptr = sizeof(i8);
+  v : ptr = sizeof(i8);
   return 0;
 }

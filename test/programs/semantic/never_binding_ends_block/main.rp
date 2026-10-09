@@ -3,7 +3,7 @@ extern "C" fn exit(code: i32) never;
 
 fn main() i32 {
   printf("before\n");
-  var _x: never = exit(4);
+  _x : never = exit(4);
   printf("after\n");
   return 0;
 }

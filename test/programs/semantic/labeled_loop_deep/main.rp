@@ -1,7 +1,7 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
-  var n = 0;
+  n := 0;
   a: for i in 0..3 {
     b: for j in 0..3 {
       for k in 0..3 {

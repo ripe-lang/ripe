@@ -8,6 +8,6 @@ fn apply(f: binop, a: i32, b: i32) i32 {
 }
 
 fn main() i32 {
-  var op: binop = mul;
+  op : binop = mul;
   return apply(op, 6, 7);
 }

@@ -1,6 +1,6 @@
 struct Point { x: i32, y: i32 }
 fn main() i32 {
-  var p: *Point = null;
-  var q: Point = *p;
+  p : *Point = null;
+  q : Point = *p;
   return q.x;
 }

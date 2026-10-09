@@ -12,6 +12,6 @@ fn sum_pair(value: pair) i32 {
 }
 
 fn main() i32 {
-  var make: fn (i32, i32) pair = make_pair;
+  make : fn (i32, i32) pair = make_pair;
   return sum_pair(make(8, 13));
 }

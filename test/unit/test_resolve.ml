@@ -12,7 +12,7 @@ let decl_name_span = function
 
 let%expect_test "resolve: global and function collide" =
   run_src {|
-var x: i32 = 1;
+x : i32 = 1;
 fn x() i32 { return 0 }
 |};
   [%expect
@@ -21,22 +21,22 @@ fn x() i32 { return 0 }
       at <test>:3:4
         fn x() i32 { return 0 }
            ^
-      at <test>:2:5
-        var x: i32 = 1;
-            ^ previous definition here
+      at <test>:2:1
+        x : i32 = 1;
+        ^ previous definition here
     |}]
 
 let%expect_test "resolve: collision reported in either order" =
   run_src {|
 fn x() i32 { return 0 }
-var x: i32 = 1;
+x : i32 = 1;
 |};
   [%expect
     {|
     error: already defined
-      at <test>:3:5
-        var x: i32 = 1;
-            ^
+      at <test>:3:1
+        x : i32 = 1;
+        ^
       at <test>:2:4
         fn x() i32 { return 0 }
            ^ previous definition here
@@ -75,22 +75,20 @@ fn f(a: i32) i32 { return a }
     |}]
 
 let%expect_test "resolve: nested block shadow does not leak" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var x: i32 = 1;
-  { var x: i32 = 2 }
+  x : i32 = 1;
+  { x : i32 = 2 }
   return x;
 }
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: same scope redeclare reads old binding" =
-  run_src
-    {|
+  run_src {|
 fn main() i32 {
-  var x: i32 = 1;
-  var x: i32 = x + 4;
+  x : i32 = 1;
+  x : i32 = x + 4;
   return x;
 }
 |};
@@ -100,7 +98,7 @@ let%expect_test "resolve: loop variable is scoped to the loop" =
   run_src
     {|
 fn main() i32 {
-  var i: i32 = 99;
+  i : i32 = 99;
   for i in 0..3 { }
   return i;
 }
@@ -128,7 +126,7 @@ let%expect_test "resolve: address of a function lowers" =
     {|
 fn g() i32 { return 7 }
 fn main() i32 {
-  var _p = &g;
+  _p := &g;
   return 0;
 }
 |};
@@ -154,12 +152,12 @@ fn main() i32 {
     }
     |}]
 
-let%expect_test "resolve: var shadowing a global is assignable" =
+let%expect_test "resolve: a binding shadowing a global is assignable" =
   run_src
     {|
-var C: i32 = 5;
+C : i32 = 5;
 fn main() i32 {
-  var C: i32 = 1;
+  C : i32 = 1;
   C = 2;
   return C;
 }
@@ -222,9 +220,9 @@ let%expect_test "resolve: shadow inside if body does not leak" =
   run_src
     {|
 fn main() i32 {
-  var x: i32 = 1;
+  x : i32 = 1;
   if x > 0 {
-    var x: i32 = 2;
+    x : i32 = 2;
     x = x + 1;
   }
   return x;
@@ -236,9 +234,9 @@ let%expect_test "resolve: shadow inside while body does not leak" =
   run_src
     {|
 fn main() i32 {
-  var x: i32 = 0;
+  x : i32 = 0;
   while x < 3 {
-    var y: i32 = x;
+    y : i32 = x;
     x = y + 1;
   }
   return x;
@@ -250,9 +248,9 @@ let%expect_test "resolve: local inside for body does not leak" =
   run_src
     {|
 fn main() i32 {
-  var sum: i32 = 0;
+  sum : i32 = 0;
   for i in 0..3 {
-    var t: i32 = i;
+    t : i32 = i;
     sum = sum + t;
   }
   return sum;
@@ -264,7 +262,7 @@ let%expect_test "resolve: loop variable is not visible after the loop" =
   run_src
     {|
 fn main() i32 {
-  var s: i32 = 0;
+  s : i32 = 0;
   for i in 0..3 { s = s + i }
   return i;
 }
@@ -288,11 +286,11 @@ let%expect_test "resolve: same local name in two functions" =
   run_src
     {|
 fn a() i32 {
-  var x: i32 = 1;
+  x : i32 = 1;
   return x;
 }
 fn b() i32 {
-  var x: i32 = 2;
+  x : i32 = 2;
   return x;
 }
 fn main() i32 { return a() + b() }
@@ -313,7 +311,7 @@ fn main() i32 { return nope() }
 
 let%expect_test "resolve: global is visible in a function" =
   run_src {|
-var C: i32 = 5;
+C : i32 = 5;
 fn main() i32 { return C }
 |};
   [%expect {| ok |}]
@@ -323,7 +321,7 @@ let%expect_test "resolve: nested block reads the enclosing param" =
     {|
 fn f(a: i32) i32 {
   {
-    var a: i32 = a + 1;
+    a : i32 = a + 1;
     return a;
   }
 }
@@ -371,7 +369,7 @@ let%expect_test "resolve: a local function may call a later sibling" =
 
 let%expect_test "resolve: a local function cannot capture a variable" =
   run_src {|fn f() i32 {
-  var x = 4;
+  x := 4;
   fn read() i32 { x }
   read()
 }|};
@@ -386,21 +384,21 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 let%expect_test "resolve: a local declaration stays in its block" =
   run_src {|fn f() {
   { type Coord = i32 }
-  var x: Coord = 1;
+  x : Coord = 1;
 }|};
   [%expect
     {|
     error: undefined type
-      at <test>:3:10
-          var x: Coord = 1;
-                 ^~~~~
+      at <test>:3:7
+          x : Coord = 1;
+              ^~~~~
     |}]
 
 let%expect_test "resolve: a captured variable shadows a module function" =
   run_src
     {|fn x() i32 { 7 }
 fn outer() i32 {
-  var x = 1;
+  x := 1;
   fn inner() i32 { x() }
   inner()
 }|};

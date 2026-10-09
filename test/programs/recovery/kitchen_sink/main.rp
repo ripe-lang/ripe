@@ -4,17 +4,17 @@ struct point { 99: i32,
 
 enum color { 88, Green }
 
-var LIMIT: i32 =
+LIMIT : i32 =
 
 fn scale(n: i32) i32
   return n * 2;
 
-fn bad() i32 { var z: i32 = ; return z }
+fn bad() i32 { z : i32 = ; return z }
 
 fn main() i32 {
-  var p = point { 5, 4 };
-  var c = color.Green;
-  var s = scale(2);
-  var b = bad();
+  p := point { 5, 4 };
+  c := color.Green;
+  s := scale(2);
+  b := bad();
   return p.y + s + b + LIMIT;
 }

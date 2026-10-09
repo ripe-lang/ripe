@@ -1,7 +1,7 @@
 fn main() i32 {
-  var p: *i32 = null;
-  var n: i32 = 5;
-  var q: *i32 = &n;
+  p : *i32 = null;
+  n : i32 = 5;
+  q : *i32 = &n;
   if null == p { } else { return 1 }
   if p == null { } else { return 2 }
   if null == q { return 3 }

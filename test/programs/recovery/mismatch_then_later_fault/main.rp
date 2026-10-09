@@ -3,4 +3,4 @@ fn scale(n: i32 i32 {
   return n * 2;
 }
 
-fn bad() i32 { var z: i32 = ; return z }
+fn bad() i32 { z : i32 = ; return z }

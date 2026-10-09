@@ -1,3 +1,0 @@
-var counter: i32 =
-fn scale(n: i32) i32 { return n }
-fn main() i32 { return scale(1) + counter }

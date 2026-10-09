@@ -6,9 +6,9 @@ fn emit(s: str) i64 {
 
 fn main() i32 {
   emit("param\n");
-  var annotated: str = "annotated\n";
+  annotated : str = "annotated\n";
   write(1, annotated.ptr, annotated.len);
-  var first: u8 = *annotated.ptr;
-  var empty: str = "";
+  first : u8 = *annotated.ptr;
+  empty : str = "";
   return cast(i32, first) - cast(i32, empty.len);
 }

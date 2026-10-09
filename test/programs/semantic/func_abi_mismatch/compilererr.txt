@@ -1,4 +1,4 @@
 error: type mismatch
-  at main.rp:3:36
-      var g: extern "C" fn (i32) i32 = twice;
-                                       ^~~~~ expected extern "C" fn (i32) i32, found fn (i32) i32
+  at main.rp:3:33
+      g : extern "C" fn (i32) i32 = twice;
+                                    ^~~~~ expected extern "C" fn (i32) i32, found fn (i32) i32

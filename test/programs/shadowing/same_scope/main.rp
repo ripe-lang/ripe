@@ -1,5 +1,5 @@
 fn main() i32 {
-  var x: i32 = 1;
-  var x: i32 = x + 4;
+  x : i32 = 1;
+  x : i32 = x + 4;
   return x;
 }

@@ -1,7 +1,7 @@
 extern "C" fn exit(code: i32) never;
 
 fn pick(a: bool, b: bool) i32 {
-  var y = if a {
+  y := if a {
     if b { 10 } else { exit(1) }
   } else {
     20

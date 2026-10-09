@@ -1,6 +1,6 @@
 extern "C" fn exit(code: i32) never;
 
 fn main() i32 {
-  var _y = if true { exit(3) } else { exit(4) };
+  _y := if true { exit(3) } else { exit(4) };
   return 99;
 }

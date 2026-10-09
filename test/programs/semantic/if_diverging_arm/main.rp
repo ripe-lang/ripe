@@ -1,5 +1,5 @@
 fn clamp_low(x: i32) i32 {
-  var y: i32 = if x < 0 { return 7 } else { x };
+  y : i32 = if x < 0 { return 7 } else { x };
   return y + 1;
 }
 

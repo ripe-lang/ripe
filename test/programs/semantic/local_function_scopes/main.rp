@@ -1,10 +1,10 @@
 fn main() i32 {
-  var first = {
+  first := {
     fn value() i32 { 8 }
     value()
   };
 
-  var second = {
+  second := {
     fn value() i32 { 10 }
     value()
   };

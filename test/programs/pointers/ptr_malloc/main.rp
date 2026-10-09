@@ -3,7 +3,7 @@ extern "C" fn malloc(n: usize) ptr;
 struct point { x: i32, y: i32 }
 
 fn main() i32 {
-  var p: *point = cast(*point, malloc(sizeof(point)));
+  p : *point = cast(*point, malloc(sizeof(point)));
   p.x = 40;
   p.y = 2;
   return p.x + p.y;

@@ -1,7 +1,7 @@
 error: mismatched closing delimiter
-  at main.rp:2:38
-      var _p = cast(*{i32, cast(usize, 0));
-                                         ^ expected `}`
-  at main.rp:2:18
-      var _p = cast(*{i32, cast(usize, 0));
-                     ^ to match this `{`
+  at main.rp:2:35
+      _p := cast(*{i32, cast(usize, 0));
+                                      ^ expected `}`
+  at main.rp:2:15
+      _p := cast(*{i32, cast(usize, 0));
+                  ^ to match this `{`

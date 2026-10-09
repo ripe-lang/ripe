@@ -3,6 +3,6 @@ error: expected identifier
     struct 3point { x: i32 }
            ^ found 3
 error: undefined struct
-  at main.rp:3:11
-      var p = point { 5 };
-              ^~~~~
+  at main.rp:3:8
+      p := point { 5 };
+           ^~~~~

@@ -1,4 +1,4 @@
 error: unterminated string
-  at main.rp:2:11
-      var s = "oops
-              ^~~~~
+  at main.rp:2:8
+      s := "oops
+           ^~~~~

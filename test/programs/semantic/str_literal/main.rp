@@ -3,8 +3,8 @@ fn take(s: str) usize {
 }
 
 fn main() i32 {
-  var a: str = "hello";
-  var b: str = a;
-  var empty: str = "";
+  a : str = "hello";
+  b : str = a;
+  empty : str = "";
   return cast(i32, a.len + take(b) + take("héllo") + empty.len);
 }

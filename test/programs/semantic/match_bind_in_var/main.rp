@@ -1,5 +1,5 @@
 fn f(n: i64) i64 {
-  var o = match n { 0 => 2, x => x * 3, };
+  o := match n { 0 => 2, x => x * 3, };
   return o;
 }
 

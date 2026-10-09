@@ -81,7 +81,7 @@ let%expect_test "reachability: an inner loop with the same label shadows it" =
   [%expect {| false |}]
 
 let%expect_test "reachability: a break hides in an initializer or a return" =
-  breaks "while true { var x = if y { break } else { 1 } }";
+  breaks "while true { x := if y { break } else { 1 } }";
   breaks "while true { return }";
   [%expect {|
     true

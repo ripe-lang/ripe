@@ -3,14 +3,14 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 fn takef(x: f32) f32 { return x }
 
 fn main() i32 {
-  var a: f32 = 1;
-  var b: f64 = 2;
-  var c: f32 = 1.5;
-  var d = c + 1;
-  var e = 1 + c;
-  var f: f64 = -3;
-  var g: f32 = 16777216;
-  var h: f64 = 9007199254740992;
+  a : f32 = 1;
+  b : f64 = 2;
+  c : f32 = 1.5;
+  d := c + 1;
+  e := 1 + c;
+  f : f64 = -3;
+  g : f32 = 16777216;
+  h : f64 = 9007199254740992;
   printf("%f %f %f %f %f %f %f\n", cast(f64, a), b, cast(f64, takef(7)), cast(f64, d),
     cast(f64, e), f, cast(f64, g));
   printf("%f\n", h);

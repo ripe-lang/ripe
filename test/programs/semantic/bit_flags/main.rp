@@ -1,6 +1,6 @@
-var PRESENT: i32 = 1;
-var WRITABLE: i32 = 2;
-var USER: i32 = 4;
+PRESENT : i32 = 1;
+WRITABLE : i32 = 2;
+USER : i32 = 4;
 
 fn has_flag(flags: i32, flag: i32) bool {
   return flags & flag != 0;
@@ -19,7 +19,7 @@ fn align_up(val: i32, align: i32) i32 {
 }
 
 fn main() i32 {
-  var flags: i32 = 0;
+  flags : i32 = 0;
   flags = set_flag(flags, PRESENT);
   flags = set_flag(flags, WRITABLE);
   flags = clear_flag(flags, WRITABLE);

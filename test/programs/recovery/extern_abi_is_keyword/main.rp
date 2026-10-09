@@ -1,5 +1,5 @@
 extern struct fn puts(s: *i8) i32;
 fn main() i32 {
-  var msg = "hi";
+  msg := "hi";
   return 0;
 }
