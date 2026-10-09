@@ -32,9 +32,9 @@ let mkt lo st tdesc = { tdesc; tspan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
-  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF
-  | LBRACE | LOOP | WHILE | FOR | MATCH ->
+  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | MINUS | STAR | AMP | TILDE
+  | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF | LBRACE
+  | LOOP | WHILE | FOR | MATCH ->
       true
   | _ -> false
 
@@ -401,7 +401,6 @@ and parse_params st =
 (* i32 *)
 and parse_ret_type st =
   match cur_token st with
-  | LBRACE | SEMI | EOF | ASSIGN -> None
   | FUNC when is_member_start (peek_token st) -> None
   | tok when not (is_type_start tok) -> None
   | _ -> Some (parse_typ st)
@@ -748,7 +747,6 @@ and parse_stmt st =
       advance st;
       if at_value_end st then Expr (mk lo st (Return None))
       else Expr (mk lo st (Return (Some (parse_expr st))))
-  | FUNC when peek_token st == LPAREN -> Expr (parse_expr st)
   | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
   | _ -> Expr (parse_expr st)
 
