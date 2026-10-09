@@ -152,7 +152,7 @@ fn main() i32 {
     }
     |}]
 
-let%expect_test "resolve: var shadowing a global is assignable" =
+let%expect_test "resolve: a binding shadowing a global is assignable" =
   run_src
     {|
 C : i32 = 5;

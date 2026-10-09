@@ -302,7 +302,7 @@ fn f() i32 { return X }
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global var read and write" =
+let%expect_test "typecheck: global read and write" =
   run_src {|
 n : i32 = 0;
 fn f() i32 {
@@ -312,7 +312,7 @@ fn f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: global var zero init" =
+let%expect_test "typecheck: global zero init" =
   run_src {|
 flag : bool;
 fn f() bool { return flag }
@@ -326,7 +326,7 @@ X : i32 = 7;
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: write to a var struct field" =
+let%expect_test "typecheck: write to a binding's struct field" =
   run_src
     {|
 struct P { x: i32, y: i32 }
@@ -337,7 +337,7 @@ fn f() {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: write to a var array element" =
+let%expect_test "typecheck: write to a binding's array element" =
   run_src {|
 fn f() {
   arr : [3]i32 = [1, 2, 3];
@@ -468,7 +468,7 @@ a : [1.5]i32;
              ^~~
     |}]
 
-let%expect_test "typecheck: array size names a var" =
+let%expect_test "typecheck: array size names a global" =
   run_src {|
 n : i32 = 3;
 a : [n]i32;
@@ -717,7 +717,7 @@ fn f() i32 {
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: type annot mismatch on var" =
+let%expect_test "typecheck: type annot mismatch on a binding" =
   run_src "fn f() { x : bool = 1 }";
   [%expect
     {|
@@ -1469,7 +1469,7 @@ fn f() {
                ^~~~
     |}]
 
-let%expect_test "typecheck: var global struct literal" =
+let%expect_test "typecheck: global struct literal" =
   run_src
     {|
 struct pt { x: i32, y: i32 }
@@ -2287,7 +2287,7 @@ let%expect_test "typecheck: assign to for loop variable" =
                                  ^
     |}]
 
-let%expect_test "typecheck: a never var needs a diverging init" =
+let%expect_test "typecheck: a never binding needs a diverging init" =
   run_src "fn f() { x : never = 0 }";
   [%expect
     {|
@@ -2297,7 +2297,7 @@ let%expect_test "typecheck: a never var needs a diverging init" =
                              ^ expected never, found i32
     |}]
 
-let%expect_test "typecheck: never as a var type" =
+let%expect_test "typecheck: never as a binding type" =
   run_src {|
 fn d() never { loop {} }
 fn f() { _x : never = d() }
