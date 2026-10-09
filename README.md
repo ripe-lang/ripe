@@ -1,11 +1,8 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_light.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_dark.png">
-    <img alt="Ripe: A systems programming language"
-         src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_dark.png"
-         width="50%">
-  </picture>
+  <img alt="Ripe: A systems programming language" width="50%"
+       src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_light.png#gh-dark-mode-only">
+  <img alt="Ripe: A systems programming language" width="50%"
+       src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_dark.png#gh-light-mode-only">
 </div>
 
 A systems programming language.
