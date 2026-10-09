@@ -1,0 +1,2 @@
+extern "C" fn abort()
+fn main() i32 { return 0 }

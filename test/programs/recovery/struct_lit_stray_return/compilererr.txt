@@ -1,0 +1,4 @@
+error: expected expression
+  at main.rp:3:16
+      p := point { return 1 };
+                   ^~~~~~ found `return`

@@ -32,9 +32,9 @@ let mkt lo st tdesc = { tdesc; tspan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
-  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
-  | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF
-  | LBRACE | LOOP | WHILE | FOR | MATCH ->
+  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | MINUS | STAR | AMP | TILDE
+  | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF | LBRACE
+  | LOOP | WHILE | FOR | MATCH ->
       true
   | _ -> false
 
@@ -42,11 +42,6 @@ let is_type_start = function
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
 
-let is_stmt_keyword = function
-  | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH -> true
-  | _ -> false
-
-let is_stmt_start tok = is_expr_start tok || is_stmt_keyword tok
 let is_member_start = function IDENT _ -> true | _ -> false
 
 let ends_in_block = function
@@ -102,10 +97,6 @@ let skip_semi st =
   while at st SEMI do
     advance st
   done
-
-let opens_struct_lit st =
-  let tok = peek_token st in
-  not (is_stmt_start tok && not (is_expr_start tok))
 
 let opens_struct_field st =
   match (peek_token st, (peek_nth st 1).token) with
@@ -410,7 +401,6 @@ and parse_params st =
 (* i32 *)
 and parse_ret_type st =
   match cur_token st with
-  | LBRACE | SEMI | EOF | ASSIGN -> None
   | FUNC when is_member_start (peek_token st) -> None
   | tok when not (is_type_start tok) -> None
   | _ -> Some (parse_typ st)
@@ -529,14 +519,13 @@ and parse_path st context lhs head =
   else if not (at st LBRACE) then lhs
   else
     match context with
-    | NormalExpression when opens_struct_lit st ->
-        parse_struct_lit st lo (spanned head lhs.span)
+    | NormalExpression -> parse_struct_lit st lo (spanned head lhs.span)
     | HeaderExpression when opens_struct_field st ->
         Diagnostic.error (cur_span st) "a struct literal can't go in a header"
         |> Diagnostic.label "this `{` starts the body"
         |> Diagnostic.help "wrap the literal in parentheses"
         |> fail
-    | NormalExpression | HeaderExpression -> lhs
+    | HeaderExpression -> lhs
 
 (* x.field, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =
@@ -758,7 +747,6 @@ and parse_stmt st =
       advance st;
       if at_value_end st then Expr (mk lo st (Return None))
       else Expr (mk lo st (Return (Some (parse_expr st))))
-  | FUNC when peek_token st == LPAREN -> Expr (parse_expr st)
   | FUNC | STRUCT | TYPE | ENUM | EXTERN -> parse_local_decl st
   | _ -> Expr (parse_expr st)
 
