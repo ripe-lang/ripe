@@ -1,3 +1,4 @@
 fn main() i32 {
-  outer: return 0;
+  if :outer true { }
+  return 0;
 }

@@ -218,7 +218,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   n := 0;
-  outer: loop {
+  loop :outer {
     loop {
       n += 1;
       if n == 4 { break :outer }
@@ -272,7 +272,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   i := 0;
-  found := outer: loop {
+  found := loop :outer {
     j := 0;
     loop {
       j += 1;

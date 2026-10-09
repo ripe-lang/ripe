@@ -3,7 +3,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 fn main() i32 {
   i := 0;
   steps := 0;
-  outer: while i < 5 {
+  while :outer i < 5 {
     i += 1;
     j := 0;
     while j < 5 {

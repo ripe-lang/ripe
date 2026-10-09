@@ -1,4 +1,4 @@
-error: expected type
-  at main.rp:2:10
-      outer: return 0;
-             ^~~~~~ found `return`
+error: expected expression
+  at main.rp:2:6
+      if :outer true { }
+         ^ found :

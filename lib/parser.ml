@@ -86,12 +86,6 @@ let peek_nth st n =
 
 let peek_token st = (peek_nth st 0).token
 let at st t = cur_token st == t
-
-let loop_lo st label =
-  match label with
-  | Some (l : loop_label) -> Span.lo l.span
-  | None -> cur_pos st
-
 let found st d = Diagnostic.found (show_found_token (cur_token st)) d
 let fail d = raise (ParserError d)
 
@@ -622,7 +616,6 @@ and parse_primary st context =
       let e = parse_expr st in
       expect st RPAREN;
       mk lo st (Cast (t, e))
-  | IDENT _ when peek_token st == COLON -> parse_labeled_loop st
   | IDENT name ->
       let name = Interner.intern name in
       let nspan = cur_span st in
@@ -747,10 +740,6 @@ and parse_stmt st =
   | WHILE -> Expr (parse_while st)
   | FOR -> Expr (parse_for st)
   | LOOP -> Expr (parse_loop st)
-  | IDENT _
-    when peek_token st == COLON
-         && List.mem (peek_nth st 1).token [ WHILE; FOR; LOOP ] ->
-      Expr (parse_labeled_loop st)
   | LBRACE ->
       let body = (parse_block st).value in
       Expr (mk lo st (Block body))
@@ -864,15 +853,16 @@ and parse_pattern st =
       let e = parse_expr ~context:HeaderExpression st in
       { pdesc = PatValue e; pspan = e.span }
 
-(* while i < len { } *)
-and parse_while ?label st =
-  let lo = loop_lo st label in
+(* while i < len { }, while :outer c { } *)
+and parse_while st =
+  let lo = cur_pos st in
   expect st WHILE;
+  let label = parse_loop_target st in
   let cond = parse_header_expr st in
   let body = (parse_block st).value in
   mk lo st (While (label, cond, body))
 
-(* break :outer *)
+(* break :outer, loop :outer { } *)
 and parse_loop_target st =
   if at st COLON then begin
     advance st;
@@ -880,34 +870,24 @@ and parse_loop_target st =
   end
   else None
 
-(* for i in 0..len { } *)
-and parse_for ?label st =
-  let lo = loop_lo st label in
+(* for i in 0..len { }, for :outer i in xs { } *)
+and parse_for st =
+  let lo = cur_pos st in
   expect st FOR;
+  let label = parse_loop_target st in
   let name = expect_ident_span st in
   expect st IN;
   let iter = parse_header_expr st in
   let body = (parse_block st).value in
   mk lo st (For (label, name, iter, body))
 
-(* loop { } *)
-and parse_loop ?label st =
-  let lo = loop_lo st label in
+(* loop { }, loop :outer { } *)
+and parse_loop st =
+  let lo = cur_pos st in
   expect st LOOP;
+  let label = parse_loop_target st in
   let body = (parse_block st).value in
   mk lo st (Loop (label, body))
-
-(* outer: for row in grid { } *)
-and parse_labeled_loop st =
-  let label = expect_ident_span st in
-  expect st COLON;
-  match cur_token st with
-  | WHILE -> parse_while ~label st
-  | FOR -> parse_for ~label st
-  | LOOP -> parse_loop ~label st
-  | _ ->
-      Diagnostic.error (cur_span st) "expected a loop after a label"
-      |> found st |> fail
 
 (* n : i32 = 0, flag : bool *)
 let parse_global st =
