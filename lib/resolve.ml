@@ -98,7 +98,7 @@ let sym_at r span =
 
 let sym_at_opt r span = Span.Table.find_opt r.syms span
 let shadowed_at r span = Span.Table.find_opt r.shadowed span
-let qname_of s = Qname.make (Symbol.key s) s.Symbol.name
+let keyname_of s = Keyname.make (Symbol.key s) s.Symbol.name
 let local_decls r = List.rev r.local_decls
 
 let builtins r =

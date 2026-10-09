@@ -28,9 +28,9 @@ type texpr_desc =
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero
-  | TStructLit of Qname.t * (int * texpr) list
+  | TStructLit of Keyname.t * (int * texpr) list
   (* TODO(6c3f): a payload variant carries its arguments here too *)
-  | TVariant of Qname.t * int64
+  | TVariant of Keyname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
   | TWhile of Ast.loop_label option * texpr * tblock
@@ -82,11 +82,11 @@ type tglobal_def = {
 
 type tdecl =
   | TFunc of tfunc_def
-  | TStruct of Qname.t * ty list (* This has a name and typed fields *)
-  | TLocalStruct of Qname.t * ty list
+  | TStruct of Keyname.t * ty list (* This has a name and typed fields *)
+  | TLocalStruct of Keyname.t * ty list
   | TExtern of tfunc_def
   | TGlobal of tglobal_def
-  | TTypeAlias of Qname.t * ty
+  | TTypeAlias of Keyname.t * ty
   (* An enum is an integer at runtime so nothing past here needs its variants *)
-  | TEnum of Qname.t
+  | TEnum of Keyname.t
 [@@deriving show { with_path = false }]

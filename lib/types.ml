@@ -78,14 +78,14 @@ type ty =
   | TPointer of ty
   | TPtr
   (* TODO(39ca): the ty list stays empty until generics land *)
-  | TStruct of Qname.t * ty list
+  | TStruct of Keyname.t * ty list
   | TFunc of ty list * ty * func_abi
   | TArray of ty * int
   | TSlice of ty
-  | TAlias of Qname.t * ty
+  | TAlias of Keyname.t * ty
   | TError
   (* TODO(2e26): every enum is an i32 until a backing type can be written down *)
-  | TEnum of Qname.t
+  | TEnum of Keyname.t
   | TUnit
 [@@deriving show { with_path = false }]
 
@@ -117,14 +117,14 @@ let rec show_ty t =
   | TNull -> "null"
   | TPointer t -> "*" ^ show_ty t
   | TPtr -> "ptr"
-  | TStruct (name, []) -> Qname.show name
+  | TStruct (name, []) -> Keyname.show name
   | TStruct (name, args) ->
-      Printf.sprintf "%s[%s]" (Qname.show name)
+      Printf.sprintf "%s[%s]" (Keyname.show name)
         (String.concat ", " (List.map show_ty args))
   | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
   | TSlice t -> "[]" ^ show_ty t
-  | TAlias (name, _) -> Qname.show name
-  | TEnum name -> Qname.show name
+  | TAlias (name, _) -> Keyname.show name
+  | TEnum name -> Keyname.show name
   | TFunc (ps, r, abi) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       let r_str = match r with TUnit -> " ()" | t -> " " ^ show_ty t in

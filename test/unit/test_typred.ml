@@ -150,7 +150,7 @@ let%expect_test "typred: a fn matches on abi, params and result" =
 
 let%expect_test "typred: an alias is the type behind it" =
   let show = pred2 "accepts" Typred.compatible in
-  let word = TAlias (qname 3 "Word", TInt I64) in
+  let word = TAlias (keyname 3 "Word", TInt I64) in
   show word (TInt I64);
   show (TInt I64) word;
   show word (TInt I32);
@@ -443,7 +443,7 @@ let%expect_test "typred: only integers and errors count as integer" =
   show (TFloat F32);
   show TBool;
   show TChar;
-  show (TAlias (qname 4 "Word", TInt I64));
+  show (TAlias (keyname 4 "Word", TInt I64));
   [%expect
     {|
     integer i8 = true

@@ -17,9 +17,9 @@ let symbol ?(kind = Symbol.Type) ?(entry_point = false) ?name id =
   }
 
 let key ?kind id = Symbol.key (symbol ?kind id)
-let qname id name = Qname.make (key id) name
-let struct_ty id name = Types.TStruct (qname id name, [])
-let alias_ty id name base = Types.TAlias (qname id name, base)
+let keyname id name = Keyname.make (key id) name
+let struct_ty id name = Types.TStruct (keyname id name, [])
+let alias_ty id name base = Types.TAlias (keyname id name, base)
 let pred name f t = Printf.printf "%s %s = %b\n" name (Types.show_ty t) (f t)
 
 let pred2 name f a b =
