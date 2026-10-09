@@ -1,0 +1,4 @@
+error: expected `;`
+  at main.rp:3:14
+      p := Point { 1, 2 };
+                 ^ found {

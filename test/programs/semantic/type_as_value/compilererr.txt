@@ -1,0 +1,16 @@
+error: expected a value
+  at main.rp:4:8
+      q := Point;
+           ^~~~~ this names a type
+error: expected a value
+  at main.rp:5:13
+      n := take(Point);
+                ^~~~~ this names a type
+error: expected a value
+  at main.rp:6:11
+      if 1 == Point { return 1 }
+              ^~~~~ this names a type
+error: expected a value
+  at main.rp:7:8
+      m := Point.x;
+           ^~~~~ this names a type
