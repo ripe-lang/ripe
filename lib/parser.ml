@@ -34,7 +34,7 @@ let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | PLUS | MINUS | STAR | AMP
   | TILDE | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF
-  | LBRACE | LOOP | MATCH ->
+  | LBRACE | LOOP | WHILE | FOR | MATCH ->
       true
   | _ -> false
 
@@ -648,6 +648,8 @@ and parse_primary st context =
       let body = (parse_block st).value in
       mk lo st (Block body)
   | LOOP -> parse_loop st
+  | WHILE -> parse_while st
+  | FOR -> parse_for st
   | ELSE ->
       Diagnostic.error (cur_span st) "`else` without a matching `if`"
       |> found st
