@@ -52,7 +52,7 @@ declared private here
 
 ```text
 prefix with an underscore: _p
-use `var _ = ...` when this is intentional
+use `_ := ...` when this is intentional
 ```
 
 Most of the time you'll be using:
@@ -83,9 +83,9 @@ The `foo` is already under the caret, so naming it again adds nothing. The only 
 
 ```text
 error: type has no fields
-  at t.rp:4:13
-      var _y = *n.x + 1;
-                ^~~ on i32
+  at t.rp:4:10
+      _y := *n.x + 1;
+             ^~~ on i32
 ```
 
 ### 3. Spans
@@ -132,9 +132,9 @@ This is not about grouping all unused variables into one message: but rather one
 
 ```text
 error: undefined variable
-  at main.rp:2:11
-    var n = missing;
-            ^~~~~~~
+  at main.rp:2:8
+    n := missing;
+         ^~~~~~~
 
 (and not a second error for n + 1 on a type we don't know)
 ```
