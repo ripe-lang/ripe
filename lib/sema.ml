@@ -973,12 +973,7 @@ and check_binding env nspan ann init =
     | Some a, None ->
         let want = zero_init_ty env a.tspan (ty_of_ast env a) in
         (want, Tast.mk want Tast.TZero)
-    | None, None ->
-        Diagnostic.emit
-          (Diagnostic.error nspan "cannot infer type"
-          |> Diagnostic.help "write the type or give it a value");
-        (* A real type here would cause unrelated later mismatches *)
-        (Types.TError, dummy_texpr)
+    | None, None -> Diagnostic.ice ~span:nspan "binding has no type or value"
   in
   (* An init that diverges makes the binding itself dead so it carries never *)
   let node_ty = if te.ty = Types.TNever then Types.TNever else Types.TUnit in
@@ -1705,10 +1700,7 @@ and global_ty env (gd : global_def) =
       in
       te.ty
   | None, None ->
-      Diagnostic.emit
-        (Diagnostic.error gd.name.span "cannot infer type"
-        |> Diagnostic.help "write the type or give it a value");
-      Types.TError
+      Diagnostic.ice ~span:gd.name.span "global has no type or value"
 
 (* The running initializer state catches recursive demand *)
 and global_typed_init env span key =
