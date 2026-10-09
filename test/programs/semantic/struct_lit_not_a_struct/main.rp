@@ -1,0 +1,10 @@
+struct point { x: i32, y: i32 }
+enum color { Red }
+fn main() i32 {
+  p := point.{ 1, 2 };
+  a := p.{ 1, 2 };
+  b := i32.{ 1 };
+  c := color.{ };
+  d := nope.{ 1 };
+  return 0;
+}

@@ -1,0 +1,16 @@
+error: undefined struct
+  at main.rp:5:8
+      a := p.{ 1, 2 };
+           ^
+error: undefined struct
+  at main.rp:6:8
+      b := i32.{ 1 };
+           ^~~
+error: undefined struct
+  at main.rp:7:8
+      c := color.{ };
+           ^~~~~
+error: undefined struct
+  at main.rp:8:8
+      d := nope.{ 1 };
+           ^~~~

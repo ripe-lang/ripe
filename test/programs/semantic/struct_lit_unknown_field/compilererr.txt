@@ -1,0 +1,8 @@
+error: no field
+  at main.rp:3:22
+      a := point.{ x: 1, z: 2 };
+                         ^
+error: duplicate field
+  at main.rp:4:22
+      b := point.{ x: 1, x: 2 };
+                         ^
