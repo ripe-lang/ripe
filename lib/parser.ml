@@ -42,11 +42,6 @@ let is_type_start = function
   | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
   | _ -> false
 
-let is_stmt_keyword = function
-  | RETURN | IF | WHILE | FOR | BREAK | CONTINUE | LOOP | MATCH -> true
-  | _ -> false
-
-let is_stmt_start tok = is_expr_start tok || is_stmt_keyword tok
 let is_member_start = function IDENT _ -> true | _ -> false
 
 let ends_in_block = function
@@ -102,10 +97,6 @@ let skip_semi st =
   while at st SEMI do
     advance st
   done
-
-let opens_struct_lit st =
-  let tok = peek_token st in
-  not (is_stmt_start tok && not (is_expr_start tok))
 
 let opens_struct_field st =
   match (peek_token st, (peek_nth st 1).token) with
@@ -529,14 +520,13 @@ and parse_path st context lhs head =
   else if not (at st LBRACE) then lhs
   else
     match context with
-    | NormalExpression when opens_struct_lit st ->
-        parse_struct_lit st lo (spanned head lhs.span)
+    | NormalExpression -> parse_struct_lit st lo (spanned head lhs.span)
     | HeaderExpression when opens_struct_field st ->
         Diagnostic.error (cur_span st) "a struct literal can't go in a header"
         |> Diagnostic.label "this `{` starts the body"
         |> Diagnostic.help "wrap the literal in parentheses"
         |> fail
-    | NormalExpression | HeaderExpression -> lhs
+    | HeaderExpression -> lhs
 
 (* x.field, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =
