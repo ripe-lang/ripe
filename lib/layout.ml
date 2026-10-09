@@ -2,26 +2,22 @@
 
 open Types
 
-let align_to n a = Int.cdiv n a * a
-
 type layout = { size : int; align : int; offsets : int iarray }
 
-(* The cache lives with the fields so one lookup gets both *)
-type entry = { field_tys : ty iarray; mutable cached : (int * layout) option }
-
-type t = {
-  structs : entry Symbol.Table.t;
-  (* A sizeof can measure a struct early so a change drops every cache *)
-  mutable generation : int;
+type entry = {
+  field_tys : ty iarray;
+  mutable cached_layout : (int * layout) option;
 }
 
+type t = { structs : entry Symbol.Table.t; mutable revision : int }
+
 let no_fields = Iarray.of_list []
-let create () = { structs = Symbol.Table.create 16; generation = 0 }
+let create () = { structs = Symbol.Table.create 16; revision = 0 }
 
 let set_struct_fields t key fields =
   Symbol.Table.replace t.structs key
-    { field_tys = Iarray.of_list fields; cached = None };
-  t.generation <- t.generation + 1
+    { field_tys = Iarray.of_list fields; cached_layout = None };
+  t.revision <- t.revision + 1
 
 let entry_of t key = Symbol.Table.find_opt t.structs key
 
@@ -37,6 +33,8 @@ let struct_field_ty t name index =
         (Printf.sprintf "unknown field %d on struct %s" index
            (Keyname.show name))
 
+let align_to n a = Int.cdiv n a * a
+
 let rec layout_of t name =
   let entry =
     match entry_of t (Keyname.key name) with
@@ -45,8 +43,8 @@ let rec layout_of t name =
         Diagnostic.ice
           (Printf.sprintf "no layout recorded for struct %s" (Keyname.show name))
   in
-  match entry.cached with
-  | Some (generation, layout) when generation = t.generation -> layout
+  match entry.cached_layout with
+  | Some (revision, layout) when revision = t.revision -> layout
   | _ ->
       let place (align, used) ft =
         let field_align = ty_align t ft in
@@ -57,10 +55,9 @@ let rec layout_of t name =
         Iarray.fold_left_map place (1, 0) entry.field_tys
       in
       let layout = { size = align_to used align; align; offsets } in
-      entry.cached <- Some (t.generation, layout);
+      entry.cached_layout <- Some (t.revision, layout);
       layout
 
-(* A scalar's size is its alignment but an aggregate's isn't *)
 and ty_measure t ty =
   match resolve_ty ty with
   | TInt k ->
