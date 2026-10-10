@@ -1,5 +1,5 @@
 error: expected variant separator
   at main.rp:1:20
-    color :: enum { Red; Green };
+    Color :: enum { Red; Green };
                        ^
 help: separate variants with `,`

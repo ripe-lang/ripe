@@ -1,11 +1,11 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
   p := {
     scale := 3;
-    pt { x: 2 * scale, y: 5 * scale }
+    Pt { x: 2 * scale, y: 5 * scale }
   };
   printf("%d %d\n", p.x, p.y);
   return 0;

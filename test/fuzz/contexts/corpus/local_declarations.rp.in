@@ -1,9 +1,9 @@
 main :: fn() -> i32 {
-  pair :: struct { a: i32, b: i32 };
-  small :: i32;
-  side :: enum { Left, Right };
-  helper :: fn(n: small) -> i32 { return n + 1 };
-  v := pair { 1, 2 };
-  s := side.Right;
-  return helper(v.a) + v.b + match s { side.Left => 0, _ => 1 };
+  Pair :: struct { a: i32, b: i32 };
+  Small :: i32;
+  Side :: enum { Left, Right };
+  helper :: fn(n: Small) -> i32 { return n + 1 };
+  v := Pair { 1, 2 };
+  s := Side.Right;
+  return helper(v.a) + v.b + match s { Side.Left => 0, _ => 1 };
 };

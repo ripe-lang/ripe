@@ -475,7 +475,7 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
   in
   infix (parse_prefix st context)
 
-(* point { x: 1 } *)
+(* Point { x: 1 } *)
 and parse_struct_lit st lo name =
   expect st LBRACE;
   let fields = parse_struct_lit_fields st in
@@ -507,7 +507,7 @@ and parse_prefix st context =
       in
       parse_postfix st lhs
 
-(* point, Color.Red, point { x: 1 } *)
+(* point, Color.Red, Point { x: 1 } *)
 and parse_path st context lhs head =
   let lo = Span.lo lhs.span in
   if at st DOT then begin

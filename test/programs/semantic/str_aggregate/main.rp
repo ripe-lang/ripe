@@ -1,11 +1,11 @@
-named :: struct { s: str, n: i32 };
+Named :: struct { s: str, n: i32 };
 
 give :: fn() -> str {
   return "returned";
 };
 
 main :: fn() -> i32 {
-  box : named = named { s: "field", n: 1 };
+  box : Named = Named { s: "field", n: 1 };
   arr : [2]str = ["one", "three"];
   r : str = give();
   return cast(i32, box.s.len + arr[0].len + arr[1].len + r.len + sizeof(str));

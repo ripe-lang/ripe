@@ -1,1 +1,1 @@
-point :: struct { x: i32; y: i32 };
+Point :: struct { x: i32; y: i32 };

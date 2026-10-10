@@ -1,5 +1,5 @@
 error: expected field separator
   at main.rp:1:25
-    point :: struct { x: i32; y: i32 };
+    Point :: struct { x: i32; y: i32 };
                             ^
 help: separate fields with `,`

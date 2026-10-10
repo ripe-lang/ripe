@@ -1,13 +1,13 @@
 // BROKEN: waiting on the new parser recovery
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 main :: fn() -> i32 {
   n : i32 = 0;
-  if point { x: 5, y: 4 }.x > 2 { n = 1 }
-  while n < point { x: 3, y: 0 }.x { n = n + 1 }
-  for i in 0..point { x: 2, y: 0 }.x { n = n + i }
+  if Point { x: 5, y: 4 }.x > 2 { n = 1 }
+  while n < Point { x: 3, y: 0 }.x { n = n + 1 }
+  for i in 0..Point { x: 2, y: 0 }.x { n = n + i }
   loop @outer {
-    n = n + point { x: 1, y: 0 }.x;
+    n = n + Point { x: 1, y: 0 }.x;
     break @outer;
   }
-  return match point { 1, 2 }.y { 2 => n, _ => 0 };
+  return match Point { 1, 2 }.y { 2 => n, _ => 0 };
 };

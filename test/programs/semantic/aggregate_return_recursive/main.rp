@@ -1,14 +1,14 @@
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-descend :: fn(n: i32) -> pair {
+descend :: fn(n: i32) -> Pair {
   if n == 0 {
-    return pair { x: 1, y: 2 };
+    return Pair { x: 1, y: 2 };
   }
   previous := descend(n - 1);
-  return pair { x: previous.x + 1, y: previous.y + 1 };
+  return Pair { x: previous.x + 1, y: previous.y + 1 };
 };
 
 main :: fn() -> i32 {

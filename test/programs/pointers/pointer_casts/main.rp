@@ -1,20 +1,20 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 extern "C" fn malloc(n: usize) ptr;
 
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
 BinOp :: (fn (i32, i32) i32);
 
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 
 main :: fn() -> i32 {
-  raw : ptr = malloc(sizeof(point));
-  p : *point = cast(*point, raw);
+  raw : ptr = malloc(sizeof(Point));
+  p : *Point = cast(*Point, raw);
   p.x = 40;
   p.y = 2;
 
   address : usize = cast(usize, p);
-  back : *point = cast(*point, address);
+  back : *Point = cast(*Point, address);
   wide : u64 = cast(u64, p);
   signed : isize = cast(isize, p);
 

@@ -1,6 +1,6 @@
 h :: fn(a: i32) -> i32 { return a };
-pt :: struct { x: i32, y: i32 };
-word :: i32;
+Pt :: struct { x: i32, y: i32 };
+Word :: i32;
 main :: fn() -> i32 {
   n : i32 = cast(i32, cast(u32, 3));
   m : u32 = 3;
@@ -8,7 +8,7 @@ main :: fn() -> i32 {
   b : u8 = cast(u8, 300);
   f : f64 = cast(f64, 3);
   c : char = cast(char, 65);
-  a : word = cast(word, 1);
+  a : Word = cast(Word, 1);
   p : *i32 = &n;
   q : *u32 = cast(*u32, p);
   pp : **i32 = &p;

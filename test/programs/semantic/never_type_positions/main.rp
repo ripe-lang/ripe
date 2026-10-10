@@ -2,7 +2,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 spin :: fn() -> never { loop {} };
 
-hole :: struct { a: never };
+Hole :: struct { a: never };
 
 absent : never = spin();
 

@@ -789,23 +789,23 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: struct field read" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-f :: fn(p: pt) -> i32 { return p.x };
+Pt :: struct { x: i32, y: i32 };
+f :: fn(p: Pt) -> i32 { return p.x };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: unknown struct field" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-f :: fn(p: pt) -> i32 { return p.z };
+Pt :: struct { x: i32, y: i32 };
+f :: fn(p: Pt) -> i32 { return p.z };
 |};
   [%expect
     {|
     error: no field
       at <test>:3:34
-        f :: fn(p: pt) -> i32 { return p.z };
-                                         ^ on struct pt
+        f :: fn(p: Pt) -> i32 { return p.z };
+                                         ^ on struct Pt
     |}]
 
 let%expect_test "typecheck: field access on non-struct" =
@@ -825,21 +825,21 @@ f :: fn() {
 
 let%expect_test "typecheck: field access auto-deref through ptr" =
   run_src {|
-pt :: struct { x: i32 };
-f :: fn(p: *pt) -> i32 { return p.x };
+Pt :: struct { x: i32 };
+f :: fn(p: *Pt) -> i32 { return p.x };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: field access through a double pointer" =
   run_src {|
-pt :: struct { x: i32 };
-f :: fn(p: **pt) -> i32 { return p.x };
+Pt :: struct { x: i32 };
+f :: fn(p: **Pt) -> i32 { return p.x };
 |};
   [%expect
     {|
     error: too many pointer levels
       at <test>:3:34
-        f :: fn(p: **pt) -> i32 { return p.x };
+        f :: fn(p: **Pt) -> i32 { return p.x };
                                          ^~~
     help: dereference first: `(*p).x`
     |}]
@@ -1401,9 +1401,9 @@ let%expect_test "typecheck: break under if still needs a return" =
 let%expect_test "typecheck: struct literal" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  p := pt { x: 3, y: 4 };
+  p := Pt { x: 3, y: 4 };
   return p.x + p.y;
 };
 |};
@@ -1412,9 +1412,9 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: empty struct literal" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  p := pt { };
+  p := Pt { };
   return p.x;
 };
 |};
@@ -1423,48 +1423,48 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: struct literal unknown field" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { z: 1 };
+  p := Pt { z: 1 };
 };
 |};
   [%expect
     {|
     error: no field
       at <test>:4:13
-          p := pt { z: 1 };
+          p := Pt { z: 1 };
                     ^
     |}]
 
 let%expect_test "typecheck: struct literal duplicate field" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { x: 1, x: 2 };
+  p := Pt { x: 1, x: 2 };
 };
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:4:19
-          p := pt { x: 1, x: 2 };
+          p := Pt { x: 1, x: 2 };
                           ^
     |}]
 
 let%expect_test "typecheck: struct literal wrong field type" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { x: true };
+  p := Pt { x: true };
 };
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:16
-          p := pt { x: true };
+          p := Pt { x: true };
                        ^~~~ expected i32, found bool
     |}]
 
@@ -1485,8 +1485,8 @@ f :: fn() {
 let%expect_test "typecheck: global struct literal" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-origin : pt = pt { x: 1, y: 2 };
+Pt :: struct { x: i32, y: i32 };
+origin : Pt = Pt { x: 1, y: 2 };
 f :: fn() -> i32 { return origin.x };
 |};
   [%expect {| ok |}]
@@ -1494,18 +1494,18 @@ f :: fn() -> i32 { return origin.x };
 let%expect_test "typecheck: global struct literal calls a function" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 g :: fn() -> i32 { return 1 };
-p : pt = pt { x: g(), y: 2 };
+p : Pt = Pt { x: g(), y: 2 };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: positional struct literal" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  p := pt { 3, 4 };
+  p := Pt { 3, 4 };
   return p.x + p.y;
 };
 |};
@@ -1514,9 +1514,9 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: positional struct literal of one field" =
   run_src
     {|
-box :: struct { v: i32 };
+Box :: struct { v: i32 };
 f :: fn() -> i32 {
-  b := box { 3 };
+  b := Box { 3 };
   return b.v;
 };
 |};
@@ -1524,58 +1524,58 @@ f :: fn() -> i32 {
 
 let%expect_test "typecheck: positional struct literal too few fields" =
   run_src {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { 1 };
+  p := Pt { 1 };
 };
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:4:8
-          p := pt { 1 };
+          p := Pt { 1 };
                ^~~~~~~~ expected 2, found 1
     |}]
 
 let%expect_test "typecheck: positional struct literal too many fields" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { 1, 2, 3 };
+  p := Pt { 1, 2, 3 };
 };
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:4:8
-          p := pt { 1, 2, 3 };
+          p := Pt { 1, 2, 3 };
                ^~~~~~~~~~~~~~ expected 2, found 3
     |}]
 
 let%expect_test "typecheck: positional struct literal wrong field type" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := pt { 1, true };
+  p := Pt { 1, true };
 };
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:16
-          p := pt { 1, true };
+          p := Pt { 1, true };
                        ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: positional struct literal nested" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-wrap :: struct { p: pt, tag: i32 };
+Pt :: struct { x: i32, y: i32 };
+Wrap :: struct { p: Pt, tag: i32 };
 f :: fn() -> i32 {
-  w := wrap { pt { 1, 2 }, 3 };
+  w := Wrap { Pt { 1, 2 }, 3 };
   return w.p.x + w.tag;
 };
 |};
@@ -1584,62 +1584,62 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: positional global struct literal" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-origin : pt = pt { 1, 2 };
+Pt :: struct { x: i32, y: i32 };
+origin : Pt = Pt { 1, 2 };
 f :: fn() -> i32 { return origin.x };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: positional literal of a fieldless struct" =
   run_src {|
-e :: struct {
+E :: struct {
 };
 f :: fn() {
-  _a := e { };
-  _b := e { 1 };
+  _a := E { };
+  _b := E { 1 };
 };
 |};
   [%expect
     {|
     error: wrong number of fields
       at <test>:6:9
-          _b := e { 1 };
+          _b := E { 1 };
                 ^~~~~~~ expected 0, found 1
     |}]
 
 let%expect_test "typecheck: duplicate struct field" =
   run_src {|
-pt :: struct { x: i32, x: i64 };
+Pt :: struct { x: i32, x: i64 };
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:2:24
-        pt :: struct { x: i32, x: i64 };
+        Pt :: struct { x: i32, x: i64 };
                                ^
     |}]
 
 let%expect_test "typecheck: three duplicate struct fields" =
   run_src {|
-pt :: struct { x: i32, x: i64, x: bool };
+Pt :: struct { x: i32, x: i64, x: bool };
 |};
   [%expect
     {|
     error: duplicate field
       at <test>:2:24
-        pt :: struct { x: i32, x: i64, x: bool };
+        Pt :: struct { x: i32, x: i64, x: bool };
                                ^
     error: duplicate field
       at <test>:2:32
-        pt :: struct { x: i32, x: i64, x: bool };
+        Pt :: struct { x: i32, x: i64, x: bool };
                                        ^
     |}]
 
 let%expect_test "typecheck: type alias mismatch across types" =
   run_src
     {|
-myint :: i64;
-f :: fn(x: myint) -> i32 { return 0 };
+MyInt :: i64;
+f :: fn(x: MyInt) -> i32 { return 0 };
 g :: fn() { f(true) };
 |};
   [%expect
@@ -1647,7 +1647,7 @@ g :: fn() { f(true) };
     error: type mismatch
       at <test>:4:15
         g :: fn() { f(true) };
-                      ^~~~ expected myint, found bool
+                      ^~~~ expected MyInt, found bool
     |}]
 
 let%expect_test "typecheck: cstr parameter accepts string literal" =
@@ -1675,10 +1675,10 @@ f :: fn(a: *i32, b: *i32) -> bool { return a == b };
 let%expect_test "typecheck: nested struct field type mismatch" =
   run_src
     {|
-inner :: struct { a: i32 };
-outer :: struct { i: inner };
+Inner :: struct { a: i32 };
+Outer :: struct { i: Inner };
 f :: fn() {
-  o : outer = outer { i: inner { a: 1 } };
+  o : Outer = Outer { i: Inner { a: 1 } };
   o.i.a = true;
 };
 |};
@@ -1693,9 +1693,9 @@ f :: fn() {
 let%expect_test "typecheck: struct with array field initializes ok" =
   run_src
     {|
-buf :: struct { data: [4]i32, n: i32 };
+Buf :: struct { data: [4]i32, n: i32 };
 f :: fn() -> i32 {
-  b : buf = buf { data: [1, 2, 3, 4], n: 4 };
+  b : Buf = Buf { data: [1, 2, 3, 4], n: 4 };
   return b.n;
 };
 |};
@@ -1704,8 +1704,8 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: function returning struct ok" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
-origin :: fn() -> pt { return pt { x: 0, y: 0 } };
+Pt :: struct { x: i32, y: i32 };
+origin :: fn() -> Pt { return Pt { x: 0, y: 0 } };
 f :: fn() -> i32 { return origin().x };
 |};
   [%expect {| ok |}]
@@ -1726,10 +1726,10 @@ f :: fn() { x : i32 = g() };
 let%expect_test "typecheck: struct field whose type is another struct" =
   run_src
     {|
-b_t :: struct { x: i32 };
-a :: struct { b: b_t };
+Bt :: struct { x: i32 };
+A :: struct { b: Bt };
 f :: fn() -> i32 {
-  v : a = a { b: b_t { x: 1 } };
+  v : A = A { b: Bt { x: 1 } };
   return v.b.x;
 };
 |};
@@ -1738,9 +1738,9 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: array of structs iterates element type" =
   run_src
     {|
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  pts : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
+  pts : [2]Pt = [Pt { x: 1, y: 2 }, Pt { x: 3, y: 4 }];
   s : i32 = 0;
   for p in pts { s += p.x }
   return s;
@@ -3022,7 +3022,7 @@ let%expect_test "typecheck: f64 is not f32" =
                  ^ expected f32, found f64
     |}]
 
-let%expect_test "typecheck: literal too big for i64" =
+let%expect_test "typecheck: literal too Big for i64" =
   run_src "f :: fn() { _a : i64 = 9223372036854775808 };";
   [%expect
     {|
@@ -3993,12 +3993,12 @@ let%expect_test "typecheck: a literal product overflows" =
 
 let%expect_test "typecheck: size does not fit" =
   run_src
-    "big :: struct { a: [400]i32 };\nf :: fn() -> u8 { return sizeof(big) };";
+    "Big :: struct { a: [400]i32 };\nf :: fn() -> u8 { return sizeof(Big) };";
   [%expect
     {|
     error: size does not fit
       at <test>:2:26
-        f :: fn() -> u8 { return sizeof(big) };
+        f :: fn() -> u8 { return sizeof(Big) };
                                  ^~~~~~~~~~~ 1600 does not fit in u8
     |}]
 
@@ -4048,20 +4048,20 @@ let%expect_test "typecheck: a value in the type slot of a cast" =
     |}]
 
 let%expect_test "typecheck: a call on a repeated enum name" =
-  run_src "color :: enum {};\ncolor :: enum {};\nf :: fn() { color.d() };";
+  run_src "Color :: enum {};\nColor :: enum {};\nf :: fn() { Color.d() };";
   [%expect
     {|
     error: already defined
       at <test>:2:1
-        color :: enum {};
+        Color :: enum {};
         ^~~~~
       at <test>:1:1
-        color :: enum {};
+        Color :: enum {};
         ^~~~~ previous definition here
     error: no variant
       at <test>:3:19
-        f :: fn() { color.d() };
-                          ^ on enum color
+        f :: fn() { Color.d() };
+                          ^ on enum Color
     |}]
 
 let%expect_test "typecheck: an unknown return type hides the missing value" =

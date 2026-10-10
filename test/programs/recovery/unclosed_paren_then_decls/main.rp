@@ -1,4 +1,4 @@
 // BROKEN: waiting on the new parser recovery
-pair :: (i32, i32
+Pair :: (i32, i32
 
 bad :: fn() -> i32 { z : i32 = ; return z };

@@ -4,9 +4,9 @@ error: cannot zero init this type
              ^~~~~ on never
 error: cannot zero init this type
   at main.rp:5:11
-      whole : hole;
-              ^~~~ on hole
+      wHole : Hole;
+              ^~~~ on Hole
 error: cannot zero init this type
   at main.rp:6:14
-      partial := hole { b: 1 };
+      partial := Hole { b: 1 };
                  ^~~~~~~~~~~~~ on never

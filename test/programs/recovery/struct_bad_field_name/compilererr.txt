@@ -1,4 +1,4 @@
 error: expected identifier
   at main.rp:1:19
-    point :: struct { 99: i32,
+    Point :: struct { 99: i32,
                       ^~ found 99

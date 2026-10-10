@@ -1,4 +1,4 @@
 error: expected `{`
   at main.rp:1:17
-    count :: struct i32;
+    Count :: struct i32;
                     ^~~ found i32

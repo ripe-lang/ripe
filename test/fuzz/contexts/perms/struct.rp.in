@@ -1,2 +1,2 @@
-s :: struct { x: i32 %%D%% };
+S :: struct { x: i32 %%D%% };
 main :: fn() -> i32 { return 0 };

@@ -4,17 +4,17 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 extern "C" fn malloc(n: u64) ptr;
 extern "C" fn free(p: ptr);
 
-pt :: struct { x: i32, y: i32 };
+Pt :: struct { x: i32, y: i32 };
 
 take :: fn(n: u8) -> i32 { return n };
 
 main :: fn() -> i32 {
-  a : u64 = sizeof(pt);
+  a : u64 = sizeof(Pt);
   b : i32 = sizeof(i32);
-  c : u8 = sizeof(pt);
-  d := sizeof(pt);
-  buf : [sizeof(pt)]u8;
-  p := malloc(sizeof(pt));
+  c : u8 = sizeof(Pt);
+  d := sizeof(Pt);
+  buf : [sizeof(Pt)]u8;
+  p := malloc(sizeof(Pt));
   free(p);
   printf("%llu %d %d %llu %d %d\n", a, b, cast(i32, c), d, cast(i32, buf.len),
     take(sizeof(i32)));

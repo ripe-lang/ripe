@@ -1,13 +1,13 @@
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-choose :: fn(flag: bool) -> pair {
+choose :: fn(flag: bool) -> Pair {
   if flag {
-    return pair { x: 1, y: 2 };
+    return Pair { x: 1, y: 2 };
   } else {
-    return pair { x: 3, y: 4 };
+    return Pair { x: 3, y: 4 };
   }
 };
 

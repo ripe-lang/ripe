@@ -1,14 +1,14 @@
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
-rect :: struct { origin: point, w: i32, h: i32 };
+Rect :: struct { origin: Point, w: i32, h: i32 };
 
-area :: fn(r: rect) -> i32 {
+area :: fn(r: Rect) -> i32 {
   return r.w * r.h;
 };
 
 main :: fn() -> i32 {
-  p := point { x: 3, y: 4 };
-  q := point { x: 1 };
-  r := rect { origin: p, w: 2, h: 5 };
+  p := Point { x: 3, y: 4 };
+  q := Point { x: 1 };
+  r := Rect { origin: p, w: 2, h: 5 };
   return p.x + p.y + q.x + q.y + area(r) + r.origin.x;
 };

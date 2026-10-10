@@ -1,18 +1,18 @@
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-few :: fn() -> pair {
-  return pair { 1 };
+few :: fn() -> Pair {
+  return Pair { 1 };
 };
 
-many :: fn() -> pair {
-  return pair { 1, 2, 3 };
+many :: fn() -> Pair {
+  return Pair { 1, 2, 3 };
 };
 
-wrong_type :: fn() -> pair {
-  return pair { 1, true };
+wrong_type :: fn() -> Pair {
+  return Pair { 1, true };
 };
 
 main :: fn() -> i32 {

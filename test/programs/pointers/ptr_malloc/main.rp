@@ -1,9 +1,9 @@
 extern "C" fn malloc(n: usize) ptr;
 
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : *point = cast(*point, malloc(sizeof(point)));
+  p : *Point = cast(*Point, malloc(sizeof(Point)));
   p.x = 40;
   p.y = 2;
   return p.x + p.y;

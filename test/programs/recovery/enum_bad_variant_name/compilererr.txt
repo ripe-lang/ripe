@@ -1,4 +1,4 @@
 error: expected identifier
   at main.rp:1:17
-    color :: enum { 88, Green };
+    Color :: enum { 88, Green };
                     ^~ found 88

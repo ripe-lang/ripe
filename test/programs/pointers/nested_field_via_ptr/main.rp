@@ -1,10 +1,10 @@
-inner :: struct { a: i32 };
+Inner :: struct { a: i32 };
 
-outer :: struct { i: inner, b: i32 };
+Outer :: struct { i: Inner, b: i32 };
 
 main :: fn() -> i32 {
-  o : outer = outer { i: inner { a: 1 }, b: 2 };
-  po : *outer = &o;
+  o : Outer = Outer { i: Inner { a: 1 }, b: 2 };
+  po : *Outer = &o;
   po.i.a = 99;
   return o.i.a;
 };
