@@ -1,12 +1,12 @@
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : point = point { x: 1, y: 2 };
+  p : Point = Point { x: 1, y: 2 };
   narrow : i32 = 8;
-  _a : *point = cast(*point, narrow);
+  _a : *Point = cast(*Point, narrow);
   _b : f64 = cast(f64, &p);
   _c : bool = cast(bool, &p);
-  _d : *point = cast(*point, true);
+  _d : *Point = cast(*Point, true);
   _e : []i32 = cast([]i32, &p);
   _f : [2][2]i32 = cast([2][2]i32, &p);
   return 0;

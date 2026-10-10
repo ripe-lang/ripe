@@ -1,6 +1,6 @@
-slot :: i64;
+Slot :: i64;
 
-get :: fn() -> slot { return 5 };
+get :: fn() -> Slot { return 5 };
 f :: fn() -> i64 { get() };
 
 main :: fn() -> i32 {

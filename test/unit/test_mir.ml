@@ -390,11 +390,11 @@ let%expect_test "mir: a returned str literal goes through storage" =
 let%expect_test "mir: a positional struct literal lowers like a named one" =
   Pipeline.run_mir
     {|
-pair :: struct { x: i32, y: i32 };
+Pair :: struct { x: i32, y: i32 };
 
 f :: fn(a: i32, b: i32) -> i32 {
-  positional := pair { a, b };
-  named := pair { y: b, x: a };
+  positional := Pair { a, b };
+  named := Pair { y: b, x: a };
   return positional.x + named.y;
 };
 |};
@@ -403,8 +403,8 @@ f :: fn(a: i32, b: i32) -> i32 {
     fn _R1f(%0: i32, %1: i32) i32 {
       local %0 a: i32 param
       local %1 b: i32 param
-      local %2 positional: pair user
-      local %3 named: pair user
+      local %2 positional: Pair user
+      local %3 named: Pair user
       local %4: i32 temp
 
       block0:
@@ -422,12 +422,12 @@ f :: fn(a: i32, b: i32) -> i32 {
 let%expect_test "mir: struct fields run in the order they are written" =
   Pipeline.run_mir
     {|
-pair :: struct { x: i32, y: i32 };
+Pair :: struct { x: i32, y: i32 };
 
 side :: fn(v: i32) -> i32 { return v };
 
-f :: fn() -> pair {
-  return pair { y: side(1), x: side(2) };
+f :: fn() -> Pair {
+  return Pair { y: side(1), x: side(2) };
 };
 |};
   [%expect
@@ -439,8 +439,8 @@ f :: fn() -> pair {
         return copy %0
     }
 
-    fn _R1f() pair {
-      local %0 result: pair result
+    fn _R1f() Pair {
+      local %0 result: Pair result
 
       block0:
         %0 = zero

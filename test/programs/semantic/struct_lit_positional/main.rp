@@ -1,42 +1,42 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-nest :: struct {
-  head: pair,
+Nest :: struct {
+  head: Pair,
   tail: [3]i32,
   count: i32,
 };
 
-origin : pair = pair { 7, 8 };
+origin : Pair = Pair { 7, 8 };
 
-take :: fn(p: pair) -> i32 {
+take :: fn(p: Pair) -> i32 {
   return p.x * 10 + p.y;
 };
 
-make :: fn() -> pair {
-  return pair { 1, 2 };
+make :: fn() -> Pair {
+  return Pair { 1, 2 };
 };
 
 main :: fn() -> i32 {
-  p := pair { 4, 5 };
-  named := pair { y: 5, x: 4 };
-  n := nest { pair { 3, 4 }, [5, 6, 7], 9 };
+  p := Pair { 4, 5 };
+  named := Pair { y: 5, x: 4 };
+  n := Nest { Pair { 3, 4 }, [5, 6, 7], 9 };
   m := make();
   a := 1;
   b := 2;
-  from_vars := pair { a, b };
+  from_vars := Pair { a, b };
   printf("bound %d %d\n", p.x, p.y);
   printf("named %d %d\n", named.x, named.y);
   printf("nested %d %d %d %d %d\n", n.head.x, n.head.y, n.tail[0], n.tail[2], n.count);
-  printf("call %d\n", take(pair { 9, 1 }));
+  printf("call %d\n", take(Pair { 9, 1 }));
   printf("returned %d %d\n", m.x, m.y);
   printf("global %d %d\n", origin.x, origin.y);
   printf("vars %d %d\n", from_vars.x, from_vars.y);
-  p = pair { p.y, p.x };
+  p = Pair { p.y, p.x };
   printf("reassigned %d %d\n", p.x, p.y);
   return 0;
 };

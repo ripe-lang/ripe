@@ -1,4 +1,4 @@
 error: expected type
   at main.rp:1:21
-    point :: struct {  x: y: i32 };
+    Point :: struct {  x: y: i32 };
                         ^

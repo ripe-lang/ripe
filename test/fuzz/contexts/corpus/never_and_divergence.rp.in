@@ -1,6 +1,6 @@
 spin :: fn() -> never { loop {} };
 take :: fn(n: never) -> i32 { return 0 };
-hole :: struct { a: never };
+Hole :: struct { a: never };
 main :: fn() -> i32 {
   p : *never = null;
   n := if false { spin() } else { 1 };

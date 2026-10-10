@@ -1,28 +1,28 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-holder :: struct {
-  many: [3]leaf,
-  link: *peer,
-  chained: mid,
+Holder :: struct {
+  many: [3]Leaf,
+  link: *Peer,
+  chained: Mid,
 };
 
-mid :: struct {
-  deep: leaf,
+Mid :: struct {
+  deep: Leaf,
 };
 
-peer :: struct {
-  back: *holder,
+Peer :: struct {
+  back: *Holder,
   n: i32,
 };
 
-leaf :: struct {
+Leaf :: struct {
   v: i32,
 };
 
 main :: fn() -> i32 {
-  p := peer { back: null, n: 5 };
-  h := holder { many: [leaf { 1 }, leaf { 2 }, leaf { 3 }], link: &p, chained: mid { leaf { 4 } } };
+  p := Peer { back: null, n: 5 };
+  h := Holder { many: [Leaf { 1 }, Leaf { 2 }, Leaf { 3 }], link: &p, chained: Mid { Leaf { 4 } } };
   printf("%d %d %d %d\n", h.many[0].v, h.many[2].v, h.chained.deep.v, h.link.n);
-  printf("%d\n", cast(i32, sizeof(holder)));
+  printf("%d\n", cast(i32, sizeof(Holder)));
   return 0;
 };

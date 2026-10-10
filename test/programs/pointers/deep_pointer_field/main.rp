@@ -1,12 +1,12 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : point = point { x: 42, y: 7 };
-  q : *point = &p;
-  qq : **point = &q;
-  qqq : ***point = &qq;
+  p : Point = Point { x: 42, y: 7 };
+  q : *Point = &p;
+  qq : **Point = &q;
+  qqq : ***Point = &qq;
 
   printf("%d %d %d\n", q.x, (*qq).x, (**qqq).x);
 

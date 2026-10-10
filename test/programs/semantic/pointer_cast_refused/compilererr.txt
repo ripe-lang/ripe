@@ -1,25 +1,25 @@
 error: invalid conversion
   at main.rp:6:17
-      _a : *point = cast(*point, narrow);
-                    ^~~~~~~~~~~~~~~~~~~~ cannot convert i32 to *point
+      _a : *Point = cast(*Point, narrow);
+                    ^~~~~~~~~~~~~~~~~~~~ cannot convert i32 to *Point
 error: invalid conversion
   at main.rp:7:14
       _b : f64 = cast(f64, &p);
-                 ^~~~~~~~~~~~~ cannot convert *point to f64
+                 ^~~~~~~~~~~~~ cannot convert *Point to f64
 error: invalid conversion
   at main.rp:8:15
       _c : bool = cast(bool, &p);
-                  ^~~~~~~~~~~~~~ cannot convert *point to bool
+                  ^~~~~~~~~~~~~~ cannot convert *Point to bool
 help: compare with zero instead e.g. `x != 0`
 error: invalid conversion
   at main.rp:9:17
-      _d : *point = cast(*point, true);
-                    ^~~~~~~~~~~~~~~~~~ cannot convert bool to *point
+      _d : *Point = cast(*Point, true);
+                    ^~~~~~~~~~~~~~~~~~ cannot convert bool to *Point
 error: invalid conversion
   at main.rp:10:16
       _e : []i32 = cast([]i32, &p);
-                   ^~~~~~~~~~~~~~~ cannot convert *point to []i32
+                   ^~~~~~~~~~~~~~~ cannot convert *Point to []i32
 error: invalid conversion
   at main.rp:11:20
       _f : [2][2]i32 = cast([2][2]i32, &p);
-                       ^~~~~~~~~~~~~~~~~~~ cannot convert *point to [2][2]i32
+                       ^~~~~~~~~~~~~~~~~~~ cannot convert *Point to [2][2]i32

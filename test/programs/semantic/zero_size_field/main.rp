@@ -1,17 +1,17 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-empty :: struct {};
+Empty :: struct {};
 
-sep :: struct { x: u32, u: (), e: empty, z: [0]u32, y: u32 };
+Sep :: struct { x: u32, u: (), e: Empty, z: [0]u32, y: u32 };
 
-padding :: struct { a: u8, u: (), b: u64 };
+Padding :: struct { a: u8, u: (), b: u64 };
 
-divres :: struct { quot: i32, u: (), e: empty, rem: i32 };
+DivRes :: struct { quot: i32, u: (), e: Empty, rem: i32 };
 
-extern "C" fn div(num: i32, den: i32) divres;
+extern "C" fn div(num: i32, den: i32) DivRes;
 
 main :: fn() -> i32 {
-  s : sep = sep { x: 1, u: (), e: empty {}, y: 2 };
+  s : Sep = Sep { x: 1, u: (), e: Empty {}, y: 2 };
   s.y = s.y + 40;
 
   base : usize = cast(usize, &s.x);
@@ -19,10 +19,10 @@ main :: fn() -> i32 {
          cast(i32, cast(usize, &s.u) - base),
          cast(i32, cast(usize, &s.z) - base),
          cast(i32, cast(usize, &s.y) - base));
-  printf("%d %d %d\n", cast(i32, sizeof(sep)), cast(i32, sizeof(padding)), cast(i32, sizeof(empty)));
+  printf("%d %d %d\n", cast(i32, sizeof(Sep)), cast(i32, sizeof(Padding)), cast(i32, sizeof(Empty)));
   printf("%d %d\n", cast(i32, sizeof(())), cast(i32, sizeof([0]u32)));
 
-  r : divres = div(17, 5);
-  printf("%d %d %d\n", r.quot, r.rem, cast(i32, sizeof(divres)));
+  r : DivRes = div(17, 5);
+  printf("%d %d %d\n", r.quot, r.rem, cast(i32, sizeof(DivRes)));
   return 0;
 };

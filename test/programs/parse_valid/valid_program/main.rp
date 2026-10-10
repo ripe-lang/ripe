@@ -1,10 +1,10 @@
-point :: struct { x: i32, y: i32 };
-color :: enum { Red, Green };
-pair :: i32;
+Point :: struct { x: i32, y: i32 };
+Color :: enum { Red, Green };
+Pair :: i32;
 LIMIT : i32 = 4;
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 main :: fn() -> i32 {
-  p := point { 5, 4 };
-  _c := color.Red;
+  p := Point { 5, 4 };
+  _c := Color.Red;
   return add(p.x, p.y);
 };

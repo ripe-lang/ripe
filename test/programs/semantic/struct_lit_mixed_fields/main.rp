@@ -1,15 +1,15 @@
 // BROKEN: waiting on the new parser recovery
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-named_after_positional :: fn() -> pair {
-  return pair { 1, y: 2 };
+named_after_positional :: fn() -> Pair {
+  return Pair { 1, y: 2 };
 };
 
-positional_after_named :: fn() -> pair {
-  return pair { x: 1, 2 };
+positional_after_named :: fn() -> Pair {
+  return Pair { x: 1, 2 };
 };
 
 main :: fn() -> i32 {

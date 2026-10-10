@@ -1,6 +1,6 @@
 error: undefined variable
   at main.rp:3:5
-      & p = point { x: 5, y: 4 };
+      & p = Point { x: 5, y: 4 };
         ^
 error: undefined variable
   at main.rp:5:10

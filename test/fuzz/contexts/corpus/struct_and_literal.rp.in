@@ -1,6 +1,6 @@
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 main :: fn() -> i32 {
-  p := point { x: 5, y: 4 };
-  q := point { 1, 2 };
+  p := Point { x: 5, y: 4 };
+  q := Point { 1, 2 };
   return p.x + q.y;
 };

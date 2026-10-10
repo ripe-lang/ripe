@@ -1,16 +1,16 @@
-pt :: struct { x: i32, y: i32 };
-col :: enum { Red, Green };
-mi :: i64;
+Pt :: struct { x: i32, y: i32 };
+Col :: enum { Red, Green };
+Mi :: i64;
 K : i32 = 3;
 tbl : [3]i32 = [1, 2, 3];
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 idx :: fn(i: i32) -> i32 { return tbl[i] };
-mk :: fn() -> pt { return pt { 1, 2 } };
+mk :: fn() -> Pt { return Pt { 1, 2 } };
 deep :: fn(n: i32) -> i32 { return ((n + 1) * (n - 1)) + tbl[(n + 0)] };
 main :: fn() -> i32 {
   p := mk();
-  c := col.Red;
-  w : mi = 9;
+  c := Col.Red;
+  w : Mi = 9;
   s := add(idx(0), deep(2)) + K + p.x;
-  return match c { col.Red => s, col.Green => 0 };
+  return match c { Col.Red => s, Col.Green => 0 };
 };

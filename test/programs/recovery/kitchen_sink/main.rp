@@ -1,8 +1,8 @@
 // BROKEN: waiting on the new parser recovery
-point :: struct { 99: i32,
+Point :: struct { 99: i32,
   y: i32 };
 
-color :: enum { 88, Green };
+Color :: enum { 88, Green };
 
 LIMIT : i32 =
 
@@ -12,8 +12,8 @@ scale :: fn(n: i32) -> i32
 bad :: fn() -> i32 { z : i32 = ; return z };
 
 main :: fn() -> i32 {
-  p := point { 5, 4 };
-  c := color.Green;
+  p := Point { 5, 4 };
+  c := Color.Green;
   s := scale(2);
   b := bad();
   return p.y + s + b + LIMIT;

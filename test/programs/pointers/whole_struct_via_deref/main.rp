@@ -1,9 +1,9 @@
-point :: struct { x: i32, y: i32 };
+Point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : point = point { x: 1, y: 2 };
-  pt : *point = &p;
-  p2 : point = point { x: 100, y: 200 };
+  p : Point = Point { x: 1, y: 2 };
+  pt : *Point = &p;
+  p2 : Point = Point { x: 100, y: 200 };
   *pt = p2;
   return p.x;
 };

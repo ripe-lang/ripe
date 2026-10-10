@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
-pair :: (i32, i32);
+Pair :: (i32, i32);
 main :: fn() -> i32 {
-  q : pair = (1, 2);
+  q : Pair = (1, 2);
   return 0;
 };

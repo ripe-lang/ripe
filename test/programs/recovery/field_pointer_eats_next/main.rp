@@ -1,1 +1,1 @@
-s :: struct { x: *y: i32 };
+S :: struct { x: *y: i32 };

@@ -21,16 +21,16 @@ SHAPES = (
     ("char", "'a'"),
     ("f64", "1.0"),
     ("cstr", '"s"'),
-    ("pt", "pt { x: 0 }"),
-    ("word", "0"),
+    ("Pt", "Pt { x: 0 }"),
+    ("Word", "0"),
 )
 
 PRELUDE = (
     "h0 :: fn(a: i32) -> i32 { return a };\n"
     'extern "C" fn hc(a: i32) i32 { return a }\n'
     "spin :: fn() -> never { loop {} };\n"
-    "pt :: struct { x: i32 };\n"
-    "word :: i32;\n"
+    "Pt :: struct { x: i32 };\n"
+    "Word :: i32;\n"
 )
 
 SKIP = {

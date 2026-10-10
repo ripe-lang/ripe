@@ -1,4 +1,4 @@
 error: expected expression
   at main.rp:4:16
-      return match { color.Red => 0, color.Green => 1, _ => 2 };
+      return match { Color.Red => 0, Color.Green => 1, _ => 2 };
                    ^

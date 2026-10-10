@@ -1,5 +1,5 @@
-count :: struct i32;
+Count :: struct i32;
 main :: fn() -> i32 {
-  n : count = 7;
+  n : Count = 7;
   return n;
 };

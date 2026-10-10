@@ -1,17 +1,17 @@
-pair :: struct {
+Pair :: struct {
   x: i32,
   y: i32,
 };
 
-make_pair :: fn(x: i32, y: i32) -> pair {
-  return pair { x: x, y: y };
+make_pair :: fn(x: i32, y: i32) -> Pair {
+  return Pair { x: x, y: y };
 };
 
-sum_pair :: fn(value: pair) -> i32 {
+sum_pair :: fn(value: Pair) -> i32 {
   return value.x + value.y;
 };
 
 main :: fn() -> i32 {
-  make : fn (i32, i32) pair = make_pair;
+  make : fn (i32, i32) Pair = make_pair;
   return sum_pair(make(8, 13));
 };
