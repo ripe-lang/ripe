@@ -2062,3 +2062,25 @@ let%expect_test
           c := @;
                   ^
     |}]
+
+let%expect_test "parse: a struct bound with := asks for ::" =
+  run_src "Point := struct { x: i32 };";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:10
+        Point := struct { x: i32 };
+                 ^~~~~~ found `struct`
+    help: declare a type with `::`
+    |}]
+
+let%expect_test "parse: a local enum bound with := asks for ::" =
+  run_src "main :: fn { Dir := enum { Up }; };";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:21
+        main :: fn { Dir := enum { Up }; };
+                            ^~~~ found `enum`
+    help: declare a type with `::`
+    |}]

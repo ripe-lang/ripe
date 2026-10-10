@@ -230,7 +230,13 @@ and binding_name st context =
 
 and binding_initializer st =
   expect st ASSIGN;
-  parse_expr st
+  match cur_token st with
+  | STRUCT | ENUM ->
+      Diagnostic.error (cur_span st) "expected expression"
+      |> found st
+      |> Diagnostic.help "declare a type with `::`"
+      |> fail
+  | _ -> parse_expr st
 
 (* i32, *i32, fn (i32, i32) i32 *)
 and parse_typ st =
