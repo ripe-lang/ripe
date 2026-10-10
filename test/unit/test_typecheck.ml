@@ -4030,10 +4030,10 @@ let%expect_test "typecheck: a type is not callable" =
   run_src "f :: fn(a: u8) -> i32 { return i32(a) };";
   [%expect
     {|
-    error: cannot call a type
+    error: expected a function
       at <test>:1:32
         f :: fn(a: u8) -> i32 { return i32(a) };
-                                       ^~~
+                                       ^~~ this names a type
     help: convert with `cast(i32, value)`
     |}]
 
@@ -4041,10 +4041,10 @@ let%expect_test "typecheck: a value in the type slot of a cast" =
   run_src "f :: fn(a: u8) -> i32 { return cast(a, a) };";
   [%expect
     {|
-    error: undefined type
+    error: expected a type
       at <test>:1:37
         f :: fn(a: u8) -> i32 { return cast(a, a) };
-                                            ^
+                                            ^ this names a value
     |}]
 
 let%expect_test "typecheck: a call on a repeated enum name" =

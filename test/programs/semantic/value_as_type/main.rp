@@ -1,0 +1,7 @@
+f :: fn() -> i32 { return 0 };
+main :: fn() -> i32 {
+  p := 1;
+  a : p = 1;
+  b : f = 1;
+  return 0;
+};
