@@ -1863,13 +1863,19 @@ f :: fn() -> f64 {
                  ^~~ cannot apply `%` to f64
     |}]
 
-let%expect_test "typecheck: bare return in main accepted" =
+let%expect_test "typecheck: bare return in main rejected" =
   run_src {|
 main :: fn() -> i32 {
   return;
 };
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: empty return in non-unit function
+      at <test>:3:3
+          return;
+          ^~~~~~
+    |}]
 
 let%expect_test "typecheck: bare return in non-main i32 rejected" =
   run_src {|
@@ -2865,14 +2871,14 @@ f :: fn() {
 
 let%expect_test "typecheck: singular argument count" =
   run_src {|take :: fn(_value: i32) {};
-main :: fn() -> i32 { take() };
+main :: fn { take() };
 |};
   [%expect
     {|
     error: wrong number of arguments
-      at <test>:2:23
-        main :: fn() -> i32 { take() };
-                              ^~~~~~ expected 1 argument, found 0
+      at <test>:2:14
+        main :: fn { take() };
+                     ^~~~~~ expected 1 argument, found 0
     |}]
 
 let%expect_test "typecheck: nonliteral operand types binary expression" =

@@ -97,7 +97,6 @@ type local_env = {
   scopes : (Symbol.key * ty) list list;
   ret_ty : ty;
   loops : loop_ctx list;
-  entry_function : bool;
   in_declaration : bool;
   in_probe : bool;
 }
@@ -127,7 +126,6 @@ let make_env ctx =
     scopes = [];
     ret_ty = Types.TUnit;
     loops = [];
-    entry_function = false;
     in_declaration = true;
     in_probe = false;
   }
@@ -579,12 +577,6 @@ let direct_callee env (callee : expr) =
       | Some _ | None -> None)
   | _ -> None
 
-(* The C entry point exits with zero when main returns nothing *)
-let exit_zero env span =
-  if env.entry_function && env.ret_ty = Types.TInt I32 then
-    Some (Tast.mk ~span (Types.TInt I32) (Tast.TInt 0L))
-  else None
-
 let rec ty_of_ast env t =
   match t.tdesc with
   | Named name -> named_ty env t.tspan (Interner.text name)
@@ -772,7 +764,7 @@ and synth_struct_lit env span name name_span inits =
 and block_result_ty env body =
   let quiet = probing env in
   let inner = push_scope quiet in
-  let _, tb =
+  let tb =
     Diagnostic.quietly (fun () -> check_block inner Ast.dummy_span body Infer)
   in
   tblock_ty tb
@@ -927,12 +919,12 @@ and check_block env span body use =
     match elems with
     | [] ->
         verify_unit_result span use;
-        (env, List.rev acc)
+        List.rev acc
     | [ last ] ->
         (* The last line never runs after a return so its type can be anything *)
         let tail_use = if diverged then Infer else use in
-        let env, te = check_elem env last tail_use in
-        (env, List.rev (te :: acc))
+        let _, te = check_elem env last tail_use in
+        List.rev (te :: acc)
     | e :: rest ->
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
@@ -957,7 +949,7 @@ and check_scoped_block ?loop env span body use =
     | Some lc -> { env with loops = lc :: env.loops }
     | None -> env
   in
-  let _, tb = check_block (push_scope base) span body use in
+  let tb = check_block (push_scope base) span body use in
   (tb, tblock_ty tb)
 
 and check_binding env nspan ann init =
@@ -985,13 +977,10 @@ and synth_return env span init =
     Diagnostic.emit (Diagnostic.error span "a never function cannot return");
   match init with
   | None ->
-      if
-        env.ret_ty <> Types.TNever && env.ret_ty <> Types.TUnit
-        && not env.entry_function
-      then
+      if env.ret_ty <> Types.TNever && env.ret_ty <> Types.TUnit then
         Diagnostic.emit
           (Diagnostic.error span "empty return in non-unit function");
-      Tast.mk Types.TNever (Tast.TReturn (exit_zero env span))
+      Tast.mk Types.TNever (Tast.TReturn None)
   | Some e when env.ret_ty = Types.TNever ->
       Tast.mk Types.TNever (Tast.TReturn (Some (synth env e)))
   | Some e ->
@@ -1114,7 +1103,7 @@ and synth_for env span label nspan iter body =
   let loop = new_loop label ~valued:false in
   let inner = push_scope { env with loops = loop :: env.loops } in
   let inner = extend_var inner nspan elem_ty in
-  let _, tb = check_block inner span body Discard in
+  let tb = check_block inner span body Discard in
   Tast.mk Types.TUnit (Tast.TFor (label, sym env nspan, elem_ty, titer, tb))
 
 (* Each discarded arm checks its own trailing value *)
@@ -2002,9 +1991,7 @@ let check_func ?(is_extern = false) env fd =
            (Types.show_ty ret_ty))
   end;
 
-  let func_env =
-    push_scope { env with ret_ty; entry_function = is_entry_point }
-  in
+  let func_env = push_scope { env with ret_ty } in
   let param_env =
     List.fold_left
       (fun e (_, t, span) -> extend_var ~deduplicate:true e span t)
@@ -2012,18 +1999,12 @@ let check_func ?(is_extern = false) env fd =
   in
 
   let implicit_return = (not is_extern) && ret_ty <> Types.TUnit in
-  let body_use =
-    if not implicit_return then Discard
-    else if is_entry_point then
-      (* The C entry point can fall through with zero *)
-      Infer
-    else Expect ret_ty
-  in
+  let body_use = if not implicit_return then Discard else Expect ret_ty in
   (* The declared return type is what the empty body failed to produce *)
   let body_span =
     match fd.ret with Some t -> t.tspan | None -> fd.func_name.span
   in
-  let final_env, tbody0 = check_block param_env body_span fd.body body_use in
+  let tbody0 = check_block param_env body_span fd.body body_use in
   let tbody =
     match (implicit_return, List.rev tbody0) with
     | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> Types.TNever
@@ -2032,15 +2013,7 @@ let check_func ?(is_extern = false) env fd =
           Tast.mk ~span:last.span Types.TNever (Tast.TReturn (Some last))
         in
         List.rev (ret :: rest)
-    | _, last :: _ when last.ty = Types.TNever -> tbody0
-    | _ -> (
-        match exit_zero final_env body_span with
-        | Some zero ->
-            tbody0
-            @ [
-                Tast.mk ~span:body_span Types.TNever (Tast.TReturn (Some zero));
-              ]
-        | None -> tbody0)
+    | _ -> tbody0
   in
 
   {
