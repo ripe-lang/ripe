@@ -3068,7 +3068,7 @@ let%expect_test "typecheck: a str global" =
 let%expect_test "typecheck: a labeled break exits an outer loop" =
   run_src
     {|fn f() {
-  while :outer true { while true { break :outer } }
+  while @outer true { while true { break @outer } }
   g();
 }
 fn g() {}|};
@@ -3077,7 +3077,7 @@ fn g() {}|};
 let%expect_test "typecheck: a shadowed label leaves the outer loop diverging" =
   run_src
     {|fn f() {
-  while :outer true { while :outer true { break :outer } }
+  while @outer true { while @outer true { break @outer } }
   g();
 }
 fn g() {}|};

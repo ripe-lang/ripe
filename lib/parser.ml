@@ -841,7 +841,7 @@ and parse_pattern st =
       let e = parse_expr ~context:HeaderExpression st in
       { pdesc = PatValue e; pspan = e.span }
 
-(* while i < len { }, while :outer c { } *)
+(* while i < len { }, while @outer c { } *)
 and parse_while st =
   let lo = cur_pos st in
   expect st WHILE;
@@ -850,15 +850,15 @@ and parse_while st =
   let body = (parse_block st).value in
   mk lo st (While (label, cond, body))
 
-(* break :outer, loop :outer { } *)
+(* break @outer, loop @outer { } *)
 and parse_loop_target st =
-  if at st COLON then begin
+  if at st AT then begin
     advance st;
     Some (expect_ident_span st)
   end
   else None
 
-(* for i in 0..len { }, for :outer i in xs { } *)
+(* for i in 0..len { }, for @outer i in xs { } *)
 and parse_for st =
   let lo = cur_pos st in
   expect st FOR;
@@ -869,7 +869,7 @@ and parse_for st =
   let body = (parse_block st).value in
   mk lo st (For (label, name, iter, body))
 
-(* loop { }, loop :outer { } *)
+(* loop { }, loop @outer { } *)
 and parse_loop st =
   let lo = cur_pos st in
   expect st LOOP;

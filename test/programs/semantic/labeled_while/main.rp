@@ -3,13 +3,13 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 fn main() i32 {
   i := 0;
   steps := 0;
-  while :outer i < 5 {
+  while @outer i < 5 {
     i += 1;
     j := 0;
     while j < 5 {
       j += 1;
-      if i == 3 { continue :outer }
-      if i == 4 { break :outer }
+      if i == 3 { continue @outer }
+      if i == 4 { break @outer }
       steps += 1;
     }
     printf("%d", i);

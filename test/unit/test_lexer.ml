@@ -318,7 +318,7 @@ let%expect_test "lexer: every unknown escape in a string is an error" =
     |}]
 
 let%expect_test "lexer: unexpected character is an error" =
-  dump_tokens "@\n";
+  dump_tokens "`\n";
   [%expect {|
     ERROR
     EOF
