@@ -97,7 +97,6 @@ type local_env = {
   scopes : (Symbol.key * ty) list list;
   ret_ty : ty;
   loops : loop_ctx list;
-  in_declaration : bool;
   in_probe : bool;
 }
 
@@ -121,14 +120,7 @@ let make_ctx symbols declarations =
   }
 
 let make_env ctx =
-  {
-    ctx;
-    scopes = [];
-    ret_ty = Types.TUnit;
-    loops = [];
-    in_declaration = true;
-    in_probe = false;
-  }
+  { ctx; scopes = []; ret_ty = Types.TUnit; loops = []; in_probe = false }
 
 let decl_span = function
   | Func fd | Extern fd -> fd.func_span
@@ -136,8 +128,6 @@ let decl_span = function
   | Struct sd -> sd.struct_span
   | TypeAlias td -> td.alias_span
   | Enum ed -> ed.enum_span
-
-let decl_env env = if env.in_declaration then env else make_env env.ctx
 
 (* The two fields every slice and string answers to, interned once *)
 let len_name = Interner.intern "len"
@@ -157,9 +147,7 @@ let round_to_float_kind kind f =
   | F32 -> Int32.float_of_bits (Int32.bits_of_float f)
   | F64 -> f
 
-let push_scope env =
-  { env with scopes = [] :: env.scopes; in_declaration = false }
-
+let push_scope env = { env with scopes = [] :: env.scopes }
 let is_probing env = env.in_probe
 
 (* A probe gets its own copy so a thrown away walk can't record a break *)
@@ -227,7 +215,7 @@ let lookup_func env span =
       {
         param_tys = [];
         ret_ty = Types.TError;
-        variadic = true;
+        variadic = false;
         abi = Types.Ripe;
         param_hole = true;
       }
@@ -604,7 +592,7 @@ and array_ty_of_ast env size element =
 and pending_global_ty env span key fact =
   try
     force_deferred span fact.declared_ty ~on_error:Types.TError (fun () ->
-        let t = global_ty (decl_env env) fact.declaration in
+        let t = global_ty (make_env env.ctx) fact.declaration in
         Symbol.Table.replace env.ctx.globals key t;
         t)
   with Diagnostic.Errors ds ->
@@ -1695,7 +1683,7 @@ and global_ty env (gd : global_def) =
 and global_typed_init env span key =
   let fact = find_global_fact env span key in
   force_deferred span fact.typed ~on_error:dummy_texpr (fun () ->
-      type_global_init (decl_env env) span fact.declaration)
+      type_global_init (make_env env.ctx) span fact.declaration)
 
 and type_global_init env span = function
   | { init = Some e; typ = Some t; _ } -> check env e (ty_of_ast env t)
