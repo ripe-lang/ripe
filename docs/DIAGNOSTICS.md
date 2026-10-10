@@ -110,9 +110,9 @@ The AST carries a name span for this, such as `func_name_span`, `struct_name_spa
 
 ```text
 error: already defined
-  at t.rp:6:6
-    fn wide(a: i32, b: i32) i32 {
-         ^~~~
+  at t.rp:6:1
+    wide :: fn(a: i32, b: i32) -> i32 {
+    ^~~~
 ```
 
 There might be where the caret that is shown is a few dozen columns. This is just the result of whatever node was in hand.
