@@ -1,4 +1,4 @@
-enum Color { Red, Green, Blue }
+Color :: enum { Red, Green, Blue };
 
 describe :: fn(c: Color) -> i32 {
   return match c { };

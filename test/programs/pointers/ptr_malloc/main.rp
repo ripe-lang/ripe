@@ -1,6 +1,6 @@
 extern "C" fn malloc(n: usize) ptr;
 
-struct point { x: i32, y: i32 }
+point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
   p : *point = cast(*point, malloc(sizeof(point)));

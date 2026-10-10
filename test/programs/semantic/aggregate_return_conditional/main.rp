@@ -1,7 +1,7 @@
-struct pair {
+pair :: struct {
   x: i32,
   y: i32,
-}
+};
 
 choose :: fn(flag: bool) -> pair {
   if flag {

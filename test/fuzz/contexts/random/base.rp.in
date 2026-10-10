@@ -1,6 +1,6 @@
-struct pt { x: i32, y: i32 }
-enum col { Red, Green }
-type mi = i64;
+pt :: struct { x: i32, y: i32 };
+col :: enum { Red, Green };
+mi :: i64;
 K : i32 = 3;
 tbl : [3]i32 = [1, 2, 3];
 add :: fn(a: i32, b: i32) -> i32 { return a + b };

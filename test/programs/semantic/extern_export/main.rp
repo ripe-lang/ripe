@@ -1,4 +1,4 @@
-struct Pair { a: i32, b: i32 }
+Pair :: struct { a: i32, b: i32 };
 
 extern "C" fn make_pair(x: i32) Pair {
   return Pair { a: x, b: x * 2 };

@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Suit { Clubs, Diamonds, Hearts, Spades }
+Suit :: enum { Clubs, Diamonds, Hearts, Spades };
 
 main :: fn() -> i32 {
   a := Suit.Diamonds;

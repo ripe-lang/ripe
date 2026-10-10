@@ -1,12 +1,12 @@
 main :: fn() -> i32 {
   first := {
     p := Point { x: 3 };
-    struct Point { x: i32 }
+    Point :: struct { x: i32 };
     p.x
   };
 
   second := {
-    struct Point { x: i32, y: i32 }
+    Point :: struct { x: i32, y: i32 };
     p := Point { x: 1, y: 5 };
     p.y
   };
@@ -23,7 +23,7 @@ main :: fn() -> i32 {
     if n == 0 { 0 } else { 1 + count(n - 1) }
   };
 
-  type Coord = i32;
+  Coord :: i32;
   offset : Coord = 4;
   return add(first + second, offset) + count(3);
 };

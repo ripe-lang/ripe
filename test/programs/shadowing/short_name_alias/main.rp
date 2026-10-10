@@ -1,4 +1,4 @@
-type small = i32;
+small :: i32;
 
 main :: fn() -> i32 {
   a : small = 5;

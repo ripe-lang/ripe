@@ -1,6 +1,6 @@
-struct inner { a: i32 }
+inner :: struct { a: i32 };
 
-struct outer { i: inner, b: i32 }
+outer :: struct { i: inner, b: i32 };
 
 main :: fn() -> i32 {
   o : outer = outer { i: inner { a: 1 }, b: 2 };

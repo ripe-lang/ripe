@@ -9,7 +9,7 @@ let%expect_test "qbe accepts scalar MIR" =
 let%expect_test "qbe accepts padded structs" =
   run_codegen_ok
     {|
-struct P { a: i8, b: i64, c: i8 }
+P :: struct { a: i8, b: i64, c: i8 };
 main :: fn() -> i32 { return sizeof(P) as i32 };
 |};
   [%expect
@@ -23,7 +23,7 @@ main :: fn() -> i32 { return sizeof(P) as i32 };
 let%expect_test ("qbe accepts string aggregates" [@tags "disabled"]) =
   run_codegen_ok
     {|
-struct Box { text: str, value: i32 }
+Box :: struct { text: str, value: i32 };
 make :: fn() -> str { return "hello" };
 main :: fn() -> i32 {
   box : Box = Box { text: "field", value: 1 };
@@ -60,7 +60,7 @@ main :: fn() -> i32 {
 let%expect_test "qbe accepts main allocation" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 main :: fn() -> i32 {
   pair := Pair { left: 1, right: 2 };
   return pair.left + pair.right;
@@ -72,7 +72,7 @@ let%expect_test "qbe accepts local structs" =
   run_codegen_ok
     {|
 main :: fn() -> i32 {
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
   pair := Pair { left: 1, right: 2 };
   return pair.left + pair.right;
 };
@@ -82,7 +82,7 @@ struct Pair { left: i32, right: i32 }
 let%expect_test "qbe accepts external struct calls" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "C" fn consume(pair: Pair) i32;
 main :: fn() -> i32 {
   pair := Pair { left: 1, right: 2 };
@@ -94,7 +94,7 @@ main :: fn() -> i32 {
 let%expect_test "qbe accepts external struct returns" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "C" fn produce() Pair;
 main :: fn() -> i32 {
   pair := produce();
@@ -106,7 +106,7 @@ main :: fn() -> i32 {
 let%expect_test "qbe accepts Ripe struct returns" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "Ripe" fn produce() Pair;
 main :: fn() -> i32 {
   pair := produce();
@@ -145,7 +145,7 @@ main :: fn() -> i32 {
 let%expect_test "qbe hands a C export its aggregates by value" =
   run_codegen
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "C" fn first(p: Pair) i32 { return p.left }
 |};
   [%expect
@@ -164,7 +164,7 @@ extern "C" fn first(p: Pair) i32 { return p.left }
 let%expect_test "qbe returns a C aggregate to the caller" =
   run_codegen_ok
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "C" fn make(x: i32) Pair { return Pair { left: x, right: x } }
 main :: fn() -> i32 {
   pair := make(2);
@@ -176,7 +176,7 @@ main :: fn() -> i32 {
 let%expect_test "qbe keeps the Ripe ABI for a Ripe export" =
   run_codegen
     {|
-struct Pair { left: i32, right: i32 }
+Pair :: struct { left: i32, right: i32 };
 extern "Ripe" fn first(p: Pair) i32 { return p.left }
 |};
   [%expect

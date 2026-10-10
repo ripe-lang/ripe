@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
-struct point {
+point :: struct {
   x: i32,
 
 helper :: fn(n: i32) -> i32 { return n };

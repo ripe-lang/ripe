@@ -1,6 +1,6 @@
-struct Point { x: i32, y: i32 }
+Point :: struct { x: i32, y: i32 };
 
-type Pt = Point;
+Pt :: Point;
 
 g : Pt = Point { x: 2, y: 3 };
 

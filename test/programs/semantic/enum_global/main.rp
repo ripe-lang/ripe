@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum State { Idle, Busy }
+State :: enum { Idle, Busy };
 
 start : State = State.Idle;
 current : State = State.Idle;

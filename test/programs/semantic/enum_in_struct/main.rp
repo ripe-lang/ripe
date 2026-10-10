@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Kind { Circle, Square }
+Kind :: enum { Circle, Square };
 
-struct Shape { kind: Kind, size: i32 }
+Shape :: struct { kind: Kind, size: i32 };
 
 main :: fn() -> i32 {
   s := Shape { kind: Kind.Square, size: 3 };

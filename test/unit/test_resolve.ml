@@ -392,7 +392,7 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 
 let%expect_test "resolve: a local declaration stays in its block" =
   run_src {|f :: fn() {
-  { type Coord = i32 }
+  { Coord :: i32 }
   x : Coord = 1;
 };|};
   [%expect

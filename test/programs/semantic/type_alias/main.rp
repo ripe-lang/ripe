@@ -1,4 +1,4 @@
-type myint = i64;
+myint :: i64;
 
 main :: fn() -> i32 {
   x : myint = 9;

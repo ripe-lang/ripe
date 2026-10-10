@@ -1,8 +1,8 @@
 // BROKEN: waiting on the new parser recovery
-struct point { 99: i32,
-  y: i32 }
+point :: struct { 99: i32,
+  y: i32 };
 
-enum color { 88, Green }
+color :: enum { 88, Green };
 
 LIMIT : i32 =
 

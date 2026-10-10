@@ -1,7 +1,7 @@
 main :: fn() -> i32 {
-  struct pair { a: i32, b: i32 }
-  type small = i32;
-  enum side { Left, Right }
+  pair :: struct { a: i32, b: i32 };
+  small :: i32;
+  side :: enum { Left, Right };
   helper :: fn(n: small) -> i32 { return n + 1 };
   v := pair { 1, 2 };
   s := side.Right;

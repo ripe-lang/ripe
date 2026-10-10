@@ -1,6 +1,6 @@
-struct point { x: i32, y: i32 }
-enum color { Red, Green }
-type pair = i32;
+point :: struct { x: i32, y: i32 };
+color :: enum { Red, Green };
+pair :: i32;
 LIMIT : i32 = 4;
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 main :: fn() -> i32 {

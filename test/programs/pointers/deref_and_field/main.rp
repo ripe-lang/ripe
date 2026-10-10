@@ -1,4 +1,4 @@
-struct point { x: i32, y: i32 }
+point :: struct { x: i32, y: i32 };
 
 deref_sum :: fn(a: *i32, b: *i32) -> i32 {
   return *a + *b;

@@ -1,2 +1,2 @@
 // BROKEN: waiting on the new parser recovery
-struct point ( x: i32 }
+point :: struct ( x: i32 };

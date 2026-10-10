@@ -1,2 +1,2 @@
-type pair =
+pair :: ;
 main :: fn() -> i32 { return 0 };

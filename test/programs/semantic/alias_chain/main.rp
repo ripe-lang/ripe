@@ -1,5 +1,5 @@
-type A = i32;
-type B = A;
+A :: i32;
+B :: A;
 
 main :: fn() -> i32 {
   x : B = 4;

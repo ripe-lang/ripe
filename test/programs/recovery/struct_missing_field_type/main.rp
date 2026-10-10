@@ -1,7 +1,7 @@
-struct point {
+point :: struct {
   x:
   y: i32,
-}
+};
 main :: fn() -> i32 {
   p := point { 5, 4 };
   return p.y;

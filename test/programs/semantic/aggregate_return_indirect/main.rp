@@ -1,7 +1,7 @@
-struct pair {
+pair :: struct {
   x: i32,
   y: i32,
-}
+};
 
 make_pair :: fn(x: i32, y: i32) -> pair {
   return pair { x: x, y: y };

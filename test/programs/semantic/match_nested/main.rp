@@ -1,7 +1,7 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Shape { Dot, Line, Box }
-enum Size { Small, Large }
+Shape :: enum { Dot, Line, Box };
+Size :: enum { Small, Large };
 
 area :: fn(shape: Shape, size: Size) -> i32 {
   return match shape {

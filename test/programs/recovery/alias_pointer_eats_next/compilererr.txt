@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:11
-    type t = *b: i32;
-              ^ found b
+  at main.rp:1:7
+    t :: *b: i32;
+          ^ found b

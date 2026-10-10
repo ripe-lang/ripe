@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Size { Small, Large }
+Size :: enum { Small, Large };
 
 main :: fn() -> i32 {
   width := match Size.Large {

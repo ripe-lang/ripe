@@ -1,5 +1,5 @@
-enum E {
+E :: enum {
   V0,
   V1 "unterminated
   V2,
-}
+};

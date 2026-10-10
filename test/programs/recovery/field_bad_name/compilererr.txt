@@ -1,4 +1,4 @@
 error: expected identifier
-  at main.rp:1:12
-    struct s { 9x: i32 }
-               ^ found 9
+  at main.rp:1:15
+    s :: struct { 9x: i32 };
+                  ^ found 9

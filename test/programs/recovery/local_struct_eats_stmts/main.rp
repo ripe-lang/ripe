@@ -1,9 +1,9 @@
 // BROKEN: waiting on the new parser recovery
 main :: fn() -> i32 {
-  struct Point {
+  Point :: struct {
     x: i32,
 
   a : i32 = 1;
   b : i32 = 2;
   return a + b;
-}
+};

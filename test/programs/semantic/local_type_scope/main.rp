@@ -1,12 +1,12 @@
 main :: fn() -> i32 {
   first := {
-    struct Value { number: i32 }
+    Value :: struct { number: i32 };
     value := Value { number: 5 };
     value.number
   };
 
   second := {
-    struct Value { number: i32, extra: i32 }
+    Value :: struct { number: i32, extra: i32 };
     value := Value { number: 1, extra: 7 };
     value.extra
   };

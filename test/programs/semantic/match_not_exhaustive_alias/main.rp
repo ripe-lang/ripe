@@ -1,6 +1,6 @@
-enum Color { Red, Green, Blue }
+Color :: enum { Red, Green, Blue };
 
-type Shade = Color;
+Shade :: Color;
 
 describe :: fn(s: Shade) -> i32 {
   return match s {

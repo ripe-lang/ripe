@@ -1,4 +1,4 @@
-struct Point { x: i32, y: i32 }
+Point :: struct { x: i32, y: i32 };
 
 clobber_array :: fn(a: [3]i32) {
   a[0] = 99;

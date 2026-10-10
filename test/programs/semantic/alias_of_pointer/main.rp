@@ -1,4 +1,4 @@
-type IntPtr = *i32;
+IntPtr :: *i32;
 
 main :: fn() -> i32 {
   x : i32 = 7;

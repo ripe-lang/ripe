@@ -1,4 +1,4 @@
-type count = struct i32;
+count :: struct i32;
 main :: fn() -> i32 {
   n : count = 7;
   return n;

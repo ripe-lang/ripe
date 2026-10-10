@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
-  struct Node { next: Node }
+  Node :: struct { next: Node };
   return 0;
 };

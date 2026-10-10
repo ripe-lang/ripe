@@ -275,8 +275,8 @@ let%expect_test
     {|a : = 1;
 b : = 2;
 c : = 3;
-type A = +
-struct S { x: };
+A :: +
+S :: struct { x: };
 extern "C" fn e(x:);
 f :: fn(x:) {};|};
   [%expect
@@ -295,11 +295,11 @@ f :: fn(x:) {};|};
                ^ found =
     error: expected type
       at <test>:4:10
-        type A = +
+        A :: +
                  ^ found +
     error: expected type
       at <test>:5:15
-        struct S { x: };
+        S :: struct { x: };
                       ^ found }
     error: expected type
       at <test>:6:19
@@ -411,7 +411,7 @@ let%expect_test
 let%expect_test
     ("parse: recover, restore struct literal parsing" [@tags "disabled"]) =
   run_src
-    {|struct point { x: i32 }
+    {|point :: struct { x: i32 };
 f :: fn() {
   if /
   p := point { x: 1 };
@@ -775,7 +775,7 @@ let%expect_test "parse: field access on struct literal" =
 
 let%expect_test "parse: multiline struct literal" =
   run_src
-    {|struct pt { x: i32, y: i32 }
+    {|pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := pt {
     x: 1,
@@ -819,7 +819,7 @@ let%expect_test "parse: for iterable is not a struct literal" =
 
 let%expect_test "parse: parenthesized struct literal in condition" =
   run_src
-    {|struct pt { x: i32 }
+    {|pt :: struct { x: i32 };
 f :: fn() -> i32 {
   if (pt { x: 1 }).x == 1 { return 1 }
   return 0;
@@ -864,7 +864,7 @@ let%expect_test "parse: field access on positional struct literal" =
 
 let%expect_test "parse: multiline positional struct literal" =
   run_src
-    {|struct pt { x: i32, y: i32 }
+    {|pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := pt {
     1,
@@ -976,7 +976,7 @@ let%expect_test "parse: struct literal of only commas" =
 
 let%expect_test "parse: if body is not a positional struct literal" =
   run_src
-    {|struct pt { x: i32 }
+    {|pt :: struct { x: i32 };
 f :: fn(c: bool) -> i32 {
   if c { 1 }
   return 0;
@@ -985,7 +985,7 @@ f :: fn(c: bool) -> i32 {
 
 let%expect_test "parse: parenthesized positional struct literal in condition" =
   run_src
-    {|struct pt { x: i32 }
+    {|pt :: struct { x: i32 };
 f :: fn() -> i32 {
   if (pt { 1 }).x == 1 { return 1 }
   return 0;
@@ -1114,7 +1114,7 @@ let%expect_test "parse: sizeof array type" =
 let%expect_test "parse: struct literal nested inside array literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   a : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
 };
@@ -1200,13 +1200,13 @@ extern|};
     |}]
 
 let%expect_test "parse: ABI on a struct" =
-  run_src {|extern "C" struct S { x: i32 }|};
+  run_src {|extern "C" S :: struct { x: i32 };|};
   [%expect
     {|
     error: expected `fn`
       at <test>:1:12
-        extern "C" struct S { x: i32 }
-                   ^~~~~~ found `struct`
+        extern "C" S :: struct { x: i32 };
+                   ^ found S
     |}]
 
 let%expect_test "parse: ABI on a global" =
@@ -1220,13 +1220,13 @@ let%expect_test "parse: ABI on a global" =
     |}]
 
 let%expect_test "parse: missing ABI before a struct" =
-  run_src {|extern struct S { x: i32 }|};
+  run_src {|extern S :: struct { x: i32 };|};
   [%expect
     {|
     error: expected ABI name
       at <test>:1:8
-        extern struct S { x: i32 }
-               ^~~~~~ found `struct`
+        extern S :: struct { x: i32 };
+               ^ found S
     |}]
 
 let%expect_test "parse: extern inside a body" =
@@ -1343,28 +1343,28 @@ let%expect_test "parse: slice bounds are expressions" =
   [%expect {| (index a (.. (+ i 1) n)) |}]
 
 let%expect_test "parse: function pointer returning array" =
-  run_src "type t = fn (i32) [3]i32;";
+  run_src "t :: (fn (i32) [3]i32);";
   [%expect {| ok |}]
 
 let%expect_test "parse: function pointer returning slice" =
-  run_src "type t = fn (i32) []i32;";
+  run_src "t :: (fn (i32) []i32);";
   [%expect {| ok |}]
 
 let%expect_test "parse: struct fields need a separator" =
-  run_src "struct S { x: i32 y: i32 }";
+  run_src "S :: struct { x: i32 y: i32 };";
   [%expect
     {|
     error: expected field separator
-      at <test>:1:19
-        struct S { x: i32 y: i32 }
-                          ^
+      at <test>:1:22
+        S :: struct { x: i32 y: i32 };
+                             ^
     help: separate fields with `,`
     |}]
 
 (* A dropped field would show up as a later error on p.x or p.y *)
 let%expect_test "parse: a semicolon between fields keeps the struct" =
   run_src
-    {|struct P { x: i32; y: i32 }
+    {|P :: struct { x: i32; y: i32 };
 main :: fn() -> i32 {
   p : P = P { x: 12, y: 30 };
   return p.x + p.y;
@@ -1372,15 +1372,15 @@ main :: fn() -> i32 {
   [%expect
     {|
     error: expected field separator
-      at <test>:1:18
-        struct P { x: i32; y: i32 }
-                         ^
+      at <test>:1:21
+        P :: struct { x: i32; y: i32 };
+                            ^
     help: separate fields with `,`
     |}]
 
 let%expect_test "parse: a semicolon between variants keeps the enum" =
   run_src
-    {|enum C { Red; Green }
+    {|C :: enum { Red; Green };
 main :: fn() -> i32 {
   a : C = C.Red;
   b : C = C.Green;
@@ -1389,16 +1389,16 @@ main :: fn() -> i32 {
   [%expect
     {|
     error: expected variant separator
-      at <test>:1:13
-        enum C { Red; Green }
-                    ^
+      at <test>:1:16
+        C :: enum { Red; Green };
+                       ^
     help: separate variants with `,`
     |}]
 
 let%expect_test "parse: a bad field name drops only that field" =
   run_src
-    {|struct P { 99: i32,
-  y: i32 }
+    {|P :: struct { 99: i32,
+  y: i32 };
 main :: fn() -> i32 {
   p : P;
   return p.y;
@@ -1406,15 +1406,15 @@ main :: fn() -> i32 {
   [%expect
     {|
     error: expected identifier
-      at <test>:1:12
-        struct P { 99: i32,
-                   ^~ found 99
+      at <test>:1:15
+        P :: struct { 99: i32,
+                      ^~ found 99
     |}]
 
 let%expect_test "parse: a bad variant name drops only that variant" =
   run_src
-    {|enum C { 99,
-  Green }
+    {|C :: enum { 99,
+  Green };
 main :: fn() -> i32 {
   c : C = C.Green;
   return 0;
@@ -1422,16 +1422,16 @@ main :: fn() -> i32 {
   [%expect
     {|
     error: expected identifier
-      at <test>:1:10
-        enum C { 99,
-                 ^~ found 99
+      at <test>:1:13
+        C :: enum { 99,
+                    ^~ found 99
     |}]
 
 let%expect_test ("parse: two bad fields report once each" [@tags "disabled"]) =
   run_src
-    {|struct P { 99: i32,
+    {|P :: struct { 99: i32,
   88: i32,
-  z: i32 }
+  z: i32 };
 main :: fn() -> i32 {
   p : P;
   return p.z;
@@ -1439,9 +1439,9 @@ main :: fn() -> i32 {
   [%expect
     {|
     error: expected identifier
-      at <test>:1:12
-        struct P { 99: i32,
-                   ^~ found 99
+      at <test>:1:15
+        P :: struct { 99: i32,
+                      ^~ found 99
     error: expected identifier
       at <test>:2:3
           88: i32,
@@ -1450,9 +1450,9 @@ main :: fn() -> i32 {
 
 let%expect_test "parse: a missing separator keeps both items" =
   run_src
-    {|enum C { Red,
+    {|C :: enum { Red,
   Green `
-  Blue }
+  Blue };
 main :: fn() -> i32 {
   c : C = C.Blue;
   return 0;
@@ -1584,8 +1584,8 @@ main :: fn() -> i32 { return f() };|};
 
 let%expect_test "parse: match arms name arms in the separator error" =
   run_src
-    {|enum C { Red,
-  Green }
+    {|C :: enum { Red,
+  Green };
 main :: fn() -> i32 {
   c : C = C.Red;
   return match c { C.Red => 0; C.Green => 1 };
@@ -1780,8 +1780,8 @@ main :: fn() -> i32 {
 let%expect_test "parse: declarations may appear in a block" =
   parse_body
     {|f :: fn() {
-  type Coord = i32;
-  struct Point { x: Coord }
+  Coord :: i32;
+  Point :: struct { x: Coord };
   read :: fn(p: Point) -> Coord { p.x };
 };|};
   [%expect
@@ -1879,11 +1879,11 @@ let%expect_test "parse: a while statement needs no semicolon" =
   [%expect {| (block (while c (block (call g))) (bind x 1)) |}]
 
 let%expect_test "parse: an enum declares its variants" =
-  (match parse {|enum Color {
+  (match parse {|Color :: enum {
   Red,
   Green,
   Blue,
-}|} with
+};|} with
   | [ Ripe.Ast.Enum { variants; _ } ] ->
       print_endline (String.concat " " (List.map dump_ident variants))
   | _ -> print_endline "<expected an enum>");
@@ -1891,7 +1891,7 @@ let%expect_test "parse: an enum declares its variants" =
 
 let%expect_test "parse: an enum may appear in a block" =
   parse_body {|f :: fn() {
-  enum Step { First }
+  Step :: enum { First };
 };|};
   [%expect {| (block (local enum Step)) |}]
 
@@ -1975,25 +1975,25 @@ let%expect_test "parse: a value as a binding type keeps the initializer" =
     |}]
 
 let%expect_test "parse: a wrong alias separator is said once" =
-  run_src {|type t: i32;
+  run_src {|t = i32;
 main :: fn() -> i32 { return 0 };|};
   [%expect
     {|
-    error: expected `=`
-      at <test>:1:7
-        type t: i32;
-              ^ found :
+    error: expected `:`
+      at <test>:1:3
+        t = i32;
+          ^ found =
     |}]
 
 let%expect_test "parse: a value as an alias type is said once" =
-  run_src {|type t = 5;
+  run_src {|t :: 5;
 main :: fn() -> i32 { return 0 };|};
   [%expect
     {|
     error: expected type
-      at <test>:1:10
-        type t = 5;
-                 ^ found 5
+      at <test>:1:6
+        t :: 5;
+             ^ found 5
     |}]
 
 let%expect_test
