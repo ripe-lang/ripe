@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:2:3
+      n := 7;
+      ^~~~~~ expected i32, found ()

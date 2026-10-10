@@ -1,0 +1,4 @@
+error: empty return in non-unit function
+  at main.rp:2:13
+      if true { return }
+                ^~~~~~
