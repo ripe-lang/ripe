@@ -1,0 +1,5 @@
+struct point { x: i32, y: i32 }
+fn main() i32 {
+  p := point.;
+  return 0;
+}

@@ -11,6 +11,6 @@ fn clobber_struct(p: Point) {
 fn main() i32 {
   a : [3]i32 = [1, 2, 3];
   clobber_array(a);
-  clobber_struct(Point { x: 1, y: 2 });
+  clobber_struct(Point.{ x: 1, y: 2 });
   return a[0];
 }

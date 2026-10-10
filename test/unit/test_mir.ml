@@ -393,8 +393,8 @@ let%expect_test "mir: a positional struct literal lowers like a named one" =
 struct pair { x: i32, y: i32 }
 
 fn f(a: i32, b: i32) i32 {
-  positional := pair { a, b };
-  named := pair { y: b, x: a };
+  positional := pair.{ a, b };
+  named := pair.{ y: b, x: a };
   return positional.x + named.y;
 }
 |};
@@ -427,7 +427,7 @@ struct pair { x: i32, y: i32 }
 fn side(v: i32) i32 { return v }
 
 fn f() pair {
-  return pair { y: side(1), x: side(2) };
+  return pair.{ y: side(1), x: side(2) };
 }
 |};
   [%expect

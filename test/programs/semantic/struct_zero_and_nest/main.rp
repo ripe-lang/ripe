@@ -7,8 +7,8 @@ fn area(r: rect) i32 {
 }
 
 fn main() i32 {
-  p := point { x: 3, y: 4 };
-  q := point { x: 1 };
-  r := rect { origin: p, w: 2, h: 5 };
+  p := point.{ x: 3, y: 4 };
+  q := point.{ x: 1 };
+  r := rect.{ origin: p, w: 2, h: 5 };
   return p.x + p.y + q.x + q.y + area(r) + r.origin.x;
 }

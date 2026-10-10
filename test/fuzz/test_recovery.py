@@ -35,7 +35,7 @@ def struct_decl(i, n):
     body = "\n".join(f"  {NAMES[j]}: {t}," for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
 
-    return f"struct S{i} {{\n{body}\n}}", [f"s{i} := S{i} {{ {args} }}"], []
+    return f"struct S{i} {{\n{body}\n}}", [f"s{i} := S{i}.{{ {args} }}"], []
 
 
 def enum_decl(i, n):

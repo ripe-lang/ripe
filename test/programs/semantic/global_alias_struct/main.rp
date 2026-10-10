@@ -2,7 +2,7 @@ struct Point { x: i32, y: i32 }
 
 type Pt = Point;
 
-g : Pt = Point { x: 2, y: 3 };
+g : Pt = Point.{ x: 2, y: 3 };
 
 fn main() i32 {
   return g.x + g.y;

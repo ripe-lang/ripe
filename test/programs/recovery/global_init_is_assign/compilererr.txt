@@ -1,4 +1,4 @@
-error: undefined variable
+error: expected a value
   at main.rp:1:10
     total := i32 = 3;
-             ^~~
+             ^~~ this names a type

@@ -33,7 +33,6 @@ type state = {
   scope : scope;
   value_boundary : scope option;
   next_id : Symbol.id ref;
-  header_hole : Ast.span option ref;
 }
 
 let prelude_symbol id name =
@@ -244,7 +243,13 @@ let captured_value st name = Option.bind st.value_boundary (captured_in name)
 let missing_value st ~what name span =
   match captured_value st name with
   | Some _ -> Diagnostic.error span "local function cannot capture variable"
-  | None -> Diagnostic.error span "undefined %s" what
+  | None -> (
+      match find_type_in_scope st.scope name with
+      | Some sym ->
+          Diagnostic.error span "expected a value"
+          |> Diagnostic.label "this names %s"
+               (Symbol.describe_kind sym.Symbol.kind)
+      | None -> Diagnostic.error span "undefined %s" what)
 
 let use_symbol st span sym = Span.Table.replace st.out.syms span sym
 let find_type st name = find_type_in_scope st.scope name
@@ -253,18 +258,26 @@ let use_type st name span =
   match find_type st name with
   | Some sym -> use_symbol st span sym
   | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined type");
+      let d =
+        match lookup st name with
+        | Some sym ->
+            Diagnostic.error span "expected a type"
+            |> Diagnostic.label "this names %s"
+                 (Symbol.describe_kind sym.Symbol.kind)
+        | None -> Diagnostic.error span "undefined type"
+      in
+      Diagnostic.emit d;
       ignore (mint st Symbol.Error name span)
 
-(* Semantic analysis already reports an unknown struct literal *)
-let use_type_if_found st name span =
-  match find_type st name with Some sym -> use_symbol st span sym | None -> ()
+(* Semantic analysis reports what's wrong so a value is kept to say what it is *)
+let use_struct_lit_name st name span =
+  match find_type st name with
+  | Some sym -> use_symbol st span sym
+  | None -> Option.iter (use_symbol st span) (lookup st name)
 
 let use st ~what name span =
   match lookup st name with
   | Some sym -> Span.Table.replace st.out.syms span sym
-  | None when !(st.header_hole) = Some span ->
-      ignore (mint st Symbol.Error name span)
   | None ->
       Diagnostic.emit (missing_value st ~what name span);
       ignore (mint st Symbol.Error name span)
@@ -325,28 +338,6 @@ let rec resolve_path st p =
     | Ident name when use_type_name st name prefix.Ast.span -> ()
     | _ -> resolve_expr st prefix
 
-(* The name a header ends on is the one a struct literal would have opened *)
-and rightmost e =
-  match e.Ast.desc with
-  | BinOp (_, _, r) | Assign (_, _, r) | Range (_, r) | RangeInclusive (_, r) ->
-      rightmost r
-  | UnOp (_, r) | RangeFrom r -> rightmost r
-  | _ -> e
-
-(* The parser gave the brace to the body so the name is left standing alone *)
-and resolve_header st e =
-  let tail = rightmost e in
-  (match tail.Ast.desc with
-  | Ident name
-    when lookup st name = None && find_type_in_scope st.scope name <> None ->
-      st.header_hole := Some tail.Ast.span;
-      Diagnostic.emit
-        (Diagnostic.error tail.Ast.span "expected a value and found a type"
-        |> Diagnostic.help "wrap a struct literal in parentheses here")
-  | _ -> ());
-  resolve_expr st e;
-  st.header_hole := None
-
 and resolve_expr st e =
   match e.desc with
   | Ident name -> use st ~what:"variable" name e.span
@@ -379,25 +370,25 @@ and resolve_expr st e =
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit ({ value = name; span = name_span }, fields) ->
-      use_type_if_found st name name_span;
+      use_struct_lit_name st name name_span;
       List.iter (fun (_, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | Match (scrutinee, arms) ->
-      resolve_header st scrutinee;
+      resolve_expr st scrutinee;
       List.iter (resolve_arm st) arms
   | If (branches, else_body) ->
       List.iter
         (fun (cond, { Ast.value = body; _ }) ->
-          resolve_header st cond;
+          resolve_expr st cond;
           resolve_block st body)
         branches;
       Option.iter (fun { Ast.value = b; _ } -> resolve_block st b) else_body
   | While (_, cond, body) ->
-      resolve_header st cond;
+      resolve_expr st cond;
       resolve_block st body
   | Loop (_, body) -> resolve_block st body
   | For (_, { value = name; span = nspan }, iter, body) ->
-      resolve_header st iter;
+      resolve_expr st iter;
       let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
       resolve_block_contents st body
@@ -508,16 +499,7 @@ let declare_decls st decls =
 let resolve decls =
   let out = make_output () in
   let top = new_scope (Some out.prelude) in
-  let st =
-    {
-      out;
-      top;
-      scope = top;
-      value_boundary = None;
-      next_id = ref 0;
-      header_hole = ref None;
-    }
-  in
+  let st = { out; top; scope = top; value_boundary = None; next_id = ref 0 } in
   declare_decls st decls;
   List.iter (resolve_decl st) decls;
   out

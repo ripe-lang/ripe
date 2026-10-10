@@ -5,9 +5,9 @@ struct pair {
 
 fn choose(flag: bool) pair {
   if flag {
-    return pair { x: 1, y: 2 };
+    return pair.{ x: 1, y: 2 };
   } else {
-    return pair { x: 3, y: 4 };
+    return pair.{ x: 3, y: 4 };
   }
 }
 

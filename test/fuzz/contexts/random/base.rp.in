@@ -5,7 +5,7 @@ K : i32 = 3;
 tbl : [3]i32 = [1, 2, 3];
 fn add(a: i32, b: i32) i32 { return a + b }
 fn idx(i: i32) i32 { return tbl[i] }
-fn mk() pt { return pt { 1, 2 } }
+fn mk() pt { return pt.{ 1, 2 } }
 fn deep(n: i32) i32 { return ((n + 1) * (n - 1)) + tbl[(n + 0)] }
 fn main() i32 {
   p := mk();

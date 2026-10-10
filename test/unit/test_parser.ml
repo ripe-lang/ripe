@@ -413,7 +413,7 @@ let%expect_test
     {|struct point { x: i32 }
 fn f() {
   if /
-  p := point { x: 1 };
+  p := point.{ x: 1 };
   return /
 }|};
   [%expect
@@ -749,34 +749,34 @@ let%expect_test "parse: stray token at top level" =
     |}]
 
 let%expect_test "parse: struct literal" =
-  parse_expr "pt { x: 3, y: 4 }";
+  parse_expr "pt.{ x: 3, y: 4 }";
   [%expect {| (struct pt (x 3) (y 4)) |}]
 
 let%expect_test "parse: empty struct literal" =
-  parse_expr "pt { }";
+  parse_expr "pt.{ }";
   [%expect {| (struct pt) |}]
 
 let%expect_test "parse: struct literal trailing comma" =
-  parse_expr "pt { x: 3, }";
+  parse_expr "pt.{ x: 3, }";
   [%expect {| (struct pt (x 3)) |}]
 
 let%expect_test "parse: nested struct literal" =
-  parse_expr "wrap { p: pt { x: 1 } }";
+  parse_expr "wrap.{ p: pt.{ x: 1 } }";
   [%expect {| (struct wrap (p (struct pt (x 1)))) |}]
 
 let%expect_test "parse: struct literal as call argument" =
-  parse_expr "dist(pt { x: 1, y: 2 })";
+  parse_expr "dist(pt.{ x: 1, y: 2 })";
   [%expect {| (call dist (struct pt (x 1) (y 2))) |}]
 
 let%expect_test "parse: field access on struct literal" =
-  parse_expr "pt { x: 1 }.x";
+  parse_expr "pt.{ x: 1 }.x";
   [%expect {| (. (struct pt (x 1)) x) |}]
 
 let%expect_test "parse: multiline struct literal" =
   run_src
     {|struct pt { x: i32, y: i32 }
 fn f() i32 {
-  p := pt {
+  p := pt.{
     x: 1,
     y: 2,
   };
@@ -820,52 +820,52 @@ let%expect_test "parse: parenthesized struct literal in condition" =
   run_src
     {|struct pt { x: i32 }
 fn f() i32 {
-  if (pt { x: 1 }).x == 1 { return 1 }
+  if (pt.{ x: 1 }).x == 1 { return 1 }
   return 0;
 }|};
   [%expect {| ok |}]
 
 let%expect_test "parse: positional struct literal" =
-  parse_expr "pt { 3, 4 }";
+  parse_expr "pt.{ 3, 4 }";
   [%expect {| (struct pt 3 4) |}]
 
 let%expect_test "parse: positional struct literal trailing comma" =
-  parse_expr "pt { 3, }";
+  parse_expr "pt.{ 3, }";
   [%expect {| (struct pt 3) |}]
 
 let%expect_test "parse: positional struct literal of identifiers" =
-  parse_expr "pt { a, b }";
+  parse_expr "pt.{ a, b }";
   [%expect {| (struct pt a b) |}]
 
 let%expect_test "parse: positional struct literal of expressions" =
-  parse_expr "pt { a.x + 1, -b }";
+  parse_expr "pt.{ a.x + 1, -b }";
   [%expect {| (struct pt (+ (. a x) 1) (- b)) |}]
 
 let%expect_test "parse: nested positional struct literal" =
-  parse_expr "wrap { pt { 1, 2 } }";
+  parse_expr "wrap.{ pt.{ 1, 2 } }";
   [%expect {| (struct wrap (struct pt 1 2)) |}]
 
 let%expect_test "parse: named struct literal inside a positional one" =
-  parse_expr "wrap { pt { x: 1 } }";
+  parse_expr "wrap.{ pt.{ x: 1 } }";
   [%expect {| (struct wrap (struct pt (x 1))) |}]
 
 let%expect_test "parse: positional struct literal inside a named one" =
-  parse_expr "wrap { p: pt { 1, 2 } }";
+  parse_expr "wrap.{ p: pt.{ 1, 2 } }";
   [%expect {| (struct wrap (p (struct pt 1 2))) |}]
 
 let%expect_test "parse: positional struct literal as call argument" =
-  parse_expr "dist(pt { 1, 2 })";
+  parse_expr "dist(pt.{ 1, 2 })";
   [%expect {| (call dist (struct pt 1 2)) |}]
 
 let%expect_test "parse: field access on positional struct literal" =
-  parse_expr "pt { 1, 2 }.x";
+  parse_expr "pt.{ 1, 2 }.x";
   [%expect {| (. (struct pt 1 2) x) |}]
 
 let%expect_test "parse: multiline positional struct literal" =
   run_src
     {|struct pt { x: i32, y: i32 }
 fn f() i32 {
-  p := pt {
+  p := pt.{
     1,
     2,
   };
@@ -874,102 +874,102 @@ fn f() i32 {
   [%expect {| ok |}]
 
 let%expect_test "parse: named field after a positional one" =
-  parse_expr "pt { 1, y: 2 }";
+  parse_expr "pt.{ 1, y: 2 }";
   [%expect
     {|
     error: mixed struct fields
       at <test>:1:26
-        fn _f() { return pt { 1, y: 2 } }
+        fn _f() { return pt.{ 1, y: 2 } }
                                  ^ expected a positional field
     |}]
 
 let%expect_test "parse: positional field after a named one" =
-  parse_expr "pt { x: 1, 2 }";
+  parse_expr "pt.{ x: 1, 2 }";
   [%expect
     {|
     error: mixed struct fields
       at <test>:1:29
-        fn _f() { return pt { x: 1, 2 } }
+        fn _f() { return pt.{ x: 1, 2 } }
                                     ^ expected a named field
     |}]
 
 let%expect_test "parse: positional struct literal missing comma" =
-  parse_expr "pt { 1 2 }";
+  parse_expr "pt.{ 1 2 }";
   [%expect
     {|
     error: expected `,` between fields
       at <test>:1:25
-        fn _f() { return pt { 1 2 } }
+        fn _f() { return pt.{ 1 2 } }
                                 ^ found 2
     |}]
 
 let%expect_test "parse: named struct literal missing comma" =
-  parse_expr "pt { x: 1 y: 2 }";
+  parse_expr "pt.{ x: 1 y: 2 }";
   [%expect
     {|
     error: expected `,` between fields
       at <test>:1:28
-        fn _f() { return pt { x: 1 y: 2 } }
+        fn _f() { return pt.{ x: 1 y: 2 } }
                                    ^ found y
     |}]
 
 let%expect_test "parse: positional struct literal double comma" =
-  parse_expr "pt { 1, 2,, }";
+  parse_expr "pt.{ 1, 2,, }";
   [%expect
     {|
     error: expected expression
       at <test>:1:28
-        fn _f() { return pt { 1, 2,, } }
+        fn _f() { return pt.{ 1, 2,, } }
                                    ^ found ,
     |}]
 
 let%expect_test "parse: named struct literal double comma" =
-  parse_expr "pt { x: 1, y: 2,, }";
+  parse_expr "pt.{ x: 1, y: 2,, }";
   [%expect
     {|
     error: expected identifier
       at <test>:1:34
-        fn _f() { return pt { x: 1, y: 2,, } }
+        fn _f() { return pt.{ x: 1, y: 2,, } }
                                          ^ found ,
     |}]
 
 let%expect_test "parse: struct literal leading comma" =
-  parse_expr "pt { , 1 }";
+  parse_expr "pt.{ , 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:23
-        fn _f() { return pt { , 1 } }
+        fn _f() { return pt.{ , 1 } }
                               ^ found ,
     |}]
 
 let%expect_test "parse: struct literal leading comma before a named field" =
-  parse_expr "pt { , x: 1 }";
+  parse_expr "pt.{ , x: 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:23
-        fn _f() { return pt { , x: 1 } }
+        fn _f() { return pt.{ , x: 1 } }
                               ^ found ,
     |}]
 
 let%expect_test "parse: struct literal leading double comma" =
-  parse_expr "pt { ,, x: 1 }";
+  parse_expr "pt.{ ,, x: 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:23
-        fn _f() { return pt { ,, x: 1 } }
+        fn _f() { return pt.{ ,, x: 1 } }
                               ^ found ,
     |}]
 
 let%expect_test "parse: struct literal of only commas" =
-  parse_expr "pt { ,, }";
+  parse_expr "pt.{ ,, }";
   [%expect
     {|
     error: expected expression
       at <test>:1:23
-        fn _f() { return pt { ,, } }
+        fn _f() { return pt.{ ,, } }
                               ^ found ,
     |}]
 
@@ -986,7 +986,7 @@ let%expect_test "parse: parenthesized positional struct literal in condition" =
   run_src
     {|struct pt { x: i32 }
 fn f() i32 {
-  if (pt { 1 }).x == 1 { return 1 }
+  if (pt.{ 1 }).x == 1 { return 1 }
   return 0;
 }|};
   [%expect {| ok |}]
@@ -1115,7 +1115,7 @@ let%expect_test "parse: struct literal nested inside array literal" =
     {|
 struct pt { x: i32, y: i32 }
 fn f() {
-  a : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
+  a : [2]pt = [pt.{ x: 1, y: 2 }, pt.{ x: 3, y: 4 }];
 }
 |};
   [%expect {| ok |}]
@@ -1363,7 +1363,7 @@ let%expect_test "parse: a semicolon between fields keeps the struct" =
   run_src
     {|struct P { x: i32; y: i32 }
 fn main() i32 {
-  p : P = P { x: 12, y: 30 };
+  p : P = P.{ x: 12, y: 30 };
   return p.x + p.y;
 }|};
   [%expect
@@ -1596,12 +1596,12 @@ fn main() i32 {
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
-  run_src "fn f() { s := S { x: 1 y: 2 } }";
+  run_src "fn f() { s := S.{ x: 1 y: 2 } }";
   [%expect
     {|
     error: expected `,` between fields
       at <test>:1:24
-        fn f() { s := S { x: 1 y: 2 } }
+        fn f() { s := S.{ x: 1 y: 2 } }
                                ^ found y
     |}]
 
@@ -1761,7 +1761,7 @@ let%expect_test "parse: an if is a value in a binary operand" =
   [%expect {| (+ 1 (if (c (block 1)) (block 2))) |}]
 
 let%expect_test "parse: a nested if body still reads a struct literal" =
-  parse_body "fn f() { if 1 == if c { P { x: 1 }.x } else { 0 } { } }";
+  parse_body "fn f() { if 1 == if c { P.{ x: 1 }.x } else { 0 } { } }";
   [%expect
     {| (block (if ((== 1 (if (c (block (. (struct P (x 1)) x))) (block 0))) (block )))) |}]
 
@@ -1831,7 +1831,7 @@ let%expect_test "parse: a statement block is still a statement" =
   [%expect {| (block (block (call g))) |}]
 
 let%expect_test "parse: a struct literal still wins over a block" =
-  parse_expr "Point { x: 1 }";
+  parse_expr "Point.{ x: 1 }";
   [%expect {| (struct Point (x 1)) |}]
 
 let%expect_test "parse: a label in a header body is not a struct literal" =

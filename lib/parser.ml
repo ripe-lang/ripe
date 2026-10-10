@@ -98,11 +98,6 @@ let skip_semi st =
     advance st
   done
 
-let opens_struct_field st =
-  match (peek_token st, (peek_nth st 1).token) with
-  | tok, COMMA -> is_expr_start tok
-  | _ -> false
-
 let has_abi st = match peek_token st with STRING _ -> true | _ -> false
 let has_arm st = not (at st RBRACE || at st EOF)
 
@@ -468,8 +463,9 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
   in
   infix (parse_prefix st context)
 
-(* point { x: 1 } *)
+(* point.{ x: 1 } *)
 and parse_struct_lit st lo name =
+  expect st DOT;
   expect st LBRACE;
   let fields = parse_struct_lit_fields st in
   expect st RBRACE;
@@ -494,16 +490,16 @@ and parse_prefix st context =
   | _ ->
       let lhs = parse_primary st context in
       let lhs =
-        match lhs.desc with
-        | Ident head -> parse_path st context lhs head
-        | _ -> lhs
+        match lhs.desc with Ident head -> parse_path st lhs head | _ -> lhs
       in
       parse_postfix st lhs
 
-(* point, Color.Red, point { x: 1 } *)
-and parse_path st context lhs head =
+(* point, Color.Red, point.{ x: 1 } *)
+and parse_path st lhs head =
   let lo = Span.lo lhs.span in
-  if at st DOT then begin
+  if at st DOT && peek_token st == LBRACE then
+    parse_struct_lit st lo (spanned head lhs.span)
+  else if at st DOT then begin
     advance st;
     let rec segments owners member =
       if at st DOT then begin
@@ -516,16 +512,7 @@ and parse_path st context lhs head =
     let owners, member = segments [] (expect_ident_span st) in
     path_expr { owner = Nonempty.make (spanned head lhs.span) owners; member }
   end
-  else if not (at st LBRACE) then lhs
-  else
-    match context with
-    | NormalExpression -> parse_struct_lit st lo (spanned head lhs.span)
-    | HeaderExpression when opens_struct_field st ->
-        Diagnostic.error (cur_span st) "a struct literal can't go in a header"
-        |> Diagnostic.label "this `{` starts the body"
-        |> Diagnostic.help "wrap the literal in parentheses"
-        |> fail
-    | HeaderExpression -> lhs
+  else lhs
 
 (* x.field, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =

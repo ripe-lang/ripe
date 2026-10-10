@@ -1,0 +1,9 @@
+struct point { x: i32, y: i32 }
+fn take(p: point) i32 { return p.x }
+fn main() i32 {
+  q := point;
+  n := take(point);
+  if 1 == point { return 1 }
+  m := point.x;
+  return 0;
+}

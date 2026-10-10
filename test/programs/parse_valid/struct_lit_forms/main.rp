@@ -1,0 +1,11 @@
+struct point { x: i32, y: i32 }
+struct line { a: point, b: point }
+struct empty { }
+fn take(p: point) i32 { return p.x }
+fn main() i32 {
+  a := point.{ x: 1, y: 2 };
+  b := point.{ 3, 4, };
+  _e := empty.{ };
+  l := line.{ point.{ 5, 6 }, point . { 7, 8 } };
+  return a.y + b.x + l.b.x + point.{ 1, 9 }.y + take(point.{ 10, 0 });
+}
