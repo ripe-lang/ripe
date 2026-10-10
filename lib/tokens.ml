@@ -74,6 +74,7 @@ type token =
   | FATARROW
   | UNDERSCORE
   | CAST
+  | AT
 
 let keywords =
   [
@@ -171,6 +172,7 @@ let show_token = function
   | FATARROW -> "=>"
   | UNDERSCORE -> "_"
   | SEMI -> ";"
+  | AT -> "@"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK | CONTINUE

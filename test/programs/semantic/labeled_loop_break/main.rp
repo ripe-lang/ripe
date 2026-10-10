@@ -2,9 +2,9 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   hits := 0;
-  for :outer i in 0..4 {
+  for @outer i in 0..4 {
     for j in 0..4 {
-      if i * 4 + j == 6 { break :outer }
+      if i * 4 + j == 6 { break @outer }
       hits += 1;
     }
     printf("|");

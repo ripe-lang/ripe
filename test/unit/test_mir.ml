@@ -218,10 +218,10 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   n := 0;
-  loop :outer {
+  loop @outer {
     loop {
       n += 1;
-      if n == 4 { break :outer }
+      if n == 4 { break @outer }
     }
   }
   printf("n=%d\n", n);
@@ -272,11 +272,11 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   i := 0;
-  found := loop :outer {
+  found := loop @outer {
     j := 0;
     loop {
       j += 1;
-      if j == 4 { break :outer i * 100 + j }
+      if j == 4 { break @outer i * 100 + j }
     }
   };
   printf("found=%d\n", found);

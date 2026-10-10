@@ -3,9 +3,9 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 fn main() i32 {
   pairs := 0;
   rows := 0;
-  for :outer i in 0..4 {
+  for @outer i in 0..4 {
     for j in 0..4 {
-      if j == 2 { continue :outer }
+      if j == 2 { continue @outer }
       printf("%d%d ", i, j);
       pairs += 1;
     }

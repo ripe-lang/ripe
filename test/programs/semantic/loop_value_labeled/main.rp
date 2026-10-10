@@ -2,11 +2,11 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 fn main() i32 {
   i := 0;
-  found := loop :outer {
+  found := loop @outer {
     j := 0;
     loop {
       j += 1;
-      if j == 4 { break :outer i * 100 + j }
+      if j == 4 { break @outer i * 100 + j }
     }
   };
   printf("found=%d\n", found);

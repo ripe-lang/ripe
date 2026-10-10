@@ -1,7 +1,7 @@
 fn main() i32 {
-  n : i32 = loop :outer { loop { break :outer 7 } };
-  for :inner _i in 0..3 {
-    for _j in 0..3 { continue :inner }
+  n : i32 = loop @outer { loop { break @outer 7 } };
+  for @inner _i in 0..3 {
+    for _j in 0..3 { continue @inner }
     n += 1;
   }
   return n;
