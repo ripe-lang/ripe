@@ -37,3 +37,8 @@ module Table = Hashtbl.Make (Int)
 let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
 let is_immutable = function ForVar | MatchBind | Param -> true | _ -> false
+
+let describe_kind = function
+  | Func | LocalFunc | Extern -> "a function"
+  | Type | LocalType -> "a type"
+  | Error | Global | Local | Param | ForVar | MatchBind -> "a value"

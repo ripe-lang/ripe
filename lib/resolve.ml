@@ -243,10 +243,13 @@ let captured_value st name = Option.bind st.value_boundary (captured_in name)
 let missing_value st ~what name span =
   match captured_value st name with
   | Some _ -> Diagnostic.error span "local function cannot capture variable"
-  | None when find_type_in_scope st.scope name <> None ->
-      Diagnostic.error span "expected a value"
-      |> Diagnostic.label "this names a type"
-  | None -> Diagnostic.error span "undefined %s" what
+  | None -> (
+      match find_type_in_scope st.scope name with
+      | Some sym ->
+          Diagnostic.error span "expected a value"
+          |> Diagnostic.label "this names %s"
+               (Symbol.describe_kind sym.Symbol.kind)
+      | None -> Diagnostic.error span "undefined %s" what)
 
 let use_symbol st span sym = Span.Table.replace st.out.syms span sym
 let find_type st name = find_type_in_scope st.scope name
@@ -255,12 +258,22 @@ let use_type st name span =
   match find_type st name with
   | Some sym -> use_symbol st span sym
   | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined type");
+      let d =
+        match lookup st name with
+        | Some sym ->
+            Diagnostic.error span "expected a type"
+            |> Diagnostic.label "this names %s"
+                 (Symbol.describe_kind sym.Symbol.kind)
+        | None -> Diagnostic.error span "undefined type"
+      in
+      Diagnostic.emit d;
       ignore (mint st Symbol.Error name span)
 
-(* Semantic analysis already reports an unknown struct literal *)
-let use_type_if_found st name span =
-  match find_type st name with Some sym -> use_symbol st span sym | None -> ()
+(* Semantic analysis reports what's wrong so a value is kept to say what it is *)
+let use_struct_lit_name st name span =
+  match find_type st name with
+  | Some sym -> use_symbol st span sym
+  | None -> Option.iter (use_symbol st span) (lookup st name)
 
 let use st ~what name span =
   match lookup st name with
@@ -357,7 +370,7 @@ and resolve_expr st e =
       resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
   | StructLit ({ value = name; span = name_span }, fields) ->
-      use_type_if_found st name name_span;
+      use_struct_lit_name st name name_span;
       List.iter (fun (_, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | Match (scrutinee, arms) ->

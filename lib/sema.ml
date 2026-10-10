@@ -728,9 +728,11 @@ and synth_path_type env span p =
       synth_variant env inner info name name_span
   | Some (Enum_type { contents = Unstarted | Running }) -> dummy_texpr
   | Some (Struct_type _ | Alias_type _ | Builtin_type _) ->
+      let sym = Resolve.sym_at env.ctx.symbols inner.span in
       Diagnostic.emit
         (Diagnostic.error inner.span "expected a value"
-        |> Diagnostic.label "this names a type");
+        |> Diagnostic.label "this names %s"
+             (Symbol.describe_kind sym.Symbol.kind));
       dummy_texpr
   | None -> synth_field env span inner name name_span
 
@@ -761,11 +763,19 @@ and synth_struct_lit env span name name_span inits =
       in
       let keyname = keyname_at env name_span (Interner.text name) in
       Tast.mk (Types.TStruct (keyname, [])) (Tast.TStructLit (keyname, fields))
-  | Some
-      ( Struct_type { contents = Unstarted | Running }
-      | Builtin_type _ | Alias_type _ | Enum_type _ )
-  | None ->
+  | Some (Struct_type { contents = Unstarted | Running }) ->
       Diagnostic.emit (Diagnostic.error name_span "undefined struct");
+      dummy_texpr
+  | Some (Enum_type _ | Builtin_type _ | Alias_type _) | None ->
+      let d =
+        match Resolve.sym_at_opt env.ctx.symbols name_span with
+        | Some sym ->
+            Diagnostic.error name_span "expected a struct"
+            |> Diagnostic.label "this names %s"
+                 (Symbol.describe_kind sym.Symbol.kind)
+        | None -> Diagnostic.error name_span "undefined struct"
+      in
+      Diagnostic.emit d;
       dummy_texpr
 
 (* A quiet probe lets a sibling anchor the block type *)
@@ -1608,7 +1618,9 @@ and synth_call env span callee args =
   | None when Symbol.Table.mem env.ctx.type_defs (key_at env callee.span) ->
       let sym = Resolve.sym_at env.ctx.symbols callee.span in
       Diagnostic.emit
-        (Diagnostic.error callee.span "cannot call a type"
+        (Diagnostic.error callee.span "expected a function"
+        |> Diagnostic.label "this names %s"
+             (Symbol.describe_kind sym.Symbol.kind)
         |> Diagnostic.help
              (Printf.sprintf "convert with `cast(%s, value)`" sym.Symbol.name));
       List.iter (fun a -> ignore (synth env a)) args;
