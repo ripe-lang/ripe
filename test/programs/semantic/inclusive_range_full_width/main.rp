@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   count : i32 = 0;
   for _i in 0u8..=255u8 { count = count + 1 }
   if count != 256 { return 1 }
@@ -12,4 +12,4 @@ fn main() i32 {
   if single != 1 { return 3 }
 
   return 0;
-}
+};

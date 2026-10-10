@@ -1,8 +1,8 @@
 type slot = i64;
 
-fn get() slot { return 5 }
-fn f() i64 { get() }
+get :: fn() -> slot { return 5 };
+f :: fn() -> i64 { get() };
 
-fn main() i32 {
+main :: fn() -> i32 {
   return cast(i32, f());
-}
+};

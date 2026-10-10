@@ -1,13 +1,13 @@
-fn main() i32 {
+main :: fn() -> i32 {
   first := {
-    fn value() i32 { 8 }
+    value :: fn() -> i32 { 8 };
     value()
   };
 
   second := {
-    fn value() i32 { 10 }
+    value :: fn() -> i32 { 10 };
     value()
   };
 
   return first + second;
-}
+};

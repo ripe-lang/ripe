@@ -4,7 +4,7 @@ SMALL : u8 = 200;
 WIDE : u32 = SMALL;
 GLOBAL : i64 = SMALL;
 
-fn main() i32 {
+main :: fn() -> i32 {
   signed : i8 = -5;
   unsigned : u8 = 255;
   single : f32 = 2.5;
@@ -34,4 +34,4 @@ fn main() i32 {
   if loop_literal != 255 { return 10 }
   if mixed != 5 { return 11 }
   return 0;
-}
+};

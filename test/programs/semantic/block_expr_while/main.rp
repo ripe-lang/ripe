@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   total := {
     sum := 0;
     i := 1;
@@ -9,4 +9,4 @@ fn main() i32 {
     sum
   };
   return total;
-}
+};

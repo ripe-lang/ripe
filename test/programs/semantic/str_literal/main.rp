@@ -1,10 +1,10 @@
-fn take(s: str) usize {
+take :: fn(s: str) -> usize {
   return s.len;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : str = "hello";
   b : str = a;
   empty : str = "";
   return cast(i32, a.len + take(b) + take("héllo") + empty.len);
-}
+};

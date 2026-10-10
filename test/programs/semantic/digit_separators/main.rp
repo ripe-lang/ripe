@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   a : i64 = 1_000_000;
   b : i64 = 1000_000;
   c : i32 = 0xff_ff;
@@ -10,4 +10,4 @@ fn main() i32 {
     return 9;
   }
   return 0;
-}
+};

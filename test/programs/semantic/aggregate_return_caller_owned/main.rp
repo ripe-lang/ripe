@@ -3,14 +3,14 @@ struct pair {
   y: i32,
 }
 
-fn make_pair(x: i32, y: i32) pair {
+make_pair :: fn(x: i32, y: i32) -> pair {
   return pair { x: x, y: y };
-}
+};
 
-fn sum_pair(left: pair, right: pair) i32 {
+sum_pair :: fn(left: pair, right: pair) -> i32 {
   return left.x + left.y + right.x + right.y;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return sum_pair(make_pair(1, 2), make_pair(30, 40));
-}
+};

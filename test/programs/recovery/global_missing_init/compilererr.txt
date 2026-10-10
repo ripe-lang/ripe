@@ -1,4 +1,4 @@
-error: expected expression
-  at main.rp:2:1
-    fn scale(n: i32) i32 { return n }
-    ^~ found `fn`
+error: expected `;`
+  at main.rp:2:7
+    scale :: fn(n: i32) -> i32 { return n };
+          ^ found :

@@ -21,7 +21,7 @@ and find_in_expr e =
 
 let breaks src =
   let body =
-    match Pipeline.parse ("fn f() { " ^ src ^ " }") with
+    match Pipeline.parse ("f :: fn() { " ^ src ^ " };") with
     | [ Ast.Func { body; _ } ] -> body
     | _ -> failwith "expected one function"
   in

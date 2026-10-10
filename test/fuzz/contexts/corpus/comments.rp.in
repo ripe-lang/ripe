@@ -1,7 +1,7 @@
 // A line comment
-fn main() i32 {
+main :: fn() -> i32 {
   /* A block comment
      across lines */
   n : i32 = 1; // trailing
   return n;
-}
+};

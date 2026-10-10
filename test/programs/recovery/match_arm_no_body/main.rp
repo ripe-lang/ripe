@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   x := 1;
   return match x {
     1 =>
     2 => 2,
     _ => 0,
   };
-}
+};

@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   first := {
     p := Point { x: 3 };
     struct Point { x: i32 }
@@ -11,19 +11,19 @@ fn main() i32 {
     p.y
   };
 
-  fn add(x: Coord, y: Coord) Coord {
+  add :: fn(x: Coord, y: Coord) -> Coord {
     plus(x, y)
-  }
+  };
 
-  fn plus(x: Coord, y: Coord) Coord {
+  plus :: fn(x: Coord, y: Coord) -> Coord {
     x + y
-  }
+  };
 
-  fn count(n: Coord) Coord {
+  count :: fn(n: Coord) -> Coord {
     if n == 0 { 0 } else { 1 + count(n - 1) }
-  }
+  };
 
   type Coord = i32;
   offset : Coord = 4;
   return add(first + second, offset) + count(3);
-}
+};

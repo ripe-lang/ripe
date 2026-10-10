@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   max_i : i64 = 9223372036854775807;
   max_u : u64 = 18446744073709551615;
   diff : i64 = max_i - 9223372036854775800;
@@ -7,4 +7,4 @@ fn main() i32 {
     return cast(i32, diff);
   }
   return 0;
-}
+};

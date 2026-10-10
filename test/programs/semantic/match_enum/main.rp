@@ -2,16 +2,16 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 enum Color { Red, Green, Blue }
 
-fn code(c: Color) i32 {
+code :: fn(c: Color) -> i32 {
   return match c {
     Color.Red => 10,
     Color.Green => 20,
     Color.Blue => 30,
 
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue));
   return 0;
-}
+};

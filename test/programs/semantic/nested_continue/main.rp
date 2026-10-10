@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   s : i32 = 0;
   for i in 0..3 {
     for j in 0..4 {
@@ -8,4 +8,4 @@ fn main() i32 {
     s += i;
   }
   return s;
-}
+};

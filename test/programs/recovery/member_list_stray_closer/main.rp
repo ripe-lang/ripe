@@ -1,8 +1,8 @@
 // BROKEN: waiting on the new parser recovery
-fn main() i32 {
+main :: fn() -> i32 {
   struct pair { a: i32, b: i32 )
   type small = i32;
-  fn helper(n: small) i32 { return n + 1 }
+  helper :: fn(n: small) -> i32 { return n + 1 };
   v := pair { 1, 2 };
   return helper(v.a) + v.b;
 }

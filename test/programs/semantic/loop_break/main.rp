@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   n := 0;
   loop {
     n += 1;
     if n == 5 { break }
   }
   return n;
-}
+};

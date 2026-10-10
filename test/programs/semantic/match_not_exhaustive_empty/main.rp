@@ -1,9 +1,9 @@
 enum Color { Red, Green, Blue }
 
-fn describe(c: Color) i32 {
+describe :: fn(c: Color) -> i32 {
   return match c { };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return describe(Color.Red);
-}
+};

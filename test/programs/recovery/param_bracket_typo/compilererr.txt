@@ -1,7 +1,7 @@
 error: mismatched closing delimiter
-  at main.rp:1:23
-    fn add([a: i32, b: i32) i32 { return a + b }
-                          ^ expected `]`
-  at main.rp:1:8
-    fn add([a: i32, b: i32) i32 { return a + b }
-           ^ to match this `[`
+  at main.rp:1:26
+    add :: fn([a: i32, b: i32) -> i32 { return a + b };
+                             ^ expected `]`
+  at main.rp:1:11
+    add :: fn([a: i32, b: i32) -> i32 { return a + b };
+              ^ to match this `[`

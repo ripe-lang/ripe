@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:12
-    fn f(a: [2]b: i32) i32 { return 0 }
-               ^ found b
+  at main.rp:1:15
+    f :: fn(a: [2]b: i32) -> i32 { return 0 };
+                  ^ found b

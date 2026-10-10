@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   i := 0;
   found := loop @outer {
     j := 0;
@@ -11,4 +11,4 @@ fn main() i32 {
   };
   printf("found=%d\n", found);
   return found;
-}
+};

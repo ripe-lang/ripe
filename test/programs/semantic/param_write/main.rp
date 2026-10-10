@@ -1,13 +1,13 @@
-fn set(x: i32) {
+set :: fn(x: i32) {
   x = 56;
-}
+};
 
-fn bump(x: i32) {
+bump :: fn(x: i32) {
   x += 1;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   set(34);
   bump(34);
   return 0;
-}
+};

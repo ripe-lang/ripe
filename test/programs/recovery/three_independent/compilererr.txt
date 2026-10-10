@@ -3,10 +3,10 @@ error: expected type
     struct s { x: }
                   ^ found }
 error: empty return in non-unit function
-  at main.rp:2:14
-    fn a() i32 { return }
-                 ^~~~~~
+  at main.rp:2:20
+    a :: fn() -> i32 { return };
+                       ^~~~~~
 error: expected expression
-  at main.rp:3:24
-    fn b() i32 { z : i32 = ; return z }
-                           ^ found ;
+  at main.rp:3:30
+    b :: fn() -> i32 { z : i32 = ; return z };
+                                 ^ found ;

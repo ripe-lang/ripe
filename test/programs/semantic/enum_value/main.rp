@@ -2,10 +2,10 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 enum Color { Red, Green, Blue }
 
-fn main() i32 {
+main :: fn() -> i32 {
   red := Color.Red;
   green := Color.Green;
   blue := Color.Blue;
   printf("%d %d %d\n", red == Color.Red, green == Color.Green, blue == Color.Blue);
   return 0;
-}
+};

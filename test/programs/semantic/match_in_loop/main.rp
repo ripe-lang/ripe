@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   total := 0;
   i := 0;
   while i < 8 {
@@ -23,4 +23,4 @@ fn main() i32 {
   }
   printf("%d %d\n", total, last);
   return 0;
-}
+};

@@ -1,2 +1,2 @@
-fn main() i32 { _v := cast(%%T%%, %%L%%);
-  return 0 }
+main :: fn() -> i32 { _v := cast(%%T%%, %%L%%);
+  return 0 };

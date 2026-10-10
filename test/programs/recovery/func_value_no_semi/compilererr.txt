@@ -1,0 +1,4 @@
+error: expected `;`
+  at main.rp:2:1
+    main :: fn {};
+    ^~~~ found main

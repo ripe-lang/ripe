@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   x := {
     a := 2;
     b := {
@@ -8,4 +8,4 @@ fn main() i32 {
     b * 2
   };
   return x;
-}
+};

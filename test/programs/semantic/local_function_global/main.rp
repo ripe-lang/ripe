@@ -1,6 +1,6 @@
 base : i32 = 21;
 
-fn main() i32 {
-  fn read() i32 { base }
+main :: fn() -> i32 {
+  read :: fn() -> i32 { base };
   return read();
-}
+};

@@ -2,18 +2,18 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 enum Level { Low, Mid, High }
 
-fn announce(level: Level) {
+announce :: fn(level: Level) {
   match level {
     Level.Low => { printf("low\n") }
     Level.Mid => { printf("mid\n") }
     Level.High => { printf("high\n") }
   }
   return;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   announce(Level.Mid);
   announce(Level.High);
   announce(Level.Low);
   return 0;
-}
+};

@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   last := 0;
   i := 0;
   while i < 10 {
@@ -10,4 +10,4 @@ fn main() i32 {
     i += 1;
   }
   return last;
-}
+};

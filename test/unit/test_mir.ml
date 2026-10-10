@@ -53,7 +53,7 @@ let verify (program : M.program) : unit =
 let verify_func ?structs function_ = verify (program ?structs function_)
 
 let%expect_test "mir: straight line scalar function" =
-  Pipeline.run_mir "fn add(a: i32, b: i32) i32 { return a + b }";
+  Pipeline.run_mir "add :: fn(a: i32, b: i32) -> i32 { return a + b };";
   [%expect
     {|
     fn _R3add(%0: i32, %1: i32) i32 {
@@ -158,14 +158,14 @@ let%expect_test "mir verifier: a constant fits its type" =
 let%expect_test "mir: continue uses one shared step block" =
   Pipeline.run_mir
     {|
-fn f() i32 {
+f :: fn() -> i32 {
   sum : i32 = 0;
   for i in 0..5 {
     if i == 2 { continue }
     sum += i;
   }
   return sum;
-}
+};
 |};
   [%expect
     {|
@@ -216,7 +216,7 @@ let%expect_test "mir: labeled break targets the outer loop" =
     {|
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   n := 0;
   loop @outer {
     loop {
@@ -226,7 +226,7 @@ fn main() i32 {
   }
   printf("n=%d\n", n);
   return n;
-}
+};
 |};
   [%expect
     {|
@@ -270,7 +270,7 @@ let%expect_test "mir: labeled break writes the outer loop value" =
     {|
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   i := 0;
   found := loop @outer {
     j := 0;
@@ -281,7 +281,7 @@ fn main() i32 {
   };
   printf("found=%d\n", found);
   return found;
-}
+};
 |};
   [%expect
     {|
@@ -327,7 +327,7 @@ fn main() i32 {
     |}]
 
 let%expect_test "mir: a bounds check splits the block it guards" =
-  Pipeline.run_mir "fn get(a: []i32, i: usize) i32 { return a[i] }";
+  Pipeline.run_mir "get :: fn(a: []i32, i: usize) -> i32 { return a[i] };";
   [%expect
     {|
     fn _R3get(%0: []i32, %1: usize) i32 {
@@ -345,7 +345,7 @@ let%expect_test "mir: a bounds check splits the block it guards" =
     |}]
 
 let%expect_test "mir: a -1 divisor skips the divide" =
-  Pipeline.run_mir "fn d(a: i32, b: i32) i32 { return a / b }";
+  Pipeline.run_mir "d :: fn(a: i32, b: i32) -> i32 { return a / b };";
   [%expect
     {|
     fn _R1d(%0: i32, %1: i32) i32 {
@@ -375,7 +375,7 @@ let%expect_test "mir: a -1 divisor skips the divide" =
     |}]
 
 let%expect_test "mir: a returned str literal goes through storage" =
-  Pipeline.run_mir {|fn make() str { return "hello" }|};
+  Pipeline.run_mir {|make :: fn() -> str { return "hello" };|};
   [%expect
     {|
     fn _R4make() str {
@@ -392,11 +392,11 @@ let%expect_test "mir: a positional struct literal lowers like a named one" =
     {|
 struct pair { x: i32, y: i32 }
 
-fn f(a: i32, b: i32) i32 {
+f :: fn(a: i32, b: i32) -> i32 {
   positional := pair { a, b };
   named := pair { y: b, x: a };
   return positional.x + named.y;
-}
+};
 |};
   [%expect
     {|
@@ -424,11 +424,11 @@ let%expect_test "mir: struct fields run in the order they are written" =
     {|
 struct pair { x: i32, y: i32 }
 
-fn side(v: i32) i32 { return v }
+side :: fn(v: i32) -> i32 { return v };
 
-fn f() pair {
+f :: fn() -> pair {
   return pair { y: side(1), x: side(2) };
-}
+};
 |};
   [%expect
     {|
@@ -451,7 +451,7 @@ fn f() pair {
     |}]
 
 let%expect_test "mir: a short circuit and skips the right side" =
-  Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a && b }";
+  Pipeline.run_mir "f :: fn(a: bool, b: bool) -> bool { return a && b };";
   [%expect
     {|
     fn _R1f(%0: bool, %1: bool) bool {
@@ -476,7 +476,7 @@ let%expect_test "mir: a short circuit and skips the right side" =
     |}]
 
 let%expect_test "mir: a short circuit or skips the right side" =
-  Pipeline.run_mir "fn f(a: bool, b: bool) bool { return a || b }";
+  Pipeline.run_mir "f :: fn(a: bool, b: bool) -> bool { return a || b };";
   [%expect
     {|
     fn _R1f(%0: bool, %1: bool) bool {
@@ -501,7 +501,7 @@ let%expect_test "mir: a short circuit or skips the right side" =
     |}]
 
 let%expect_test "mir: an if used as a value writes one result local" =
-  Pipeline.run_mir "fn f(a: bool) i32 { return if a { 1 } else { 2 } }";
+  Pipeline.run_mir "f :: fn(a: bool) -> i32 { return if a { 1 } else { 2 } };";
   [%expect
     {|
     fn _R1f(%0: bool) i32 {
@@ -526,13 +526,13 @@ let%expect_test "mir: an if used as a value writes one result local" =
 
 let%expect_test "mir: a match lowers to a chain of tests" =
   Pipeline.run_mir
-    {|fn f(n: i32) i32 {
+    {|f :: fn(n: i32) -> i32 {
   return match n {
     1 => 10,
     2 => 20,
     _ => 0,
   };
-}|};
+};|};
   [%expect
     {|
     fn _R1f(%0: i32) i32 {
@@ -568,11 +568,11 @@ let%expect_test "mir: a match lowers to a chain of tests" =
 
 let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
-    {|fn f() i32 {
+    {|f :: fn() -> i32 {
   t : i32 = 0;
   for i in 0..3 { t += i }
   return t;
-}|};
+};|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -608,11 +608,11 @@ let%expect_test "mir: a range for counts without a bounds check" =
 
 let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
-    {|fn f() i32 {
+    {|f :: fn() -> i32 {
   t : i32 = 0;
   for i in 0..=3 { t += i }
   return t;
-}|};
+};|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -653,11 +653,11 @@ let%expect_test "mir: an inclusive range stops one step later" =
 
 let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
-    {|fn f(a: [3]i32) i32 {
+    {|f :: fn(a: [3]i32) -> i32 {
   t : i32 = 0;
   for v in a { t += v }
   return t;
-}|};
+};|};
   [%expect
     {|
     fn _R1f(%0: [3]i32) i32 {
@@ -701,7 +701,7 @@ let%expect_test "mir: a for over an array walks it by index" =
     |}]
 
 let%expect_test "mir: a slice expression carries a base and a length" =
-  Pipeline.run_mir "fn f(a: [4]i32) []i32 { return a[1..3] }";
+  Pipeline.run_mir "f :: fn(a: [4]i32) -> []i32 { return a[1..3] };";
   [%expect
     {|
     fn _R1f(%1: [4]i32) []i32 {
@@ -721,11 +721,11 @@ let%expect_test "mir: a slice expression carries a base and a length" =
 
 let%expect_test "mir: a compound assign reuses the place it writes" =
   Pipeline.run_mir
-    {|fn f() i32 {
+    {|f :: fn() -> i32 {
   a : [2]i32 = [1, 2];
   a[0] += 5;
   return a[0];
-}|};
+};|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -751,7 +751,7 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     |}]
 
 let%expect_test "mir: a shift guards against an out of range count" =
-  Pipeline.run_mir "fn f(a: i32, b: i32) i32 { return a << b }";
+  Pipeline.run_mir "f :: fn(a: i32, b: i32) -> i32 { return a << b };";
   [%expect
     {|
     fn _R1f(%0: i32, %1: i32) i32 {
@@ -783,7 +783,7 @@ let%expect_test "mir: a shift guards against an out of range count" =
 let%expect_test "mir: a variadic call marks where the fixed params stop" =
   Pipeline.run_mir
     {|extern "C" fn printf(fmt: cstr, ...) i32;
-fn f() i32 { return printf("%d %d\n", 1, 2) }|};
+f :: fn() -> i32 { return printf("%d %d\n", 1, 2) };|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -796,10 +796,11 @@ fn f() i32 { return printf("%d %d\n", 1, 2) }|};
     |}]
 
 let%expect_test "mir: an array literal writes each element in order" =
-  Pipeline.run_mir {|fn f() i32 {
+  Pipeline.run_mir
+    {|f :: fn() -> i32 {
   a : [3]i32 = [7, 8, 9];
   return a[1];
-}|};
+};|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -821,13 +822,13 @@ let%expect_test "mir: an array literal writes each element in order" =
 
 let%expect_test "mir: a loop yields the value its break carries" =
   Pipeline.run_mir
-    {|fn f() i32 {
+    {|f :: fn() -> i32 {
   n := 0;
   return loop {
     n += 1;
     if n == 3 { break n }
   };
-}|};
+};|};
   [%expect
     {|
     fn _R1f() i32 {
@@ -863,7 +864,7 @@ let%expect_test "mir: a nested field lands on one place with two projections" =
   Pipeline.run_mir
     {|struct Inner { v: i32 }
 struct Outer { i: Inner }
-fn f(o: Outer) i32 { return o.i.v }|};
+f :: fn(o: Outer) -> i32 { return o.i.v };|};
   [%expect
     {|
     fn _R1f(%0: Outer) i32 {
@@ -875,10 +876,10 @@ fn f(o: Outer) i32 { return o.i.v }|};
     |}]
 
 let%expect_test "mir: a deref through a pointer is a place projection" =
-  Pipeline.run_mir {|fn f(p: *i32) i32 {
+  Pipeline.run_mir {|f :: fn(p: *i32) -> i32 {
   *p = 4;
   return *p;
-}|};
+};|};
   [%expect
     {|
     fn _R1f(%0: *i32) i32 {

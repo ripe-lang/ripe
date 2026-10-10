@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   v : ptr = sizeof(i8);
   return 0;
-}
+};

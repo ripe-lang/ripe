@@ -1,7 +1,7 @@
 error: expected `)`
-  at main.rp:2:30
-    fn main() i32 { return add(1 2) }
-                                 ^ found 2
-  at main.rp:2:27
-    fn main() i32 { return add(1 2) }
-                              ^ to match this `(`
+  at main.rp:2:36
+    main :: fn() -> i32 { return add(1 2) };
+                                       ^ found 2
+  at main.rp:2:33
+    main :: fn() -> i32 { return add(1 2) };
+                                    ^ to match this `(`

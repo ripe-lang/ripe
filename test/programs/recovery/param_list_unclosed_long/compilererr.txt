@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:10
-    fn helper(else i32 { return 0 }
-             ^
+  at main.rp:1:13
+    helper :: fn(else -> i32 { return 0 };
+                ^

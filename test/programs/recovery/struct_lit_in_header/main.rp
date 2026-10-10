@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
 struct point { x: i32, y: i32 }
-fn main() i32 {
+main :: fn() -> i32 {
   n : i32 = 0;
   if point { x: 5, y: 4 }.x > 2 { n = 1 }
   while n < point { x: 3, y: 0 }.x { n = n + 1 }
@@ -10,4 +10,4 @@ fn main() i32 {
     break @outer;
   }
   return match point { 1, 2 }.y { 2 => n, _ => 0 };
-}
+};

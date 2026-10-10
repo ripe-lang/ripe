@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   p : *nosuch = null;
   a : [1]nosuch;
   f : fn () nosuch;
@@ -13,4 +13,4 @@ fn main() i32 {
   _r := [p, p];
   _q := &p;
   return 0;
-}
+};

@@ -1,5 +1,5 @@
-fn main() i32 {
-  fn g() %%T%% { return %%L%% }
+main :: fn() -> i32 {
+  g :: fn() -> %%T%% { return %%L%% };
   _v := g();
   return 0;
-}
+};

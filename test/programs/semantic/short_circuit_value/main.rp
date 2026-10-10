@@ -1,11 +1,11 @@
 count : i32 = 0;
 
-fn bump(v: bool) bool {
+bump :: fn(v: bool) -> bool {
   count = count + 1;
   return v;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : bool = false && bump(true);
   b : bool = true || bump(true);
   if a { return 1 }
@@ -18,4 +18,4 @@ fn main() i32 {
   if d { return 5 }
   if count != 2 { return 6 }
   return 0;
-}
+};

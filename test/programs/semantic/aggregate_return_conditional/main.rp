@@ -3,16 +3,16 @@ struct pair {
   y: i32,
 }
 
-fn choose(flag: bool) pair {
+choose :: fn(flag: bool) -> pair {
   if flag {
     return pair { x: 1, y: 2 };
   } else {
     return pair { x: 3, y: 4 };
   }
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   left := choose(true);
   right := choose(false);
   return left.x + left.y + right.x + right.y;
-}
+};

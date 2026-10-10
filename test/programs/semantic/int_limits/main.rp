@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   max : i64 = 9223372036854775807;
   min : i64 = -9223372036854775808;
   wide : i64 = max - 9223372036854775800;
@@ -7,4 +7,4 @@ fn main() i32 {
     return cast(i32, wide);
   }
   return 0;
-}
+};

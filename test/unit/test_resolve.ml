@@ -13,14 +13,14 @@ let decl_name_span = function
 let%expect_test "resolve: global and function collide" =
   run_src {|
 x : i32 = 1;
-fn x() i32 { return 0 }
+x :: fn() -> i32 { return 0 };
 |};
   [%expect
     {|
     error: already defined
-      at <test>:3:4
-        fn x() i32 { return 0 }
-           ^
+      at <test>:3:1
+        x :: fn() -> i32 { return 0 };
+        ^
       at <test>:2:1
         x : i32 = 1;
         ^ previous definition here
@@ -28,7 +28,7 @@ fn x() i32 { return 0 }
 
 let%expect_test "resolve: collision reported in either order" =
   run_src {|
-fn x() i32 { return 0 }
+x :: fn() -> i32 { return 0 };
 x : i32 = 1;
 |};
   [%expect
@@ -37,81 +37,84 @@ x : i32 = 1;
       at <test>:3:1
         x : i32 = 1;
         ^
-      at <test>:2:4
-        fn x() i32 { return 0 }
-           ^ previous definition here
+      at <test>:2:1
+        x :: fn() -> i32 { return 0 };
+        ^ previous definition here
     |}]
 
 let%expect_test "resolve: duplicate function same signature" =
   run_src {|
-fn f() {}
-fn f() {}
+f :: fn() {};
+f :: fn() {};
 |};
   [%expect
     {|
     error: already defined
-      at <test>:3:4
-        fn f() {}
-           ^
-      at <test>:2:4
-        fn f() {}
-           ^ previous definition here
+      at <test>:3:1
+        f :: fn() {};
+        ^
+      at <test>:2:1
+        f :: fn() {};
+        ^ previous definition here
     |}]
 
 let%expect_test "resolve: duplicate function different signature" =
-  run_src {|
-fn f() i32 { return 0 }
-fn f(a: i32) i32 { return a }
+  run_src
+    {|
+f :: fn() -> i32 { return 0 };
+f :: fn(a: i32) -> i32 { return a };
 |};
   [%expect
     {|
     error: already defined
-      at <test>:3:4
-        fn f(a: i32) i32 { return a }
-           ^
-      at <test>:2:4
-        fn f() i32 { return 0 }
-           ^ previous definition here
+      at <test>:3:1
+        f :: fn(a: i32) -> i32 { return a };
+        ^
+      at <test>:2:1
+        f :: fn() -> i32 { return 0 };
+        ^ previous definition here
     |}]
 
 let%expect_test "resolve: nested block shadow does not leak" =
-  run_src {|
-fn main() i32 {
+  run_src
+    {|
+main :: fn() -> i32 {
   x : i32 = 1;
   { x : i32 = 2 }
   return x;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: same scope redeclare reads old binding" =
-  run_src {|
-fn main() i32 {
+  run_src
+    {|
+main :: fn() -> i32 {
   x : i32 = 1;
   x : i32 = x + 4;
   return x;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: loop variable is scoped to the loop" =
   run_src
     {|
-fn main() i32 {
+main :: fn() -> i32 {
   i : i32 = 99;
   for i in 0..3 { }
   return i;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: cannot assign to a function name" =
   run_src {|
-fn g() {}
-fn main() i32 {
+g :: fn() {};
+main :: fn() -> i32 {
   g = g;
   return 0;
-}
+};
 |};
   [%expect
     {|
@@ -124,11 +127,11 @@ fn main() i32 {
 let%expect_test "resolve: address of a function lowers" =
   run_codegen
     {|
-fn g() i32 { return 7 }
-fn main() i32 {
+g :: fn() -> i32 { return 7 };
+main :: fn() -> i32 {
   _p := &g;
   return 0;
-}
+};
 |};
   [%expect
     {|
@@ -156,116 +159,118 @@ let%expect_test "resolve: a binding shadowing a global is assignable" =
   run_src
     {|
 C : i32 = 5;
-fn main() i32 {
+main :: fn() -> i32 {
   C : i32 = 1;
   C = 2;
   return C;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: duplicate parameter names" =
   run_src {|
-fn f(a: i32, a: i32) i32 { return a }
+f :: fn(a: i32, a: i32) -> i32 { return a };
 |};
   [%expect
     {|
     error: already defined
-      at <test>:2:14
-        fn f(a: i32, a: i32) i32 { return a }
-                     ^~~~~~
-      at <test>:2:6
-        fn f(a: i32, a: i32) i32 { return a }
-             ^~~~~~ previous definition here
+      at <test>:2:17
+        f :: fn(a: i32, a: i32) -> i32 { return a };
+                        ^~~~~~
+      at <test>:2:9
+        f :: fn(a: i32, a: i32) -> i32 { return a };
+                ^~~~~~ previous definition here
     |}]
 
 let%expect_test "resolve: function called before its definition" =
-  run_src {|
-fn main() i32 { return g() }
-fn g() i32 { return 7 }
+  run_src
+    {|
+main :: fn() -> i32 { return g() };
+g :: fn() -> i32 { return 7 };
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: poison variable lets type checking continue" =
-  run_src {|fn f() i32 { return missing }
-fn g() i32 { return true }|};
+  run_src
+    {|f :: fn() -> i32 { return missing };
+g :: fn() -> i32 { return true };|};
   [%expect
     {|
     error: undefined variable
-      at <test>:1:21
-        fn f() i32 { return missing }
-                            ^~~~~~~
+      at <test>:1:27
+        f :: fn() -> i32 { return missing };
+                                  ^~~~~~~
     error: type mismatch
-      at <test>:2:21
-        fn g() i32 { return true }
-                            ^~~~ expected i32, found bool
+      at <test>:2:27
+        g :: fn() -> i32 { return true };
+                                  ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "resolve: poison type lets type checking continue" =
-  run_src {|fn f(x: Missing) {}
-fn g() i32 { return true }|};
+  run_src {|f :: fn(x: Missing) {};
+g :: fn() -> i32 { return true };|};
   [%expect
     {|
     error: undefined type
-      at <test>:1:9
-        fn f(x: Missing) {}
-                ^~~~~~~
+      at <test>:1:12
+        f :: fn(x: Missing) {};
+                   ^~~~~~~
     error: type mismatch
-      at <test>:2:21
-        fn g() i32 { return true }
-                            ^~~~ expected i32, found bool
+      at <test>:2:27
+        g :: fn() -> i32 { return true };
+                                  ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "resolve: shadow inside if body does not leak" =
   run_src
     {|
-fn main() i32 {
+main :: fn() -> i32 {
   x : i32 = 1;
   if x > 0 {
     x : i32 = 2;
     x = x + 1;
   }
   return x;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: shadow inside while body does not leak" =
   run_src
     {|
-fn main() i32 {
+main :: fn() -> i32 {
   x : i32 = 0;
   while x < 3 {
     y : i32 = x;
     x = y + 1;
   }
   return x;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: local inside for body does not leak" =
   run_src
     {|
-fn main() i32 {
+main :: fn() -> i32 {
   sum : i32 = 0;
   for i in 0..3 {
     t : i32 = i;
     sum = sum + t;
   }
   return sum;
-}
+};
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: loop variable is not visible after the loop" =
   run_src
     {|
-fn main() i32 {
+main :: fn() -> i32 {
   s : i32 = 0;
   for i in 0..3 { s = s + i }
   return i;
-}
+};
 |};
   [%expect
     {|
@@ -276,56 +281,57 @@ fn main() i32 {
     |}]
 
 let%expect_test "resolve: extern and function names coexist" =
-  run_src {|
+  run_src
+    {|
 extern "C" fn puts(s: cstr) i32;
-fn main() i32 { return 0 }
+main :: fn() -> i32 { return 0 };
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: same local name in two functions" =
   run_src
     {|
-fn a() i32 {
+a :: fn() -> i32 {
   x : i32 = 1;
   return x;
-}
-fn b() i32 {
+};
+b :: fn() -> i32 {
   x : i32 = 2;
   return x;
-}
-fn main() i32 { return a() + b() }
+};
+main :: fn() -> i32 { return a() + b() };
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: call to an undefined function" =
   run_src {|
-fn main() i32 { return nope() }
+main :: fn() -> i32 { return nope() };
 |};
   [%expect
     {|
     error: undefined function
-      at <test>:2:24
-        fn main() i32 { return nope() }
-                               ^~~~
+      at <test>:2:30
+        main :: fn() -> i32 { return nope() };
+                                     ^~~~
     |}]
 
 let%expect_test "resolve: global is visible in a function" =
   run_src {|
 C : i32 = 5;
-fn main() i32 { return C }
+main :: fn() -> i32 { return C };
 |};
   [%expect {| ok |}]
 
 let%expect_test "resolve: nested block reads the enclosing param" =
   run_src
     {|
-fn f(a: i32) i32 {
+f :: fn(a: i32) -> i32 {
   {
     a : i32 = a + 1;
     return a;
   }
-}
-fn main() i32 { return f(1) }
+};
+main :: fn() -> i32 { return f(1) };
 |};
   [%expect {| ok |}]
 
@@ -333,12 +339,12 @@ let%expect_test "resolve: only an extern ABI keeps the name C spells" =
   let decls, uses =
     resolve_src
       {|
-fn main() i32 { return 0 }
+main :: fn() -> i32 { return 0 };
 extern "C" fn puts(s: cstr) i32;
 extern "C" fn exported(x: i32) i32 { return x }
 extern "Ripe" fn unmangled(x: i32) i32 { return x }
-fn plain(x: i32) i32 { return x }
-fn binary_search() i32 { return 0 }
+plain :: fn(x: i32) -> i32 { return x };
+binary_search :: fn() -> i32 { return 0 };
 |}
   in
   let show (decl : Ripe.Ast.decl) =
@@ -362,32 +368,33 @@ fn binary_search() i32 { return 0 }
 
 let%expect_test "resolve: a local function may call a later sibling" =
   run_src
-    {|fn f() i32 {
-  fn first(x: i32) i32 { second(x) }
-  fn second(x: i32) i32 { x + 1 }
+    {|f :: fn() -> i32 {
+  first :: fn(x: i32) -> i32 { second(x) };
+  second :: fn(x: i32) -> i32 { x + 1 };
   first(4)
-}|};
+};|};
   [%expect {| ok |}]
 
 let%expect_test "resolve: a local function cannot capture a variable" =
-  run_src {|fn f() i32 {
+  run_src
+    {|f :: fn() -> i32 {
   x := 4;
-  fn read() i32 { x }
+  read :: fn() -> i32 { x };
   read()
-}|};
+};|};
   [%expect
     {|
     error: local function cannot capture variable
-      at <test>:3:19
-          fn read() i32 { x }
-                          ^
+      at <test>:3:25
+          read :: fn() -> i32 { x };
+                                ^
     |}]
 
 let%expect_test "resolve: a local declaration stays in its block" =
-  run_src {|fn f() {
+  run_src {|f :: fn() {
   { type Coord = i32 }
   x : Coord = 1;
-}|};
+};|};
   [%expect
     {|
     error: undefined type
@@ -398,22 +405,22 @@ let%expect_test "resolve: a local declaration stays in its block" =
 
 let%expect_test "resolve: a captured variable shadows a module function" =
   run_src
-    {|fn x() i32 { 7 }
-fn outer() i32 {
+    {|x :: fn() -> i32 { 7 };
+outer :: fn() -> i32 {
   x := 1;
-  fn inner() i32 { x() }
+  inner :: fn() -> i32 { x() };
   inner()
-}|};
+};|};
   [%expect
     {|
     error: local function cannot capture variable
-      at <test>:4:20
-          fn inner() i32 { x() }
-                           ^
+      at <test>:4:26
+          inner :: fn() -> i32 { x() };
+                                 ^
     |}]
 
 let%expect_test "resolve: a span with no symbol comes back empty" =
-  let src = {|fn target() i32 { return 1 }|} in
+  let src = {|target :: fn() -> i32 { return 1 };|} in
   let decls, uses = resolve_src src in
   let _, recorded = decl_name_span (List.hd decls) in
   let show what sp =
@@ -435,7 +442,7 @@ let%expect_test "resolve: a span with no symbol comes back empty" =
     |}]
 
 let%expect_test "resolve: a symbol keeps its key and source name" =
-  let src = {|fn target() i32 { return 1 }|} in
+  let src = {|target :: fn() -> i32 { return 1 };|} in
   let decls, uses = resolve_src src in
   let _, recorded = decl_name_span (List.hd decls) in
   let sym = Ripe.Resolve.sym_at uses recorded in
@@ -447,10 +454,10 @@ let%expect_test "resolve: a symbol keeps its key and source name" =
 
 let%expect_test "resolve: a function declared in a body is lifted out" =
   let src =
-    {|fn outer() i32 {
-  fn inner() i32 { return 1 }
+    {|outer :: fn() -> i32 {
+  inner :: fn() -> i32 { return 1 };
   return inner();
-}|}
+};|}
   in
   let decls, uses = resolve_src src in
   let name (decl : Ripe.Ast.decl) =
@@ -466,12 +473,12 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
     |}]
 
 let%expect_test "resolve: nothing is lifted when no body declares one" =
-  let _, uses = resolve_src {|fn target() i32 { return 1 }|} in
+  let _, uses = resolve_src {|target :: fn() -> i32 { return 1 };|} in
   Printf.printf "%d\n" (List.length (Ripe.Resolve.local_decls uses));
   [%expect {| 0 |}]
 
 let%expect_test "resolve: the builtin types are all in scope" =
-  let _, uses = resolve_src {|fn f() i32 { return 1 }|} in
+  let _, uses = resolve_src {|f :: fn() -> i32 { return 1 };|} in
   let builtins = Ripe.Resolve.builtins uses in
   let name (_, t) = Ripe.Types.show_ty t in
   print_endline (String.concat " " (List.map name builtins));
@@ -483,7 +490,7 @@ let%expect_test "resolve: the builtin types are all in scope" =
     |}]
 
 let%expect_test "resolve: the dump lists what each name resolved to" =
-  let _, uses = resolve_src {|fn f(a: i32) i32 { return a }|} in
+  let _, uses = resolve_src {|f :: fn(a: i32) -> i32 { return a };|} in
   print_string (Ripe.Resolve.dump uses);
   [%expect
     {|
@@ -495,9 +502,9 @@ let%expect_test "resolve: the dump lists what each name resolved to" =
     * #-id: built in declaration
     * kind name: resolved definition
 
-    (0,29) -> #0 Func f
-    (5,11) -> #1 Param a
-    (8,11) -> #-4 Type i32
-    (13,16) -> #-4 Type i32
-    (26,27) -> #1 Param a
+    (0,35) -> #0 Func f
+    (8,14) -> #1 Param a
+    (11,14) -> #-4 Type i32
+    (19,22) -> #-4 Type i32
+    (32,33) -> #1 Param a
     |}]

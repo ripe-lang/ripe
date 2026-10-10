@@ -1,12 +1,12 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn sum(s: []i32) i32 {
+sum :: fn(s: []i32) -> i32 {
   t : i32 = 0;
   for i in 0..s.len { t += s[i] }
   return t;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [4]i32 = [1, 2, 4, 8];
 
   printf("%d %d\n", cast(i32, a[..].len), sum(a[..]));
@@ -24,4 +24,4 @@ fn main() i32 {
   printf("%d %d %d\n", sum(s[..]), sum(s[2..]), sum(s[..=1]));
 
   return sum(a[..]);
-}
+};

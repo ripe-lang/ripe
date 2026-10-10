@@ -1,1 +1,1 @@
-fn f(a: [2]b: i32) i32 { return 0 }
+f :: fn(a: [2]b: i32) -> i32 { return 0 };

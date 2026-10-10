@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   inner := 0;
   outer := 0;
   for _i in 0..3 {
@@ -23,4 +23,4 @@ fn main() i32 {
 
   printf(" inner=%d outer=%d skipped=%d\n", inner, outer, skipped);
   return 0;
-}
+};

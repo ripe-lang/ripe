@@ -1,5 +1,5 @@
-fn f(x: i32) i32 { return x + 1 }
+f :: fn(x: i32) -> i32 { return x + 1 };
 
-fn apply(g: fn (i32) i32, v: i32) i32 { return g(v) }
+apply :: fn(g: fn (i32) i32, v: i32) -> i32 { return g(v) };
 
-fn main() i32 { return apply(f, 4) }
+main :: fn() -> i32 { return apply(f, 4) };

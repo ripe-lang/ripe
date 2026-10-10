@@ -1,6 +1,6 @@
-fn main() i32 {
+main :: fn() -> i32 {
   for _i in 0..3 {
     break @nope;
   }
   return 0;
-}
+};

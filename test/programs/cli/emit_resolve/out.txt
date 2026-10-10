@@ -6,14 +6,14 @@ Each line maps a source byte range to its definition.
 * #-id: built in declaration
 * kind name: resolved definition
 
-(0,46) -> #0 Func add
-(7,13) -> #2 Param a
-(10,13) -> #-4 Type i32
-(15,21) -> #3 Param b
-(18,21) -> #-4 Type i32
-(23,26) -> #-4 Type i32
-(38,39) -> #2 Param a
-(42,43) -> #3 Param b
-(48,85) -> #1 Func main
-(58,61) -> #-4 Type i32
-(73,76) -> #0 Func add
+(0,52) -> #0 Func add
+(10,16) -> #2 Param a
+(13,16) -> #-4 Type i32
+(18,24) -> #3 Param b
+(21,24) -> #-4 Type i32
+(29,32) -> #-4 Type i32
+(44,45) -> #2 Param a
+(48,49) -> #3 Param b
+(55,98) -> #1 Func main
+(71,74) -> #-4 Type i32
+(86,89) -> #0 Func add

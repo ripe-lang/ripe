@@ -1,9 +1,9 @@
-fn sum_to(n: i32) i32 {
+sum_to :: fn(n: i32) -> i32 {
   if n == 0 {
     0
   } else {
     rest := sum_to(n - 1);
     n + rest
   }
-}
-fn main() i32 { return sum_to(10) }
+};
+main :: fn() -> i32 { return sum_to(10) };

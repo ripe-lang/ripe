@@ -10,7 +10,7 @@ struct divres { quot: i32, u: (), e: empty, rem: i32 }
 
 extern "C" fn div(num: i32, den: i32) divres;
 
-fn main() i32 {
+main :: fn() -> i32 {
   s : sep = sep { x: 1, u: (), e: empty {}, y: 2 };
   s.y = s.y + 40;
 
@@ -25,4 +25,4 @@ fn main() i32 {
   r : divres = div(17, 5);
   printf("%d %d %d\n", r.quot, r.rem, cast(i32, sizeof(divres)));
   return 0;
-}
+};

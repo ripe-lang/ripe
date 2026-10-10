@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:17
-    fn add(a: i32, b: c: i32, d: i32) i32 { return 0 }
-                    ^
+  at main.rp:1:20
+    add :: fn(a: i32, b: c: i32, d: i32) -> i32 { return 0 };
+                       ^

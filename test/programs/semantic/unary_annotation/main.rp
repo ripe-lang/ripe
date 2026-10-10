@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   x : i64 = ~53;
   if x != -54 { return 1 }
 
@@ -12,4 +12,4 @@ fn main() i32 {
   if c != 250 { return 4 }
 
   return 0;
-}
+};

@@ -1,5 +1,5 @@
-fn main() i32 {
+main :: fn() -> i32 {
   n : i32 = -5;
   p : *i32 = &n;
   return +n + -n + *p + ~n + 6;
-}
+};

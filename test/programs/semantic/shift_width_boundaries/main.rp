@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   seven : u64 = 7;
   eight : u64 = 8;
   thirtyone : u64 = 31;
@@ -38,4 +38,4 @@ fn main() i32 {
   if i >> sixtyfour != 0 { return 51 }
 
   return 1;
-}
+};

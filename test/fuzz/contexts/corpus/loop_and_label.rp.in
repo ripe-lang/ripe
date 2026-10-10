@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   n : i32 = 0;
   loop @outer {
     n = n + 1;
     if n > 2 { break @outer }
   }
   return n;
-}
+};

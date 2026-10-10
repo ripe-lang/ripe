@@ -8,6 +8,6 @@ extern "Ripe" fn total(p: Pair) i32 {
   return p.a + p.b;
 }
 
-fn main() i32 {
+main :: fn() -> i32 {
   return total(make_pair(7));
-}
+};

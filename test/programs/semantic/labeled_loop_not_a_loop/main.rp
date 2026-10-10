@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   if @outer true { }
   return 0;
-}
+};

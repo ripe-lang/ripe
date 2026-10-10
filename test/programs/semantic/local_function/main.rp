@@ -1,7 +1,7 @@
-fn main() i32 {
-  fn double(value: i32) i32 {
+main :: fn() -> i32 {
+  double :: fn(value: i32) -> i32 {
     value * 2
-  }
+  };
 
   return double(5);
-}
+};

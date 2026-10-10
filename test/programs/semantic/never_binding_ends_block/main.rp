@@ -1,9 +1,9 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 extern "C" fn exit(code: i32) never;
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("before\n");
   _x : never = exit(4);
   printf("after\n");
   return 0;
-}
+};

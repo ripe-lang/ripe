@@ -13,7 +13,7 @@ extern "C" fn c_scale(p: Pair, k: f64) Pair;
 extern "C" fn c_blend(m: Mixed) Mixed;
 extern "C" fn c_bump(w: *Wide);
 
-fn main() i32 {
+main :: fn() -> i32 {
   p : Point = c_shift(Point{x: 10, y: 20}, 5);
   printf("point %ld %ld\n", cast(i64, p.x), cast(i64, p.y));
 
@@ -33,4 +33,4 @@ fn main() i32 {
   c_bump(&own);
   printf("bump %ld %ld\n", own.a, own.b);
   return 0;
-}
+};

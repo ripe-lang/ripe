@@ -2,10 +2,10 @@
    { key = 0; name = "_R3add"; source_name = "add"; entry_point = false;
      params =
      [({ id = 2; name = "a"; link_name = "a"; kind = Param;
-         entry_point = false; span = (7,13); name_span = (7,13) },
+         entry_point = false; span = (10,16); name_span = (10,16) },
        (TInt I32));
        ({ id = 3; name = "b"; link_name = "b"; kind = Param;
-          entry_point = false; span = (15,21); name_span = (15,21) },
+          entry_point = false; span = (18,24); name_span = (18,24) },
         (TInt I32))
        ];
      ret_ty = (TInt I32);
@@ -18,17 +18,17 @@
                         (TIdent
                            { id = 2; name = "a"; link_name = "a";
                              kind = Param; entry_point = false;
-                             span = (7,13); name_span = (7,13) });
-                        ty = (TInt I32); span = (38,39) },
+                             span = (10,16); name_span = (10,16) });
+                        ty = (TInt I32); span = (44,45) },
                       { desc =
                         (TIdent
                            { id = 3; name = "b"; link_name = "b";
                              kind = Param; entry_point = false;
-                             span = (15,21); name_span = (15,21) });
-                        ty = (TInt I32); span = (42,43) }
+                             span = (18,24); name_span = (18,24) });
+                        ty = (TInt I32); span = (48,49) }
                       ));
-                   ty = (TInt I32); span = (38,43) }));
-        ty = TNever; span = (31,43) }
+                   ty = (TInt I32); span = (44,49) }));
+        ty = TNever; span = (37,49) }
        ];
      export = false; variadic = false; abi = Ripe })
 (TFunc
@@ -42,16 +42,16 @@
                       { desc =
                         (TIdent
                            { id = 0; name = "add"; link_name = "_R3add";
-                             kind = Func; entry_point = false; span = (0,46);
-                             name_span = (3,6) });
+                             kind = Func; entry_point = false; span = (0,52);
+                             name_span = (0,3) });
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
                         span = (-1,-1) },
-                      [{ desc = (TInt 1L); ty = (TInt I32); span = (77,78) };
-                        { desc = (TInt 2L); ty = (TInt I32); span = (80,81) }
+                      [{ desc = (TInt 1L); ty = (TInt I32); span = (90,91) };
+                        { desc = (TInt 2L); ty = (TInt I32); span = (93,94) }
                         ],
                       None));
-                   ty = (TInt I32); span = (73,82) }));
-        ty = TNever; span = (66,82) }
+                   ty = (TInt I32); span = (86,95) }));
+        ty = TNever; span = (79,95) }
        ];
      export = false; variadic = false; abi = Ripe })

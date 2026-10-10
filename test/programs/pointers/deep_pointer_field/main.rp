@@ -2,7 +2,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 struct point { x: i32, y: i32 }
 
-fn main() i32 {
+main :: fn() -> i32 {
   p : point = point { x: 42, y: 7 };
   q : *point = &p;
   qq : **point = &q;
@@ -18,4 +18,4 @@ fn main() i32 {
   (**qqq).y = 9;
   printf("%d %d\n", p.x, p.y);
   return 0;
-}
+};

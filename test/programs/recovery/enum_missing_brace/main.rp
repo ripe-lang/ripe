@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
 enum color Red, Green }
-fn main() i32 {
+main :: fn() -> i32 {
   c := color.Red;
   return match c { color.Red => 1, color.Green => 2 };
-}
+};

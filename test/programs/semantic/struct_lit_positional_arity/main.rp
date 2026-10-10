@@ -3,18 +3,18 @@ struct pair {
   y: i32,
 }
 
-fn few() pair {
+few :: fn() -> pair {
   return pair { 1 };
-}
+};
 
-fn many() pair {
+many :: fn() -> pair {
   return pair { 1, 2, 3 };
-}
+};
 
-fn wrong_type() pair {
+wrong_type :: fn() -> pair {
   return pair { 1, true };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return few().x + many().x + wrong_type().x;
-}
+};

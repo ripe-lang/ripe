@@ -75,6 +75,7 @@ type token =
   | UNDERSCORE
   | CAST
   | AT
+  | ARROW
 
 let keywords =
   [
@@ -173,6 +174,7 @@ let show_token = function
   | UNDERSCORE -> "_"
   | SEMI -> ";"
   | AT -> "@"
+  | ARROW -> "->"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
   | ( RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK | CONTINUE

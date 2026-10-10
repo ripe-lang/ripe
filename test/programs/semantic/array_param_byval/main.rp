@@ -1,11 +1,11 @@
-fn clobber(a: [3]i32) i32 {
+clobber :: fn(a: [3]i32) -> i32 {
   local : [3]i32 = a;
   local[0] = 99;
   return local[0];
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [3]i32 = [1, 2, 3];
   seen : i32 = clobber(a);
   return a[0] + seen;
-}
+};

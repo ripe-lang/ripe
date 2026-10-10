@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   n := 7;
   cls := {
     r := 0;
@@ -6,4 +6,4 @@ fn main() i32 {
     r
   };
   return cls;
-}
+};

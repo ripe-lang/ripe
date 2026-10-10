@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   first := {
     struct Value { number: i32 }
     value := Value { number: 5 };
@@ -12,4 +12,4 @@ fn main() i32 {
   };
 
   return first + second;
-}
+};

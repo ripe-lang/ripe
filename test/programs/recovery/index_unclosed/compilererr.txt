@@ -1,6 +1,6 @@
 error: mismatched closing delimiter
   at main.rp:4:1
-    }
+    };
     ^ expected `]`
   at main.rp:3:11
       return a[0;

@@ -1,5 +1,5 @@
-fn spin() never { while true {} }
-fn main() i32 {
+spin :: fn() -> never { while true {} };
+main :: fn() -> i32 {
   if false { spin() }
   return 42;
-}
+};

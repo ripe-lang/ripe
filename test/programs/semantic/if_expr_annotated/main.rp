@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   y : i64 = if false { 1 } else { 2 };
   return cast(i32, y);
-}
+};

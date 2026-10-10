@@ -1,19 +1,19 @@
-fn main() i32 {
-  fn first(value: i32) i32 {
+main :: fn() -> i32 {
+  first :: fn(value: i32) -> i32 {
     second(value)
-  }
+  };
 
-  fn second(value: i32) i32 {
+  second :: fn(value: i32) -> i32 {
     third(value)
-  }
+  };
 
-  fn third(value: i32) i32 {
+  third :: fn(value: i32) -> i32 {
     fourth(value)
-  }
+  };
 
-  fn fourth(value: i32) i32 {
+  fourth :: fn(value: i32) -> i32 {
     value + 1
-  }
+  };
 
   return first(13);
-}
+};

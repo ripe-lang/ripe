@@ -1,4 +1,4 @@
-fn 3scale(n: i32) i32 {
+3scale :: fn(n: i32) -> i32 {
   return n * 2;
-}
-fn main() i32 { return scale(2) }
+};
+main :: fn() -> i32 { return scale(2) };

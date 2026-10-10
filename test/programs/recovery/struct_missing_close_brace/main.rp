@@ -2,9 +2,9 @@
 struct point {
   x: i32,
 
-fn helper(n: i32) i32 { return n }
+helper :: fn(n: i32) -> i32 { return n };
 
-fn main() i32 {
+main :: fn() -> i32 {
   p := point { 5 };
   return p.x + helper(1);
-}
+};

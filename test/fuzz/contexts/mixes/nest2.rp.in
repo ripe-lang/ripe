@@ -1,2 +1,2 @@
-fn f() i32 { return (1 %%D%% 2) }
-fn main() i32 { return f() }
+f :: fn() -> i32 { return (1 %%D%% 2) };
+main :: fn() -> i32 { return f() };

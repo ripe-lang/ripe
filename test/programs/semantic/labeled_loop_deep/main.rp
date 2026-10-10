@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   n := 0;
   for @a i in 0..3 {
     for @b j in 0..3 {
@@ -15,4 +15,4 @@ fn main() i32 {
   }
   printf("n=%d\n", n);
   return n;
-}
+};

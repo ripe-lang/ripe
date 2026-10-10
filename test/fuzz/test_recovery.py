@@ -25,7 +25,7 @@ NAMES = "abcdefghijklmnopqrstuvwxyz"
 FIELD_TYPES = (("i32", "0"), ("*i32", "null"), ("[2]i32", "[0, 0]"))
 PARAM_TYPES = FIELD_TYPES + (("fn (i32) i32", "h0"),)
 
-PRELUDE = "fn h0(a: i32) i32 { return a }\n"
+PRELUDE = "h0 :: fn(a: i32) -> i32 { return a };\n"
 
 RUNS = 1200
 
@@ -48,7 +48,7 @@ def func_decl(i, n):
     picks = [PARAM_TYPES[j % len(PARAM_TYPES)] for j in range(n)]
     ps = ", ".join(f"{NAMES[j]}: {t}" for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
-    text = f"fn f{i}({ps}) i32 {{\n  return 0;\n}}"
+    text = f"f{i} :: fn({ps}) -> i32 {{\n  return 0;\n}};"
 
     return text, [f"r{i} := f{i}({args})"], [f"r{i}"]
 
@@ -147,14 +147,14 @@ def build_main(uses, terms):
     body = "".join(f"  {u};\n" for u in uses)
     total = " + ".join(terms) if terms else "0"
 
-    return f"fn main() i32 {{\n{body}  return {total};\n}}\n"
+    return f"main :: fn() -> i32 {{\n{body}  return {total};\n}};\n"
 
 
 def make_case(rng):
     if rng.random() < 0.15:
         src = "struct P {\n  x: i32,\n}\n"
         src += rng.choice(CLOSERS) + "\n"
-        src += "fn main() i32 {\n  p : P;\n  return p.x;\n}\n"
+        src += "main :: fn() -> i32 {\n  p : P;\n  return p.x;\n};\n"
 
         return src, False, "delim", 1, None
 

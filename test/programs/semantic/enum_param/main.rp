@@ -2,17 +2,17 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 enum Level { Low, High }
 
-fn pick(level: Level, lo: i32, hi: i32) i32 {
+pick :: fn(level: Level, lo: i32, hi: i32) -> i32 {
   if level == Level.Low { return lo }
   return hi;
-}
+};
 
-fn flip(level: Level) Level {
+flip :: fn(level: Level) -> Level {
   if level == Level.Low { return Level.High }
   return Level.Low;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d\n", pick(Level.Low, 1, 2), pick(flip(Level.Low), 1, 2));
   return 0;
-}
+};

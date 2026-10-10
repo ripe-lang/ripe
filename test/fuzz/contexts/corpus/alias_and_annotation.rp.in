@@ -1,5 +1,5 @@
 type count = i32;
-fn main() i32 {
+main :: fn() -> i32 {
   n : count = 7;
   return n;
-}
+};

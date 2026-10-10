@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn takef(x: f32) f32 { return x }
+takef :: fn(x: f32) -> f32 { return x };
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : f32 = 1;
   b : f64 = 2;
   c : f32 = 1.5;
@@ -15,4 +15,4 @@ fn main() i32 {
     cast(f64, e), f, cast(f64, g));
   printf("%f\n", h);
   return 0;
-}
+};

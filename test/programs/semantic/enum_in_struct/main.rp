@@ -4,8 +4,8 @@ enum Kind { Circle, Square }
 
 struct Shape { kind: Kind, size: i32 }
 
-fn main() i32 {
+main :: fn() -> i32 {
   s := Shape { kind: Kind.Square, size: 3 };
   printf("%d %d\n", s.kind == Kind.Square, s.size);
   return 0;
-}
+};

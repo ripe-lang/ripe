@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   total := 0;
   for v in a {
@@ -8,4 +8,4 @@ fn main() i32 {
   }
   printf("total=%d\n", total);
   return total;
-}
+};

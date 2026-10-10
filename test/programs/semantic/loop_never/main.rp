@@ -1,6 +1,6 @@
-fn spin() never { loop {} }
+spin :: fn() -> never { loop {} };
 
-fn main() i32 {
+main :: fn() -> i32 {
   if false { spin() }
   return 42;
-}
+};

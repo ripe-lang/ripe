@@ -1,11 +1,11 @@
-fn main() i32 {
-  fn first(value: i32) i32 {
+main :: fn() -> i32 {
+  first :: fn(value: i32) -> i32 {
     if value == 0 { 17 } else { second(value - 1) }
-  }
+  };
 
-  fn second(value: i32) i32 {
+  second :: fn(value: i32) -> i32 {
     if value == 0 { 17 } else { first(value - 1) }
-  }
+  };
 
   return first(4);
-}
+};

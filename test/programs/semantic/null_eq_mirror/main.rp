@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   p : *i32 = null;
   n : i32 = 5;
   q : *i32 = &n;
@@ -7,4 +7,4 @@ fn main() i32 {
   if null == q { return 3 }
   if q == null { return 4 }
   return 0;
-}
+};

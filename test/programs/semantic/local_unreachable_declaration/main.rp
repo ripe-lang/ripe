@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   return 23;
-  fn unused() i32 { 0 }
-}
+  unused :: fn() -> i32 { 0 };
+};

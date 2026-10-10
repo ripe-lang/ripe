@@ -3,16 +3,16 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 enum Color { Red, Green, Blue }
 
 // Every arm leaves the function so nothing follows the match
-fn code(c: Color) i32 {
+code :: fn(c: Color) -> i32 {
   match c {
     Color.Red => return 1,
     Color.Green => return 2,
     Color.Blue => return 3,
 
   }
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue));
   return 0;
-}
+};

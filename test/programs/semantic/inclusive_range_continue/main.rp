@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   s : i32 = 0;
   for i in 0..=5 {
     if i == 2 { continue }
     s += i;
   }
   return s;
-}
+};

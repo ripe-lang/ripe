@@ -1,8 +1,8 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn id(x: i32) i32 { return x }
+id :: fn(x: i32) -> i32 { return x };
 
-fn main() i32 {
+main :: fn() -> i32 {
   a := 1 + { t := 2; t };
   arr := [{ t := 1; t }, 2, 3];
   i := arr[{ t := 0; t }];
@@ -10,4 +10,4 @@ fn main() i32 {
   m = { t := 9; t };
   printf("%d %d %d %d\n", a, id({ t := 4; t + 1 }), i, m);
   return a;
-}
+};

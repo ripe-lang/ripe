@@ -1,2 +1,2 @@
-fn add(a: b: i32) i32 { return b }
-fn main() i32 { return add(1, 2) }
+add :: fn(a: b: i32) -> i32 { return b };
+main :: fn() -> i32 { return add(1, 2) };

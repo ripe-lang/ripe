@@ -1,11 +1,11 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn classify(n: i32) i32 {
+classify :: fn(n: i32) -> i32 {
   c := if n < 0 { 0 - 1 } else if n > 0 { 1 } else { 0 };
   return c;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d\n", classify(0 - 5), classify(7), classify(0));
   return 0;
-}
+};

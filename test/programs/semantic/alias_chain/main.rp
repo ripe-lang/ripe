@@ -1,8 +1,8 @@
 type A = i32;
 type B = A;
 
-fn main() i32 {
+main :: fn() -> i32 {
   x : B = 4;
   y : A = x;
   return y + 1;
-}
+};

@@ -6,15 +6,15 @@ enum color { 88, Green }
 
 LIMIT : i32 =
 
-fn scale(n: i32) i32
+scale :: fn(n: i32) -> i32
   return n * 2;
 
-fn bad() i32 { z : i32 = ; return z }
+bad :: fn() -> i32 { z : i32 = ; return z };
 
-fn main() i32 {
+main :: fn() -> i32 {
   p := point { 5, 4 };
   c := color.Green;
   s := scale(2);
   b := bad();
   return p.y + s + b + LIMIT;
-}
+};

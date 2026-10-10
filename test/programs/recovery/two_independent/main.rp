@@ -1,3 +1,3 @@
 // BROKEN: waiting on the new parser recovery
-fn a(x: y: i32) i32 { return 0 }
-fn b() i32 { z : i32 = ; return z }
+a :: fn(x: y: i32) -> i32 { return 0 };
+b :: fn() -> i32 { z : i32 = ; return z };

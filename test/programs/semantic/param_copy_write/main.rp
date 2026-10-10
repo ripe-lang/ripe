@@ -1,16 +1,16 @@
 struct Point { x: i32, y: i32 }
 
-fn clobber_array(a: [3]i32) {
+clobber_array :: fn(a: [3]i32) {
   a[0] = 99;
-}
+};
 
-fn clobber_struct(p: Point) {
+clobber_struct :: fn(p: Point) {
   p.x = 99;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [3]i32 = [1, 2, 3];
   clobber_array(a);
   clobber_struct(Point { x: 1, y: 2 });
   return a[0];
-}
+};

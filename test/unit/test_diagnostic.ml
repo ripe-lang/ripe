@@ -18,12 +18,12 @@ let%expect_test "single caret from a zero-width span" =
 let%expect_test
     ("an unterminated string underlines the remaining source"
      [@tags "disabled"]) =
-  Pipeline.run_src "fn main() i32 {\n  return \"unterminated";
+  Pipeline.run_src "main :: fn() -> i32 {\n  return \"unterminated";
   [%expect
     {|
     error: unclosed delimiter
       at <test>:1:15
-        fn main() i32 {
+        main :: fn() -> i32 {
                       ^
     error: unterminated string
       at <test>:2:10
@@ -32,7 +32,7 @@ let%expect_test
     |}]
 
 let%expect_test "a return type mismatch shows the expected and actual types" =
-  Pipeline.run_src "fn main() i32 {\n  return true;\n}\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  return true;\n};\n";
   [%expect
     {|
     error: type mismatch
@@ -42,7 +42,7 @@ let%expect_test "a return type mismatch shows the expected and actual types" =
     |}]
 
 let%expect_test "a parser error shows the token it found" =
-  Pipeline.run_src "fn main() i32 {\n  struct = 1;\n  return 0;\n}\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  struct = 1;\n  return 0;\n};\n";
   [%expect
     {|
     error: expected identifier
@@ -52,7 +52,7 @@ let%expect_test "a parser error shows the token it found" =
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =
-  Pipeline.run_src "fn main() i32 {\n\treturn missing;\n}\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n\treturn missing;\n};\n";
   [%expect
     {|
     error: undefined variable
@@ -63,31 +63,31 @@ let%expect_test "an undefined name after a tab keeps its caret aligned" =
 
 let%expect_test "a duplicate definition points to both declarations" =
   Pipeline.run_src
-    {|fn value() i32 { return 1 }
-fn value() i32 { return 2 }
-fn main() i32 { return value() }
+    {|value :: fn() -> i32 { return 1 };
+value :: fn() -> i32 { return 2 };
+main :: fn() -> i32 { return value() };
 |};
   [%expect
     {|
     error: already defined
-      at <test>:2:4
-        fn value() i32 { return 2 }
-           ^~~~~
-      at <test>:1:4
-        fn value() i32 { return 1 }
-           ^~~~~ previous definition here
+      at <test>:2:1
+        value :: fn() -> i32 { return 2 };
+        ^~~~~
+      at <test>:1:1
+        value :: fn() -> i32 { return 1 };
+        ^~~~~ previous definition here
     |}]
 
 let%expect_test "an internal error prints its detail and reporting URL" =
-  let src = "fn main() i32 { return 0 }" in
+  let src = "main :: fn() -> i32 { return 0 };" in
   render src
     (Diagnostic.internal ~span:(span src "main") "test invariant failed");
   [%expect
     {|
     error: internal compiler error
-      at <test>:1:4
-        fn main() i32 { return 0 }
-           ^~~~
+      at <test>:1:1
+        main :: fn() -> i32 { return 0 };
+        ^~~~
     test invariant failed
     help: this is a bug in ripec, please report it at https://github.com/ripe-lang/ripe/issues
     |}]
@@ -209,20 +209,20 @@ let%expect_test "the severity word gains color only when asked" =
 let%expect_test
     ("a mismatched delimiter points to the opening delimiter"
      [@tags "disabled"]) =
-  Pipeline.run_src "fn main() i32 { return value( };";
+  Pipeline.run_src "main :: fn() -> i32 { return value( };";
   [%expect
     {|
     error: mismatched closing delimiter
       at <test>:1:31
-        fn main() i32 { return value( };
+        main :: fn() -> i32 { return value( };
                                       ^ expected `)`
       at <test>:1:29
-        fn main() i32 { return value( };
+        main :: fn() -> i32 { return value( };
                                     ^ to match this `(`
     |}]
 
 let%expect_test "an undefined name after UTF text keeps its caret aligned" =
-  Pipeline.run_src "fn main() i32 {\n  _s := \"é\"; return missing;\n}\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  _s := \"é\"; return missing;\n};\n";
   [%expect
     {|
     error: undefined variable
@@ -233,9 +233,9 @@ let%expect_test "an undefined name after UTF text keeps its caret aligned" =
 
 let%expect_test "a long undefined name stops at the preview edge" =
   Pipeline.run_src
-    {|fn main() i32 {
+    {|main :: fn() -> i32 {
   return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more;
-}
+};
 |};
   [%expect
     {|
@@ -248,9 +248,9 @@ let%expect_test "a long undefined name stops at the preview edge" =
 let%expect_test
     "an undefined name near the end of a long expression stays visible" =
   Pipeline.run_src
-    {|fn main() i32 {
+    {|main :: fn() -> i32 {
   return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing;
-}
+};
 |};
   [%expect
     {|
@@ -262,12 +262,12 @@ let%expect_test
 
 let%expect_test
     ("an unfinished function points to its opening brace" [@tags "disabled"]) =
-  Pipeline.run_src "fn main() i32 {\n  return;";
+  Pipeline.run_src "main :: fn() -> i32 {\n  return;";
   [%expect
     {|
     error: unclosed delimiter
       at <test>:1:15
-        fn main() i32 {
+        main :: fn() -> i32 {
                       ^
     |}]
 

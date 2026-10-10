@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   counter : i32;
   counter += 1;
   buf : [4]u8;
@@ -6,4 +6,4 @@ fn main() i32 {
     buf[i] = cast(u8, i);
   }
   return counter + buf[3];
-}
+};

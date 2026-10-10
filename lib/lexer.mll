@@ -96,6 +96,7 @@ rule read_token = parse
     }
   | "==" { EQ }
   | "=>" { FATARROW }
+  | "->" { ARROW }
   | "!=" { NEQ }
   | "<=" { LTE }
   | ">=" { GTE }

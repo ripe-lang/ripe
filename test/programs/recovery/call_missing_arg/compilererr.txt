@@ -1,4 +1,4 @@
 error: wrong number of arguments
-  at main.rp:2:24
-    fn main() i32 { return add(1, ) }
-                           ^~~~~~~~ expected 2 arguments, found 1
+  at main.rp:2:30
+    main :: fn() -> i32 { return add(1, ) };
+                                 ^~~~~~~~ expected 2 arguments, found 1
