@@ -1,4 +1,4 @@
-struct s { x: i32 }
+s :: struct { x: i32 };
 main :: fn() -> i32 { v := s { x: };
   return v.x;
 };

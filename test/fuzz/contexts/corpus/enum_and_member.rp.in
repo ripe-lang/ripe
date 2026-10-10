@@ -1,4 +1,4 @@
-enum color { Red, Green, Blue }
+color :: enum { Red, Green, Blue };
 main :: fn() -> i32 {
   c := color.Green;
   return match c { color.Red => 0, color.Green => 1, _ => 2 };

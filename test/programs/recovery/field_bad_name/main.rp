@@ -1,1 +1,1 @@
-struct s { 9x: i32 }
+s :: struct { 9x: i32 };

@@ -390,7 +390,7 @@ let%expect_test "mir: a returned str literal goes through storage" =
 let%expect_test "mir: a positional struct literal lowers like a named one" =
   Pipeline.run_mir
     {|
-struct pair { x: i32, y: i32 }
+pair :: struct { x: i32, y: i32 };
 
 f :: fn(a: i32, b: i32) -> i32 {
   positional := pair { a, b };
@@ -422,7 +422,7 @@ f :: fn(a: i32, b: i32) -> i32 {
 let%expect_test "mir: struct fields run in the order they are written" =
   Pipeline.run_mir
     {|
-struct pair { x: i32, y: i32 }
+pair :: struct { x: i32, y: i32 };
 
 side :: fn(v: i32) -> i32 { return v };
 
@@ -862,8 +862,8 @@ let%expect_test "mir: a loop yields the value its break carries" =
 
 let%expect_test "mir: a nested field lands on one place with two projections" =
   Pipeline.run_mir
-    {|struct Inner { v: i32 }
-struct Outer { i: Inner }
+    {|Inner :: struct { v: i32 };
+Outer :: struct { i: Inner };
 f :: fn(o: Outer) -> i32 { return o.i.v };|};
   [%expect
     {|

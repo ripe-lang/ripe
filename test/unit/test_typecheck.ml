@@ -186,7 +186,7 @@ f :: fn() {
 let%expect_test "typecheck: a value shadowing a type still converts" =
   run_src
     {|
-type word = i64;
+word :: i64;
 f :: fn() {
   word : i32 = 5;
   _w := cast(word, word);
@@ -219,7 +219,7 @@ let%expect_test "typecheck: a shadowed fn wins the note over a type" =
   run_src
     {|
 f :: fn() {
-  struct point { x: i32, y: i32 }
+  point :: struct { x: i32, y: i32 };
   point :: fn() {};
   point : i32 = 5;
   point(1);
@@ -330,7 +330,7 @@ X : i32 = 7;
 let%expect_test "typecheck: write to a binding's struct field" =
   run_src
     {|
-struct P { x: i32, y: i32 }
+P :: struct { x: i32, y: i32 };
 f :: fn() {
   p : P = P { x: 1, y: 2 };
   p.x = 5;
@@ -608,8 +608,9 @@ let%expect_test ("typecheck: cast cstr to float rejected" [@tags "disabled"]) =
     |}]
 
 let%expect_test "typecheck: cast struct to float rejected" =
-  run_src {|
-struct S { x: i32 }
+  run_src
+    {|
+S :: struct { x: i32 };
 f :: fn() { s : S; y : f64 = cast(f64, s) };
 |};
   [%expect
@@ -788,7 +789,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: struct field read" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn(p: pt) -> i32 { return p.x };
 |};
   [%expect {| ok |}]
@@ -796,7 +797,7 @@ f :: fn(p: pt) -> i32 { return p.x };
 let%expect_test "typecheck: unknown struct field" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn(p: pt) -> i32 { return p.z };
 |};
   [%expect
@@ -824,14 +825,14 @@ f :: fn() {
 
 let%expect_test "typecheck: field access auto-deref through ptr" =
   run_src {|
-struct pt { x: i32 }
+pt :: struct { x: i32 };
 f :: fn(p: *pt) -> i32 { return p.x };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: field access through a double pointer" =
   run_src {|
-struct pt { x: i32 }
+pt :: struct { x: i32 };
 f :: fn(p: **pt) -> i32 { return p.x };
 |};
   [%expect
@@ -1197,7 +1198,7 @@ let%expect_test "typecheck: returning a pointer param ok" =
 
 let%expect_test
     "typecheck: returning the address of a field through a pointer ok" =
-  run_src "struct S { a: i32 }; f :: fn(p: *S) -> *i32 { return &p.a };";
+  run_src "S :: struct { a: i32 }; f :: fn(p: *S) -> *i32 { return &p.a };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: returning a slice from a slice call ok" =
@@ -1400,7 +1401,7 @@ let%expect_test "typecheck: break under if still needs a return" =
 let%expect_test "typecheck: struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := pt { x: 3, y: 4 };
   return p.x + p.y;
@@ -1411,7 +1412,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: empty struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := pt { };
   return p.x;
@@ -1420,8 +1421,9 @@ f :: fn() -> i32 {
   [%expect {| ok |}]
 
 let%expect_test "typecheck: struct literal unknown field" =
-  run_src {|
-struct pt { x: i32, y: i32 }
+  run_src
+    {|
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { z: 1 };
 };
@@ -1437,7 +1439,7 @@ f :: fn() {
 let%expect_test "typecheck: struct literal duplicate field" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { x: 1, x: 2 };
 };
@@ -1453,7 +1455,7 @@ f :: fn() {
 let%expect_test "typecheck: struct literal wrong field type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { x: true };
 };
@@ -1483,7 +1485,7 @@ f :: fn() {
 let%expect_test "typecheck: global struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 origin : pt = pt { x: 1, y: 2 };
 f :: fn() -> i32 { return origin.x };
 |};
@@ -1492,7 +1494,7 @@ f :: fn() -> i32 { return origin.x };
 let%expect_test "typecheck: global struct literal calls a function" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 g :: fn() -> i32 { return 1 };
 p : pt = pt { x: g(), y: 2 };
 |};
@@ -1501,7 +1503,7 @@ p : pt = pt { x: g(), y: 2 };
 let%expect_test "typecheck: positional struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := pt { 3, 4 };
   return p.x + p.y;
@@ -1512,7 +1514,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: positional struct literal of one field" =
   run_src
     {|
-struct box { v: i32 }
+box :: struct { v: i32 };
 f :: fn() -> i32 {
   b := box { 3 };
   return b.v;
@@ -1522,7 +1524,7 @@ f :: fn() -> i32 {
 
 let%expect_test "typecheck: positional struct literal too few fields" =
   run_src {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { 1 };
 };
@@ -1538,7 +1540,7 @@ f :: fn() {
 let%expect_test "typecheck: positional struct literal too many fields" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { 1, 2, 3 };
 };
@@ -1554,7 +1556,7 @@ f :: fn() {
 let%expect_test "typecheck: positional struct literal wrong field type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() {
   p := pt { 1, true };
 };
@@ -1570,8 +1572,8 @@ f :: fn() {
 let%expect_test "typecheck: positional struct literal nested" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
-struct wrap { p: pt, tag: i32 }
+pt :: struct { x: i32, y: i32 };
+wrap :: struct { p: pt, tag: i32 };
 f :: fn() -> i32 {
   w := wrap { pt { 1, 2 }, 3 };
   return w.p.x + w.tag;
@@ -1582,7 +1584,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: positional global struct literal" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 origin : pt = pt { 1, 2 };
 f :: fn() -> i32 { return origin.x };
 |};
@@ -1590,8 +1592,8 @@ f :: fn() -> i32 { return origin.x };
 
 let%expect_test "typecheck: positional literal of a fieldless struct" =
   run_src {|
-struct e {
-}
+e :: struct {
+};
 f :: fn() {
   _a := e { };
   _b := e { 1 };
@@ -1607,36 +1609,36 @@ f :: fn() {
 
 let%expect_test "typecheck: duplicate struct field" =
   run_src {|
-struct pt { x: i32, x: i64 }
+pt :: struct { x: i32, x: i64 };
 |};
   [%expect
     {|
     error: duplicate field
-      at <test>:2:21
-        struct pt { x: i32, x: i64 }
-                            ^
+      at <test>:2:24
+        pt :: struct { x: i32, x: i64 };
+                               ^
     |}]
 
 let%expect_test "typecheck: three duplicate struct fields" =
   run_src {|
-struct pt { x: i32, x: i64, x: bool }
+pt :: struct { x: i32, x: i64, x: bool };
 |};
   [%expect
     {|
     error: duplicate field
-      at <test>:2:21
-        struct pt { x: i32, x: i64, x: bool }
-                            ^
+      at <test>:2:24
+        pt :: struct { x: i32, x: i64, x: bool };
+                               ^
     error: duplicate field
-      at <test>:2:29
-        struct pt { x: i32, x: i64, x: bool }
-                                    ^
+      at <test>:2:32
+        pt :: struct { x: i32, x: i64, x: bool };
+                                       ^
     |}]
 
 let%expect_test "typecheck: type alias mismatch across types" =
   run_src
     {|
-type myint = i64;
+myint :: i64;
 f :: fn(x: myint) -> i32 { return 0 };
 g :: fn() { f(true) };
 |};
@@ -1673,8 +1675,8 @@ f :: fn(a: *i32, b: *i32) -> bool { return a == b };
 let%expect_test "typecheck: nested struct field type mismatch" =
   run_src
     {|
-struct inner { a: i32 }
-struct outer { i: inner }
+inner :: struct { a: i32 };
+outer :: struct { i: inner };
 f :: fn() {
   o : outer = outer { i: inner { a: 1 } };
   o.i.a = true;
@@ -1691,7 +1693,7 @@ f :: fn() {
 let%expect_test "typecheck: struct with array field initializes ok" =
   run_src
     {|
-struct buf { data: [4]i32, n: i32 }
+buf :: struct { data: [4]i32, n: i32 };
 f :: fn() -> i32 {
   b : buf = buf { data: [1, 2, 3, 4], n: 4 };
   return b.n;
@@ -1702,7 +1704,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: function returning struct ok" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 origin :: fn() -> pt { return pt { x: 0, y: 0 } };
 f :: fn() -> i32 { return origin().x };
 |};
@@ -1724,8 +1726,8 @@ f :: fn() { x : i32 = g() };
 let%expect_test "typecheck: struct field whose type is another struct" =
   run_src
     {|
-struct b_t { x: i32 }
-struct a { b: b_t }
+b_t :: struct { x: i32 };
+a :: struct { b: b_t };
 f :: fn() -> i32 {
   v : a = a { b: b_t { x: 1 } };
   return v.b.x;
@@ -1736,7 +1738,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: array of structs iterates element type" =
   run_src
     {|
-struct pt { x: i32, y: i32 }
+pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   pts : [2]pt = [pt { x: 1, y: 2 }, pt { x: 3, y: 4 }];
   s : i32 = 0;
@@ -1819,7 +1821,7 @@ f :: fn() -> bool {
 let%expect_test "typecheck: struct equality rejected" =
   run_src
     {|
-struct P { x: i32 }
+P :: struct { x: i32 };
 f :: fn() -> bool {
   a : P = P { x: 1 };
   b : P = P { x: 1 };
@@ -2027,7 +2029,7 @@ let%expect_test "typecheck: non-i32 main rejected" =
 let%expect_test "typecheck: type alias is transparent to its base" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> i32 { d : Meters = 5; return d + 1 };
 |};
   [%expect {| ok |}]
@@ -2035,8 +2037,8 @@ f :: fn() -> i32 { d : Meters = 5; return d + 1 };
 let%expect_test "typecheck: type alias of a struct allows field access" =
   run_src
     {|
-struct Point { x: i32, y: i32 }
-type Pt = Point;
+Point :: struct { x: i32, y: i32 };
+Pt :: Point;
 f :: fn() -> i32 { p : Pt = Point { x: 1, y: 2 }; return p.x };
 |};
   [%expect {| ok |}]
@@ -2044,7 +2046,7 @@ f :: fn() -> i32 { p : Pt = Point { x: 1, y: 2 }; return p.x };
 let%expect_test "typecheck: type alias of a function pointer is callable" =
   run_src
     {|
-type BinOp = fn (i32, i32) i32;
+BinOp :: (fn (i32, i32) i32);
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() -> i32 { op : BinOp = add; return op(2, 3) };
 |};
@@ -2053,7 +2055,7 @@ f :: fn() -> i32 { op : BinOp = add; return op(2, 3) };
 let%expect_test "typecheck: alias of an array coerces to a slice" =
   run_src
     {|
-type Row = [3]i32;
+Row :: [3]i32;
 take :: fn(s: []i32) -> i32 { return s[0] };
 f :: fn() -> i32 { r : Row = [1, 2, 3]; return take(r) };
 |};
@@ -2062,7 +2064,7 @@ f :: fn() -> i32 { r : Row = [1, 2, 3]; return take(r) };
 let%expect_test "typecheck: aggregate cast sees through an alias element" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> i32 { a : [3]Meters = [1, 2, 3]; b : [3]i32 = a as [3]i32; return b[1] };
 |};
   [%expect
@@ -2076,7 +2078,7 @@ f :: fn() -> i32 { a : [3]Meters = [1, 2, 3]; b : [3]i32 = a as [3]i32; return b
 let%expect_test "typecheck: alias is transparent under a slice and a pointer" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 take_slice :: fn(s: []i32) -> i32 { return s[0] };
 take_ptr :: fn(p: *i32) -> i32 { return *p };
 f :: fn() -> i32 {
@@ -2091,7 +2093,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: alias and base compare with each other" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> bool { m : Meters = 5; b : i32 = 5; return m == b };
 |};
   [%expect {| ok |}]
@@ -2099,7 +2101,7 @@ f :: fn() -> bool { m : Meters = 5; b : i32 = 5; return m == b };
 let%expect_test "typecheck: type alias keeps every comparison of its base" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> bool {
   a : Meters = 5;
   b : Meters = 6;
@@ -2111,7 +2113,7 @@ f :: fn() -> bool {
 let%expect_test "typecheck: type alias keeps arithmetic and bitwise operators" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> i32 {
   a : Meters = 12;
   b : Meters = 5;
@@ -2123,7 +2125,7 @@ f :: fn() -> i32 {
 let%expect_test "typecheck: type alias of a float keeps its operators" =
   run_src
     {|
-type Temp = f32;
+Temp :: f32;
 f :: fn() -> bool {
   a : Temp = 1.5;
   b : Temp = 2.5;
@@ -2135,9 +2137,8 @@ f :: fn() -> bool {
   [%expect {| ok |}]
 
 let%expect_test "typecheck: type alias of a float still has no remainder" =
-  run_src
-    {|
-type Temp = f32;
+  run_src {|
+Temp :: f32;
 f :: fn() -> f32 { a : Temp = 5.0; return a % a };
 |};
   [%expect
@@ -2151,37 +2152,37 @@ f :: fn() -> f32 { a : Temp = 5.0; return a % a };
 let%expect_test "typecheck: type alias mixes with its base in comparisons" =
   run_src
     {|
-type Meters = i32;
+Meters :: i32;
 f :: fn() -> bool { a : Meters = 5; raw : i32 = 6; return a < raw && raw > a };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a type alias name collides with a struct" =
   run_src {|
-type Foo = i32;
-struct Foo { x: i32 }
+Foo :: i32;
+Foo :: struct { x: i32 };
 |};
   [%expect
     {|
     error: already defined
-      at <test>:3:8
-        struct Foo { x: i32 }
-               ^~~
-      at <test>:2:6
-        type Foo = i32;
-             ^~~ previous definition here
+      at <test>:3:1
+        Foo :: struct { x: i32 };
+        ^~~
+      at <test>:2:1
+        Foo :: i32;
+        ^~~ previous definition here
     |}]
 
 let%expect_test "typecheck: a type name shadows a builtin" =
   run_src {|
-type i32 = i64;
+i32 :: i64;
 f :: fn(x: i32) -> i64 { return x };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: shadowing a builtin reaches its own definition" =
   run_src {|
-type i32 = bool;
+i32 :: bool;
 f :: fn(x: i32) -> i64 { return x };
 |};
   [%expect
@@ -2195,7 +2196,7 @@ f :: fn(x: i32) -> i64 { return x };
 let%expect_test "typecheck: sizeof of a struct type" =
   run_src
     {|
-struct S { a: i32, b: i32 }
+S :: struct { a: i32, b: i32 };
 f :: fn() -> i64 { return sizeof(S) as i64 };
 |};
   [%expect
@@ -2212,41 +2213,41 @@ let%expect_test "typecheck: sizeof of an array type" =
 
 let%expect_test "typecheck: a struct field names a struct defined later" =
   run_src {|
-struct A { b: *B }
-struct B { n: i32 }
+A :: struct { b: *B };
+B :: struct { n: i32 };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a struct points at itself" =
-  run_src "struct Node { val: i32, next: *Node }";
+  run_src "Node :: struct { val: i32, next: *Node };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a struct that holds itself by value has no size" =
-  run_src "struct Node { n: Node }";
+  run_src "Node :: struct { n: Node };";
   [%expect
     {|
     error: recursive struct has infinite size
-      at <test>:1:8
-        struct Node { n: Node }
-               ^~~~
+      at <test>:1:1
+        Node :: struct { n: Node };
+        ^~~~
     |}]
 
 let%expect_test
     "typecheck: two structs that hold each other by value have no size" =
   run_src {|
-struct A { b: B }
-struct B { a: A }
+A :: struct { b: B };
+B :: struct { a: A };
 |};
   [%expect
     {|
     error: recursive struct has infinite size
-      at <test>:2:8
-        struct A { b: B }
-               ^
+      at <test>:2:1
+        A :: struct { b: B };
+        ^
     error: recursive struct has infinite size
-      at <test>:3:8
-        struct B { a: A }
-               ^
+      at <test>:3:1
+        B :: struct { a: A };
+        ^
     |}]
 
 let%expect_test "typecheck: int literal suffix pins the type" =
@@ -2340,12 +2341,12 @@ let%expect_test "typecheck: never as a pointee type" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: never as a field type" =
-  run_src "struct S { x: never }";
+  run_src "S :: struct { x: never };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a never field cannot be zero init" =
   run_src {|
-struct S { x: never }
+S :: struct { x: never };
 f :: fn() { _s : S };
 |};
   [%expect
@@ -2357,8 +2358,9 @@ f :: fn() { _s : S };
     |}]
 
 let%expect_test "typecheck: an omitted never field cannot be zero init" =
-  run_src {|
-struct S { x: never, y: i32 }
+  run_src
+    {|
+S :: struct { x: never, y: i32 };
 f :: fn() { _s := S { y: 1 } };
 |};
   [%expect
@@ -2790,59 +2792,59 @@ let%expect_test "typecheck: a parameter names a type declared later" =
   run_src
     {|
 take :: fn(value: Meters) -> i32 { return value };
-type Meters = i32;
+Meters :: i32;
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a global names a type declared later" =
   run_src {|
 width : Meters = 3;
-type Meters = i32;
+Meters :: i32;
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: an alias names itself" =
   run_src {|
-type Loop = Loop;
+Loop :: Loop;
 |};
   [%expect
     {|
     error: recursive type
-      at <test>:2:6
-        type Loop = Loop;
-             ^~~~
+      at <test>:2:1
+        Loop :: Loop;
+        ^~~~
     |}]
 
 let%expect_test "typecheck: two aliases name each other" =
   run_src {|
-type First = Second;
-type Second = First;
+First :: Second;
+Second :: First;
 |};
   [%expect
     {|
     error: recursive type
-      at <test>:2:6
-        type First = Second;
-             ^~~~~
+      at <test>:2:1
+        First :: Second;
+        ^~~~~
     |}]
 
 let%expect_test "typecheck: an alias names itself through a pointer" =
   run_src {|
-type Loop = *Loop;
+Loop :: *Loop;
 |};
   [%expect
     {|
     error: recursive type
-      at <test>:2:6
-        type Loop = *Loop;
-             ^~~~
+      at <test>:2:1
+        Loop :: *Loop;
+        ^~~~
     |}]
 
 let%expect_test "typecheck: an alias chain resolves in either order" =
   run_src
     {|
-type Feet = Meters;
-type Meters = i32;
+Feet :: Meters;
+Meters :: i32;
 take :: fn(value: Feet) -> i32 { return value };
 |};
   [%expect {| ok |}]
@@ -2895,7 +2897,7 @@ add_two :: fn(x: i64) -> i64 {
 let%expect_test "typecheck: a local type may be used before its declaration" =
   run_src {|f :: fn() -> i32 {
   x : Coord = 4;
-  type Coord = i32;
+  Coord :: i32;
   x
 };|};
   [%expect {| ok |}]
@@ -2903,8 +2905,8 @@ let%expect_test "typecheck: a local type may be used before its declaration" =
 let%expect_test "typecheck: local aliases may repeat in separate blocks" =
   run_src
     {|f :: fn() {
-  { type Value = i32; _x : Value = 1 }
-  { type Value = bool; _x : Value = true }
+  { Value :: i32; _x : Value = 1 }
+  { Value :: bool; _x : Value = true }
 };|};
   [%expect {| ok |}]
 
@@ -2919,7 +2921,7 @@ let%expect_test "typecheck: write to an array parameter" =
     |}]
 
 let%expect_test "typecheck: write to a struct parameter field" =
-  run_src "struct P { x: i32 }\nf :: fn(p: P) { p.x = 9 };";
+  run_src "P :: struct { x: i32 };\nf :: fn(p: P) { p.x = 9 };";
   [%expect
     {|
     error: cannot assign to immutable
@@ -2943,7 +2945,7 @@ let%expect_test "typecheck: write through a slice parameter" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: write through a pointer parameter" =
-  run_src "struct P { x: i32 }\nf :: fn(p: *P) { p.x = 9 };";
+  run_src "P :: struct { x: i32 };\nf :: fn(p: *P) { p.x = 9 };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: write to a copy of an array parameter" =
@@ -3031,7 +3033,7 @@ let%expect_test "typecheck: literal too big for i64" =
     |}]
 
 let%expect_test "typecheck: type alias" =
-  run_src "type small = i32;\nf :: fn() -> i32 { a : small = 1;\n  return a };";
+  run_src "small :: i32;\nf :: fn() -> i32 { a : small = 1;\n  return a };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: str literal and len" =
@@ -3202,7 +3204,7 @@ let%expect_test "typecheck: a valued break after a bare one is rejected" =
     |}]
 
 let%expect_test "typecheck: unknown variant" =
-  run_src {|enum Color { Red }
+  run_src {|Color :: enum { Red };
 f :: fn() { _c := Color.Green };|};
   [%expect
     {|
@@ -3213,18 +3215,18 @@ f :: fn() { _c := Color.Green };|};
     |}]
 
 let%expect_test "typecheck: duplicate variant" =
-  run_src "enum Color { Red, Green, Red }";
+  run_src "Color :: enum { Red, Green, Red };";
   [%expect
     {|
     error: duplicate variant
-      at <test>:1:26
-        enum Color { Red, Green, Red }
-                                 ^~~
+      at <test>:1:29
+        Color :: enum { Red, Green, Red };
+                                    ^~~
     |}]
 
 let%expect_test "typecheck: enum has no arithmetic" =
   run_src
-    {|enum Color { Red, Green }
+    {|Color :: enum { Red, Green };
 f :: fn() { _c := Color.Red + Color.Green };|};
   [%expect
     {|
@@ -3235,7 +3237,7 @@ f :: fn() { _c := Color.Red + Color.Green };|};
     |}]
 
 let%expect_test "typecheck: enum does not cast to an integer" =
-  run_src {|enum Color { Red }
+  run_src {|Color :: enum { Red };
 f :: fn() { _c := cast(i32, Color.Red) };|};
   [%expect
     {|
@@ -3247,8 +3249,8 @@ f :: fn() { _c := cast(i32, Color.Red) };|};
 
 let%expect_test "typecheck: two enums are two types" =
   run_src
-    {|enum Color { Red }
-enum Fruit { Apple }
+    {|Color :: enum { Red };
+Fruit :: enum { Apple };
 f :: fn() { _c := Color.Red == Fruit.Apple };|};
   [%expect
     {|
@@ -3259,7 +3261,7 @@ f :: fn() { _c := Color.Red == Fruit.Apple };|};
     |}]
 
 let%expect_test "typecheck: an enum is not an integer" =
-  run_src {|enum Color { Red }
+  run_src {|Color :: enum { Red };
 f :: fn() { _c : i32 = Color.Red };|};
   [%expect
     {|
@@ -3270,7 +3272,7 @@ f :: fn() { _c : i32 = Color.Red };|};
     |}]
 
 let%expect_test "typecheck: a type is not a value" =
-  run_src {|struct Point { x: i32 }
+  run_src {|Point :: struct { x: i32 };
 f :: fn() { _p := Point.x };|};
   [%expect
     {|
@@ -3282,7 +3284,7 @@ f :: fn() { _p := Point.x };|};
 
 let%expect_test "typecheck: an enum match must name every variant" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { match c { Color.Red => 1 } };|};
   [%expect
     {|
@@ -3295,7 +3297,7 @@ f :: fn(c: Color) -> i32 { match c { Color.Red => 1 } };|};
 
 let%expect_test "typecheck: an enum match naming every variant is ok" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 {
   match c { Color.Red => 1, Color.Green => 2, Color.Blue => 3 }
 };|};
@@ -3329,19 +3331,19 @@ let%expect_test "typecheck: a bool match missing a value" =
 
 let%expect_test "typecheck: a broken enum reports once" =
   run_src
-    {|enum Color { 88, Green }
+    {|Color :: enum { 88, Green };
 f :: fn(c: Color) -> i32 { match c { Color.Green => 1 } };|};
   [%expect
     {|
     error: expected identifier
-      at <test>:1:14
-        enum Color { 88, Green }
-                     ^~ found 88
+      at <test>:1:17
+        Color :: enum { 88, Green };
+                        ^~ found 88
     |}]
 
 let%expect_test "typecheck: a statement match must cover every case" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) { match c { Color.Red => { } } };|};
   [%expect
     {|
@@ -3354,19 +3356,19 @@ f :: fn(c: Color) { match c { Color.Red => { } } };|};
 
 let%expect_test "typecheck: a catch all still silences the check" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, _ => 2 } };|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a bare name binding still silences the check" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, other => 2 } };|};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a catch all first reports the dead arm" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { return match c { _ => 1, Color.Red => 2 } };|};
   [%expect
     {|
@@ -3378,8 +3380,8 @@ f :: fn(c: Color) -> i32 { return match c { _ => 1, Color.Red => 2 } };|};
 
 let%expect_test "typecheck: an alias names the enum it stands for" =
   run_src
-    {|enum Color { Red, Green, Blue }
-type Shade = Color;
+    {|Color :: enum { Red, Green, Blue };
+Shade :: Color;
 f :: fn(s: Shade) -> i32 { return match s { Color.Red => 1 } };|};
   [%expect
     {|
@@ -3392,7 +3394,7 @@ f :: fn(s: Shade) -> i32 { return match s { Color.Red => 1 } };|};
 
 let%expect_test "typecheck: an empty match names every case" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { return match c { } };|};
   [%expect
     {|
@@ -3405,7 +3407,7 @@ f :: fn(c: Color) -> i32 { return match c { } };|};
 
 let%expect_test "typecheck: a one variant enum is covered by naming it" =
   run_src
-    {|enum One { Only }
+    {|One :: enum { Only };
 f :: fn(o: One) -> i32 { return match o { One.Only => 5 } };|};
   [%expect {| ok |}]
 
@@ -3433,7 +3435,7 @@ let%expect_test "typecheck: a bool match with no arms names both values" =
 
 let%expect_test "typecheck: an undefined scrutinee reports once" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn() -> i32 { return match nope { Color.Red => 1 } };|};
   [%expect
     {|
@@ -3444,7 +3446,8 @@ f :: fn() -> i32 { return match nope { Color.Red => 1 } };|};
     |}]
 
 let%expect_test "typecheck: a struct scrutinee can only ask for a catch all" =
-  run_src {|struct P { x: i32 }
+  run_src
+    {|P :: struct { x: i32 };
 f :: fn(p: P) -> i32 { return match p { } };|};
   [%expect
     {|
@@ -3457,7 +3460,7 @@ f :: fn(p: P) -> i32 { return match p { } };|};
 
 let%expect_test "typecheck: a duplicate arm and a hole are both reported" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, Color.Red => 2 } };|};
   [%expect
     {|
@@ -3474,8 +3477,8 @@ f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, Color.Red => 2 } };|
 
 let%expect_test "typecheck: an inner match is checked inside a covered outer" =
   run_src
-    {|enum Color { Red, Green }
-enum Size { Small, Large }
+    {|Color :: enum { Red, Green };
+Size :: enum { Small, Large };
 f :: fn(c: Color, s: Size) -> i32 {
   return match c { Color.Red => match s { Size.Small => 1 }, Color.Green => 2 };
 };|};
@@ -3490,9 +3493,9 @@ f :: fn(c: Color, s: Size) -> i32 {
 
 let%expect_test "typecheck: an alias of an alias still names the enum" =
   run_src
-    {|enum Color { Red, Green, Blue }
-type Shade = Color;
-type Tint = Shade;
+    {|Color :: enum { Red, Green, Blue };
+Shade :: Color;
+Tint :: Shade;
 f :: fn(t: Tint) -> i32 { return match t { Color.Red => 1 } };|};
   [%expect
     {|
@@ -3505,7 +3508,7 @@ f :: fn(t: Tint) -> i32 { return match t { Color.Red => 1 } };|};
 
 let%expect_test "typecheck: a call result is checked like any scrutinee" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 pick :: fn() -> Color { return Color.Red };
 f :: fn() -> i32 { return match pick() { Color.Red => 1 } };|};
   [%expect
@@ -3519,7 +3522,7 @@ f :: fn() -> i32 { return match pick() { Color.Red => 1 } };|};
 
 let%expect_test "typecheck: every variant named and every arm returns" =
   run_src
-    {|enum Color { Red, Green, Blue }
+    {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 {
   match c {
     Color.Red => { return 1 }
@@ -3541,7 +3544,7 @@ let%expect_test "typecheck: an uncomparable pattern reports once" =
 
 let%expect_test "typecheck: duplicate arm" =
   run_src
-    {|enum Color { Red, Green }
+    {|Color :: enum { Red, Green };
 f :: fn(c: Color) -> i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } };|};
   [%expect
     {|
@@ -3553,7 +3556,7 @@ f :: fn(c: Color) -> i32 { match c { Color.Red => 1, Color.Red => 2, _ => 3 } };
 
 let%expect_test "typecheck: an arm after the catch all never runs" =
   run_src
-    {|enum Color { Red, Green }
+    {|Color :: enum { Red, Green };
 f :: fn(c: Color) -> i32 { match c { _ => 1, Color.Red => 2 } };|};
   [%expect
     {|
@@ -3575,7 +3578,7 @@ let%expect_test "typecheck: two catch all arms" =
 
 let%expect_test "typecheck: arms disagree in value position" =
   run_src
-    {|enum Color { Red, Green }
+    {|Color :: enum { Red, Green };
 f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, _ => true } };|};
   [%expect
     {|
@@ -3587,7 +3590,7 @@ f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, _ => true } };|};
 
 let%expect_test "typecheck: a pattern has the scrutinee type" =
   run_src
-    {|enum Color { Red, Green }
+    {|Color :: enum { Red, Green };
 f :: fn(c: Color) -> i32 { match c { 3 => 1, _ => 2 } };|};
   [%expect
     {|
@@ -3609,7 +3612,7 @@ let%expect_test "typecheck: a bare name binds and catches everything" =
 
 let%expect_test "typecheck: a struct cannot be matched" =
   run_src
-    {|struct P { x: i32 }
+    {|P :: struct { x: i32 };
 f :: fn(p: P) -> i32 { return match p { _ => 1 } };|};
   [%expect {| ok |}]
 
@@ -3700,7 +3703,7 @@ let%expect_test "typecheck: float widening" =
 let%expect_test "typecheck: widening reaches expected value positions" =
   run_src
     {|
-struct Box { value: i64 }
+Box :: struct { value: i64 };
 take :: fn(value: i64) -> i64 { return value };
 f :: fn(small: u8) -> i64 {
   wide : i64 = small;
@@ -3716,8 +3719,8 @@ f :: fn(small: u8) -> i64 {
 let%expect_test "typecheck: aliases widen as their bases" =
   run_src
     {|
-type Small = u8;
-type Wide = i64;
+Small :: u8;
+Wide :: i64;
 f :: fn(value: Small) -> Wide { return value };
 |};
   [%expect {| ok |}]
@@ -3930,7 +3933,7 @@ f :: fn() {
 let%expect_test "typecheck: widening reaches field assignment" =
   run_src
     {|
-struct Box { x: i32 }
+Box :: struct { x: i32 };
 f :: fn(value: i8) -> i32 {
   box : Box;
   box.x = value;
@@ -3989,7 +3992,8 @@ let%expect_test "typecheck: a literal product overflows" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: size does not fit" =
-  run_src "struct big { a: [400]i32 }\nf :: fn() -> u8 { return sizeof(big) };";
+  run_src
+    "big :: struct { a: [400]i32 };\nf :: fn() -> u8 { return sizeof(big) };";
   [%expect
     {|
     error: size does not fit
@@ -4044,16 +4048,16 @@ let%expect_test "typecheck: a value in the type slot of a cast" =
     |}]
 
 let%expect_test "typecheck: a call on a repeated enum name" =
-  run_src "enum color {}\nenum color {}\nf :: fn() { color.d() };";
+  run_src "color :: enum {};\ncolor :: enum {};\nf :: fn() { color.d() };";
   [%expect
     {|
     error: already defined
-      at <test>:2:6
-        enum color {}
-             ^~~~~
-      at <test>:1:6
-        enum color {}
-             ^~~~~ previous definition here
+      at <test>:2:1
+        color :: enum {};
+        ^~~~~
+      at <test>:1:1
+        color :: enum {};
+        ^~~~~ previous definition here
     error: no variant
       at <test>:3:19
         f :: fn() { color.d() };

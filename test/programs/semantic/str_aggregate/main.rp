@@ -1,4 +1,4 @@
-struct named { s: str, n: i32 }
+named :: struct { s: str, n: i32 };
 
 give :: fn() -> str {
   return "returned";

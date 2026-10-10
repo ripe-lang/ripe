@@ -1,4 +1,4 @@
 error: expected `:`
-  at main.rp:1:18
-    struct point { x i32, y: i32 }
-                     ^~~ found i32
+  at main.rp:1:21
+    point :: struct { x i32, y: i32 };
+                        ^~~ found i32

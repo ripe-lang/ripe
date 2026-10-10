@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Level { Low, High }
+Level :: enum { Low, High };
 
 pick :: fn(level: Level, lo: i32, hi: i32) -> i32 {
   if level == Level.Low { return lo }

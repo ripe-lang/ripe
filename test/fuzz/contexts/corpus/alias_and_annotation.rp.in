@@ -1,4 +1,4 @@
-type count = i32;
+count :: i32;
 main :: fn() -> i32 {
   n : count = 7;
   return n;

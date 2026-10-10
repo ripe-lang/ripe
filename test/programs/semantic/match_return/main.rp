@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Color { Red, Green, Blue }
+Color :: enum { Red, Green, Blue };
 
 // Every arm leaves the function so nothing follows the match
 code :: fn(c: Color) -> i32 {

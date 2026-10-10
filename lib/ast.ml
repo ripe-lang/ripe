@@ -19,7 +19,7 @@ let spanned value span = { value; span }
 
 type loop_label = name spanned [@@deriving show { with_path = false }]
 
-(* The point of struct point { x: i32 } *)
+(* The point of point :: struct { x: i32 } *)
 type ident = name spanned [@@deriving show { with_path = false }]
 
 type binop =
@@ -144,7 +144,7 @@ and typ = { tdesc : typ_desc; tspan : span }
 and abi = NoAbi | NamedAbi of string spanned
 and field = { field_name : ident; field_typ : typ }
 
-(* struct point { x: i32, y: i32 } *)
+(* point :: struct { x: i32, y: i32 } *)
 and struct_def = {
   struct_name : ident;
   fields : field list;

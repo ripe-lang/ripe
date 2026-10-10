@@ -1,4 +1,4 @@
-type Row = [3]i32;
+Row :: [3]i32;
 
 main :: fn() -> i32 {
   r : Row = [1, 2, 3];

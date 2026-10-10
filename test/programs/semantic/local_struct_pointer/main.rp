@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
-  struct Node { value: i32, next: *Node }
+  Node :: struct { value: i32, next: *Node };
   return sizeof(Node);
 };

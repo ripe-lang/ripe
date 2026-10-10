@@ -1,12 +1,12 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-struct empty {}
+empty :: struct {};
 
-struct sep { x: u32, u: (), e: empty, z: [0]u32, y: u32 }
+sep :: struct { x: u32, u: (), e: empty, z: [0]u32, y: u32 };
 
-struct padding { a: u8, u: (), b: u64 }
+padding :: struct { a: u8, u: (), b: u64 };
 
-struct divres { quot: i32, u: (), e: empty, rem: i32 }
+divres :: struct { quot: i32, u: (), e: empty, rem: i32 };
 
 extern "C" fn div(num: i32, den: i32) divres;
 

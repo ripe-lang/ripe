@@ -1,4 +1,4 @@
 // BROKEN: waiting on the new parser recovery
-struct s { x: }
+s :: struct { x: };
 a :: fn() -> i32 { return };
 b :: fn() -> i32 { z : i32 = ; return z };

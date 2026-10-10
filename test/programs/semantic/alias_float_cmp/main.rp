@@ -1,4 +1,4 @@
-type Temp = f32;
+Temp :: f32;
 
 main :: fn() -> i32 {
   a : Temp = 3.0;

@@ -1,4 +1,4 @@
-struct pair { n: i64, f: f64 }
+pair :: struct { n: i64, f: f64 };
 
 take :: fn(a: i64, b: f64) -> i64 {
   return a + (cast(i64, b));

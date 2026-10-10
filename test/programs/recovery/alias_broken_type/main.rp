@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
-type pair = (i32, i32
+pair :: (i32, i32
 main :: fn() -> i32 {
   q : pair = (1, 2);
   return 0;

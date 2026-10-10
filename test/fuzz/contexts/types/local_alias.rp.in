@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
-  type A = %%T%%;
+  A :: %%T%%;
   _v : A = %%L%%;
   return 0;
 };

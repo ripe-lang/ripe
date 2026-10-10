@@ -1,4 +1,4 @@
-struct Box { text: str, value: i32 }
+Box :: struct { text: str, value: i32 };
 
 G : str = "global";
 M : str = "mutable";

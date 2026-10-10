@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
-struct point { x: i32, y: i32 }
+point :: struct { x: i32, y: i32 };
 main :: fn() -> i32 {
   if point { 1 }.x == 1 { return 1 }
   while point { }.x == 1 { return 2 }

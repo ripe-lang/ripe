@@ -1,23 +1,23 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-struct holder {
+holder :: struct {
   many: [3]leaf,
   link: *peer,
   chained: mid,
-}
+};
 
-struct mid {
+mid :: struct {
   deep: leaf,
-}
+};
 
-struct peer {
+peer :: struct {
   back: *holder,
   n: i32,
-}
+};
 
-struct leaf {
+leaf :: struct {
   v: i32,
-}
+};
 
 main :: fn() -> i32 {
   p := peer { back: null, n: 5 };

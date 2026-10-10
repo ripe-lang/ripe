@@ -29,14 +29,16 @@ PRELUDE = (
     "h0 :: fn(a: i32) -> i32 { return a };\n"
     'extern "C" fn hc(a: i32) i32 { return a }\n'
     "spin :: fn() -> never { loop {} };\n"
-    "struct pt { x: i32 }\n"
-    "type word = i32;\n"
+    "pt :: struct { x: i32 };\n"
+    "word :: i32;\n"
 )
 
 SKIP = {
     ("ret", "never"),
     ("local_ret", "never"),
     ("cast", "[2]*i32"),
+    ("alias", "fn (i32) i32"),
+    ("local_alias", "fn (i32) i32"),
 }
 
 CORRUPTIONS = {

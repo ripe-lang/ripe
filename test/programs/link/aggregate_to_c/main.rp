@@ -1,10 +1,10 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-struct Point { x: i32, y: i32 }
-struct Wide { a: i64, b: i64 }
-struct Big { a: i64, b: i64, c: i64 }
-struct Pair { x: f64, y: f64 }
-struct Mixed { n: i32, f: f64 }
+Point :: struct { x: i32, y: i32 };
+Wide :: struct { a: i64, b: i64 };
+Big :: struct { a: i64, b: i64, c: i64 };
+Pair :: struct { x: f64, y: f64 };
+Mixed :: struct { n: i32, f: f64 };
 
 extern "C" fn c_shift(p: Point, d: i32) Point;
 extern "C" fn c_widen(w: Wide) Wide;

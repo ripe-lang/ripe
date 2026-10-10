@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:11
-    type pair =
-              ^
+  at main.rp:1:9
+    pair :: ;
+            ^ found ;

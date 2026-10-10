@@ -45,10 +45,10 @@ let%expect_test "a parser error shows the token it found" =
   Pipeline.run_src "main :: fn() -> i32 {\n  struct = 1;\n  return 0;\n};\n";
   [%expect
     {|
-    error: expected identifier
-      at <test>:2:10
+    error: expected expression
+      at <test>:2:3
           struct = 1;
-                 ^ found =
+          ^~~~~~ found `struct`
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =

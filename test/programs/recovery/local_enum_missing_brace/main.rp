@@ -1,7 +1,7 @@
 // BROKEN: waiting on the new parser recovery
 main :: fn() -> i32 {
-  type small = i32;
-  enum side  Left, Right };
+  small :: i32;
+  side :: enum  Left, Right };
   helper :: fn(n: small) -> i32 { return n + 1 };
   s := side.Right;
   return helper(1) + match s { side.Left => 0, _ => 1 };

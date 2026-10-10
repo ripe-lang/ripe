@@ -1,5 +1,5 @@
 outer :: fn(n: i32) {
-  struct inner
+  inner :: struct
     a: i32,
 };
 

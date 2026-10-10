@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-enum Dir { North, East, South, West }
+Dir :: enum { North, East, South, West };
 
 main :: fn() -> i32 {
   route : [3]Dir = [Dir.North, Dir.West, Dir.East];

@@ -1,1 +1,1 @@
-enum color { Red; Green }
+color :: enum { Red; Green };

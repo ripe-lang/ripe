@@ -1,4 +1,4 @@
 error: expected `{`
-  at main.rp:2:12
-    struct main() i32 {
-               ^ found (
+  at main.rp:2:15
+    main :: struct() -> i32 {
+                  ^ found (

@@ -1,9 +1,9 @@
-struct Point { x: i32, y: i32 }
-struct Wide { a: i64, b: i64 }
-struct Big { a: i64, b: i64, c: i64 }
-struct Vec2 { x: f32, y: f32 }
-struct Mixed { n: i32, f: f64 }
-struct Held { v: [4]i32 }
+Point :: struct { x: i32, y: i32 };
+Wide :: struct { a: i64, b: i64 };
+Big :: struct { a: i64, b: i64, c: i64 };
+Vec2 :: struct { x: f32, y: f32 };
+Mixed :: struct { n: i32, f: f64 };
+Held :: struct { v: [4]i32 };
 
 extern "C" fn shift(p: Point, d: i32) Point {
   return Point{x: p.x + d, y: p.y + d};

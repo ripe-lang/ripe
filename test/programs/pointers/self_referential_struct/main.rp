@@ -1,4 +1,4 @@
-struct Node { val: i32, next: *Node }
+Node :: struct { val: i32, next: *Node };
 
 main :: fn() -> i32 {
   tail : Node = Node { val: 2, next: null };

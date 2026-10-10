@@ -1,6 +1,6 @@
-type Meters = i32;
+Meters :: i32;
 
-struct Line { start: Meters, stop: Meters }
+Line :: struct { start: Meters, stop: Meters };
 
 main :: fn() -> i32 {
   l : Line = Line { start: 3, stop: 10 };

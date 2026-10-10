@@ -1,4 +1,4 @@
-struct hole { a: never, b: i32 }
+hole :: struct { a: never, b: i32 };
 
 main :: fn() -> i32 {
   bare : never;

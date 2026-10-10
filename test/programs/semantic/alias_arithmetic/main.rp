@@ -1,4 +1,4 @@
-type Meters = i32;
+Meters :: i32;
 
 main :: fn() -> i32 {
   a : Meters = 5;

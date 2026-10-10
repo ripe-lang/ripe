@@ -1,4 +1,4 @@
-struct P { x: i32, y: i32 }
+P :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
   p : P = P { x: 12, y: 30 };

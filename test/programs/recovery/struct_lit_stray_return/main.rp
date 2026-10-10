@@ -1,4 +1,4 @@
-struct point { x: i32 }
+point :: struct { x: i32 };
 main :: fn() -> i32 {
   p := point { return 1 };
   return p.x;

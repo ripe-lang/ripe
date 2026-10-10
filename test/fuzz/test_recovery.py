@@ -35,13 +35,13 @@ def struct_decl(i, n):
     body = "\n".join(f"  {NAMES[j]}: {t}," for j, (t, _) in enumerate(picks))
     args = ", ".join(lit for _, lit in picks)
 
-    return f"struct S{i} {{\n{body}\n}}", [f"s{i} := S{i} {{ {args} }}"], []
+    return f"S{i} :: struct {{\n{body}\n}};", [f"s{i} := S{i} {{ {args} }}"], []
 
 
 def enum_decl(i, n):
     body = "\n".join(f"  V{j}," for j in range(n))
 
-    return f"enum E{i} {{\n{body}\n}}", [f"_e{i} := E{i}.V0"], []
+    return f"E{i} :: enum {{\n{body}\n}};", [f"_e{i} := E{i}.V0"], []
 
 
 def func_decl(i, n):
@@ -152,7 +152,7 @@ def build_main(uses, terms):
 
 def make_case(rng):
     if rng.random() < 0.15:
-        src = "struct P {\n  x: i32,\n}\n"
+        src = "P :: struct {\n  x: i32,\n};\n"
         src += rng.choice(CLOSERS) + "\n"
         src += "main :: fn() -> i32 {\n  p : P;\n  return p.x;\n};\n"
 

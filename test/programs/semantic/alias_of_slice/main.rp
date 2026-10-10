@@ -1,4 +1,4 @@
-type Ints = []i32;
+Ints :: []i32;
 
 sum :: fn(xs: Ints) -> i32 {
   total : i32 = 0;

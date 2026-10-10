@@ -1,5 +1,5 @@
 nothing :: fn() -> () {};
-struct empty { }
+empty :: struct { };
 main :: fn() -> i32 {
   a : i32 = 1;
   b : i32 = 2;

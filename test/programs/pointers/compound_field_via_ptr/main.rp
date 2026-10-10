@@ -1,4 +1,4 @@
-struct point { x: i32, y: i32 }
+point :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
   p : point = point { x: 10, y: 0 };

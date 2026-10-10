@@ -1,4 +1,4 @@
-type slot = i64;
+slot :: i64;
 
 get :: fn() -> slot { return 5 };
 f :: fn() -> i64 { get() };
