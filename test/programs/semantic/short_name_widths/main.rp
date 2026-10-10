@@ -1,12 +1,12 @@
 struct pair { n: i64, f: f64 }
 
-fn take(a: i64, b: f64) i64 {
+take :: fn(a: i64, b: f64) -> i64 {
   return a + (cast(i64, b));
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   p : pair = pair { n: 4, f: 2.5 };
   sizes : i32 = sizeof(i64) + sizeof(f64);
   same := cast(i32, sizeof(i64) == sizeof(i64) && sizeof(f64) == sizeof(f64));
   return sizes + same + (cast(i32, take(p.n, p.f)));
-}
+};

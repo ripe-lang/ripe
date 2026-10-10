@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : u8 = 255u8;
   b : i64 = 9000000000i64;
   c : i8 = -128i8;
@@ -8,4 +8,4 @@ fn main() i32 {
   o : u8 = 0o17u8;
   printf("%d %lld %d %d %d\n", cast(i32, a), b, cast(i32, c), cast(i32, h), cast(i32, o));
   return 0;
-}
+};

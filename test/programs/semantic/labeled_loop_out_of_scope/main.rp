@@ -1,7 +1,7 @@
-fn main() i32 {
+main :: fn() -> i32 {
   for @outer _i in 0..2 { }
   for _j in 0..2 {
     continue @outer;
   }
   return 0;
-}
+};

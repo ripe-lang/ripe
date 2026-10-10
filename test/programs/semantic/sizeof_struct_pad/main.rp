@@ -1,3 +1,3 @@
 struct p { a: i8, b: i64, c: i8 }
 
-fn main() i32 { return sizeof(p) }
+main :: fn() -> i32 { return sizeof(p) };

@@ -1,2 +1,2 @@
 // BROKEN: waiting on the new parser recovery
-fn f() { ( [
+f :: fn() { ( [

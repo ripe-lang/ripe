@@ -6,15 +6,15 @@ error: expected identifier
   at main.rp:4:14
     enum color { 88, Green }
                  ^~ found 88
-error: expected expression
-  at main.rp:8:1
-    fn scale(n: i32) i32
-    ^~ found `fn`
+error: expected `;`
+  at main.rp:8:7
+    scale :: fn(n: i32) -> i32
+          ^ found :
 error: expected `{`
   at main.rp:9:3
       return n * 2;
       ^~~~~~ found `return`
 error: expected expression
-  at main.rp:11:26
-    fn bad() i32 { z : i32 = ; return z }
-                             ^ found ;
+  at main.rp:11:32
+    bad :: fn() -> i32 { z : i32 = ; return z };
+                                   ^ found ;

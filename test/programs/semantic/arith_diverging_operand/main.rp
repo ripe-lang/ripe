@@ -1,12 +1,12 @@
-fn div(n: i32) i32 { return n / { return 1 } }
-fn rem(n: i64) i64 { return n % { return 2 } }
-fn shift(n: i32) i32 { return { return 3 } >> n }
-fn compound(n: i32) i32 {
+div :: fn(n: i32) -> i32 { return n / { return 1 } };
+rem :: fn(n: i64) -> i64 { return n % { return 2 } };
+shift :: fn(n: i32) -> i32 { return { return 3 } >> n };
+compound :: fn(n: i32) -> i32 {
   x := n;
   x /= { return 4 };
   return x;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return div(9) + cast(i32, rem(9)) + shift(1) + compound(9);
-}
+};

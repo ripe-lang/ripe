@@ -1,9 +1,9 @@
 type Ints = []i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   s : Ints = a[1..4];
   total : i32 = 0;
   for v in s { total = total + v }
   return total;
-}
+};

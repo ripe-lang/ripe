@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn digit(c: char) i32 {
+digit :: fn(c: char) -> i32 {
   return match c {
     '0' => 0,
     '1' => 1,
@@ -8,9 +8,9 @@ fn digit(c: char) i32 {
     _ => -1,
 
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d %d\n", digit('0'), digit('1'), digit('z'), digit('q'));
   return 0;
-}
+};

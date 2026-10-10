@@ -1,4 +1,4 @@
-fn fact(n: i32) i32 {
+fact :: fn(n: i32) -> i32 {
   if n <= 1 { 1 } else { n * fact(n - 1) }
-}
-fn main() i32 { return fact(5) }
+};
+main :: fn() -> i32 { return fact(5) };

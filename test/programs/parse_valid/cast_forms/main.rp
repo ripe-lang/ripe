@@ -1,7 +1,7 @@
-fn h(a: i32) i32 { return a }
+h :: fn(a: i32) -> i32 { return a };
 struct pt { x: i32, y: i32 }
 type word = i32;
-fn main() i32 {
+main :: fn() -> i32 {
   n : i32 = cast(i32, cast(u32, 3));
   m : u32 = 3;
   w : i32 = cast(i32, m);
@@ -24,4 +24,4 @@ fn main() i32 {
   reads : i32 = cast(i32, *q) + cast(i32, **qq) + *cast(*i32, o);
   calls : i32 = fp(1) + (fp)(1) + (*hp)(1) + ep(1);
   return scalars + reads + calls;
-}
+};

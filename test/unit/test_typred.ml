@@ -458,7 +458,7 @@ let%expect_test "typred: only integers and errors count as integer" =
 
 let%expect_test "typred: a signed literal is still a literal" =
   let show src =
-    let wrapped = "fn _f() { return " ^ src ^ " }" in
+    let wrapped = "_f :: fn() { return " ^ src ^ " };" in
     match Pipeline.parse wrapped with
     | [ Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->
         Printf.printf "%s = %b\n" src (Typred.is_num_literal e)

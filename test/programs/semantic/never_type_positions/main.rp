@@ -1,14 +1,14 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn spin() never { loop {} }
+spin :: fn() -> never { loop {} };
 
 struct hole { a: never }
 
 absent : never = spin();
 
-fn main() i32 {
+main :: fn() -> i32 {
   _p : *never = null;
   n := if false { spin() } else { 7 };
   printf("%d %d\n", n, sizeof(never));
   return 0;
-}
+};

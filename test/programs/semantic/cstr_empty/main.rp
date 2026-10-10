@@ -1,7 +1,7 @@
 extern "C" fn strlen(s: cstr) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   empty : cstr = "";
   hello : cstr = "hello";
   return strlen(empty) + strlen(hello);
-}
+};

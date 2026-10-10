@@ -1,9 +1,9 @@
 counter : i32 = 5;
 
-fn bump() { counter += 3 }
+bump :: fn() { counter += 3 };
 
-fn main() i32 {
+main :: fn() -> i32 {
   bump();
   bump();
   return counter;
-}
+};

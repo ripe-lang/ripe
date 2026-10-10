@@ -1,3 +1,3 @@
 // BROKEN: waiting on the new parser recovery
-fn f(a: i32) i32 { return a }
-fn main() i32 { return f(1 }
+f :: fn(a: i32) -> i32 { return a };
+main :: fn() -> i32 { return f(1 };

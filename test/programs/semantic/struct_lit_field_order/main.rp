@@ -16,16 +16,16 @@ log : i32 = 0;
 reordered : pair = pair { y: 2, x: 1 };
 partial : triple = triple { c: 3, a: 1 };
 
-fn mark(v: i32) i32 {
+mark :: fn(v: i32) -> i32 {
   log = log * 10 + v;
   return v;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   written := pair { y: mark(1), x: mark(2) };
   printf("order %d\n", log);
   printf("written %d %d\n", written.x, written.y);
   printf("global %d %d\n", reordered.x, reordered.y);
   printf("partial %d %d %d\n", partial.a, partial.b, partial.c);
   return 0;
-}
+};

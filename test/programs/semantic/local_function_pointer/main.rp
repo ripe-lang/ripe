@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   handler : fn (i32) i32 = {
-    fn increment(value: i32) i32 { value + 1 }
+    increment :: fn(value: i32) -> i32 { value + 1 };
     increment
   };
 
   return handler(21);
-}
+};

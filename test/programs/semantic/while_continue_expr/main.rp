@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   i := 0;
   seen := 0;
   while i < 5 {
@@ -10,4 +10,4 @@ fn main() i32 {
   }
   printf(" seen=%d\n", seen);
   return seen;
-}
+};

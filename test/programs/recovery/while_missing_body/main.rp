@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   while true
   return 0;
-}
+};

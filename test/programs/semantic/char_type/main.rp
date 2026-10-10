@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : char = 'A';
   newline : char = '\n';
   emoji : char = '😀';
@@ -9,4 +9,4 @@ fn main() i32 {
   if a == 'A' { printf("eq\n") }
   if a < 'B' { printf("lt\n") }
   return cast(i32, a);
-}
+};

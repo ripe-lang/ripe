@@ -1,8 +1,8 @@
-fn fib(n: i32) i32 {
+fib :: fn(n: i32) -> i32 {
   if n < 2 { return n }
   return fib(n - 1) + fib(n - 2);
-}
+};
 
-fn apply(g: fn (i32) i32, v: i32) i32 { return g(v) }
+apply :: fn(g: fn (i32) i32, v: i32) -> i32 { return g(v) };
 
-fn main() i32 { return apply(fib, 9) }
+main :: fn() -> i32 { return apply(fib, 9) };

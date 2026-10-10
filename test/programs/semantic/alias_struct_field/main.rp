@@ -2,7 +2,7 @@ type Meters = i32;
 
 struct Line { start: Meters, stop: Meters }
 
-fn main() i32 {
+main :: fn() -> i32 {
   l : Line = Line { start: 3, stop: 10 };
   return l.stop - l.start;
-}
+};

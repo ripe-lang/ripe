@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : f32 = 1.5f32;
   b : f64 = 2.5f64;
   c := 1f32;
@@ -9,4 +9,4 @@ fn main() i32 {
   f : f64 = 1_000.5f64;
   printf("%f %f %f %f %f %f\n", cast(f64, a), b, cast(f64, c), d, cast(f64, e), f);
   return 0;
-}
+};

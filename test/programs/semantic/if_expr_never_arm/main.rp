@@ -1,6 +1,6 @@
 extern "C" fn exit(code: i32) never;
 
-fn main() i32 {
+main :: fn() -> i32 {
   y := if true { 10 } else { exit(1) };
   return y;
-}
+};

@@ -1,4 +1,4 @@
-fn collatz_steps(n: i32) i32 {
+collatz_steps :: fn(n: i32) -> i32 {
   if n == 1 {
     0
   } else {
@@ -7,5 +7,5 @@ fn collatz_steps(n: i32) i32 {
     };
     1 + collatz_steps(next)
   }
-}
-fn main() i32 { return collatz_steps(6) }
+};
+main :: fn() -> i32 { return collatz_steps(6) };

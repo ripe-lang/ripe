@@ -26,9 +26,9 @@ SHAPES = (
 )
 
 PRELUDE = (
-    "fn h0(a: i32) i32 { return a }\n"
+    "h0 :: fn(a: i32) -> i32 { return a };\n"
     'extern "C" fn hc(a: i32) i32 { return a }\n'
-    "fn spin() never { loop {} }\n"
+    "spin :: fn() -> never { loop {} };\n"
     "struct pt { x: i32 }\n"
     "type word = i32;\n"
 )

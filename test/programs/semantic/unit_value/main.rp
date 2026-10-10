@@ -1,33 +1,33 @@
 global : () = ();
 
-fn pass(value: ()) () { value }
+pass :: fn(value: ()) -> () { value };
 
-fn make() () { () }
+make :: fn() -> () { () };
 
-fn number() (i32) { 4 }
+number :: fn() -> (i32) { 4 };
 
-fn block_value() i32 { { x := 5; x; } }
+block_value :: fn() -> i32 { { x := 5; x; } };
 
-fn explicit_return() () { return () }
+explicit_return :: fn() -> () { return () };
 
-fn assign() {
+assign :: fn() {
   value : ();
   value = ();
   pass(value);
-}
+};
 
-fn indirect(g: fn (()) ()) { g(global) }
+indirect :: fn(g: fn (()) ()) { g(global) };
 
-fn addressable() i32 {
+addressable :: fn() -> i32 {
   value : () = ();
   p : *() = &value;
   q : *() = &value;
   if p == null { return 0 }
   if p != q { return 0 }
   return 1;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   value := make();
   pass(value);
   explicit_return();
@@ -35,4 +35,4 @@ fn main() i32 {
   indirect(pass);
   return cast(i32, sizeof(())) + cast(i32, sizeof((()))) + cast(i32, sizeof(((((())))))) +
     cast(i32, sizeof((i32))) + number() + block_value() + addressable();
-}
+};

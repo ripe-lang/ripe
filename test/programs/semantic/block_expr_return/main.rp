@@ -1,10 +1,10 @@
-fn compute(n: i32) i32 {
+compute :: fn(n: i32) -> i32 {
   return {
     doubled := n + n;
     doubled + 2
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return compute(9);
-}
+};

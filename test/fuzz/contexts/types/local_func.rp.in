@@ -1,4 +1,4 @@
-fn main() i32 {
-  fn g(a: %%T%%) i32 { return 0 }
+main :: fn() -> i32 {
+  g :: fn(a: %%T%%) -> i32 { return 0 };
   return g(%%L%%);
-}
+};

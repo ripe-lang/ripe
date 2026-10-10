@@ -1,4 +1,4 @@
-error: expected identifier
-  at main.rp:2:6
+error: expected expression
+  at main.rp:2:3
       fn (i32) i32;
-         ^ found (
+      ^~ found `fn`

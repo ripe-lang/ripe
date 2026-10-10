@@ -1,8 +1,8 @@
 type Row = [3]i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   r : Row = [1, 2, 3];
   total : i32 = 0;
   for v in r { total = total + v }
   return total + r[0];
-}
+};

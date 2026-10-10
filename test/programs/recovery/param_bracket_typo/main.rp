@@ -1,2 +1,2 @@
 // BROKEN: waiting on the new parser recovery
-fn add([a: i32, b: i32) i32 { return a + b }
+add :: fn([a: i32, b: i32) -> i32 { return a + b };

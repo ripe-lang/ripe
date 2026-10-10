@@ -1,7 +1,7 @@
 error: mismatched closing delimiter
-  at main.rp:2:28
-    fn main() i32 { return f(1 }
-                               ^ expected `)`
-  at main.rp:2:25
-    fn main() i32 { return f(1 }
-                            ^ to match this `(`
+  at main.rp:2:34
+    main :: fn() -> i32 { return f(1 };
+                                     ^ expected `)`
+  at main.rp:2:31
+    main :: fn() -> i32 { return f(1 };
+                                  ^ to match this `(`

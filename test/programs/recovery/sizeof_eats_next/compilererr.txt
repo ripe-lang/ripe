@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:31
-    fn main() i32 { return sizeof(b: i32) }
-                                  ^ found b
+  at main.rp:1:37
+    main :: fn() -> i32 { return sizeof(b: i32) };
+                                        ^ found b

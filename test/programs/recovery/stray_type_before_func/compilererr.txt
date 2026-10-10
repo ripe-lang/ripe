@@ -1,4 +1,4 @@
-error: expected identifier
-  at main.rp:2:6
-    type fn main() i32 {
-         ^~ found `fn`
+error: expected `=`
+  at main.rp:2:11
+    type main :: fn() -> i32 {
+              ^ found :

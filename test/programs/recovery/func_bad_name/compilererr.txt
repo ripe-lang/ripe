@@ -1,4 +1,4 @@
-error: expected identifier
-  at main.rp:1:4
-    fn 3scale(n: i32) i32 {
-       ^ found 3
+error: expected declaration
+  at main.rp:1:1
+    3scale :: fn(n: i32) -> i32 {
+    ^ found 3

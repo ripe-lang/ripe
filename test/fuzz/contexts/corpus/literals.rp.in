@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   h : i32 = 0xff;
   b : i32 = 0b1010;
   w : i64 = 5i64;
@@ -6,4 +6,4 @@ fn main() i32 {
   c : char = 'A';
   _s : str = "a\tb\n";
   return h + b + cast(i32, w) + cast(i32, f) + cast(i32, c);
-}
+};

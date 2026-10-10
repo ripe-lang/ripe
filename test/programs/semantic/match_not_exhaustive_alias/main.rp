@@ -2,12 +2,12 @@ enum Color { Red, Green, Blue }
 
 type Shade = Color;
 
-fn describe(s: Shade) i32 {
+describe :: fn(s: Shade) -> i32 {
   return match s {
     Color.Red => 1,
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return describe(Color.Red);
-}
+};

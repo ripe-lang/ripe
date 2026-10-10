@@ -1,5 +1,5 @@
-fn main() i32 {
+main :: fn() -> i32 {
   type Coord = i32;
   x : Coord = 6;
   return x;
-}
+};

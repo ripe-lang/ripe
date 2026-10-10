@@ -1,9 +1,9 @@
-fn flag(b: bool) i32 {
+flag :: fn(b: bool) -> i32 {
   return match b {
     true => 1,
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return flag(5 > 10);
-}
+};

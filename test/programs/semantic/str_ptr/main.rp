@@ -1,14 +1,14 @@
 extern "C" fn write(fd: i32, buf: *u8, n: usize) i64;
 
-fn emit(s: str) i64 {
+emit :: fn(s: str) -> i64 {
   return write(1, s.ptr, s.len);
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   emit("param\n");
   annotated : str = "annotated\n";
   write(1, annotated.ptr, annotated.len);
   first : u8 = *annotated.ptr;
   empty : str = "";
   return cast(i32, first) - cast(i32, empty.len);
-}
+};

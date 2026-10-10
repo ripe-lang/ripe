@@ -1,6 +1,6 @@
-fn nothing() () {}
+nothing :: fn() -> () {};
 struct empty { }
-fn main() i32 {
+main :: fn() -> i32 {
   a : i32 = 1;
   b : i32 = 2;
   nothing();
@@ -9,4 +9,4 @@ fn main() i32 {
   n : i32;
   n = loop { break 5 };
   return a + g[1][0] + n;
-}
+};

@@ -1,4 +1,4 @@
 error: unexpected closing delimiter
   at main.rp:4:1
-    }
+    };
     ^

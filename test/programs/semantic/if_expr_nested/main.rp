@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn tier(n: i32) i32 {
+tier :: fn(n: i32) -> i32 {
   t := if n >= 100 {
     if n >= 200 {
       if n >= 300 {
@@ -16,9 +16,9 @@ fn tier(n: i32) i32 {
     1
   };
   return t;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d %d\n", tier(50), tier(150), tier(250), tier(350));
   return 0;
-}
+};

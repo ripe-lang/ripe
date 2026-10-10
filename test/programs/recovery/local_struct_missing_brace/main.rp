@@ -1,11 +1,11 @@
-fn outer(n: i32) {
+outer :: fn(n: i32) {
   struct inner
     a: i32,
-}
+};
 
-fn later(n: i32) i32 { return n }
+later :: fn(n: i32) -> i32 { return n };
 
-fn main() i32 {
+main :: fn() -> i32 {
   outer(1);
   return later(2);
-}
+};

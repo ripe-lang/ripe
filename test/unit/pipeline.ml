@@ -67,7 +67,7 @@ let run_parse src =
 
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =
-  let wrapped = "fn _f() { return " ^ src ^ " }" in
+  let wrapped = "_f :: fn() { return " ^ src ^ " };" in
   try
     match parse wrapped with
     | [ Ripe.Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->

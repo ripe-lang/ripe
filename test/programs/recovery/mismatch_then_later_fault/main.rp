@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
-fn scale(n: i32 i32 {
+scale :: fn(n: i32 -> i32 {
   return n * 2;
-}
+};
 
-fn bad() i32 { z : i32 = ; return z }
+bad :: fn() -> i32 { z : i32 = ; return z };

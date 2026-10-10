@@ -1,4 +1,4 @@
 error: expected identifier
-  at main.rp:1:4
-    fn struct() i32 {
-       ^~~~~~ found `struct`
+  at main.rp:1:8
+    struct :: fn() -> i32 {
+           ^ found :

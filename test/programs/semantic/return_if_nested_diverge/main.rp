@@ -1,8 +1,8 @@
-fn pick(x: i32) i32 {
+pick :: fn(x: i32) -> i32 {
   return if x > 0 {
     if x > 100 { return 200 } else { x }
   } else {
     return 0;
   };
-}
-fn main() i32 { return pick(50) + pick(150) + pick(-1) }
+};
+main :: fn() -> i32 { return pick(50) + pick(150) + pick(-1) };

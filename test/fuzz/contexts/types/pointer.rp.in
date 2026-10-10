@@ -1,2 +1,2 @@
-fn f(a: *%%T%%) i32 { return 0 }
-fn main() i32 { return 0 }
+f :: fn(a: *%%T%%) -> i32 { return 0 };
+main :: fn() -> i32 { return 0 };

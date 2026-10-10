@@ -1,14 +1,14 @@
 extern "C" fn exit(code: i32) never;
 
-fn pick(a: bool, b: bool) i32 {
+pick :: fn(a: bool, b: bool) -> i32 {
   y := if a {
     if b { 10 } else { exit(1) }
   } else {
     20
   };
   return y;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return pick(true, true);
-}
+};

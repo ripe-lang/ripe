@@ -1,10 +1,10 @@
-fn classify(n: i32) i32 {
+classify :: fn(n: i32) -> i32 {
   return match n {
     0 => 100,
     1 => 200,
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return classify(7);
-}
+};

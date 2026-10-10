@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   a : f32 = 1.3;
   b : f32 = 1.1;
   c : f32 = 8.9;
@@ -18,4 +18,4 @@ fn main() i32 {
   if d * d != wide { return 5 }
 
   return 0;
-}
+};

@@ -4,6 +4,6 @@ type Pt = Point;
 
 g : Pt = Point { x: 2, y: 3 };
 
-fn main() i32 {
+main :: fn() -> i32 {
   return g.x + g.y;
-}
+};

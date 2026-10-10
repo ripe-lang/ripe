@@ -5,8 +5,8 @@ enum State { Idle, Busy }
 start : State = State.Idle;
 current : State = State.Idle;
 
-fn main() i32 {
+main :: fn() -> i32 {
   current = State.Busy;
   printf("%d %d\n", start == State.Idle, current == State.Busy);
   return 0;
-}
+};

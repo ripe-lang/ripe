@@ -1,14 +1,14 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn pick(n: i32) i32 {
+pick :: fn(n: i32) -> i32 {
   r := {
     if n == 0 { return 0 - 1 }
     n * 10
   };
   return r;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d\n", pick(0), pick(3));
   return 0;
-}
+};

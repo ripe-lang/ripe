@@ -1,4 +1,4 @@
-fn main() i32 {
+main :: fn() -> i32 {
   s := "oops
   return 0;
-}
+};

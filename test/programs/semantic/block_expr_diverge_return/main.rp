@@ -1,11 +1,11 @@
-fn f() i32 {
+f :: fn() -> i32 {
   x := {
     return 7;
     99
   };
   return x;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   return f();
-}
+};

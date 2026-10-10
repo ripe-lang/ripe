@@ -1,4 +1,4 @@
 // BROKEN: waiting on the new parser recovery
 type pair = (i32, i32
 
-fn bad() i32 { z : i32 = ; return z }
+bad :: fn() -> i32 { z : i32 = ; return z };

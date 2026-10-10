@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
-fn main() i32 {
+main :: fn() -> i32 {
   struct Point {
     x: i32,
 

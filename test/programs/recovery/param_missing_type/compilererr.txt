@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:1:11
-    fn add(a: , b: i32) i32 { return b }
-              ^ found ,
+  at main.rp:1:14
+    add :: fn(a: , b: i32) -> i32 { return b };
+                 ^ found ,

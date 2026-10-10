@@ -1,12 +1,12 @@
 type Row = [3]i32;
 
-fn sum(s: []i32) i32 {
+sum :: fn(s: []i32) -> i32 {
   total : i32 = 0;
   for v in s { total = total + v }
   return total;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   r : Row = [1, 2, 3];
   return sum(r);
-}
+};

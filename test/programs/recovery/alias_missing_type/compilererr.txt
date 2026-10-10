@@ -1,4 +1,4 @@
 error: expected type
-  at main.rp:2:1
-    fn main() i32 { return 0 }
-    ^~ found `fn`
+  at main.rp:1:11
+    type pair =
+              ^

@@ -1,9 +1,9 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn twice(x: i32) i32 { return x * 2 }
+twice :: fn(x: i32) -> i32 { return x * 2 };
 
-fn main() i32 {
+main :: fn() -> i32 {
   n := 0;
   printf("%d\n", twice(loop { n += 1; if n == 5 { break n } }));
   return twice(loop { break 3 });
-}
+};

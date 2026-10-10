@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   calls := 0;
   for i in 0..5 {
     printf("%d", if i == 2 { continue } else { i });
@@ -25,4 +25,4 @@ fn main() i32 {
 
   printf(" calls=%d sum=%d x=%d picked=%d\n", calls, sum, x, picked);
   return 0;
-}
+};

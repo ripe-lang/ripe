@@ -3,15 +3,15 @@ struct pair {
   y: i32,
 }
 
-fn descend(n: i32) pair {
+descend :: fn(n: i32) -> pair {
   if n == 0 {
     return pair { x: 1, y: 2 };
   }
   previous := descend(n - 1);
   return pair { x: previous.x + 1, y: previous.y + 1 };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   value := descend(3);
   return value.x + value.y;
-}
+};

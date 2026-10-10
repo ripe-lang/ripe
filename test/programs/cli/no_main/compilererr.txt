@@ -1,2 +1,2 @@
 error: no `main` function found
-help: add a `fn main()` entry point
+help: add a `main :: fn {}` entry point

@@ -1,6 +1,6 @@
 type Grid = [2][2]i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   g : Grid = [[1, 2], [3, 4]];
   return g[0][0] + g[1][1];
-}
+};

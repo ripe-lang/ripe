@@ -1,5 +1,5 @@
-fn main() i32 {
+main :: fn() -> i32 {
   a : isize = 40;
   b : usize = 2;
   return (cast(i32, a)) + (cast(i32, b));
-}
+};

@@ -1,16 +1,16 @@
-fn index_of(xs: []i32, target: i32) i32 {
+index_of :: fn(xs: []i32, target: i32) -> i32 {
   for i in 0..xs.len {
     if xs[i] == target {
       return cast(i32, i);
     }
   }
   return -1;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   data : [6]i32 = [4, 8, 15, 16, 23, 42];
   at : i32 = index_of(data, 16);
   missing : i32 = index_of(data, 99);
   in_tail : i32 = index_of(data[3..6], 42);
   return at + in_tail - missing;
-}
+};

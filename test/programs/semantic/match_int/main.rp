@@ -1,6 +1,6 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn classify(n: i32) i32 {
+classify :: fn(n: i32) -> i32 {
   return match n {
     0 => 100,
     1 => 200,
@@ -8,9 +8,9 @@ fn classify(n: i32) i32 {
     _ => 999,
 
   };
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   printf("%d %d %d %d\n", classify(0), classify(1), classify(2), classify(7));
   return 0;
-}
+};

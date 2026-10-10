@@ -19,10 +19,10 @@ struct leaf {
   v: i32,
 }
 
-fn main() i32 {
+main :: fn() -> i32 {
   p := peer { back: null, n: 5 };
   h := holder { many: [leaf { 1 }, leaf { 2 }, leaf { 3 }], link: &p, chained: mid { leaf { 4 } } };
   printf("%d %d %d %d\n", h.many[0].v, h.many[2].v, h.chained.deep.v, h.link.n);
   printf("%d\n", cast(i32, sizeof(holder)));
   return 0;
-}
+};

@@ -4,6 +4,6 @@ extern "C" fn doubled(x: i32) i32 {
 
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   return doubled(printf("n"));
-}
+};

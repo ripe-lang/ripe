@@ -1,10 +1,10 @@
 extern "C" fn printf(fmt: cstr, ...) i32;
 
-fn main() i32 {
+main :: fn() -> i32 {
   msg := {
     n := 6;
     n * 7
   };
   printf("answer=%d\n", msg);
   return 0;
-}
+};

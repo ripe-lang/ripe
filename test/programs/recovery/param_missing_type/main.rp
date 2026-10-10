@@ -1,1 +1,1 @@
-fn add(a: , b: i32) i32 { return b }
+add :: fn(a: , b: i32) -> i32 { return b };

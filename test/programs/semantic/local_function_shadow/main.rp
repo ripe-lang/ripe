@@ -1,6 +1,6 @@
-fn value() i32 { 1 }
+value :: fn() -> i32 { 1 };
 
-fn main() i32 {
-  fn value() i32 { 19 }
+main :: fn() -> i32 {
+  value :: fn() -> i32 { 19 };
   return value();
-}
+};

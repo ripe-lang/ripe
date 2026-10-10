@@ -1,9 +1,9 @@
-fn first_ge(threshold: i32) i32 {
+first_ge :: fn(threshold: i32) -> i32 {
   i : i32 = 0;
   while i < 100 {
     keep : i32 = if i >= threshold { i } else { i = i + 1; continue };
     return keep;
   }
   return -1;
-}
-fn main() i32 { return first_ge(7) }
+};
+main :: fn() -> i32 { return first_ge(7) };

@@ -1,6 +1,6 @@
 type myint = i64;
 
-fn main() i32 {
+main :: fn() -> i32 {
   x : myint = 9;
   return cast(i32, x);
-}
+};

@@ -1,12 +1,12 @@
-fn sum(xs: []i32) i32 {
+sum :: fn(xs: []i32) -> i32 {
   total : i32 = 0;
   for x in xs {
     total += x;
   }
   return total;
-}
+};
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   a[0] = 10;
   doubled : i32 = 0;
@@ -16,4 +16,4 @@ fn main() i32 {
   whole : i32 = sum(a);
   middle : i32 = sum(a[1..4]);
   return doubled + whole + middle - 47;
-}
+};

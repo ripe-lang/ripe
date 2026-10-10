@@ -123,7 +123,7 @@ let check_has_main tdecls =
   if not (List.exists is_main tdecls) then
     Diagnostic.emit
       (Diagnostic.error_no_span "no `main` function found"
-      |> Diagnostic.help "add a `fn main()` entry point")
+      |> Diagnostic.help "add a `main :: fn {}` entry point")
 
 let file_tokens filename =
   if not (Sys.file_exists filename) then

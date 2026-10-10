@@ -1,8 +1,8 @@
-fn main() i32 {
+main :: fn() -> i32 {
   base := 10;
   y := {
     step := 3;
     base + step
   };
   return y;
-}
+};

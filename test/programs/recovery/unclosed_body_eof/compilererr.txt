@@ -1,4 +1,4 @@
 error: unclosed delimiter
-  at main.rp:1:12
-    fn f() i32 {
-               ^
+  at main.rp:1:18
+    f :: fn() -> i32 {
+                     ^

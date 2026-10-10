@@ -6,9 +6,9 @@ extern "C" fn free(p: ptr);
 
 struct pt { x: i32, y: i32 }
 
-fn take(n: u8) i32 { return n }
+take :: fn(n: u8) -> i32 { return n };
 
-fn main() i32 {
+main :: fn() -> i32 {
   a : u64 = sizeof(pt);
   b : i32 = sizeof(i32);
   c : u8 = sizeof(pt);
@@ -19,4 +19,4 @@ fn main() i32 {
   printf("%llu %d %d %llu %d %d\n", a, b, cast(i32, c), d, cast(i32, buf.len),
     take(sizeof(i32)));
   return 0;
-}
+};
