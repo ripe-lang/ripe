@@ -764,7 +764,7 @@ and synth_struct_lit env span name name_span inits =
 and block_result_ty env body =
   let quiet = probing env in
   let inner = push_scope quiet in
-  let _, tb =
+  let tb =
     Diagnostic.quietly (fun () -> check_block inner Ast.dummy_span body Infer)
   in
   tblock_ty tb
@@ -919,12 +919,12 @@ and check_block env span body use =
     match elems with
     | [] ->
         verify_unit_result span use;
-        (env, List.rev acc)
+        List.rev acc
     | [ last ] ->
         (* The last line never runs after a return so its type can be anything *)
         let tail_use = if diverged then Infer else use in
-        let env, te = check_elem env last tail_use in
-        (env, List.rev (te :: acc))
+        let _, te = check_elem env last tail_use in
+        List.rev (te :: acc)
     | e :: rest ->
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
@@ -949,7 +949,7 @@ and check_scoped_block ?loop env span body use =
     | Some lc -> { env with loops = lc :: env.loops }
     | None -> env
   in
-  let _, tb = check_block (push_scope base) span body use in
+  let tb = check_block (push_scope base) span body use in
   (tb, tblock_ty tb)
 
 and check_binding env nspan ann init =
@@ -1103,7 +1103,7 @@ and synth_for env span label nspan iter body =
   let loop = new_loop label ~valued:false in
   let inner = push_scope { env with loops = loop :: env.loops } in
   let inner = extend_var inner nspan elem_ty in
-  let _, tb = check_block inner span body Discard in
+  let tb = check_block inner span body Discard in
   Tast.mk Types.TUnit (Tast.TFor (label, sym env nspan, elem_ty, titer, tb))
 
 (* Each discarded arm checks its own trailing value *)
@@ -2004,7 +2004,7 @@ let check_func ?(is_extern = false) env fd =
   let body_span =
     match fd.ret with Some t -> t.tspan | None -> fd.func_name.span
   in
-  let _, tbody0 = check_block param_env body_span fd.body body_use in
+  let tbody0 = check_block param_env body_span fd.body body_use in
   let tbody =
     match (implicit_return, List.rev tbody0) with
     | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> Types.TNever
