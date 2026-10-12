@@ -24,11 +24,15 @@ depends: [
   "climate" {= "0.9.0"}
   "cmdliner" {= "2.1.1" & with-dev-setup}
   "compiler-cloning" {= "enabled"}
+  "conf-bash" {= "1"}
+  "conf-cmake" {= "1"}
+  "conf-llvm-static" {= "19"}
   "cppo" {= "1.8.0"}
   "csexp" {= "1.5.2"}
+  "ctypes" {= "0.24.0"}
   "dune" {= "3.24.2"}
   "dune-build-info" {= "3.24.2" & with-dev-setup}
-  "dune-configurator" {= "3.24.2" & with-test}
+  "dune-configurator" {= "3.24.2"}
   "dune-private-libs" {= "3.24.2"}
   "dune-site" {= "3.24.2"}
   "dyn" {= "3.24.2"}
@@ -36,8 +40,10 @@ depends: [
   "fix" {= "20250919" & with-dev-setup}
   "fpath" {= "0.7.3" & with-dev-setup}
   "fs-io" {= "3.24.2"}
+  "integers" {= "0.8.0"}
   "jane-street-headers" {= "v0.17.0" & with-test}
   "jst-config" {= "v0.17.0" & with-test}
+  "llvm" {= "19-static"}
   "menhir" {= "20260209" & with-dev-setup}
   "menhirCST" {= "20260209" & with-dev-setup}
   "menhirGLR" {= "20260209" & with-dev-setup}

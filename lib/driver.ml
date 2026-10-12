@@ -8,6 +8,7 @@ type stage =
   | Check
   | Mir
   | Qbe
+  | Llvm
   | Asm
   | Obj
   | Bin
@@ -20,6 +21,7 @@ let stage_name : stage -> string = function
   | Check -> "check"
   | Mir -> "mir"
   | Qbe -> "qbe"
+  | Llvm -> "llvm"
   | Asm -> "asm"
   | Obj -> "obj"
   | Bin -> "bin"
@@ -213,6 +215,8 @@ let compile ~stage ~out ~libraries ~filename =
     let mir = Mir.build tdecls in
     Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
+    stop_at Llvm (fun () ->
+        Output.text output (Llvm.string_of_llmodule (Codegenllvm.emit mir)));
 
     let il =
       Codegenqbe.emit ~filename:program.Program.filename

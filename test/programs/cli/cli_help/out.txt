@@ -11,6 +11,7 @@ Options:
                           check   the typecheck result
                           mir     the middle intermediate representation
                           qbe     the QBE intermediate representation
+                          llvm    the LLVM intermediate representation
                           asm     the target assembly
                           obj     the relocatable object file
   -o, --output <FILE>   Write the compiler output to <FILE>
