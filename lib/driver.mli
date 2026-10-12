@@ -8,6 +8,7 @@ type stage =
   | Check
   | Mir
   | Qbe
+  | Llvm
   | Asm
   | Obj
   | Bin

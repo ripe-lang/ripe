@@ -12,6 +12,7 @@ let emit_stages =
     (Driver.Check, "the typecheck result");
     (Driver.Mir, "the middle intermediate representation");
     (Driver.Qbe, "the QBE intermediate representation");
+    (Driver.Llvm, "the LLVM intermediate representation");
     (Driver.Asm, "the target assembly");
     (Driver.Obj, "the relocatable object file");
   ]
