@@ -29,6 +29,8 @@
    (>= 5.5.0))
   climate
   dune-site
+  (llvm
+   (= 19-static))
   ppx_deriving
   (ocamlformat :with-dev-setup)
   (ppx_expect :with-test)
