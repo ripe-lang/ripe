@@ -62,9 +62,10 @@ let () =
   (* This is so OCaml does fewer stack scans on deep nested input *)
   Gc.set { (Gc.get ()) with minor_heap_size = 4 * 1024 * 1024 };
   let args = match Array.to_list Sys.argv with _ :: rest -> rest | [] -> [] in
-  if List.is_empty args || List.exists is_help args then (
+  if List.is_empty args || List.exists is_help args then begin
     print_endline usage_msg;
-    exit 0)
+    exit 0
+  end
   else
     Command.eval ~program_name:(Literal "ripec") ~help_style:Help_style.plain
       (Command.singleton command)

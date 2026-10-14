@@ -256,11 +256,12 @@ let is_uninhabited env ty =
   go [] ty
 
 let zero_init_ty env span ty =
-  if is_uninhabited env ty then (
+  if is_uninhabited env ty then begin
     Diagnostic.emit
       (Diagnostic.error span "cannot zero init this type"
       |> Diagnostic.label "on %s" (show_ty ty));
-    TError)
+    TError
+  end
   else ty
 
 let lift_ty (f : ty -> ty) ty = if has_error ty then TError else f ty
@@ -1388,17 +1389,19 @@ and check_args env span fsig args =
   let expected_args =
     Printf.sprintf "%d argument%s" n_params (if n_params = 1 then "" else "s")
   in
-  if fsig.param_hole then (
+  if fsig.param_hole then begin
     walk_unpaired_args env args;
-    [])
+    []
+  end
   else if fsig.variadic then
-    if n_args < n_params then (
+    if n_args < n_params then begin
       Diagnostic.emit
         (Diagnostic.error span "wrong number of arguments"
         |> Diagnostic.label "expected at least %s, found %d" expected_args
              n_args);
       walk_unpaired_args env args;
-      [])
+      []
+    end
     else
       let fixed = List.take n_params args in
       let rest = List.drop n_params args in
@@ -1410,12 +1413,13 @@ and check_args env span fsig args =
         | _ -> te
       in
       List.map2 (check env) fixed fsig.param_tys @ List.map promote_vararg rest
-  else if n_params <> n_args then (
+  else if n_params <> n_args then begin
     Diagnostic.emit
       (Diagnostic.error span "wrong number of arguments"
       |> Diagnostic.label "expected %s, found %d" expected_args n_args);
     walk_unpaired_args env args;
-    [])
+    []
+  end
   else List.map2 (check env) args fsig.param_tys
 
 and synth_binop env op l r =
@@ -1694,7 +1698,7 @@ let type_name_taken ctx span =
 
 (* The reserved name enables forward field types *)
 let reserve_struct_name ctx sd =
-  if not (type_name_taken ctx sd.struct_span) then (
+  if not (type_name_taken ctx sd.struct_span) then begin
     let seen = Hashtbl.create 8 in
     let check_duplicate f =
       if Hashtbl.mem seen f.field_name.value then
@@ -1705,7 +1709,8 @@ let reserve_struct_name ctx sd =
     Symbol.Table.replace ctx.type_defs
       (key_in ctx sd.struct_span)
       (Struct_type (ref Unstarted));
-    Layout.set_struct_fields ctx.layouts (key_in ctx sd.struct_span) [])
+    Layout.set_struct_fields ctx.layouts (key_in ctx sd.struct_span) []
+  end
 
 let fill_struct_fields env sd =
   match Symbol.Table.find_opt env.ctx.type_defs (key_at env sd.struct_span) with
