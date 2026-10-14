@@ -1,7 +1,7 @@
 main :: fn() -> i32 {
   s : i32 = 0;
-  for i in 0..3 {
-    for j in 0..4 {
+  for i := 0..3 {
+    for j := 0..4 {
       if j == 1 { continue }
       s += 1;
     }

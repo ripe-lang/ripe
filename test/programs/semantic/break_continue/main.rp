@@ -1,6 +1,6 @@
 main :: fn() -> i32 {
   s : i32 = 0;
-  for i in 0..10 {
+  for i := 0..10 {
     if i == 3 { continue }
     if i == 6 { break }
     s += i;

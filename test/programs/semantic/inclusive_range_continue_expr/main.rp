@@ -2,7 +2,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 main :: fn() -> i32 {
   n := 0;
-  for i in 0..=4 {
+  for i := 0..=4 {
     printf("%d", if i == 2 { continue } else { i });
     n += 1;
   }

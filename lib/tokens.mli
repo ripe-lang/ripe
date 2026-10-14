@@ -41,7 +41,6 @@ type token =
   | ELSE
   | WHILE
   | FOR
-  | IN
   | BREAK
   | CONTINUE
   | STRUCT

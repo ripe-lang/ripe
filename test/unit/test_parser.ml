@@ -451,7 +451,7 @@ let%expect_test
   b := 1 -
   c := !
   while 2 /
-  for x in 3 %
+  for x := 3 %
   return 4 ==
 };|}
   in
@@ -480,7 +480,7 @@ let%expect_test
                   ^
     error: expected expression
       at <test>:7:14
-          for x in 3 %
+          for x := 3 %
                      ^
     error: expected expression
       at <test>:8:12
@@ -812,7 +812,7 @@ let%expect_test "parse: for iterable is not a struct literal" =
   run_src
     {|f :: fn(xs: []i32) -> i32 {
   s : i32 = 0;
-  for x in xs { s += x }
+  for x := xs { s += x }
   return s;
 };|};
   [%expect {| ok |}]
@@ -1867,7 +1867,7 @@ let%expect_test "parse: a while is a value in a binding" =
   [%expect {| (block (bind y (while c (block (call g))))) |}]
 
 let%expect_test "parse: a for is a value in a binding" =
-  parse_body "f :: fn() { y := for i in xs { g() } };";
+  parse_body "f :: fn() { y := for i := xs { g() } };";
   [%expect {| (block (bind y (for i xs (block (call g))))) |}]
 
 let%expect_test "parse: a labeled while is a value in a binding" =

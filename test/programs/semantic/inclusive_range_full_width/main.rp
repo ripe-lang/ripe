@@ -1,14 +1,14 @@
 main :: fn() -> i32 {
   count : i32 = 0;
-  for _i in 0u8..=255u8 { count = count + 1 }
+  for _i := 0u8..=255u8 { count = count + 1 }
   if count != 256 { return 1 }
 
   signed : i32 = 0;
-  for _j in -128i8..=127i8 { signed = signed + 1 }
+  for _j := -128i8..=127i8 { signed = signed + 1 }
   if signed != 256 { return 2 }
 
   single : i32 = 0;
-  for _k in 255u8..=255u8 { single = single + 1 }
+  for _k := 255u8..=255u8 { single = single + 1 }
   if single != 1 { return 3 }
 
   return 0;

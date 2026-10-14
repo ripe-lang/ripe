@@ -3,8 +3,8 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 main :: fn() -> i32 {
   inner := 0;
   outer := 0;
-  for _i in 0..3 {
-    for j in 0..3 {
+  for _i := 0..3 {
+    for j := 0..3 {
       printf("%d", if j == 1 { continue } else { j });
       inner += 1;
     }
@@ -13,8 +13,8 @@ main :: fn() -> i32 {
   }
 
   skipped := 0;
-  for i in 0..4 {
-    for j in 0..2 {
+  for i := 0..4 {
+    for j := 0..2 {
       skipped += j;
     }
     printf("%d", if i == 2 { continue } else { i });

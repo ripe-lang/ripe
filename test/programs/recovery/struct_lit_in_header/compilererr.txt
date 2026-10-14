@@ -10,7 +10,7 @@ error: a struct literal can't go in a header
 help: wrap the literal in parentheses
 error: a struct literal can't go in a header
   at main.rp:6:21
-      for i in 0..point { x: 2, y: 0 }.x { n = n + i }
+      for i := 0..point { x: 2, y: 0 }.x { n = n + i }
                         ^ this `{` starts the body
 help: wrap the literal in parentheses
 error: a struct literal can't go in a header

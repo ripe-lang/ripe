@@ -53,7 +53,7 @@ let%expect_test "reachability: a break in a nested block still counts" =
 let%expect_test "reachability: a break inside an inner loop is not this one's" =
   breaks "while true { while y { break } }";
   breaks "while true { loop { break } }";
-  breaks "while true { for i in r { break } }";
+  breaks "while true { for i := r { break } }";
   [%expect {|
     false
     false

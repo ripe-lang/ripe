@@ -2,7 +2,7 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 sum :: fn(s: []i32) -> i32 {
   t : i32 = 0;
-  for i in 0..s.len { t += s[i] }
+  for i := 0..s.len { t += s[i] }
   return t;
 };
 

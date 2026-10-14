@@ -1023,11 +1023,11 @@ let%expect_test "typecheck: index element assign type mismatch" =
     |}]
 
 let%expect_test "typecheck: for over range ok (branch 2)" =
-  run_src "f :: fn() { for i in 0..5 { x := i } };";
+  run_src "f :: fn() { for i := 0..5 { x := i } };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: for over inclusive range ok (branch 2)" =
-  run_src "f :: fn() { for i in 0..=5 { x := i } };";
+  run_src "f :: fn() { for i := 0..=5 { x := i } };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: for over array binds element type" =
@@ -1035,7 +1035,7 @@ let%expect_test "typecheck: for over array binds element type" =
     {|
 f :: fn() {
   a : [3]i32 = [1, 2, 3];
-  for x in a { y : i32 = x }
+  for x := a { y : i32 = x }
 };
 |};
   [%expect {| ok |}]
@@ -1045,38 +1045,38 @@ let%expect_test "typecheck: for over array wrong element use" =
     {|
 f :: fn() {
   a : [3]i32 = [1, 2, 3];
-  for x in a { y : bool = x }
+  for x := a { y : bool = x }
 };
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:27
-          for x in a { y : bool = x }
+          for x := a { y : bool = x }
                                   ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: for over non-iterable" =
-  run_src "f :: fn() { for x in 5 { y := x } };";
+  run_src "f :: fn() { for x := 5 { y := x } };";
   [%expect
     {|
     error: cannot iterate
       at <test>:1:22
-        f :: fn() { for x in 5 { y := x } };
+        f :: fn() { for x := 5 { y := x } };
                              ^ on i32
     |}]
 
 let%expect_test "typecheck: range bounds must be integers (branch 2)" =
-  run_src "f :: fn() { for i in true..5 { x := i } };";
+  run_src "f :: fn() { for i := true..5 { x := i } };";
   [%expect
     {|
     error: range bounds must be integers
       at <test>:1:22
-        f :: fn() { for i in true..5 { x := i } };
+        f :: fn() { for i := true..5 { x := i } };
                              ^~~~
     error: type mismatch
       at <test>:1:28
-        f :: fn() { for i in true..5 { x := i } };
+        f :: fn() { for i := true..5 { x := i } };
                                    ^ expected bool, found i32
     |}]
 
@@ -1084,7 +1084,7 @@ let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
   run_src {|
 f :: fn() {
   n : i64 = 5;
-  for i in 0..n { x := i }
+  for i := 0..n { x := i }
 };
 |};
   [%expect {| ok |}]
@@ -1094,7 +1094,7 @@ let%expect_test "typecheck: range over len needs no cast (branch 1)" =
     {|
 f :: fn() {
   a : [4]i32 = [1, 2, 3, 4];
-  for i in 0..a.len { a[i] = 0 }
+  for i := 0..a.len { a[i] = 0 }
 };
 |};
   [%expect {| ok |}]
@@ -1104,7 +1104,7 @@ let%expect_test
   run_src {|
 f :: fn() {
   n : i64 = 5;
-  for i in n..10 { x := i }
+  for i := n..10 { x := i }
 };
 |};
   [%expect {| ok |}]
@@ -1125,17 +1125,17 @@ let%expect_test "typecheck: two typed endpoints still must match (branch 2)" =
 f :: fn() {
   m : i32 = 0;
   n : i64 = 5;
-  for i in m..n { x := i }
+  for i := m..n { x := i }
 };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: break inside for" =
-  run_src "f :: fn() { for i in 0..5 { break } };";
+  run_src "f :: fn() { for i := 0..5 { break } };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: continue inside for" =
-  run_src "f :: fn() { for i in 0..5 { continue } };";
+  run_src "f :: fn() { for i := 0..5 { continue } };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: a bare array is not a slice param" =
@@ -1261,7 +1261,7 @@ let%expect_test "typecheck: for over slice binds element" =
 f :: fn() {
   a : [3]i32 = [1, 2, 3];
   s : []i32 = a[0..3];
-  for x in s { y : i32 = x }
+  for x := s { y : i32 = x }
 };
 |};
   [%expect {| ok |}]
@@ -1308,7 +1308,7 @@ let%expect_test "typecheck: iterate array of arrays" =
 f :: fn() -> i32 {
   m : [2][2]i32 = [[1, 2], [3, 4]];
   s : i32 = 0;
-  for row in m { s += row[0] }
+  for row := m { s += row[0] }
   return s;
 };
 |};
@@ -1336,7 +1336,7 @@ let%expect_test "typecheck: range in condition is an error" =
 
 let%expect_test "typecheck: for over array literal" =
   run_src
-    "f :: fn() -> i32 { s : i32 = 0; for x in [1,2,3] { s += x }; return s };";
+    "f :: fn() -> i32 { s : i32 = 0; for x := [1,2,3] { s += x }; return s };";
   [%expect {| ok |}]
 
 let%expect_test "typecheck: array literal as slice argument" =
@@ -1742,7 +1742,7 @@ Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   pts : [2]Pt = [Pt { x: 1, y: 2 }, Pt { x: 3, y: 4 }];
   s : i32 = 0;
-  for p in pts { s += p.x }
+  for p := pts { s += p.x }
   return s;
 };
 |};
@@ -2306,12 +2306,12 @@ let%expect_test "typecheck: chained assignment is not a value" =
     |}]
 
 let%expect_test "typecheck: assign to for loop variable" =
-  run_src "f :: fn() { for i in 0..3 { i = 99 } };";
+  run_src "f :: fn() { for i := 0..3 { i = 99 } };";
   [%expect
     {|
     error: cannot assign to immutable
       at <test>:1:29
-        f :: fn() { for i in 0..3 { i = 99 } };
+        f :: fn() { for i := 0..3 { i = 99 } };
                                     ^
     |}]
 
@@ -3745,7 +3745,7 @@ f :: fn(small: i8, wide: i64, single: f32, double: f64) -> i64 {
   n := match true { true => wide, false => small };
   o := loop { if false { break small }; break wide };
   p := loop { if false { break wide }; break small };
-  for _index in small..wide {}
+  for _index := small..wide {}
   return a + b + i[0] + j[1] + k + l + m + n + o + p;
 };
 |};
@@ -3873,7 +3873,7 @@ f :: fn(signed: i32, unsigned: u32) -> i64 {
   d := if true { signed } else { unsigned };
   e := match true { true => signed, false => unsigned };
   g := loop { if false { break signed }; break unsigned };
-  for _index in signed..unsigned {}
+  for _index := signed..unsigned {}
   return a + d + e + g;
 };
 |};
