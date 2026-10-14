@@ -8,5 +8,5 @@ error: cannot zero init this type
               ^~~~ on Hole
 error: cannot zero init this type
   at main.rp:6:14
-      partial := Hole { b: 1 };
+      partial := Hole.{ b: 1 };
                  ^~~~~~~~~~~~~ on never

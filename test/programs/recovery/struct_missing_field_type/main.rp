@@ -3,6 +3,6 @@ Point :: struct {
   y: i32,
 };
 main :: fn() -> i32 {
-  p := Point { 5, 4 };
+  p := Point.{ 5, 4 };
   return p.y;
 };

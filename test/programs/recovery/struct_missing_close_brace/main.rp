@@ -5,6 +5,6 @@ Point :: struct {
 helper :: fn(n: i32) -> i32 { return n };
 
 main :: fn() -> i32 {
-  p := Point { 5 };
+  p := Point.{ 5 };
   return p.x + helper(1);
 };

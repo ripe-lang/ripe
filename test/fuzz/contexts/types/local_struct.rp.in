@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
   S :: struct { a: %%T%% };
-  v := S { %%L%% };
+  v := S.{ %%L%% };
   return 0;
 };

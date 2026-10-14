@@ -683,9 +683,11 @@ and synth_path_type env span p =
       synth_variant env inner info name name_span
   | Some (Enum_type { contents = Unstarted | Running }) -> dummy_texpr
   | Some (Struct_type _ | Alias_type _ | Builtin_type _) ->
+      let sym = Resolve.sym_at env.ctx.symbols inner.span in
       Diagnostic.emit
         (Diagnostic.error inner.span "expected a value"
-        |> Diagnostic.label "this names a type");
+        |> Diagnostic.label "this names %s"
+             (Symbol.describe_kind sym.Symbol.kind));
       dummy_texpr
   | None -> synth_field env span inner name name_span
 
@@ -707,8 +709,8 @@ and synth_size_of env typ =
   | ty -> mk (TInt Usize) (TSizeOf ty)
 
 and synth_struct_lit env span name name_span inits =
-  match lookup_struct env name_span (key_at env.ctx name_span) with
-  | Some info ->
+  match Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx name_span) with
+  | Some (Struct_type { contents = Completed info }) ->
       let fields =
         match inits with
         | ({ value = None; _ }, _) :: _ -> positional_fields env span info inits
@@ -716,7 +718,20 @@ and synth_struct_lit env span name name_span inits =
       in
       let keyname = keyname_at env.ctx name_span (Interner.text name) in
       mk (TStruct (keyname, [])) (TStructLit (keyname, fields))
-  | None -> dummy_texpr
+  | Some (Struct_type { contents = Unstarted | Running }) ->
+      Diagnostic.emit (Diagnostic.error name_span "undefined struct");
+      dummy_texpr
+  | Some (Enum_type _ | Builtin_type _ | Alias_type _) | None ->
+      let d =
+        match Resolve.sym_at_opt env.ctx.symbols name_span with
+        | Some sym ->
+            Diagnostic.error name_span "expected a struct"
+            |> Diagnostic.label "this names %s"
+                 (Symbol.describe_kind sym.Symbol.kind)
+        | None -> Diagnostic.error name_span "undefined struct"
+      in
+      Diagnostic.emit d;
+      dummy_texpr
 
 (* A quiet probe lets a sibling anchor the block type *)
 and block_result_ty env body =
@@ -1526,7 +1541,9 @@ and synth_call env span callee args =
   | None when Symbol.Table.mem env.ctx.type_defs (key_at env.ctx callee.span) ->
       let sym = Resolve.sym_at env.ctx.symbols callee.span in
       Diagnostic.emit
-        (Diagnostic.error callee.span "cannot call a type"
+        (Diagnostic.error callee.span "expected a function"
+        |> Diagnostic.label "this names %s"
+             (Symbol.describe_kind sym.Symbol.kind)
         |> Diagnostic.help
              (Printf.sprintf "convert with `cast(%s, value)`" sym.Symbol.name));
       List.iter (fun a -> ignore (synth env a)) args;

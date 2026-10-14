@@ -4,7 +4,7 @@ Pair :: struct {
 };
 
 make_pair :: fn(x: i32, y: i32) -> Pair {
-  return Pair { x: x, y: y };
+  return Pair.{ x: x, y: y };
 };
 
 wrapper :: fn(x: i32, y: i32) -> Pair {

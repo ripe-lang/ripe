@@ -1,0 +1,10 @@
+Point :: struct { x: i32, y: i32 };
+Color :: enum { Red };
+main :: fn() -> i32 {
+  p := Point.{ 1, 2 };
+  a := p.{ 1, 2 };
+  b := i32.{ 1 };
+  c := Color.{ };
+  d := nope.{ 1 };
+  return 0;
+};

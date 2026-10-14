@@ -1,5 +1,5 @@
 S :: struct { x: i32 };
 main :: fn() -> i32 {
-  v := S { x: };
+  v := S.{ x: };
   return v.x;
 };

@@ -1,13 +1,13 @@
 main :: fn() -> i32 {
   first := {
-    p := Point { x: 3 };
+    p := Point.{ x: 3 };
     Point :: struct { x: i32 };
     p.x
   };
 
   second := {
     Point :: struct { x: i32, y: i32 };
-    p := Point { x: 1, y: 5 };
+    p := Point.{ x: 1, y: 5 };
     p.y
   };
 

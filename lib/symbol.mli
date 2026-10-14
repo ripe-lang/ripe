@@ -39,3 +39,4 @@ module Table : Hashtbl.S with type key = key
 val is_func : kind -> bool
 val is_global : kind -> bool
 val is_immutable : kind -> bool
+val describe_kind : kind -> string

@@ -1,6 +1,6 @@
 point :: struct { x: i32, y: i32 };
 
-point := point { 3, 4 };
+point := point.{ 3, 4 };
 
 main :: fn() -> i32 {
   return point.x + point.y;

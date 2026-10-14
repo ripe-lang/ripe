@@ -12,7 +12,7 @@ scale :: fn(n: i32) -> i32
 bad :: fn() -> i32 { z : i32 = ; return z };
 
 main :: fn() -> i32 {
-  p := Point { 5, 4 };
+  p := Point.{ 5, 4 };
   c := Color.Green;
   s := scale(2);
   b := bad();
