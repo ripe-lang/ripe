@@ -26,6 +26,17 @@ let stage_name : stage -> string = function
   | Obj -> "obj"
   | Bin -> "bin"
 
+module Backend = struct
+  type t = Qbe | X86
+
+  let name : t -> string = function Qbe -> "qbe" | X86 -> "x86"
+
+  let has_stage (backend : t) (stage : stage) : bool =
+    match stage with
+    | Qbe | Asm -> ( match backend with Qbe -> true | X86 -> false)
+    | Tokens | Ast | Resolve | Tast | Check | Mir | Llvm | Obj | Bin -> true
+end
+
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all
 
 let use_color () =
@@ -64,6 +75,12 @@ let run_linker target ~output ~object_file ~libraries =
       ~runtime:(Config.runtime_object ()) ~libraries
   in
   run (shell_command args)
+
+let link_object target base object_bytes libraries =
+  let tmp_obj = Filename.temp_file "ripe" ".o" in
+  Out_channel.with_open_bin tmp_obj (fun oc -> output_string oc object_bytes);
+  run_linker target ~output:base ~object_file:tmp_obj ~libraries;
+  Sys.remove tmp_obj
 
 let compile_binary ~qbe target base il libraries =
   let tmp_asm = run_qbe qbe il in
@@ -187,8 +204,13 @@ let stop_at ~stage ~program target emit =
     raise Exit
   end
 
-let compile ~stage ~out ~libraries ~filename =
+let compile ~stage ~backend ~out ~libraries ~filename =
   let output = Output.make out in
+  if not (Backend.has_stage backend stage) then
+    die
+      (Printf.sprintf "the %s backend has no %s stage" (Backend.name backend)
+         (stage_name stage));
+
   if stage = Tokens then begin
     Output.text output (file_tokens filename);
     exit 0
@@ -221,22 +243,31 @@ let compile ~stage ~out ~libraries ~filename =
     stop_at Llvm (fun () ->
         Output.text output (Llvm.string_of_llmodule (Codegenllvm.emit mir)));
 
-    let il =
-      Codegenqbe.emit ~filename:program.Program.filename
-        ~source_map:program.Program.source_map mir
-    in
+    match backend with
+    | Backend.X86 ->
+        let object_bytes = Codegenx86.emit mir in
+        stop_at Obj (fun () -> Output.bytes output object_bytes);
+        link_object (Target.host ())
+          (Output.base output filename)
+          object_bytes libraries
+    | Backend.Qbe ->
+        let il =
+          Codegenqbe.emit ~filename:program.Program.filename
+            ~source_map:program.Program.source_map mir
+        in
 
-    stop_at Qbe (fun () -> Output.text output il);
-    let qbe = Config.qbe () in
-    stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
-    stop_at Obj (fun () ->
-        Output.bytes output (emit_obj ~qbe (Target.host ()) il));
+        stop_at Qbe (fun () -> Output.text output il);
+        let qbe = Config.qbe () in
+        stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
+        stop_at Obj (fun () ->
+            Output.bytes output (emit_obj ~qbe (Target.host ()) il));
 
-    compile_binary ~qbe (Target.host ())
-      (Output.base output filename)
-      il libraries
+        compile_binary ~qbe (Target.host ())
+          (Output.base output filename)
+          il libraries
   with
   | Exit -> ()
+  | Codegenx86.Unsupported msg -> die msg
   | Diagnostic.Errors ds ->
       render_program program ds;
       exit 1

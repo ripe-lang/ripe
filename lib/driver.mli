@@ -15,5 +15,16 @@ type stage =
 
 val stage_name : stage -> string
 
+module Backend : sig
+  type t = Qbe | X86
+
+  val name : t -> string
+end
+
 val compile :
-  stage:stage -> out:string -> libraries:string list -> filename:string -> unit
+  stage:stage ->
+  backend:Backend.t ->
+  out:string ->
+  libraries:string list ->
+  filename:string ->
+  unit

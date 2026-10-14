@@ -20,6 +20,12 @@ let key ?kind id = Symbol.key (symbol ?kind id)
 let keyname id name = Keyname.make (key id) name
 let struct_ty id name = Types.TStruct (keyname id name, [])
 let alias_ty id name base = Types.TAlias (keyname id name, base)
+
+let hex s =
+  String.to_seq s
+  |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
+  |> List.of_seq |> String.concat " "
+
 let pred name f t = Printf.printf "%s %s = %b\n" name (Types.show_ty t) (f t)
 
 let pred2 name f a b =
