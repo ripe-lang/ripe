@@ -282,16 +282,14 @@ let constant_of (expr : texpr) =
            [ Diagnostic.error expr.span "global initializer must be a literal" ])
 
 (* The surviving source operators keep their meaning *)
-let unop_of op =
-  match op with
+let unop_of = function
   | Ast.Neg -> Neg
   | Ast.Not -> Not
   | Ast.BitNot -> BitNot
   | Ast.Deref -> Diagnostic.ice "deref is a projection and not a MIR value"
   | Ast.AddressOf -> Diagnostic.ice "address of is its own MIR value"
 
-let binop_of op =
-  match op with
+let binop_of = function
   | Ast.Add -> Add
   | Ast.Sub -> Sub
   | Ast.Mul -> Mul
@@ -1001,15 +999,13 @@ let build declarations =
     functions = List.map (build_func global_names) funcs;
   }
 
-let show_storage storage =
-  match storage with
+let show_storage = function
   | Param -> "param"
   | User -> "user"
   | Temp -> "temp"
   | Result -> "result"
 
-let show_constant constant =
-  match constant with
+let show_constant = function
   | Int value -> Int64.to_string value
   | Float value -> Printf.sprintf "%.17g" value
   | Bool value -> string_of_bool value
@@ -1021,10 +1017,9 @@ let show_constant constant =
   | Function name -> "@" ^ name
   | Str value -> Printf.sprintf "str %S" value
 
-let show_unop op = match op with Neg -> "-" | Not -> "!" | BitNot -> "~"
+let show_unop = function Neg -> "-" | Not -> "!" | BitNot -> "~"
 
-let show_binop op =
-  match op with
+let show_binop = function
   | Add -> "+"
   | Sub -> "-"
   | Mul -> "*"

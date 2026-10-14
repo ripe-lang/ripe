@@ -276,8 +276,7 @@ let resolve_named_abi name span =
       AbiError
 
 (* A signature without an ABI written on it is a plain Ripe function *)
-let resolve_abi a =
-  match a with
+let resolve_abi = function
   | NoAbi -> Ripe
   | NamedAbi { value = name; span } -> resolve_named_abi name span
 
@@ -358,8 +357,7 @@ let new_loop label ~valued =
     bare_break = None;
   }
 
-let find_loop env label =
-  match label with
+let find_loop env = function
   | None -> ( match env.loops with lc :: _ -> Some lc | [] -> None)
   | Some l -> List.find_opt (fun lc -> lc.lbl = Some l.value) env.loops
 
@@ -828,8 +826,7 @@ and named_fields env span info (inits : (name option spanned * expr) list) =
     if Hashtbl.mem seen fname then None
     else Some (field_id, mk (zero_init_ty env span ft) TZero)
   in
-  let rec defaults field_id fields =
-    match fields with
+  let rec defaults field_id = function
     | [] -> []
     | field :: rest -> (
         let rest = defaults (field_id + 1) rest in
@@ -889,8 +886,7 @@ and check_value_for_use env (e : expr) use =
 
 (* Thread env so a binding is visible to later elements *)
 and check_block env span body use =
-  let rec go env diverged acc elems =
-    match elems with
+  let rec go env diverged acc = function
     | [] ->
         verify_unit_result span use;
         List.rev acc
@@ -1892,8 +1888,7 @@ let reserve_type_names ctx =
   List.iter reserve ctx.declarations
 
 let collect_decls ctx =
-  let collect decl =
-    match decl with
+  let collect = function
     | Func fd | Extern fd ->
         let env = make_env ctx in
         collect_func env fd
@@ -1905,8 +1900,7 @@ let collect_decls ctx =
   List.iter collect ctx.declarations
 
 let fill_struct_layouts ctx =
-  let fill decl =
-    match decl with
+  let fill = function
     | Struct sd ->
         let env = make_env ctx in
         fill_struct_fields env sd
@@ -2022,8 +2016,7 @@ let typed_struct_decl ctx sd fields =
   else TStructDecl (name, fields)
 
 let check_decls ctx =
-  let check_declaration decl =
-    match decl with
+  let check_declaration = function
     | Func fd ->
         let env = make_env ctx in
         let tfd = check_func env fd in

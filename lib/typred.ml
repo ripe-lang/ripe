@@ -79,16 +79,14 @@ let rec is_comparable t =
       ->
         false
 
-let binop_accepts op =
-  match op with
+let binop_accepts = function
   | Add | Sub | Mul | Div -> is_numeric
   | Mod | BitAnd | BitOr | BitXor | Lshift | Rshift -> is_integer
   | Eq | Neq -> is_comparable
   | Lt | Gt | Lte | Gte -> is_ordered
   | And | Or -> fun _ -> true
 
-let unop_accepts op =
-  match op with
+let unop_accepts = function
   | Neg -> is_numeric
   | BitNot -> is_integer
   | Not | Deref | AddressOf -> fun _ -> true
