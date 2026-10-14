@@ -352,7 +352,7 @@ let%expect_test "typecheck: write through a pointer" =
 g : i32 = 0;
 f :: fn() {
   p : *i32 = &g;
-  *p = 5;
+  p.* = 5;
 };
 |};
   [%expect {| ok |}]
@@ -749,30 +749,30 @@ let%expect_test "typecheck: deref non-pointer" =
   run_src {|
 f :: fn() {
   x : i32 = 1;
-  y := *x;
+  y := x.*;
 };
 |};
   [%expect
     {|
     error: cannot dereference
-      at <test>:4:9
-          y := *x;
-                ^ on i32
+      at <test>:4:8
+          y := x.*;
+               ^ on i32
     |}]
 
 let%expect_test "typecheck: a failed check does not cascade" =
   run_src {|
 f :: fn() {
   n : i32 = 1;
-  _y := *n.x + 1;
+  _y := n.x.* + 1;
 };
 |};
   [%expect
     {|
     error: type has no fields
-      at <test>:4:10
-          _y := *n.x + 1;
-                 ^~~ on i32
+      at <test>:4:9
+          _y := n.x.* + 1;
+                ^~~ on i32
     |}]
 
 let%expect_test "typecheck: address-of and deref roundtrip" =
@@ -781,7 +781,7 @@ let%expect_test "typecheck: address-of and deref roundtrip" =
 f :: fn() -> i32 {
   x : i32 = 5;
   p : *i32 = &x;
-  return *p;
+  return p.*;
 };
 |};
   [%expect {| ok |}]
@@ -841,7 +841,7 @@ f :: fn(p: **Pt) -> i32 { return p.x };
       at <test>:3:34
         f :: fn(p: **Pt) -> i32 { return p.x };
                                          ^~~
-    help: dereference first: `(*p).x`
+    help: dereference first: `p.*.x`
     |}]
 
 let%expect_test "typecheck: duplicate function" =
@@ -2080,7 +2080,7 @@ let%expect_test "typecheck: alias is transparent under a slice and a pointer" =
     {|
 Meters :: i32;
 take_slice :: fn(s: []i32) -> i32 { return s[0] };
-take_ptr :: fn(p: *i32) -> i32 { return *p };
+take_ptr :: fn(p: *i32) -> i32 { return p.* };
 f :: fn() -> i32 {
   a : [3]Meters = [1, 2, 3];
   s : []Meters = a;
@@ -2465,13 +2465,13 @@ let%expect_test "typecheck: ptr casts back to a typed pointer" =
   [%expect {| ok |}]
 
 let%expect_test "typecheck: cannot dereference ptr" =
-  run_src "f :: fn(a: ptr) -> i32 { return *a };";
+  run_src "f :: fn(a: ptr) -> i32 { return a.* };";
   [%expect
     {|
     error: cannot dereference ptr
-      at <test>:1:34
-        f :: fn(a: ptr) -> i32 { return *a };
-                                         ^
+      at <test>:1:33
+        f :: fn(a: ptr) -> i32 { return a.* };
+                                        ^
     help: cast to a typed pointer first
     |}]
 
@@ -4068,7 +4068,7 @@ let%expect_test "typecheck: an unknown return type hides the missing value" =
   run_src
     "f :: fn() -> nope { if true { return 1 } };\n\
      g :: fn() -> nope { loop { break } };\n\
-     h :: fn() { _p := *f };";
+     h :: fn() { _p := f.* };";
   [%expect
     {|
     error: undefined type

@@ -8,14 +8,14 @@ main :: fn() -> i32 {
   qq : **Point = &q;
   qqq : ***Point = &qq;
 
-  printf("%d %d %d\n", q.x, (*qq).x, (**qqq).x);
+  printf("%d %d %d\n", q.x, qq.*.x, qqq.*.*.x);
 
   q.x = 1;
-  (*qq).y = 2;
+  qq.*.y = 2;
   printf("%d %d\n", p.x, p.y);
 
-  (**qqq).x = 3;
-  (**qqq).y = 9;
+  qqq.*.*.x = 3;
+  qqq.*.*.y = 9;
   printf("%d %d\n", p.x, p.y);
   return 0;
 };

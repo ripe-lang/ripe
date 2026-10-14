@@ -462,7 +462,7 @@ let synth_struct_field env span te ty fname fspan =
       dummy_texpr
   | Some (_, depth) when depth > 1 ->
       let hint =
-        Printf.sprintf "dereference first: `(*p).%s`" (Interner.text fname)
+        Printf.sprintf "dereference first: `p.*.%s`" (Interner.text fname)
       in
       Diagnostic.emit
         (Diagnostic.error span "too many pointer levels" |> Diagnostic.help hint);

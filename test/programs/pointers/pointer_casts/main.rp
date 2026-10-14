@@ -28,11 +28,11 @@ main :: fn() -> i32 {
   op : BinOp = add;
   call_through : *BinOp = &op;
 
-  printf("%d %d %d\n", back.x, back.y, cast(i32, *bytes));
+  printf("%d %d %d\n", back.x, back.y, cast(i32, bytes.*));
   printf("%d %d %d\n", cast(i32, cast(usize, deep) - address), cast(i32, wide - cast(u64, address)),
          cast(i32, cast(usize, signed) - address));
-  printf("%d %d\n", (*rows)[0], (*rows)[1]);
+  printf("%d %d\n", rows.*[0], rows.*[1]);
   printf("%d %d\n", cast(i32, cast(usize, fp) - address), cast(i32, cast(usize, indirect) - address));
-  printf("%d %d\n", cast(i32, cast(usize, erased) - address), (*call_through)(1, 2));
+  printf("%d %d\n", cast(i32, cast(usize, erased) - address), call_through.*(1, 2));
   return back.x + back.y;
 };

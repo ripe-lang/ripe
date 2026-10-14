@@ -4,6 +4,6 @@ main :: fn() -> i32 {
   p : Point = Point { x: 1, y: 2 };
   pt : *Point = &p;
   p2 : Point = Point { x: 100, y: 200 };
-  *pt = p2;
+  pt.* = p2;
   return p.x;
 };
