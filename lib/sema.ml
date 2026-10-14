@@ -169,17 +169,6 @@ let extend_var ?(deduplicate = false) env span t =
   | scope :: rest -> { env with scopes = ((key, t) :: scope) :: rest }
   | [] -> assert false
 
-let lookup_var_opt env span =
-  let key = Symbol.key (sym env span) in
-  let rec find = function
-    | [] -> None
-    | scope :: rest -> (
-        match List.assoc_opt key scope with
-        | Some _ as found -> found
-        | None -> find rest)
-  in
-  find env.scopes
-
 (* A span the resolver never bound falls back so checking can carry on *)
 let symbol_at ctx span ~(missing : 'a) (read : Symbol.t -> 'a) =
   match Resolve.sym_at_opt ctx.symbols span with
@@ -514,7 +503,8 @@ let check_int_literal (e : expr) want target value =
   | None ->
       Diagnostic.emit
         (Diagnostic.error e.span "type mismatch"
-        |> Diagnostic.label "expected %s, found i32" (show_ty want));
+        |> Diagnostic.label "expected %s, found %s" (show_ty want)
+             (show_ty (TInt I32)));
       mk (TInt I32) (TIntLit value)
 
 let check_float_literal (e : expr) want target value =
@@ -524,7 +514,8 @@ let check_float_literal (e : expr) want target value =
   | _ ->
       Diagnostic.emit
         (Diagnostic.error e.span "type mismatch"
-        |> Diagnostic.label "expected %s, found f64" (show_ty want));
+        |> Diagnostic.label "expected %s, found %s" (show_ty want)
+             (show_ty (TFloat F64)));
       mk (TFloat F64) (TFloatLit value)
 
 (* This figures out the type of a field access *)
@@ -587,7 +578,8 @@ and pending_global_ty env span key fact =
     TError
 
 and lookup_var env span =
-  match lookup_var_opt env span with
+  let key = Symbol.key (sym env span) in
+  match List.find_map (List.assoc_opt key) env.scopes with
   | Some t -> t
   | None -> lookup_non_local env span
 
@@ -960,7 +952,8 @@ and check_loop_expr env span label body want =
     | ExpectLoopResult want, Some break_span ->
         Diagnostic.emit
           (Diagnostic.error break_span "type mismatch"
-          |> Diagnostic.label "expected %s, found ()" (show_ty want));
+          |> Diagnostic.label "expected %s, found %s" (show_ty want)
+               (show_ty TUnit));
         TUnit
   in
   mk ty (TLoop (label, tb))
