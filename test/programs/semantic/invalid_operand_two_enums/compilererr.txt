@@ -1,0 +1,12 @@
+error: invalid operand
+  at main.rp:6:10
+      n := c + s;
+             ^ cannot apply `+` to Color and Shape
+error: invalid operand
+  at main.rp:7:8
+      if c < s { return 1 }
+           ^ cannot apply `<` to Color and Shape
+error: type mismatch
+  at main.rp:8:11
+      if c == s { return 2 }
+              ^ expected Color, found Shape

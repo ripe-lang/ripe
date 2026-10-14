@@ -1,0 +1,10 @@
+Color :: enum { Red, Green };
+Shape :: enum { Circle, Square };
+main :: fn() -> i32 {
+  c := Color.Red;
+  s := Shape.Circle;
+  n := c + s;
+  if c < s { return 1 }
+  if c == s { return 2 }
+  return 0;
+};

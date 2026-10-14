@@ -37,8 +37,8 @@ type expr_desc =
   | String of string
   | Ident of name
   | Call of expr * expr list
-  | BinOp of binop * expr * expr
-  | Assign of binop option * expr * expr
+  | BinOp of binop spanned * expr * expr
+  | Assign of binop option spanned * expr * expr
   | UnOp of unop * expr
   | Range of expr * expr
   | RangeInclusive of expr * expr

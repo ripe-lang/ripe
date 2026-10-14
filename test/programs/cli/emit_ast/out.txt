@@ -14,7 +14,8 @@
          { desc =
            (Return
               (Some { desc =
-                      (BinOp (Add, { desc = (Ident a); span = (44,45) },
+                      (BinOp ({ value = Add; span = (46,47) },
+                         { desc = (Ident a); span = (44,45) },
                          { desc = (Ident b); span = (48,49) }));
                       span = (44,49) }));
            span = (37,49) })

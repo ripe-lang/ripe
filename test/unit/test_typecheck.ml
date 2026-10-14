@@ -514,9 +514,9 @@ let%expect_test "typecheck: bool arithmetic rejected" =
   [%expect
     {|
     error: invalid operand
-      at <test>:1:18
+      at <test>:1:23
         f :: fn() { x := true + false };
-                         ^~~~ cannot apply `+` to bool
+                              ^ cannot apply `+` to bool
     |}]
 
 let%expect_test "typecheck: comparison yields bool" =
@@ -570,9 +570,9 @@ let%expect_test "typecheck: bitwise on bool rejected" =
   [%expect
     {|
     error: invalid operand
-      at <test>:1:18
+      at <test>:1:23
         f :: fn() { x := true & false };
-                         ^~~~ cannot apply `&` to bool
+                              ^ cannot apply `&` to bool
     |}]
 
 let%expect_test "typecheck: int to int cast" =
@@ -1074,10 +1074,6 @@ let%expect_test "typecheck: range bounds must be integers (branch 2)" =
       at <test>:1:22
         f :: fn() { for i := true..5 { x := i } };
                              ^~~~
-    error: type mismatch
-      at <test>:1:28
-        f :: fn() { for i := true..5 { x := i } };
-                                   ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
@@ -1221,10 +1217,6 @@ let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
       at <test>:1:49
         f :: fn() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] };
                                                         ^~~~
-    error: type mismatch
-      at <test>:1:55
-        f :: fn() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] };
-                                                              ^ expected bool, found i32
     |}]
 
 let%expect_test "typecheck: slice .len is usize" =
@@ -1813,9 +1805,9 @@ f :: fn() -> bool {
   [%expect
     {|
     error: invalid operand
-      at <test>:5:10
+      at <test>:5:12
           return a < b;
-                 ^ cannot apply `<` to bool
+                   ^ cannot apply `<` to bool
     |}]
 
 let%expect_test "typecheck: struct equality rejected" =
@@ -1831,9 +1823,9 @@ f :: fn() -> bool {
   [%expect
     {|
     error: invalid operand
-      at <test>:6:10
+      at <test>:6:12
           return a == b;
-                 ^ cannot apply `==` to P
+                   ^~ cannot apply `==` to P
     |}]
 
 let%expect_test "typecheck: unit equality rejected" =
@@ -1846,9 +1838,9 @@ f :: fn() -> bool {
   [%expect
     {|
     error: invalid operand
-      at <test>:4:10
+      at <test>:4:14
           return g() == g();
-                 ^~~ cannot apply `==` to ()
+                     ^~ cannot apply `==` to ()
     |}]
 
 let%expect_test "typecheck: float modulo rejected" =
@@ -1860,9 +1852,9 @@ f :: fn() -> f64 {
   [%expect
     {|
     error: invalid operand
-      at <test>:3:10
+      at <test>:3:14
           return 5.0 % 2.0;
-                 ^~~ cannot apply `%` to f64
+                     ^ cannot apply `%` to f64
     |}]
 
 let%expect_test "typecheck: bare return in main rejected" =
@@ -2144,9 +2136,9 @@ f :: fn() -> f32 { a : Temp = 5.0; return a % a };
   [%expect
     {|
     error: invalid operand
-      at <test>:3:43
+      at <test>:3:45
         f :: fn() -> f32 { a : Temp = 5.0; return a % a };
-                                                  ^ cannot apply `%` to Temp
+                                                    ^ cannot apply `%` to Temp
     |}]
 
 let%expect_test "typecheck: type alias mixes with its base in comparisons" =
@@ -2502,13 +2494,9 @@ let%expect_test "typecheck: no arithmetic on ptr" =
   [%expect
     {|
     error: invalid operand
-      at <test>:1:33
+      at <test>:1:35
         f :: fn(a: ptr) -> ptr { return a + 1 };
-                                        ^ cannot apply `+` to ptr
-    error: type mismatch
-      at <test>:1:37
-        f :: fn(a: ptr) -> ptr { return a + 1 };
-                                            ^ expected ptr, found i32
+                                          ^ cannot apply `+` to ptr and i32
     |}]
 
 let%expect_test "typecheck: ptr compares to null" =
@@ -2729,13 +2717,9 @@ let%expect_test "typecheck: no arithmetic on a char" =
   [%expect
     {|
     error: invalid operand
-      at <test>:1:37
+      at <test>:1:41
         f :: fn() -> i32 { return cast(i32, 'A' + 1) };
-                                            ^~~ cannot apply `+` to char
-    error: type mismatch
-      at <test>:1:43
-        f :: fn() -> i32 { return cast(i32, 'A' + 1) };
-                                                  ^ expected char, found i32
+                                                ^ cannot apply `+` to char and i32
     |}]
 
 let%expect_test "typecheck: char casts to and from an integer" =
@@ -3093,9 +3077,9 @@ let%expect_test "typecheck: str cannot be compared" =
   [%expect
     {|
     error: invalid operand
-      at <test>:2:10
+      at <test>:2:12
           return s == "a" };
-                 ^ cannot apply `==` to str
+                   ^~ cannot apply `==` to str and *i8
     |}]
 
 let%expect_test "typecheck: a str global" =
@@ -3231,9 +3215,9 @@ f :: fn() { _c := Color.Red + Color.Green };|};
   [%expect
     {|
     error: invalid operand
-      at <test>:2:19
+      at <test>:2:29
         f :: fn() { _c := Color.Red + Color.Green };
-                          ^~~~~~~~~ cannot apply `+` to Color
+                                    ^ cannot apply `+` to Color
     |}]
 
 let%expect_test "typecheck: enum does not cast to an integer" =
@@ -4086,7 +4070,7 @@ let%expect_test "typecheck: a logical compound assign needs a bool" =
   [%expect
     {|
     error: invalid operand
-      at <test>:2:3
+      at <test>:2:5
           n &&= 2 };
-          ^ cannot apply `&&` to i32
+            ^~~ cannot apply `&&` to i32
     |}]
