@@ -370,7 +370,11 @@ let lower_div state destination span ty op (left : operand) (right : operand) =
      jump block3 *)
 let lower_shift state destination span ty op (left : operand) (right : operand)
     =
-  let bits = 8 * int_kind_size (int_kind_of ty) in
+  let bits =
+    match resolve_ty ty with
+    | Types.TInt k -> 8 * int_kind_size k
+    | _ -> Diagnostic.ice "shift on a non integer"
+  in
   let width = const span right.ty (Int (Int64.of_int bits)) in
   let count_in_range =
     temp_value state Types.TBool span (Binary (Lt, right, width))

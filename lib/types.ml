@@ -163,11 +163,6 @@ let ty_equal a b =
   | x, y when has_error x || has_error y -> true
   | x, y -> x = y
 
-let int_kind_of t =
-  match resolve_ty t with
-  | TInt k -> k
-  | _ -> Diagnostic.ice "expected an integer type"
-
 let float_kind_of t =
   match resolve_ty t with
   | TFloat k -> k
