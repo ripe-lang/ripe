@@ -407,12 +407,12 @@ let lower_binary state destination span ty (op : Ast.binop) (left : operand)
 
 (* %1 = call @g()
    %0 = 3 *)
-let rec lower_block state destination body =
-  match List.rev body with
+let rec lower_block state destination = function
   | [] -> ()
-  | last :: reversed ->
-      List.iter (lower_statement state) (List.rev reversed);
-      if is_live state then lower_into state destination last
+  | [ last ] -> if is_live state then lower_into state destination last
+  | statement :: rest ->
+      lower_statement state statement;
+      lower_block state destination rest
 
 (* branch copy %0 block1 block2
    block1:

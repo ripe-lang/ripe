@@ -296,8 +296,8 @@ let named_ty env span shown =
   | None -> unresolved_named_ty env span
 
 (* The value of a block is its last element and unit when the block is empty *)
-let tblock_ty (tb : tblock) =
-  match List.rev tb with te :: _ -> te.ty | [] -> TUnit
+let rec tblock_ty (tb : tblock) =
+  match tb with [] -> TUnit | [ te ] -> te.ty | _ :: rest -> tblock_ty rest
 
 let if_result_ty (tbranches : (texpr * tblock) list) telse ~fallback_ty =
   let diverges tb = tblock_ty tb = TNever in
@@ -323,10 +323,10 @@ let rec arm_is_flexible (e : expr) =
            else_body
   | _ -> false
 
-and block_is_flexible body =
-  match List.rev body with
-  | Expr last :: _ -> arm_is_flexible last
-  | Decl _ :: _ | [] -> false
+and block_is_flexible = function
+  | [] | [ Decl _ ] -> false
+  | [ Expr last ] -> arm_is_flexible last
+  | _ :: rest -> block_is_flexible rest
 
 let common_ty current candidate =
   match (current, candidate) with
