@@ -28,3 +28,26 @@ let emit (program : Mir.program) =
       | _ -> Diagnostic.ice "LLVM only lowers an empty main yet")
     program.Mir.functions;
   llmod
+
+(* https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
+   https://github.com/llvm/llvm-project/blob/release/19.x/llvm/test/Bindings/OCaml/target.ml
+   https://github.com/llvm/llvm-project/blob/release/19.x/llvm/bindings/ocaml/backends/backend_ocaml.c *)
+let object_file llmod =
+  Llvm_all_backends.initialize ();
+  let triple = Llvm_target.Target.default_triple () in
+  let machine =
+    Llvm_target.TargetMachine.create ~triple
+      ~reloc_mode:Llvm_target.RelocMode.PIC
+      (Llvm_target.Target.by_triple triple)
+  in
+  Llvm.set_target_triple triple llmod;
+  Llvm.set_data_layout
+    (Llvm_target.DataLayout.as_string
+       (Llvm_target.TargetMachine.data_layout machine))
+    llmod;
+  let buffer =
+    Llvm_target.TargetMachine.emit_to_memory_buffer llmod ObjectFile machine
+  in
+  let bytes = Llvm.MemoryBuffer.as_string buffer in
+  Llvm.MemoryBuffer.dispose buffer;
+  bytes
