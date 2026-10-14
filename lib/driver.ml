@@ -27,13 +27,16 @@ let stage_name : stage -> string = function
   | Bin -> "bin"
 
 module Backend = struct
-  type t = Qbe | X86
+  type t = Qbe | X86 | Llvm
 
-  let name : t -> string = function Qbe -> "qbe" | X86 -> "x86"
+  let name : t -> string = function
+    | Qbe -> "qbe"
+    | X86 -> "x86"
+    | Llvm -> "llvm"
 
   let has_stage (backend : t) (stage : stage) : bool =
     match stage with
-    | Qbe | Asm -> ( match backend with Qbe -> true | X86 -> false)
+    | Qbe | Asm -> ( match backend with Qbe -> true | X86 | Llvm -> false)
     | Tokens | Ast | Resolve | Tast | Check | Mir | Llvm | Obj | Bin -> true
 end
 
@@ -243,13 +246,15 @@ let compile ~stage ~backend ~out ~libraries ~filename =
     stop_at Llvm (fun () ->
         Output.text output (Llvm.string_of_llmodule (Codegenllvm.emit mir)));
 
+    let link object_bytes =
+      stop_at Obj (fun () -> Output.bytes output object_bytes);
+      link_object (Target.host ())
+        (Output.base output filename)
+        object_bytes libraries
+    in
     match backend with
-    | Backend.X86 ->
-        let object_bytes = Codegenx86.emit mir in
-        stop_at Obj (fun () -> Output.bytes output object_bytes);
-        link_object (Target.host ())
-          (Output.base output filename)
-          object_bytes libraries
+    | Backend.X86 -> link (Codegenx86.emit mir)
+    | Backend.Llvm -> link (Codegenllvm.object_file (Codegenllvm.emit mir))
     | Backend.Qbe ->
         let il =
           Codegenqbe.emit ~filename:program.Program.filename

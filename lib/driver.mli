@@ -16,7 +16,7 @@ type stage =
 val stage_name : stage -> string
 
 module Backend : sig
-  type t = Qbe | X86
+  type t = Qbe | X86 | Llvm
 
   val name : t -> string
 end
