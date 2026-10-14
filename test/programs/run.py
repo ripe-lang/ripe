@@ -13,6 +13,7 @@ TEST_TIMEOUT = 10
 BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
 FLAGS_FILE = "flags.txt"
+FLAGS_WITHOUT_BINARY = {"-e", "--emit", "-h", "--help"}
 CC = "cc"
 RESET = "\033[0m"
 CYAN = "\033[36m"
@@ -102,7 +103,7 @@ def broken_reason(testdir):
 
 
 def extra_flags(testdir):
-    """The ripec arguments a test needs in place of building a binary."""
+    """The extra ripec arguments a test needs."""
     path = os.path.join(testdir, FLAGS_FILE)
     if not os.path.isfile(path):
         return None
@@ -142,14 +143,13 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
     object_file = os.path.join(workdir, "main.o")
-    flags = extra_flags(testdir)
-    sources = c_sources(testdir) if flags is None else []
-    command = [ripec]
-    if flags is not None:
-        command += flags
-    elif sources:
+    flags = extra_flags(testdir) or []
+    builds = FLAGS_WITHOUT_BINARY.isdisjoint(flags)
+    sources = c_sources(testdir) if builds else []
+    command = [ripec] + flags
+    if builds and sources:
         command += ["--emit", "obj", "-o", object_file]
-    else:
+    elif builds:
         command += ["-o", binary]
     command.append("main.rp")
     try:
@@ -173,7 +173,7 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
     if compile.returncode != 0:
         return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
 
-    if flags is not None:
+    if not builds:
         actual = scrub(compile.stdout + compile.stderr, testdir)
         out_golden = os.path.join(testdir, "out.txt")
         if not os.path.isfile(out_golden):
