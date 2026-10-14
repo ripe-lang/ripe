@@ -178,6 +178,9 @@ let is_wide t =
       true
   | _ -> false
 
+let is_never t = resolve_ty t = TNever
+let is_unit t = resolve_ty t = TUnit
+
 (* A narrow int divides in a wider register so its INT_MIN / -1 lands in range and gets masked back down *)
 let div_int_needs_check t =
   match resolve_ty t with TInt (I32 | I64 | Isize) -> true | _ -> false

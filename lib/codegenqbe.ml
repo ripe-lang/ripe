@@ -893,8 +893,8 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   in
   let return_text =
     if
-      func.Mir.return_ty = TUnit
-      || func.Mir.return_ty = TNever
+      is_unit func.Mir.return_ty
+      || is_never func.Mir.return_ty
       || Option.is_some result_tmp
     then ""
     else qbe_abi_ty ctx func.Mir.return_ty ^ " "

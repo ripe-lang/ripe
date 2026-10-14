@@ -50,4 +50,6 @@ val is_float : ty -> bool
 val is_unsigned : ty -> bool
 val is_aggregate : ty -> bool
 val is_wide : ty -> bool
+val is_never : ty -> bool
+val is_unit : ty -> bool
 val div_int_needs_check : ty -> bool

@@ -300,7 +300,7 @@ let rec tblock_ty (tb : tblock) =
   match tb with [] -> TUnit | [ te ] -> te.ty | _ :: rest -> tblock_ty rest
 
 let if_result_ty (tbranches : (texpr * tblock) list) telse ~fallback_ty =
-  let diverges tb = tblock_ty tb = TNever in
+  let diverges tb = is_never (tblock_ty tb) in
   match telse with
   | Some tb
     when diverges tb && List.for_all (fun (_, tb) -> diverges tb) tbranches ->
@@ -400,7 +400,7 @@ let adopt want (te : texpr) =
 
 (* The count keeps its own type since it is only a number of positions *)
 let verify_shift_count span (tr : texpr) =
-  if not (is_integer tr.ty || tr.ty = TNever) then
+  if not (is_integer tr.ty || is_never tr.ty) then
     Diagnostic.emit
       (Diagnostic.error span "shift count must be an integer"
       |> Diagnostic.found (show_ty tr.ty))
@@ -751,7 +751,7 @@ and coerce_common env first rest =
   in
   let common = List.fold_left add_typed (add_typed TNever first) rest in
   let common, first =
-    if common <> TNever then (common, first)
+    if not (is_never common) then (common, first)
     else
       match first with
       | Contextual source ->
@@ -767,7 +767,7 @@ and coerce_common env first rest =
 
 and coerce_common_pair env ~(contextual : expr -> bool) left right =
   let against (typed : texpr) e =
-    if typed.ty = TNever then synth_operand env e
+    if is_never typed.ty then synth_operand env e
     else check_operand env e typed.ty
   in
   if contextual left && not (contextual right) then
@@ -872,7 +872,7 @@ and reconcile_arms bodies =
     else (common_ty rigid candidate, flexible)
   in
   let rigid, flexible = List.fold_left add_candidate (TNever, TNever) bodies in
-  if rigid = TNever then flexible else rigid
+  if is_never rigid then flexible else rigid
 
 and check_value_for_use env (e : expr) use =
   match (use, e.desc) with
@@ -898,7 +898,7 @@ and check_block env span body use =
     | e :: rest ->
         let elem_use = if diverged then Infer else Discard in
         let env, te = check_elem env e elem_use in
-        go env (diverged || te.ty = TNever) (te :: acc) rest
+        go env (diverged || is_never te.ty) (te :: acc) rest
   in
   go env false [] body
 
@@ -909,7 +909,7 @@ and check_elem env item use : local_env * texpr =
       (env, mk TUnit TLocalDecl)
   | Expr ({ desc = Binding ({ span = nspan; _ }, ann, init); _ } as e) ->
       let env', tbind = check_binding env nspan ann init in
-      if tbind.ty <> TNever then verify_unit_result e.span use;
+      if not (is_never tbind.ty) then verify_unit_result e.span use;
       (env', tbind)
   | Expr e -> (env, check_value_for_use env e use)
 
@@ -938,19 +938,19 @@ and check_binding env nspan ann init =
     | None, None -> Diagnostic.ice ~span:nspan "binding has no type or value"
   in
   (* An init that diverges makes the binding itself dead so it carries never *)
-  let node_ty = if te.ty = TNever then TNever else TUnit in
+  let node_ty = if is_never te.ty then TNever else TUnit in
   (extend_var env nspan t, mk node_ty (TBinding (sym env nspan, t, te)))
 
 and synth_return env span init =
-  if env.ret_ty = TNever then
+  if is_never env.ret_ty then
     Diagnostic.emit (Diagnostic.error span "a never function cannot return");
   match init with
   | None ->
-      if env.ret_ty <> TNever && env.ret_ty <> TUnit then
+      if not (is_never env.ret_ty || is_unit env.ret_ty) then
         Diagnostic.emit
           (Diagnostic.error span "empty return in non-unit function");
       mk TNever (TReturn None)
-  | Some e when env.ret_ty = TNever -> mk TNever (TReturn (Some (synth env e)))
+  | Some e when is_never env.ret_ty -> mk TNever (TReturn (Some (synth env e)))
   | Some e ->
       let te = check env e env.ret_ty in
       mk TNever (TReturn (Some te))
@@ -991,7 +991,7 @@ and check_valued_break env lc ve =
   match (lc.result, flexible) with
   | InferLoopResult, _ ->
       let typed = synth env ve in
-      if typed.ty <> TNever then begin
+      if not (is_never typed.ty) then begin
         report_bare typed.ty;
         lc.result <-
           (if flexible then FlexibleLoopResult (typed.ty, ve.span, [ ve ])
@@ -1000,7 +1000,7 @@ and check_valued_break env lc ve =
       typed
   | ExpectLoopResult want, _ ->
       let typed = check env ve want in
-      if typed.ty <> TNever then begin
+      if not (is_never typed.ty) then begin
         report_bare want;
         lc.result <-
           RigidLoopResult (want, ve.span, if flexible then [ ve ] else [])
@@ -1015,7 +1015,7 @@ and check_valued_break env lc ve =
   (* The first value that can't bend decides the type for the rest *)
   | FlexibleLoopResult (_, first, values), false ->
       let typed = synth env ve in
-      if typed.ty = TNever then typed
+      if is_never typed.ty then typed
       else begin
         check_flexible_values typed.ty values;
         lc.result <- RigidLoopResult (typed.ty, first, values);
@@ -1117,7 +1117,7 @@ and check_if env span (branches : (expr * block spanned) list) else_body want =
         | Some { value = body; span = bspan } ->
             Some (fst (check_scoped_block env bspan body (Expect w)))
         | None ->
-            if resolve_ty w <> TUnit && not (has_error w) then
+            if not (is_unit w || has_error w) then
               Diagnostic.emit
                 (Diagnostic.error span "type mismatch"
                 |> Diagnostic.label "expected %s, found %s" (show_ty w)
@@ -1255,7 +1255,7 @@ and check_match_arms env ts arms want =
 
   (* A catch all with every arm diverging is the only way nothing falls past *)
   let diverges =
-    !caught_all && List.for_all (fun a -> tblock_ty a.tbody = TNever) tarms
+    !caught_all && List.for_all (fun a -> is_never (tblock_ty a.tbody)) tarms
   in
   let ty =
     match (diverges, want) with
@@ -1612,7 +1612,7 @@ and synth_index env span base idx =
       | RangeFull -> slice zero whole_length
       | _ ->
           let tidx = synth env idx in
-          if not (is_integer tidx.ty || tidx.ty = TNever) then
+          if not (is_integer tidx.ty || is_never tidx.ty) then
             Diagnostic.emit
               (Diagnostic.error idx.span "array index must be an integer");
           mk elem (TIndex (tbase, tidx)))
@@ -1946,7 +1946,7 @@ let check_func ?(is_extern = false) env fd =
       func_env params_typed
   in
 
-  let implicit_return = (not is_extern) && ret_ty <> TUnit in
+  let implicit_return = (not is_extern) && not (is_unit ret_ty) in
   let body_use = if not implicit_return then Discard else Expect ret_ty in
   (* The declared return type is what the empty body failed to produce *)
   let body_span =
@@ -1955,7 +1955,8 @@ let check_func ?(is_extern = false) env fd =
   let tbody0 = check_block param_env body_span fd.body body_use in
   let tbody =
     match (implicit_return, List.rev tbody0) with
-    | true, last :: rest when ty_equal last.ty ret_ty && ret_ty <> TNever ->
+    | true, last :: rest when ty_equal last.ty ret_ty && not (is_never ret_ty)
+      ->
         let ret = mk ~span:last.span TNever (TReturn (Some last)) in
         List.rev (ret :: rest)
     | _ -> tbody0

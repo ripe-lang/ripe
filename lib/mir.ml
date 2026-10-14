@@ -308,7 +308,7 @@ let binop_of = function
   | Ast.Rshift -> Rshift
   | Ast.And | Ast.Or -> Diagnostic.ice "short circuit reached MIR as a value"
 
-let is_valued ty = ty <> TUnit && ty <> TNever
+let is_valued ty = not (is_unit ty || is_never ty)
 
 (* check_bounds copy %1 copy %2 block1 *)
 let lower_check state check span =
@@ -673,7 +673,7 @@ and lower_loop state destination span label ty body =
 (* copy %0, 1 *)
 and lower_arg state expr =
   let value : operand = lower_expr state expr in
-  if value.ty = TUnit then None
+  if is_unit value.ty then None
   else if is_aggregate value.ty then
     Some (copy value.span value.ty (materialize state value))
   else Some value
@@ -682,7 +682,7 @@ and lower_arg state expr =
 (* 1, copy %0, copy %0.deref.field0, copy %1 *)
 and lower_expr state (expr : texpr) =
   match expr.desc with
-  | TIdent _ when expr.ty = TUnit -> const expr.span expr.ty Undef
+  | TIdent _ when is_unit expr.ty -> const expr.span expr.ty Undef
   | TIntLit _ | TVariant _ | TFloatLit _ | TBoolLit _ | TNullLit | TCStrLit _
   | TStrLit _ | TCharLit _ | TZero ->
       const expr.span expr.ty (constant_of expr)
@@ -730,7 +730,7 @@ and lower_into state destination (expr : texpr) =
       Option.iter
         (fun d -> lower_binary state d expr.span expr.ty op left right)
         destination
-  | TAssign (None, left, right) when left.ty = TUnit ->
+  | TAssign (None, left, right) when is_unit left.ty ->
       lower_into state None right
   | TAssign (None, left, right) ->
       let assigned = lower_expr state right in
@@ -767,7 +767,7 @@ and lower_into state destination (expr : texpr) =
   | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TWhile _ | TFor _ ->
       lower_statement state expr
   | TLocalDecl | TUnitLit -> ());
-  if expr.ty = TNever then terminate state Unreachable expr.span
+  if is_never expr.ty then terminate state Unreachable expr.span
 
 (* %0 = call @g(), call @puts(copy %1) *)
 and lower_call state destination expr callee args variadic_start =
@@ -870,7 +870,7 @@ and lower_compound_assign state (expr : texpr) op (left : texpr) right =
 (* A later break can widen the loop type the earlier ones settled on *)
 (* %1 = 1, %1 = cast copy %0 to i64 *)
 and lower_break state (result, result_ty) (value : texpr) =
-  if value.ty = TNever || ty_equal value.ty result_ty then
+  if is_never value.ty || ty_equal value.ty result_ty then
     lower_into state (Some result) value
   else store state result result_ty value.span (Cast (lower_expr state value))
 
@@ -878,7 +878,7 @@ and lower_break state (result, result_ty) (value : texpr) =
 and lower_statement state expr =
   if is_live state then
     match expr.desc with
-    | TBinding (symbol, ty, init) when ty <> TNever ->
+    | TBinding (symbol, ty, init) when not (is_never ty) ->
         let id = declare state symbol User ty symbol.Symbol.span in
         let local = local_place expr.span id in
         lower_into state (if is_valued ty then Some local else None) init
@@ -958,7 +958,7 @@ let build_func global_names (func : tfunc_def) =
   in
   List.iter (lower_statement state) func.body;
   if is_live state then
-    if func.ret_ty = TUnit then terminate state (ReturnValue None) span
+    if is_unit func.ret_ty then terminate state (ReturnValue None) span
     else terminate state Unreachable span;
   {
     name = func.name;
