@@ -1068,15 +1068,22 @@ let emit ~filename ~source_map program =
   (match Panictable.sites ctx.panics with
   | [] -> ()
   | sites ->
-      let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
-      let entry site =
-        Printf.sprintf "w %d, w %d, w %d, w %d" site.Panictable.file
-          site.Panictable.line site.Panictable.col site.Panictable.func
-      in
-      emit ctx "export data $ripe_panic_strtab = { %s }\n"
-        (String.concat ", " (List.map chunk (Panictable.strings ctx.panics)));
-      emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
-        (String.concat ", " (List.map entry sites)));
+      put ctx "export data $ripe_panic_strtab = { ";
+      List.iteri
+        (fun i s ->
+          if i > 0 then put ctx ", ";
+          put ctx "b \"";
+          put ctx (escape_data_string s);
+          put ctx "\", b 0")
+        (Panictable.strings ctx.panics);
+      put ctx " }\nexport data $ripe_panic_sites = align 4 { ";
+      List.iteri
+        (fun i (site : Panictable.site) ->
+          if i > 0 then put ctx ", ";
+          emit ctx "w %d, w %d, w %d, w %d" site.file site.line site.col
+            site.func)
+        sites;
+      put ctx " }\n");
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
     (List.rev ctx.strings);
