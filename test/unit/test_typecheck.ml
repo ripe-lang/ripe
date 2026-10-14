@@ -840,8 +840,8 @@ f :: fn(p: **Pt) -> i32 { return p.x };
     error: too many pointer levels
       at <test>:3:34
         f :: fn(p: **Pt) -> i32 { return p.x };
-                                         ^~~
-    help: dereference first: `p.*.x`
+                                         ^~~ on **Pt
+    help: dereference with `.*` first
     |}]
 
 let%expect_test "typecheck: duplicate function" =
