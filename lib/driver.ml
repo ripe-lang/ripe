@@ -37,7 +37,8 @@ module Backend = struct
   let has_stage (backend : t) (stage : stage) : bool =
     match stage with
     | Qbe | Asm -> ( match backend with Qbe -> true | X86 | Llvm -> false)
-    | Tokens | Ast | Resolve | Tast | Check | Mir | Llvm | Obj | Bin -> true
+    | Llvm -> ( match backend with Qbe | Llvm -> true | X86 -> false)
+    | Tokens | Ast | Resolve | Tast | Check | Mir | Obj | Bin -> true
 end
 
 let read_file filename = In_channel.with_open_bin filename In_channel.input_all

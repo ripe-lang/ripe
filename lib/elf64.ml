@@ -1,9 +1,11 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* In the future it would be interesting to try Mach O or PE/COFF *)
-
 (* ELF layout and machine bytes follow the gABI and psABI *)
 
+let elfclass64 = 2
+let elfdata2lsb = 1
+let ev_current = 1
+let elfosabi_none = 0
 let elf_header_size = 64
 let section_header_size = 64
 let sym_entry_size = 24
@@ -16,8 +18,6 @@ let shf_alloc = 2
 let shf_execinstr = 4
 let stb_global = 1
 let stt_func = 2
-
-(* Section indexes match the order emitted below *)
 let text_index = 1
 let strtab_index = 3
 let shstrtab_index = 4
@@ -105,16 +105,16 @@ let empty_section =
 let ehdr buffer ~kind ~shoff ~shnum ~shstrndx =
   u8 buffer 0x7f;
   Buffer.add_string buffer "ELF";
-  u8 buffer 2 (* ELFCLASS64 *);
-  u8 buffer 1 (* ELFDATA2LSB *);
-  u8 buffer 1 (* EV_CURRENT *);
-  u8 buffer 0 (* ELFOSABI_SYSV *);
+  u8 buffer elfclass64;
+  u8 buffer elfdata2lsb;
+  u8 buffer ev_current;
+  u8 buffer elfosabi_none;
   for _ = 1 to 8 do
     u8 buffer 0
   done;
   u16 buffer kind;
   u16 buffer em_x86_64;
-  u32 buffer 1 (* e_version *);
+  u32 buffer ev_current;
   u64 buffer 0 (* e_entry is unused in a relocatable object *);
   u64 buffer 0 (* e_phoff is unused without segments *);
   u64 buffer shoff;
@@ -139,26 +139,26 @@ let shdr buffer section ~name_at ~offset =
   u64 buffer section.align;
   u64 buffer section.entsize
 
-let symbol buffer ~name_at ~info ~shndx ~value =
+let symbol buffer ~name_at ~info ~shndx ~value ~size =
   u32 buffer name_at;
   u8 buffer info;
   u8 buffer 0 (* st_other is reserved and must be zero *);
   u16 buffer shndx;
   u64 buffer value;
-  u64 buffer 0 (* st_size is zero because this emitter has no size *)
+  u64 buffer size
 
 (* The header stores where local symbols end so return that count *)
 let symbol_table strtab globals =
   let buffer = Buffer.create (sym_entry_size * (List.length globals + 1)) in
-  symbol buffer ~name_at:0 ~info:0 ~shndx:0 ~value:0;
+  symbol buffer ~name_at:0 ~info:0 ~shndx:0 ~value:0 ~size:0;
 
   (* The blank symbol is local because its info byte is zero *)
   let locals = 1 in
 
-  let emit (name, at) =
+  let emit (name, at, size) =
     symbol buffer ~name_at:(Strtab.add strtab name)
       ~info:((stb_global lsl 4) lor stt_func)
-      ~shndx:text_index ~value:at
+      ~shndx:text_index ~value:at ~size
   in
   List.iter emit globals;
   (Buffer.contents buffer, locals)
@@ -173,6 +173,7 @@ let object_sections ~text ~symbols ~locals ~names ~section_names =
       kind = sht_progbits;
       flags = shf_alloc lor shf_execinstr;
       data = text;
+      align = 16;
     };
     {
       empty_section with
@@ -226,10 +227,19 @@ let object_file ~text ~globals =
     (fun section -> ignore (Strtab.add shstrtab section.name))
     (build "");
   let sections = build (Strtab.contents shstrtab) in
+  List.iter
+    (fun (index, name) ->
+      if (List.nth sections index).name <> name then
+        Diagnostic.ice (Printf.sprintf "section %d is not %s" index name))
+    [
+      (text_index, ".text");
+      (strtab_index, ".strtab");
+      (shstrtab_index, ".shstrtab");
+    ];
 
   let placed, ending = place sections in
 
-  let shoff = ending in
+  let shoff = Layout.align_to ending 8 in
 
   let buffer =
     Buffer.create (shoff + (section_header_size * List.length sections))
