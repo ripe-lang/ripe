@@ -102,7 +102,7 @@ let%expect_test "resolve: loop variable is scoped to the loop" =
     {|
 main :: fn() -> i32 {
   i : i32 = 99;
-  for i in 0..3 { }
+  for i := 0..3 { }
   return i;
 };
 |};
@@ -254,7 +254,7 @@ let%expect_test "resolve: local inside for body does not leak" =
     {|
 main :: fn() -> i32 {
   sum : i32 = 0;
-  for i in 0..3 {
+  for i := 0..3 {
     t : i32 = i;
     sum = sum + t;
   }
@@ -268,7 +268,7 @@ let%expect_test "resolve: loop variable is not visible after the loop" =
     {|
 main :: fn() -> i32 {
   s : i32 = 0;
-  for i in 0..3 { s = s + i }
+  for i := 0..3 { s = s + i }
   return i;
 };
 |};

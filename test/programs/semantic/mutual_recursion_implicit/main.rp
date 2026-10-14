@@ -6,7 +6,7 @@ is_odd :: fn(n: i32) -> bool {
 };
 main :: fn() -> i32 {
   count : i32 = 0;
-  for i in 0..10 {
+  for i := 0..10 {
     if is_even(i) { count = count + 1 }
   }
   return count;

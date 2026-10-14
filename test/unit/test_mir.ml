@@ -160,7 +160,7 @@ let%expect_test "mir: continue uses one shared step block" =
     {|
 f :: fn() -> i32 {
   sum : i32 = 0;
-  for i in 0..5 {
+  for i := 0..5 {
     if i == 2 { continue }
     sum += i;
   }
@@ -570,7 +570,7 @@ let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
     {|f :: fn() -> i32 {
   t : i32 = 0;
-  for i in 0..3 { t += i }
+  for i := 0..3 { t += i }
   return t;
 };|};
   [%expect
@@ -610,7 +610,7 @@ let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
     {|f :: fn() -> i32 {
   t : i32 = 0;
-  for i in 0..=3 { t += i }
+  for i := 0..=3 { t += i }
   return t;
 };|};
   [%expect
@@ -655,7 +655,7 @@ let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
     {|f :: fn(a: [3]i32) -> i32 {
   t : i32 = 0;
-  for v in a { t += v }
+  for v := a { t += v }
   return t;
 };|};
   [%expect

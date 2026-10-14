@@ -41,7 +41,6 @@ type token =
   | ELSE
   | WHILE
   | FOR
-  | IN
   | BREAK
   | CONTINUE
   | STRUCT
@@ -83,7 +82,6 @@ let keywords =
     ("else", ELSE);
     ("while", WHILE);
     ("for", FOR);
-    ("in", IN);
     ("true", TRUE);
     ("false", FALSE);
     ("break", BREAK);
@@ -175,7 +173,7 @@ let show_token = function
   | ARROW -> "->"
   | EOF -> "<eof>"
   | ERROR s -> "<error: " ^ s ^ ">"
-  | ( RETURN | IF | ELSE | WHILE | FOR | IN | TRUE | FALSE | BREAK | CONTINUE
+  | ( RETURN | IF | ELSE | WHILE | FOR | TRUE | FALSE | BREAK | CONTINUE
     | SIZEOF | NULL | EXTERN | STRUCT | FUNC | LOOP | ENUM | MATCH | CAST ) as t
     ->
       fst (List.find (fun (_, t') -> t' = t) keywords)

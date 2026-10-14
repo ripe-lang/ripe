@@ -2,7 +2,7 @@ main :: fn() -> i32 {
   counter : i32;
   counter += 1;
   buf : [4]u8;
-  for i in 0..buf.len {
+  for i := 0..buf.len {
     buf[i] = cast(u8, i);
   }
   return counter + buf[3];

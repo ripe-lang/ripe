@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
   n : i32;
-  for i in 0..=3 { n += i }
+  for i := 0..=3 { n += i }
   return n;
 };

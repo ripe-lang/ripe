@@ -2,13 +2,13 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 main :: fn() -> i32 {
   n := 0;
-  for i in 0..10 {
+  for i := 0..10 {
     printf("%d", if i == 3 { break } else { i });
     n += 1;
   }
 
   m := 0;
-  for i in 0..=10 {
+  for i := 0..=10 {
     m += 1 + if i == 2 { break } else { i };
   }
 

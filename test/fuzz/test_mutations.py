@@ -44,7 +44,7 @@ ALPHABET = (
     "for",
     "match",
     "extern",
-    "in",
+    ":=",
     "q",
     "1",
     '"s"',

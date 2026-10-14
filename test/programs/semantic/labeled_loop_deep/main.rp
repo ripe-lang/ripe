@@ -2,9 +2,9 @@ extern "C" fn printf(fmt: cstr, ...) i32;
 
 main :: fn() -> i32 {
   n := 0;
-  for @a i in 0..3 {
-    for @b j in 0..3 {
-      for k in 0..3 {
+  for @a i := 0..3 {
+    for @b j := 0..3 {
+      for k := 0..3 {
         if k == 1 { continue @b }
         if j == 2 { continue @a }
         if i == 2 { break @a }

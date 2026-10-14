@@ -1,6 +1,6 @@
 sum :: fn(xs: []i32) -> i32 {
   total : i32 = 0;
-  for x in xs {
+  for x := xs {
     total += x;
   }
   return total;
@@ -8,7 +8,7 @@ sum :: fn(xs: []i32) -> i32 {
 
 max :: fn(xs: []i32) -> i32 {
   best : i32 = xs[0];
-  for x in xs {
+  for x := xs {
     if x > best {
       best = x;
     }
@@ -18,7 +18,7 @@ max :: fn(xs: []i32) -> i32 {
 
 main :: fn() -> i32 {
   scores : [5]i32 = [30, 10, 50, 20, 40];
-  for i in 0..scores.len {
+  for i := 0..scores.len {
     scores[i] += 1;
   }
   total : i32 = sum(scores);

@@ -869,13 +869,14 @@ and parse_loop_target st =
   end
   else None
 
-(* for i in 0..len { }, for @outer i in xs { } *)
+(* for i := 0..len { }, for @outer i := xs { } *)
 and parse_for st =
   let lo = cur_pos st in
   expect st FOR;
   let label = parse_loop_target st in
   let name = expect_ident_span st in
-  expect st IN;
+  expect st COLON;
+  expect st ASSIGN;
   let iter = parse_header_expr st in
   let body = (parse_block st).value in
   mk lo st (For (label, name, iter, body))

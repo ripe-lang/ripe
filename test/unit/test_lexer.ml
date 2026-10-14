@@ -148,7 +148,7 @@ let%expect_test "lexer: keyword versus identifier" =
 
 let%expect_test "lexer: all keywords" =
   dump_tokens
-    {|return if else while for in true false break continue sizeof null extern struct fn
+    {|return if else while for true false break continue sizeof null extern struct fn
 loop cast
 |};
   [%expect
@@ -158,7 +158,6 @@ loop cast
     KW else
     KW while
     KW for
-    KW in
     KW true
     KW false
     KW break
