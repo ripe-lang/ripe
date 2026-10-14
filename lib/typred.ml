@@ -15,7 +15,7 @@ let rec compatible want got =
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
-      (abi1 = abi2 || abi1 = Types.AbiError || abi2 = Types.AbiError)
+      (abi1 = abi2 || abi1 = AbiError || abi2 = AbiError)
       && List.compare_lengths p1 p2 = 0
       && List.for_all2 compatible p1 p2
       && compatible r1 r2
@@ -79,16 +79,14 @@ let rec is_comparable t =
       ->
         false
 
-let binop_accepts op =
-  match op with
+let binop_accepts = function
   | Add | Sub | Mul | Div -> is_numeric
   | Mod | BitAnd | BitOr | BitXor | Lshift | Rshift -> is_integer
   | Eq | Neq -> is_comparable
   | Lt | Gt | Lte | Gte -> is_ordered
   | And | Or -> fun _ -> true
 
-let unop_accepts op =
-  match op with
+let unop_accepts = function
   | Neg -> is_numeric
   | BitNot -> is_integer
   | Not | Deref | AddressOf -> fun _ -> true

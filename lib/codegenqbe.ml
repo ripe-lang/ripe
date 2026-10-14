@@ -79,14 +79,14 @@ type ctx = {
   panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
   buf : Buffer.t;
-  strings : (string * string) list ref;
+  mutable strings : (string * string) list;
   abi_types : (ty, string) Hashtbl.t;
   abi_defs : Buffer.t;
-  next_abi_type : int ref;
-  tmp : int ref;
-  temp_names : string array ref;
-  block_labels : string array ref;
-  str_ctr : int ref;
+  mutable next_abi_type : int;
+  mutable tmp : int;
+  temp_names : string Dynarray.t;
+  block_labels : string Dynarray.t;
+  mutable str_ctr : int;
 }
 
 type local_binding = Value of string | Memory of string
@@ -100,25 +100,16 @@ type mir_ctx = {
 }
 
 (* Every function counts temps/blocks from 0 so I'll rather keep them *)
-let cached_name cache spell n =
-  let names = !cache in
-  let have = Array.length names in
-  if n < have then names.(n)
-  else begin
-    let want = max (n + 1) (2 * have) in
-    let grown = Array.make want "" in
-    Array.blit names 0 grown 0 have;
-    for i = have to want - 1 do
-      grown.(i) <- spell i
-    done;
-    cache := grown;
-    grown.(n)
-  end
+let cached_name names spell n =
+  while Dynarray.length names <= n do
+    Dynarray.add_last names (spell (Dynarray.length names))
+  done;
+  Dynarray.get names n
 
 (* Fresh temps use names like %t0 and %t1 *)
 let fresh ctx =
-  let n = !(ctx.tmp) in
-  incr ctx.tmp;
+  let n = ctx.tmp in
+  ctx.tmp <- n + 1;
   cached_name ctx.temp_names (fun i -> "%t" ^ string_of_int i) n
 
 let mir_block_label ctx id =
@@ -181,9 +172,9 @@ let load_slice_len ctx addr =
   len
 
 let intern_string ctx s =
-  let lbl = Printf.sprintf "$str.%d" !(ctx.str_ctr) in
-  incr ctx.str_ctr;
-  ctx.strings := (lbl, s) :: !(ctx.strings);
+  let lbl = Printf.sprintf "$str.%d" ctx.str_ctr in
+  ctx.str_ctr <- ctx.str_ctr + 1;
+  ctx.strings <- (lbl, s) :: ctx.strings;
   lbl
 
 let emit_label ctx lbl =
@@ -716,8 +707,8 @@ let qbe_aggregate_abi_ty ctx aggregate =
   match Hashtbl.find_opt ctx.abi_types aggregate with
   | Some name -> ":" ^ name
   | None ->
-      let id = !(ctx.next_abi_type) in
-      incr ctx.next_abi_type;
+      let id = ctx.next_abi_type in
+      ctx.next_abi_type <- id + 1;
       let name = Printf.sprintf "RipeAbi%d" id in
       Hashtbl.add ctx.abi_types aggregate name;
       Printf.bprintf ctx.abi_defs "type :%s = { %s }\n" name
@@ -873,7 +864,7 @@ let bind_mir_locals ctx func =
 
 let emit_mir_func ctx global_types (func : Mir.func) =
   Panictable.enter_func ctx.panics func.Mir.source_name;
-  ctx.tmp := 0;
+  ctx.tmp <- 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
   let returns_itself = c_result_slot func bindings <> None in
@@ -902,8 +893,8 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   in
   let return_text =
     if
-      func.Mir.return_ty = TUnit
-      || func.Mir.return_ty = TNever
+      is_unit func.Mir.return_ty
+      || is_never func.Mir.return_ty
       || Option.is_some result_tmp
     then ""
     else qbe_abi_ty ctx func.Mir.return_ty ^ " "
@@ -948,7 +939,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
 let emit_entry_wrapper ctx (func : Mir.func) =
   emit ctx "export function w $main() {\n";
   emit_label ctx "@start";
-  if func.Mir.return_ty = TInt I32 then begin
+  if resolve_ty func.Mir.return_ty = TInt I32 then begin
     let code = fresh ctx in
     emit ctx "%s =w call $%s()\n" code func.Mir.name;
     emit ctx "ret %s\n" code
@@ -1037,14 +1028,14 @@ let emit ~filename ~source_map program =
       panics = Panictable.create ~filename ~source_map;
       used_slots = Hashtbl.create 16;
       buf = Buffer.create 1024;
-      strings = ref [];
+      strings = [];
       abi_types = Hashtbl.create 8;
       abi_defs = Buffer.create 128;
-      next_abi_type = ref 0;
-      tmp = ref 0;
-      temp_names = ref [||];
-      block_labels = ref [||];
-      str_ctr = ref 0;
+      next_abi_type = 0;
+      tmp = 0;
+      temp_names = Dynarray.create ();
+      block_labels = Dynarray.create ();
+      str_ctr = 0;
     }
   in
   (* The QBE format requires member structs before containing structs *)
@@ -1077,18 +1068,25 @@ let emit ~filename ~source_map program =
   (match Panictable.sites ctx.panics with
   | [] -> ()
   | sites ->
-      let chunk s = Printf.sprintf "b \"%s\", b 0" (escape_data_string s) in
-      let entry site =
-        Printf.sprintf "w %d, w %d, w %d, w %d" site.Panictable.file
-          site.Panictable.line site.Panictable.col site.Panictable.func
-      in
-      emit ctx "export data $ripe_panic_strtab = { %s }\n"
-        (String.concat ", " (List.map chunk (Panictable.strings ctx.panics)));
-      emit ctx "export data $ripe_panic_sites = align 4 { %s }\n"
-        (String.concat ", " (List.map entry sites)));
+      put ctx "export data $ripe_panic_strtab = { ";
+      List.iteri
+        (fun i s ->
+          if i > 0 then put ctx ", ";
+          put ctx "b \"";
+          put ctx (escape_data_string s);
+          put ctx "\", b 0")
+        (Panictable.strings ctx.panics);
+      put ctx " }\nexport data $ripe_panic_sites = align 4 { ";
+      List.iteri
+        (fun i (site : Panictable.site) ->
+          if i > 0 then put ctx ", ";
+          emit ctx "w %d, w %d, w %d, w %d" site.file site.line site.col
+            site.func)
+        sites;
+      put ctx " }\n");
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
-    (List.rev !(ctx.strings));
+    (List.rev ctx.strings);
   let out = ctx.buf in
   if Buffer.length ctx.abi_defs = 0 then Buffer.contents out
   else

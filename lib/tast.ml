@@ -4,13 +4,13 @@ open Types
 
 type texpr_desc =
   | TErrorExpr
-  | TInt of int64
-  | TFloat of float
-  | TBool of bool
-  | TNull
-  | TCStr of string
-  | TStr of string
-  | TChar of int
+  | TIntLit of int64
+  | TFloatLit of float
+  | TBoolLit of bool
+  | TNullLit
+  | TCStrLit of string
+  | TStrLit of string
+  | TCharLit of int
   | TIdent of Symbol.t
   | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
@@ -19,7 +19,7 @@ type texpr_desc =
   | TFieldAccess of texpr * int
   (* Target type is the node type *)
   | TCast of texpr
-  | TSizeOf of Types.ty
+  | TSizeOf of ty
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr
   | TArrayLit of texpr list
@@ -42,7 +42,7 @@ type texpr_desc =
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
   | TMatch of texpr * tarm list
-  | TUnit
+  | TUnitLit
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 [@@deriving show { with_path = false }]
@@ -81,12 +81,12 @@ type tglobal_def = {
 [@@deriving show { with_path = false }]
 
 type tdecl =
-  | TFunc of tfunc_def
-  | TStruct of Keyname.t * ty list (* This has a name and typed fields *)
-  | TLocalStruct of Keyname.t * ty list
-  | TExtern of tfunc_def
-  | TGlobal of tglobal_def
-  | TTypeAlias of Keyname.t * ty
+  | TFuncDecl of tfunc_def
+  | TStructDecl of Keyname.t * ty list (* This has a name and typed fields *)
+  | TLocalStructDecl of Keyname.t * ty list
+  | TExternDecl of tfunc_def
+  | TGlobalDecl of tglobal_def
+  | TTypeAliasDecl of Keyname.t * ty
   (* An enum is an integer at runtime so nothing past here needs its variants *)
-  | TEnum of Keyname.t
+  | TEnumDecl of Keyname.t
 [@@deriving show { with_path = false }]

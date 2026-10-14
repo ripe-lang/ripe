@@ -1,0 +1,9 @@
+Never :: never;
+
+die :: fn() -> Never {
+  return die();
+};
+
+main :: fn() -> i32 {
+  return 0;
+};

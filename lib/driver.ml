@@ -39,10 +39,11 @@ let die msg =
   exit 2
 
 let run cmd =
-  if Sys.command cmd <> 0 then (
+  if Sys.command cmd <> 0 then begin
     let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
     Printf.eprintf "%s: command failed: %s\n" label cmd;
-    exit 1)
+    exit 1
+  end
 
 let shell_command = function
   | [] -> invalid_arg "shell_command"
@@ -119,8 +120,9 @@ let render_program program diags =
 
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main tdecls =
-  let is_main decl =
-    match decl with Tast.TFunc fd -> fd.Tast.entry_point | _ -> false
+  let is_main = function
+    | Tast.TFuncDecl fd -> fd.Tast.entry_point
+    | _ -> false
   in
   if not (List.exists is_main tdecls) then
     Diagnostic.emit
@@ -187,9 +189,10 @@ let stop_at ~stage ~program target emit =
 
 let compile ~stage ~out ~libraries ~filename =
   let output = Output.make out in
-  if stage = Tokens then (
+  if stage = Tokens then begin
     Output.text output (file_tokens filename);
-    exit 0);
+    exit 0
+  end;
 
   let program = load filename in
 

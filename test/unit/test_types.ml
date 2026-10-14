@@ -46,24 +46,6 @@ let%expect_test "types: resolving walks down a chain of aliases" =
     i8
     |}]
 
-let%expect_test "types: erasing aliases reaches inside a compound type" =
-  let show t = print_endline (show_ty (erase_aliases t)) in
-  show word;
-  show (TPointer word);
-  show (TArray (word, 2));
-  show (TSlice word);
-  show (TFunc ([ word ], word, Ripe));
-  show (TStruct (keyname 1 "Point", [ word ]));
-  [%expect
-    {|
-    i64
-    *i64
-    [2]i64
-    []i64
-    fn (i64) i64
-    Point[i64]
-    |}]
-
 let%expect_test "types: an alias equals the type behind it" =
   let show = pred2 "equals" ty_equal in
   show word (TInt I64);
@@ -74,6 +56,13 @@ let%expect_test "types: an alias equals the type behind it" =
   show (TPointer TError) (TInt I32);
   show (TArray (TError, 2)) (TInt I32);
   show point (TStruct (keyname 1 "Point", []));
+  show (TArray (word, 2)) (TArray (TInt I64, 2));
+  show (TArray (word, 2)) (TArray (TInt I64, 3));
+  show (TSlice word) (TSlice (TInt I64));
+  show (TFunc ([ word ], word, Ripe)) (TFunc ([ TInt I64 ], TInt I64, Ripe));
+  show
+    (TStruct (keyname 1 "Point", [ word ]))
+    (TStruct (keyname 1 "Point", [ TInt I64 ]));
   [%expect
     {|
     Word equals i64 = true
@@ -84,6 +73,11 @@ let%expect_test "types: an alias equals the type behind it" =
     *<unknown type> equals i32 = true
     [2]<unknown type> equals i32 = true
     Point equals Point = true
+    [2]Word equals [2]i64 = true
+    [2]Word equals [3]i64 = false
+    []Word equals []i64 = true
+    fn (Word) Word equals fn (i64) i64 = true
+    Point[Word] equals Point[i64] = true
     |}]
 
 let%expect_test "types: an error anywhere inside makes the type an error" =

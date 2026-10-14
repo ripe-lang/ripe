@@ -2,7 +2,7 @@
 
 open Ast
 
-let label_name = Option.map (fun l -> l.Ast.value)
+let label_name = Option.map (fun l -> l.value)
 
 (* A bare break belongs to the nearest loop and a labeled one to the name *)
 let rec loop_has_break ?label body =
@@ -18,14 +18,14 @@ and block_item_has_break ~own target = function
 and expr_has_break ~own target e =
   match e.desc with
   | Break (None, _) -> own
-  | Break (Some l, _) -> target <> None && target = Some l.Ast.value
+  | Break (Some l, _) -> target <> None && target = Some l.value
   | Block body -> block_has_break ~own target body
   | If (branches, else_body) ->
       Option.exists
-        (fun { Ast.value = b; _ } -> block_has_break ~own target b)
+        (fun { value = b; _ } -> block_has_break ~own target b)
         else_body
       || List.exists
-           (fun (_, { Ast.value = b; _ }) -> block_has_break ~own target b)
+           (fun (_, { value = b; _ }) -> block_has_break ~own target b)
            branches
   | Binding (_, _, init) -> Option.exists (expr_has_break ~own target) init
   | Return e -> Option.exists (expr_has_break ~own target) e

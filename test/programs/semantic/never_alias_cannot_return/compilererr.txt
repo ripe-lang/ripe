@@ -1,0 +1,4 @@
+error: a never function cannot return
+  at main.rp:4:3
+      return die();
+      ^~~~~~~~~~~~

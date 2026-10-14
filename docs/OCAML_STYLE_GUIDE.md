@@ -1,306 +1,103 @@
 # Ripe's OCaml Style Guide
 
-## Design advice
+- You should run `dune fmt` and leave layout to it
 
-- Use a variant when fields or booleans describe mutually exclusive states. Make invalid combinations impossible to construct.
+- You should write the simple version first and measure before making it faster
 
-```ocaml
-type loop_result =
-  | Infer
-  | Expect of ty
-  | Flexible of inferred_result
-  | Rigid of inferred_result
-```
-
-- Give `None` one meaning. Use a variant when an option would mean both deferred work and missing data.
+- You should keep single use code inline and only pull out a helper once a second caller needs it
 
 ```ocaml
-type coercion_input =
-  | Contextual of expr
-  | Typed of expr * texpr
+let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 ```
 
-- You should put nonempty input in the function signature. Take `first` and `rest` when an empty input is invalid.
+- You should pass a function everything it reads or writes except the Interner and Diagnostic, which is the one system every phase reports user errors, warnings and internal errors through
 
 ```ocaml
-let fold_nonempty f first rest =
-  List.fold_left f first rest
+Diagnostic.emit (Diagnostic.error f.field_name.span "duplicate field")
 ```
 
-- Carry completed work forward explicitly. Don't recover it later through
-  mutable anchor state or physical identity.
+- You should take the one value a function needs instead of the record that holds it
 
 ```ocaml
-let type_input = function
-  | Contextual source -> check source
-  | Typed (_, typed) -> typed
+read_string (Buffer.create 16) lexbuf
 ```
 
-## Style rules
-
-- Keep code simple and readable because people read code more often than they write it
+- You should put what a function needs in its types so a caller can't hand it something wrong
 
 ```ocaml
-let is_valid_literal literal =
-  literal <> ""
+and path = { owner : name spanned Nonempty.t; member : name spanned }
 ```
 
-- Use spaces instead of tabs and indent with 2 spaces
+- You should keep the code that builds a value apart from the code that prints or emits it
 
 ```ocaml
-let total values =
-  List.fold_left ( + ) 0 values
+Output.text output (file_tokens filename)
 ```
 
-- Keep lines to 80 characters or less and break long expressions
+- You should only write a type annotation when the compiler can't tell which record or constructor you mean
 
 ```ocaml
-let result =
-  transform input
-  |> validate
-  |> lower
+let desc (operand : operand) = operand.desc
 ```
 
-- Use snake_case for values functions types and record fields
+- You should open the modules a file is built around at the top and give each constructor a name no other opened module uses
 
 ```ocaml
-type source_file = { file_name : string; contents : string }
-let file_name source = source.file_name
+open Types
+open Tast
+
+let lit n = mk (TInt I32) (TIntLit n)
 ```
 
-- Use PascalCase for constructors modules and signatures and uppercase names for module types
+- You should use `function` when the body only matches the last argument and no arm needs it
 
 ```ocaml
-type result = Success of string | Failure of string
-module Parser = struct end
-module type PARSER = sig end
+let show_unop = function Neg -> "-" | Not -> "!" | BitNot -> "~"
 ```
 
-- Use short names in small scopes and descriptive names in public interfaces
+- You should wrap a multi line `then` or `else` in `begin` and `end` instead of parentheses
 
 ```ocaml
-let span_width span =
-  span.hi - span.lo
+if at st COMMA then begin
+  advance st;
 ```
 
-- Add type annotations to top level functions and values
+- You should only use `==` to ask if two values are the same object or to compare tokens with no payload
 
 ```ocaml
-let is_valid_identifier (name : string) : bool =
-  name <> ""
+let at st t = cur_token st == t
 ```
 
-- You should use `function` for matches instead of an explicit argument with `match`
+- You should put the main types at the top of a file and a small type right above its only user
 
 ```ocaml
-let describe value =
-  match value with
-  | Some text -> text
-  | None -> "none"
-
-let describe = function
-  | Some text -> text
-  | None -> "none"
+type visit = On_path | Finished
+let cyclic_structs defs iter_edges = ...
 ```
 
-- Name the main type `t` inside its module
+- You should make a record field `mutable` instead of holding a `ref` unless copies made with `with` need to share it
 
 ```ocaml
-module Symbol = struct
-  type t = { name : string }
-end
+mutable current : block_id;
 ```
 
-- Order module declarations: 1. exceptions 2. types 3. modules 4. values.
+- You should walk to the end of a list to read its last element instead of reversing it
 
 ```ocaml
-module Store = struct
-  exception Missing
-  type t = string list
-  module Internal = struct end
-  let empty = []
-end
+| [ te ] -> te.ty
+| _ :: rest -> tblock_ty rest
 ```
 
-- Use comments to explain WHY the code exists
+- You should put a named helper at the top level instead of nesting it inside another function and only keep a local `let rec go` for the function's own loop
 
 ```ocaml
-(* Save the first diagnostic so later phases can report all related errors *)
-let first_diagnostic diagnostics =
-  match diagnostics with
-  | diagnostic :: _ -> Some diagnostic
-  | [] -> None
+let rec after_stars st index =
 ```
 
-- Don't add comments that repeat the code
+- You should start each `parse_*` with the Ripe it reads and each `lower_*` with the MIR it emits
 
 ```ocaml
-let count = List.length values
+(* Point :: struct { x: i32, y: i32 } *)
+(* %2 = copy %0 + copy %1 *)
 ```
 
-- Use immutable data and pure functions and keep mutable data local
-
-```ocaml
-let increment value = value + 1
-```
-
-- Keep mutable values and references out of global scope unless you have a good reason to use them
-
-```ocaml
-let make_counter () =
-  let count = ref 0 in
-  fun () ->
-  let () = incr count in
-    !count
-```
-
-- Use regular variants by default and polymorphic variants when their flexibility helps
-
-```ocaml
-type token_kind = Identifier | Keyword | Punctuation
-```
-
-- Use pattern matching instead of nested field access or nested conditionals
-
-```ocaml
-let first = function
-  | item :: _ -> item
-  | [] -> ""
-```
-
-- Make pattern matches exhaustive and use `_` only when all unmatched
-  constructors do the same thing
-
-```ocaml
-let label = function
-  | Identifier -> "identifier"
-  | Keyword -> "keyword"
-  | Punctuation -> "punctuation"
-```
-
-```ocaml
-let int_kind_of (t : ty) : int_kind =
-  match resolve_ty t with
-  | TInt kind -> kind
-  | _ -> Diagnostic.ice "expected an integer type"
-```
-
-- Match related values together to avoid nesting
-
-```ocaml
-let classify = function
-  | None -> "empty"
-  | Some 0 -> "zero"
-  | Some _ -> "other"
-```
-
-- Use `if` for booleans and `match` for values with multiple constructors
-
-```ocaml
-let phase_status complete = if complete then "done" else "pending"
-```
-
-- Use `List.hd` and `List.tl` only when you want an exception or match the list directly
-
-```ocaml
-let first = function
-  | [] -> None
-  | item :: _ -> Some item
-```
-
-- Use standard iterators and folds instead of writing the same traversal yourself
-
-```ocaml
-let names = List.map String.length values
-```
-
-- Give complex arguments and anonymous functions a name before passing them to an iterator
-
-```ocaml
-let normalize_token value = String.lowercase_ascii value
-let tokens = List.map normalize_token values
-```
-
-- Put the data structure argument last
-
-```ocaml
-let lengths = List.map String.length names
-```
-
-- Use labeled arguments when same typed arguments could be mixed up
-
-```ocaml
-let between ~low ~high value = low <= value && value <= high
-```
-
-- Don't use global opens and use qualified names or local opens
-
-```ocaml
-let size declarations = List.length declarations
-let value =
-  let open Int64 in
-  add 1L 2L
-```
-
-- Don't use double semicolons
-
-```ocaml
-let answer = 42
-```
-
-- Use `=` and `<>` for structural equality and `==` and `!=` for physical equality
-
-```ocaml
-if left = right then equal else different
-```
-
-- Use `begin` and `end` around multiple expressions in an `if` branch with side effects
-
-```ocaml
-if enabled then begin
-  let () = write_first () in
-  write_second ()
-end
-```
-
-- Use tail recursion for large inputs and check allocation costs
-
-```ocaml
-let length values =
-  let rec loop count = function
-    | [] -> count
-    | _ :: rest -> loop (count + 1) rest
-  in
-  loop 0 values
-```
-
-- Keep functions small and put repeated logic in a helper
-
-```ocaml
-let is_valid_declaration value = value <> ""
-let valid_declarations values = List.filter is_valid_declaration values
-```
-
-- Give magic numbers and other unclear literals a name
-
-```ocaml
-let bits_per_word = 64
-```
-
-- Use parentheses only when they affect parsing or make grouping clearer
-
-```ocaml
-match value with
-| Some item ->
-  begin match item with
-  | 0 -> "zero"
-  | _ -> "other"
-  end
-| None -> "missing"
-```
-
-## Sources
-
-1. [OCaml Towards Clarity and Grace](https://github.com/lindig/ocaml-style/blob/master/README.md)
-2. [CS3110 OCaml Style Guide](https://www.cs.cornell.edu/courses/cs3110/2011sp/Handouts/style.htm)
-3. [OCaml Programming Guidelines](https://ocaml.org/docs/guidelines)

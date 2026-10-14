@@ -23,7 +23,7 @@ let binding name ty =
 let field base index ty = Tast.mk ty (Tast.TFieldAccess (base, index))
 
 let index base ty =
-  Tast.mk ty (Tast.TIndex (base, Tast.mk (TInt Usize) (Tast.TInt 0L)))
+  Tast.mk ty (Tast.TIndex (base, Tast.mk (TInt Usize) (Tast.TIntLit 0L)))
 
 let deref base ty = Tast.mk ty (Tast.TUnOp (Ast.Deref, base))
 
@@ -489,7 +489,7 @@ let%expect_test "typred: a place is whatever can be written through" =
   place "a field" (field v 0 (TInt I32));
   place "an element" (index (binding "a" (TArray (TInt I32, 2))) (TInt I32));
   place "a deref" (deref p (TInt I32));
-  place "a literal" (Tast.mk (TInt I32) (Tast.TInt 1L));
+  place "a literal" (Tast.mk (TInt I32) (Tast.TIntLit 1L));
   [%expect
     {|
     a binding lvalue true root v (Point)
