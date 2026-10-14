@@ -55,10 +55,8 @@ type t = { bytes : Buffer.t; mutable fixups : fixup list }
 
 let min_rel32 = -0x8000_0000
 let max_rel32 = 0x7fff_ffff
-
-(* The imm32 encoding accepts signed and unsigned callers *)
-let min_imm32 = -0x8000_0000L
-let max_imm32 = 0xffff_ffffL
+let min_signed_imm32 = -0x8000_0000L
+let max_unsigned_imm32 = 0xffff_ffffL
 let create ?(size = 64) () = { bytes = Buffer.create size; fixups = [] }
 let offset encoder = Buffer.length encoder.bytes
 
@@ -85,29 +83,26 @@ let rex encoder ~w ~r ~b =
 let modrm encoder ~md ~reg ~rm =
   byte encoder ((md lsl 6) lor ((reg land 7) lsl 3) lor (rm land 7))
 
-(* Register direct mode avoids special stack and frame register meanings *)
-let register_direct = 3
+let mod_register_direct = 3
 
-(* Instruction encodings follow the SDM instruction pages *)
+(* Encodings follow the SDM pages and mov register uses 89 so the source sits in ModRM reg *)
 let instr encoder instruction =
   match instruction with
-  (* Immediate width follows the operand size *)
   | Mov_imm (width, dst, value) ->
       if
         width = W32
-        && (Int64.compare value min_imm32 < 0
-           || Int64.compare value max_imm32 > 0)
+        && (Int64.compare value min_signed_imm32 < 0
+           || Int64.compare value max_unsigned_imm32 > 0)
       then Diagnostic.ice (Printf.sprintf "%Ld does not fit in an imm32" value);
       rex encoder ~w:(width = W64) ~r:false ~b:(is_extended dst);
       byte encoder (0xb8 lor (reg_index dst land 7));
       if width = W64 then le64 encoder value
       else le32 encoder (Int64.to_int value)
-  (* The source occupies ModRM reg and the destination occupies r/m *)
   | Mov_reg (width, dst, src) ->
       rex encoder ~w:(width = W64) ~r:(is_extended src) ~b:(is_extended dst);
       byte encoder 0x89;
-      modrm encoder ~md:register_direct ~reg:(reg_index src) ~rm:(reg_index dst)
-  (* Calls store a signed displacement from the next instruction *)
+      modrm encoder ~md:mod_register_direct ~reg:(reg_index src)
+        ~rm:(reg_index dst)
   | Call target ->
       byte encoder 0xe8;
       encoder.fixups <- { patch_at = offset encoder; target } :: encoder.fixups;
@@ -158,6 +153,7 @@ let return_constant func =
         unsupported
           "the x86 backend cannot compile a literal outside 32 bit range yet";
       value
+  | Some { desc = ReturnValue None; _ } -> 0L
   | _ -> unsupported "the x86 backend only compiles a returned integer literal"
 
 let lower_main func = [ Mov_imm (W32, Rax, return_constant func); Ret ]
@@ -165,14 +161,15 @@ let lower_main func = [ Mov_imm (W32, Rax, return_constant func); Ret ]
 let assemble blocks =
   let encoder = create () in
 
-  let place labels (name, instrs) =
+  let place symbols (name, instrs) =
     let at = offset encoder in
     List.iter (instr encoder) instrs;
-    (name, at) :: labels
+    (name, at, offset encoder - at) :: symbols
   in
 
-  let labels = List.fold_left place [] blocks in
-  (finish encoder ~labels, List.rev labels)
+  let symbols = List.rev (List.fold_left place [] blocks) in
+  let labels = List.map (fun (name, at, _) -> (name, at)) symbols in
+  (finish encoder ~labels, symbols)
 
 let find_main program =
   let open Mir in
@@ -188,8 +185,8 @@ let emit program =
     unsupported "the x86 backend cannot compile more than one function yet";
 
   let main = find_main program in
-  if main.return_ty <> Types.TInt Types.I32 then
-    unsupported "the x86 backend needs main to return i32";
+  if main.return_ty <> Types.TInt Types.I32 && main.return_ty <> Types.TUnit
+  then unsupported "the x86 backend needs main to return i32 or nothing";
 
   let text, globals = assemble [ ("main", lower_main main) ] in
   Elf64.object_file ~text ~globals
