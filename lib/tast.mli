@@ -4,13 +4,13 @@ open Types
 
 type texpr_desc =
   | TErrorExpr
-  | TInt of int64
-  | TFloat of float
-  | TBool of bool
-  | TNull
-  | TCStr of string
-  | TStr of string
-  | TChar of int
+  | TIntLit of int64
+  | TFloatLit of float
+  | TBoolLit of bool
+  | TNullLit
+  | TCStrLit of string
+  | TStrLit of string
+  | TCharLit of int
   | TIdent of Symbol.t
   | TCall of texpr * texpr list * int option
   | TBinOp of Ast.binop * texpr * texpr
@@ -40,7 +40,7 @@ type texpr_desc =
   | TLocalDecl
   | TLoop of Ast.loop_label option * tblock
   | TMatch of texpr * tarm list
-  | TUnit
+  | TUnitLit
 
 and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
 and tblock = texpr list
@@ -68,13 +68,13 @@ type tglobal_def = {
 }
 
 type tdecl =
-  | TFunc of tfunc_def
-  | TStruct of Keyname.t * ty list
-  | TLocalStruct of Keyname.t * ty list
-  | TExtern of tfunc_def
-  | TGlobal of tglobal_def
-  | TTypeAlias of Keyname.t * ty
-  | TEnum of Keyname.t
+  | TFuncDecl of tfunc_def
+  | TStructDecl of Keyname.t * ty list
+  | TLocalStructDecl of Keyname.t * ty list
+  | TExternDecl of tfunc_def
+  | TGlobalDecl of tglobal_def
+  | TTypeAliasDecl of Keyname.t * ty
+  | TEnumDecl of Keyname.t
 
 val mk : ?span:Ast.span -> ty -> texpr_desc -> texpr
 val show_tdecl : tdecl -> string

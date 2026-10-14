@@ -266,13 +266,13 @@ let symbol_place (state : builder) span (symbol : Symbol.t) =
 let constant_of (expr : Tast.texpr) =
   match expr.desc with
   (* The MIR keeps the value but not the variant name *)
-  | Tast.TInt value | Tast.TVariant (_, value) -> Int value
-  | Tast.TFloat value -> Float value
-  | Tast.TBool value -> Bool value
-  | Tast.TNull -> Null
-  | Tast.TCStr value -> CStr value
-  | Tast.TStr value -> Str value
-  | Tast.TChar value -> Char value
+  | Tast.TIntLit value | Tast.TVariant (_, value) -> Int value
+  | Tast.TFloatLit value -> Float value
+  | Tast.TBoolLit value -> Bool value
+  | Tast.TNullLit -> Null
+  | Tast.TCStrLit value -> CStr value
+  | Tast.TStrLit value -> Str value
+  | Tast.TCharLit value -> Char value
   | Tast.TZero -> Zero
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       Function symbol.Symbol.link_name
@@ -690,8 +690,9 @@ and lower_arg state expr =
 and lower_expr state (expr : Tast.texpr) =
   match expr.desc with
   | Tast.TIdent _ when expr.ty = Types.TUnit -> const expr.span expr.ty Undef
-  | Tast.TInt _ | Tast.TVariant _ | Tast.TFloat _ | Tast.TBool _ | Tast.TNull
-  | Tast.TCStr _ | Tast.TStr _ | Tast.TChar _ | Tast.TZero ->
+  | Tast.TIntLit _ | Tast.TVariant _ | Tast.TFloatLit _ | Tast.TBoolLit _
+  | Tast.TNullLit | Tast.TCStrLit _ | Tast.TStrLit _ | Tast.TCharLit _
+  | Tast.TZero ->
       const expr.span expr.ty (constant_of expr)
   | Tast.TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       const expr.span expr.ty (constant_of expr)
@@ -750,9 +751,9 @@ and lower_into state destination (expr : Tast.texpr) =
   | Tast.TUnOp (Ast.AddressOf, inner) ->
       store_value (AddressOf (lower_place state inner))
   | Tast.TUnOp (Ast.Deref, _)
-  | Tast.TFieldAccess _ | Tast.TIndex _ | Tast.TIdent _ | Tast.TInt _
-  | Tast.TVariant _ | Tast.TFloat _ | Tast.TBool _ | Tast.TNull | Tast.TCStr _
-  | Tast.TStr _ | Tast.TChar _ | Tast.TZero ->
+  | Tast.TFieldAccess _ | Tast.TIndex _ | Tast.TIdent _ | Tast.TIntLit _
+  | Tast.TVariant _ | Tast.TFloatLit _ | Tast.TBoolLit _ | Tast.TNullLit
+  | Tast.TCStrLit _ | Tast.TStrLit _ | Tast.TCharLit _ | Tast.TZero ->
       let value = lower_expr state expr in
       Option.iter (fun d -> assign state d value) destination
   | Tast.TUnOp (op, inner) ->
@@ -777,7 +778,7 @@ and lower_into state destination (expr : Tast.texpr) =
   | Tast.TBinding _ | Tast.TReturn _ | Tast.TBreak _ | Tast.TContinue _
   | Tast.TWhile _ | Tast.TFor _ ->
       lower_statement state expr
-  | Tast.TLocalDecl | Tast.TUnit -> ());
+  | Tast.TLocalDecl | Tast.TUnitLit -> ());
   if expr.ty = Types.TNever then terminate state Unreachable expr.span
 
 (* %0 = call @g(), call @puts(copy %1) *)
@@ -993,13 +994,13 @@ let build declarations =
     List.fold_right
       (fun decl (structs, globals, funcs) ->
         match decl with
-        | Tast.TStruct (name, fields) ->
+        | Tast.TStructDecl (name, fields) ->
             ({ name; fields; local = false } :: structs, globals, funcs)
-        | Tast.TLocalStruct (name, fields) ->
+        | Tast.TLocalStructDecl (name, fields) ->
             ({ name; fields; local = true } :: structs, globals, funcs)
-        | Tast.TGlobal global when is_valued global.ty ->
+        | Tast.TGlobalDecl global when is_valued global.ty ->
             (structs, global :: globals, funcs)
-        | Tast.TFunc func -> (structs, globals, func :: funcs)
+        | Tast.TFuncDecl func -> (structs, globals, func :: funcs)
         | _ -> (structs, globals, funcs))
       declarations ([], [], [])
   in

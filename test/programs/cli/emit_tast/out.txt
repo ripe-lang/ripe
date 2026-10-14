@@ -1,4 +1,4 @@
-(TFunc
+(TFuncDecl
    { key = 0; name = "_R3add"; source_name = "add"; entry_point = false;
      params =
      [({ id = 2; name = "a"; link_name = "a"; kind = Param;
@@ -31,7 +31,7 @@
         ty = TNever; span = (37,49) }
        ];
      export = false; variadic = false; abi = Ripe })
-(TFunc
+(TFuncDecl
    { key = 1; name = "_R4main"; source_name = "main"; entry_point = true;
      params = []; ret_ty = (TInt I32);
      body =
@@ -47,8 +47,10 @@
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
                         span = (-1,-1) },
-                      [{ desc = (TInt 1L); ty = (TInt I32); span = (90,91) };
-                        { desc = (TInt 2L); ty = (TInt I32); span = (93,94) }
+                      [{ desc = (TIntLit 1L); ty = (TInt I32); span = (90,91)
+                         };
+                        { desc = (TIntLit 2L); ty = (TInt I32);
+                          span = (93,94) }
                         ],
                       None));
                    ty = (TInt I32); span = (86,95) }));

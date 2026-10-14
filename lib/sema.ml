@@ -389,11 +389,11 @@ let verify_bare_break span lc =
 let adopt want (te : Tast.texpr) =
   match (resolve_ty want, resolve_ty te.ty, te.desc) with
   | Types.TSlice _, Types.TArray (_, n), _ ->
-      let zero = Tast.mk (Types.TInt Usize) (Tast.TInt 0L) in
-      let len = Tast.mk (Types.TInt Usize) (Tast.TInt (Int64.of_int n)) in
+      let zero = Tast.mk (Types.TInt Usize) (Tast.TIntLit 0L) in
+      let len = Tast.mk (Types.TInt Usize) (Tast.TIntLit (Int64.of_int n)) in
       Tast.mk want (Tast.TSliceExpr (te, zero, len))
-  | (Types.TPointer _ | Types.TPtr), Types.TNull, Tast.TNull
-  | Types.TCStr, Types.TPointer (Types.TInt I8), Tast.TCStr _ ->
+  | (Types.TPointer _ | Types.TPtr), Types.TNull, Tast.TNullLit
+  | Types.TCStr, Types.TPointer (Types.TInt I8), Tast.TCStrLit _ ->
       { te with ty = want }
   | (Types.TPointer _ | Types.TPtr), Types.TNull, _
   | Types.TCStr, Types.TPointer (Types.TInt I8), _
@@ -434,7 +434,7 @@ let adopt_int_literal span want target ~neg n =
         (Diagnostic.error span "integer literal out of range"
         |> Diagnostic.label "does not fit in %s" (Types.show_ty want));
       Some dummy_texpr
-  | Types.TInt _ -> Some (Tast.mk want (Tast.TInt signed))
+  | Types.TInt _ -> Some (Tast.mk want (Tast.TIntLit signed))
   | Types.TFloat kind ->
       let magnitude = unsigned_to_float n in
       let exact = if neg then -.magnitude else magnitude in
@@ -446,8 +446,8 @@ let adopt_int_literal span want target ~neg n =
                (Printf.sprintf "write %s%Lu.0 to accept the rounding"
                   (if neg then "-" else "")
                   n));
-      Some (Tast.mk want (Tast.TFloat exact))
-  | Types.TError -> Some (Tast.mk want (Tast.TInt signed))
+      Some (Tast.mk want (Tast.TFloatLit exact))
+  | Types.TError -> Some (Tast.mk want (Tast.TIntLit signed))
   | _ -> None
 
 (* A variant is a compile time constant so nothing of the enum survives here *)
@@ -523,17 +523,17 @@ let check_int_literal (e : expr) want target value =
       Diagnostic.emit
         (Diagnostic.error e.span "type mismatch"
         |> Diagnostic.label "expected %s, found i32" (Types.show_ty want));
-      Tast.mk (Types.TInt I32) (Tast.TInt value)
+      Tast.mk (Types.TInt I32) (Tast.TIntLit value)
 
 let check_float_literal (e : expr) want target value =
   match target with
-  | Types.TFloat _ | Types.TError -> Tast.mk want (Tast.TFloat value)
+  | Types.TFloat _ | Types.TError -> Tast.mk want (Tast.TFloatLit value)
   | _ when Types.has_error want -> dummy_texpr
   | _ ->
       Diagnostic.emit
         (Diagnostic.error e.span "type mismatch"
         |> Diagnostic.label "expected %s, found f64" (Types.show_ty want));
-      Tast.mk (Types.TFloat F64) (Tast.TFloat value)
+      Tast.mk (Types.TFloat F64) (Tast.TFloatLit value)
 
 (* This figures out the type of a field access *)
 let synth_typed_field env span (te : Tast.texpr) fname fspan =
@@ -636,11 +636,11 @@ and synth_desc env e =
       check_neg_int_literal env e (Types.TInt kind) (Types.TInt kind) n
   | Float (f, suf) ->
       let kind = match suf with Some s -> float_suffix_kind s | None -> F64 in
-      Tast.mk (Types.TFloat kind) (Tast.TFloat f)
-  | Bool b -> Tast.mk Types.TBool (Tast.TBool b)
-  | Null -> Tast.mk Types.TNull Tast.TNull
-  | String s -> Tast.mk (Types.TPointer (Types.TInt I8)) (Tast.TCStr s)
-  | Char c -> Tast.mk Types.TChar (Tast.TChar c)
+      Tast.mk (Types.TFloat kind) (Tast.TFloatLit f)
+  | Bool b -> Tast.mk Types.TBool (Tast.TBoolLit b)
+  | Null -> Tast.mk Types.TNull Tast.TNullLit
+  | String s -> Tast.mk (Types.TPointer (Types.TInt I8)) (Tast.TCStrLit s)
+  | Char c -> Tast.mk Types.TChar (Tast.TCharLit c)
   | Ident _ ->
       let s = sym env e.span in
       if s.Symbol.kind = Symbol.Error then dummy_texpr
@@ -698,7 +698,7 @@ and synth_desc env e =
       ignore (find_loop_or_error env e.span "`continue` outside a loop" label);
       Tast.mk Types.TNever (Tast.TContinue label)
   | Loop (label, body) -> check_loop_expr env e.span label body None
-  | Unit -> Tast.mk Types.TUnit Tast.TUnit
+  | Unit -> Tast.mk Types.TUnit Tast.TUnitLit
 
 and synth_path_type env span p =
   let inner = Ast.owner_expr p in
@@ -1175,11 +1175,11 @@ and check_pattern env sty pat =
       match te.desc with
       | _ when not (Typred.compatible sty te.ty) -> (env, None)
       | Tast.TVariant (_, value) -> (env, Some (Tast.TPatConst value))
-      | Tast.TInt n -> (env, Some (Tast.TPatConst n))
-      | Tast.TBool b -> (env, Some (Tast.TPatConst (if b then 1L else 0L)))
-      | Tast.TChar c -> (env, Some (Tast.TPatConst (Int64.of_int c)))
+      | Tast.TIntLit n -> (env, Some (Tast.TPatConst n))
+      | Tast.TBoolLit b -> (env, Some (Tast.TPatConst (if b then 1L else 0L)))
+      | Tast.TCharLit c -> (env, Some (Tast.TPatConst (Int64.of_int c)))
       | Tast.TErrorExpr -> (env, None)
-      | Tast.TFloat _ | Tast.TStr _ | Tast.TCStr _ -> not_comparable ()
+      | Tast.TFloatLit _ | Tast.TStrLit _ | Tast.TCStrLit _ -> not_comparable ()
       | _ -> not_a_literal ())
 
 and check_match env scrutinee arms use =
@@ -1339,7 +1339,7 @@ and check_desc env e want =
   match e.desc with
   | Int (value, None) -> check_int_literal e want target value
   | Float (value, None) -> check_float_literal e want target value
-  | String value when target = Types.TStr -> Tast.mk want (Tast.TStr value)
+  | String value when target = Types.TStr -> Tast.mk want (Tast.TStrLit value)
   | String _ -> check_by_synth env e want
   | SizeOf typ when is_integer want -> check_size_literal env e want target typ
   | UnOp (Neg, { desc = Int (value, None); _ }) ->
@@ -1624,10 +1624,11 @@ and synth_index env span base idx =
   match resolve_ty tbase.ty with
   | Types.TArray (elem, _) | Types.TSlice elem -> (
       (* A missing bound spans the rest of the value *)
-      let zero = Tast.mk (Types.TInt Usize) (Tast.TInt 0L) in
+      let zero = Tast.mk (Types.TInt Usize) (Tast.TIntLit 0L) in
       let whole_length = Tast.mk (Types.TInt Usize) (Tast.TLen tbase) in
       let one_past (te : Tast.texpr) =
-        Tast.mk te.ty (Tast.TBinOp (Ast.Add, te, Tast.mk te.ty (Tast.TInt 1L)))
+        Tast.mk te.ty
+          (Tast.TBinOp (Ast.Add, te, Tast.mk te.ty (Tast.TIntLit 1L)))
       in
       let slice tlo thi =
         Tast.mk (Types.TSlice elem) (Tast.TSliceExpr (tbase, tlo, thi))
@@ -1698,7 +1699,7 @@ and eval_array_size env e =
   let te = synth env e in
   match te.desc with
   | _ when not (is_integer te.ty) -> bad "array size must be an integer"
-  | Tast.TInt n ->
+  | Tast.TIntLit n ->
       let shown =
         if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
       in
@@ -2055,8 +2056,8 @@ let typed_struct_decl ctx sd fields =
       (fun symbol -> symbol.Symbol.kind = Symbol.LocalType)
       (Resolve.sym_at_opt ctx.symbols sd.struct_span)
   in
-  if is_local then Tast.TLocalStruct (name, fields)
-  else Tast.TStruct (name, fields)
+  if is_local then Tast.TLocalStructDecl (name, fields)
+  else Tast.TStructDecl (name, fields)
 
 let check_decls ctx =
   let check_declaration decl =
@@ -2064,11 +2065,11 @@ let check_decls ctx =
     | Func fd ->
         let env = make_env ctx in
         let tfd = check_func env fd in
-        Tast.TFunc tfd
+        Tast.TFuncDecl tfd
     | Extern fd ->
         let env = make_env ctx in
         let tfd = check_func ~is_extern:true env fd in
-        Tast.TExtern tfd
+        Tast.TExternDecl tfd
     | Struct sd ->
         (* A rejected duplicate has no completed table entry *)
         let field_tys =
@@ -2084,7 +2085,7 @@ let check_decls ctx =
         typed_struct_decl ctx sd field_tys
     | Global gd ->
         let env = make_env ctx in
-        Tast.TGlobal (check_global env gd)
+        Tast.TGlobalDecl (check_global env gd)
     | TypeAlias td ->
         let t =
           match
@@ -2095,10 +2096,10 @@ let check_decls ctx =
               let env = make_env ctx in
               ty_of_ast env td.alias_typ
         in
-        Tast.TTypeAlias
+        Tast.TTypeAliasDecl
           (keyname_in ctx td.alias_span (Interner.text td.alias_name.value), t)
     | Enum ed ->
-        Tast.TEnum
+        Tast.TEnumDecl
           (keyname_in ctx ed.enum_span (Interner.text ed.enum_name.value))
   in
   List.map check_declaration ctx.declarations

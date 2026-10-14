@@ -120,7 +120,7 @@ let render_program program diags =
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main tdecls =
   let is_main decl =
-    match decl with Tast.TFunc fd -> fd.Tast.entry_point | _ -> false
+    match decl with Tast.TFuncDecl fd -> fd.Tast.entry_point | _ -> false
   in
   if not (List.exists is_main tdecls) then
     Diagnostic.emit
