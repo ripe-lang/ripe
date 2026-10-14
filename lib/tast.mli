@@ -18,7 +18,7 @@ type texpr_desc =
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * int
   | TCast of texpr
-  | TSizeOf of Types.ty
+  | TSizeOf of ty
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr
   | TArrayLit of texpr list

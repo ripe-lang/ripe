@@ -19,7 +19,7 @@ type texpr_desc =
   | TFieldAccess of texpr * int
   (* Target type is the node type *)
   | TCast of texpr
-  | TSizeOf of Types.ty
+  | TSizeOf of ty
   | TRange of texpr * texpr
   | TRangeInclusive of texpr * texpr
   | TArrayLit of texpr list

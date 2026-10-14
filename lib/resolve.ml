@@ -4,7 +4,7 @@ open Ast
 
 (* Names are interned so a scope lookup is an int compare *)
 module Names = Hashtbl.Make (struct
-  type t = Ast.name
+  type t = name
 
   let equal (a : t) (b : t) = a = b
   let hash t = t
@@ -24,7 +24,7 @@ type t = {
   (* What a callee would have found if the value hadn't taken the name *)
   shadowed : Symbol.t Span.Table.t;
   prelude : scope;
-  mutable local_decls : Ast.decl list;
+  mutable local_decls : decl list;
 }
 
 type state = {
@@ -33,7 +33,7 @@ type state = {
   scope : scope;
   value_boundary : scope option;
   next_id : Symbol.id ref;
-  header_hole : Ast.span option ref;
+  header_hole : span option ref;
 }
 
 let prelude_symbol id name =
@@ -43,8 +43,8 @@ let prelude_symbol id name =
     link_name = name;
     kind = Symbol.Type;
     entry_point = false;
-    span = Ast.dummy_span;
-    name_span = Ast.dummy_span;
+    span = dummy_span;
+    name_span = dummy_span;
   }
 
 let new_scope parent =
@@ -139,7 +139,7 @@ let declare_local st kind name span =
 let declaration_link_name name =
   "_R" ^ string_of_int (String.length name) ^ name
 
-let declare_in ?link_name table st kind (ident : Ast.ident) span =
+let declare_in ?link_name table st kind (ident : ident) span =
   let name = ident.value in
   match Names.find_opt table name with
   | Some prev ->
@@ -165,7 +165,7 @@ let declare_type st ident span =
 let declare_local_type st ident span =
   declare_in st.scope.types st Symbol.LocalType ident span
 
-let declare_local_func st (ident : Ast.ident) span =
+let declare_local_func st (ident : ident) span =
   let link_name =
     Printf.sprintf "_Rlocal%d_%s" !(st.next_id) (Interner.text ident.value)
   in
@@ -311,7 +311,7 @@ let resolve_missing_value_root st name span =
       true
 
 let resolve_value_root st p =
-  let { Ast.value = name; span } = Nonempty.hd p.Ast.owner in
+  let { value = name; span } = Nonempty.hd p.owner in
   match lookup st name with
   | Some sym ->
       use_symbol st span sym;
@@ -320,14 +320,14 @@ let resolve_value_root st p =
 
 let rec resolve_path st p =
   if not (resolve_value_root st p) then
-    let prefix = Ast.owner_expr p in
-    match prefix.Ast.desc with
-    | Ident name when use_type_name st name prefix.Ast.span -> ()
+    let prefix = owner_expr p in
+    match prefix.desc with
+    | Ident name when use_type_name st name prefix.span -> ()
     | _ -> resolve_expr st prefix
 
 (* The name a header ends on is the one a struct literal would have opened *)
 and rightmost e =
-  match e.Ast.desc with
+  match e.desc with
   | BinOp (_, _, r) | Assign (_, _, r) | Range (_, r) | RangeInclusive (_, r) ->
       rightmost r
   | UnOp (_, r) | RangeFrom r -> rightmost r
@@ -336,12 +336,12 @@ and rightmost e =
 (* The parser gave the brace to the body so the name is left standing alone *)
 and resolve_header st e =
   let tail = rightmost e in
-  (match tail.Ast.desc with
+  (match tail.desc with
   | Ident name
     when lookup st name = None && find_type_in_scope st.scope name <> None ->
-      st.header_hole := Some tail.Ast.span;
+      st.header_hole := Some tail.span;
       Diagnostic.emit
-        (Diagnostic.error tail.Ast.span "expected a value and found a type"
+        (Diagnostic.error tail.span "expected a value and found a type"
         |> Diagnostic.help "wrap a struct literal in parentheses here")
   | _ -> ());
   resolve_expr st e;
@@ -387,11 +387,11 @@ and resolve_expr st e =
       List.iter (resolve_arm st) arms
   | If (branches, else_body) ->
       List.iter
-        (fun (cond, { Ast.value = body; _ }) ->
+        (fun (cond, { value = body; _ }) ->
           resolve_header st cond;
           resolve_block st body)
         branches;
-      Option.iter (fun { Ast.value = b; _ } -> resolve_block st b) else_body
+      Option.iter (fun { value = b; _ } -> resolve_block st b) else_body
   | While (_, cond, body) ->
       resolve_header st cond;
       resolve_block st body
@@ -484,8 +484,8 @@ and resolve_decl st = function
   | Enum _ -> ()
 
 (* An extern fn with a body is there for C to call so it keeps its own name *)
-let foreign_link_name (fd : Ast.func_def) =
-  if fd.extern_abi <> Ast.NoAbi then Some (Interner.text fd.func_name.value)
+let foreign_link_name (fd : func_def) =
+  if fd.extern_abi <> NoAbi then Some (Interner.text fd.func_name.value)
   else None
 
 (* A top level name lands first so a body can forward reference *)

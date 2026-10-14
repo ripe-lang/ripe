@@ -931,7 +931,7 @@ let parse_file st =
   List.rev !decls
 
 (* The lexer already reported a bad token so we just stop *)
-let parse (lex : Lexing.lexbuf -> Tokens.token * Ast.span) lexbuf =
+let parse (lex : Lexing.lexbuf -> Tokens.token * span) lexbuf =
   let read () =
     match lex lexbuf with
     | ERROR _, _ -> raise Failed
