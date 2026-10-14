@@ -566,3 +566,15 @@ let%expect_test "lexer: an identifier may start with an underscore" =
     IDENT _1
     EOF
     |}]
+
+let%expect_test "lexer: logical compound assignment" =
+  dump_tokens "&&= ||= && = || =";
+  [%expect {|
+    &&=
+    ||=
+    &&
+    =
+    ||
+    =
+    EOF
+    |}]

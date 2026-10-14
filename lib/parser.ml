@@ -191,6 +191,8 @@ let infix_of = function
   | CARET_ASSIGN -> right 1 (assign (Some BitXor))
   | LSHIFT_ASSIGN -> right 1 (assign (Some Lshift))
   | RSHIFT_ASSIGN -> right 1 (assign (Some Rshift))
+  | AND_ASSIGN -> right 1 (assign (Some And))
+  | OR_ASSIGN -> right 1 (assign (Some Or))
   | DOTDOT -> chain 2 Range (fun l r -> Range (l, r))
   | DOTDOTEQ -> chain 2 Range (fun l r -> RangeInclusive (l, r))
   | OR -> left 3 (bin Or)

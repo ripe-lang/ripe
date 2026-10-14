@@ -4080,3 +4080,13 @@ let%expect_test "typecheck: an unknown return type hides the missing value" =
         g :: fn() -> nope { loop { break } };
                      ^~~~
     |}]
+
+let%expect_test "typecheck: a logical compound assign needs a bool" =
+  run_src "f :: fn() { n : i32 = 1;\n  n &&= 2 };";
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:3
+          n &&= 2 };
+          ^ cannot apply `&&` to i32
+    |}]

@@ -2160,3 +2160,9 @@ let%expect_test "parse: a local enum bound with := asks for ::" =
                             ^~~~ found `enum`
     help: declare a type with `::`
     |}]
+
+let%expect_test "parse: logical compound assign" =
+  parse_expr "ok &&= f()";
+  [%expect {| (&&= ok (call f)) |}];
+  parse_expr "ok ||= f()";
+  [%expect {| (||= ok (call f)) |}]

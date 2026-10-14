@@ -67,6 +67,10 @@ let is_integer t =
   if has_error t then true
   else match resolve_ty t with TInt _ -> true | _ -> false
 
+let is_bool t =
+  if has_error t then true
+  else match resolve_ty t with TBool -> true | _ -> false
+
 let rec is_comparable t =
   if has_error t then true
   else
@@ -84,7 +88,7 @@ let binop_accepts = function
   | Mod | BitAnd | BitOr | BitXor | Lshift | Rshift -> is_integer
   | Eq | Neq -> is_comparable
   | Lt | Gt | Lte | Gte -> is_ordered
-  | And | Or -> fun _ -> true
+  | And | Or -> is_bool
 
 let unop_accepts = function
   | Neg -> is_numeric

@@ -1,0 +1,23 @@
+hits := 0;
+
+bump :: fn(v: bool) -> bool {
+  hits += 1;
+  return v;
+};
+
+main :: fn() -> i32 {
+  a := true;
+  a &&= bump(false);
+  b := false;
+  b &&= bump(true);
+  c := false;
+  c ||= bump(true);
+  d := true;
+  d ||= bump(false);
+  n := hits * 10;
+  if a { n += 1000; }
+  if b { n += 1000; }
+  if c { n += 1; }
+  if d { n += 2; }
+  return n;
+};
