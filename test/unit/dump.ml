@@ -45,11 +45,12 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ String.concat "" (List.map (fun a -> " " ^ dump_expr a) args)
       ^ ")"
   | BinOp (op, l, r) ->
-      "(" ^ Ripe.Ast.show_binop_sym op ^ " " ^ dump_expr l ^ " " ^ dump_expr r
-      ^ ")"
+      "("
+      ^ Ripe.Ast.show_binop_sym op.value
+      ^ " " ^ dump_expr l ^ " " ^ dump_expr r ^ ")"
   | Assign (base, l, r) ->
       let sym =
-        match base with
+        match base.value with
         | None -> "="
         | Some op -> Ripe.Ast.show_binop_sym op ^ "="
       in

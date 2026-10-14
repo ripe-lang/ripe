@@ -397,12 +397,20 @@ let no_such_field span ty =
     (Diagnostic.error span "no field" |> Diagnostic.label "on %s" (show_ty ty));
   dummy_texpr
 
-let verify_operands span op t =
-  if not (binop_accepts op t) then
+(* A bad operand poisons the result so the next operator up stays quiet *)
+let verify_operands span op t operands =
+  if binop_accepts op t then t
+  else begin
+    let shown =
+      match operands with
+      | [ l; r ] when not (ty_equal l r) -> show_ty l ^ " and " ^ show_ty r
+      | _ -> show_ty t
+    in
     Diagnostic.emit
       (Diagnostic.error span "invalid operand"
-      |> Diagnostic.label "cannot apply `%s` to %s" (show_binop_sym op)
-           (show_ty t))
+      |> Diagnostic.label "cannot apply `%s` to %s" (show_binop_sym op) shown);
+    TError
+  end
 
 let find_global_fact env span key =
   match Symbol.Table.find_opt env.ctx.global_facts key with
@@ -763,14 +771,16 @@ and coerce_common env first rest =
   in
   (coerce first :: List.map coerce rest, common)
 
-and coerce_common_pair env ~(contextual : expr -> bool) left right =
+(* Only the operator reports a type it rejects *)
+and coerce_common_pair env contextual accepts left right =
   let against (typed : texpr) e =
-    if is_never typed.ty then synth env e else check env e typed.ty
+    if is_never typed.ty || not (accepts typed.ty) then synth env e
+    else check env e typed.ty
   in
   if contextual left && not (contextual right) then
     let typed_right = synth env right in
     let typed_left = against typed_right left in
-    (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
+    (typed_left, typed_right, common_ty typed_right.ty typed_left.ty)
   else if contextual right then
     let typed_left = synth env left in
     let typed_right = against typed_left right in
@@ -779,9 +789,11 @@ and coerce_common_pair env ~(contextual : expr -> bool) left right =
     let typed_left = synth env left in
     let typed_right = synth env right in
     let common = common_ty typed_left.ty typed_right.ty in
-    ( coerce_expr left common typed_left,
-      coerce_expr right common typed_right,
-      common )
+    if accepts common then
+      ( coerce_expr left common typed_left,
+        coerce_expr right common typed_right,
+        common )
+    else (typed_left, typed_right, common)
 
 and synth_array_lit env first rest =
   let probe e =
@@ -1315,14 +1327,17 @@ and check_desc env e want =
   | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
       mk want (TUnOp (op, check env operand want))
   | ArrayLit elements -> check_array_literal env e want elements
-  | BinOp (((Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor) as op), l, r)
-    when binop_accepts op want ->
-      mk want (TBinOp (op, check env l want, check env r want))
-  | BinOp (((Lshift | Rshift) as op), l, r) when is_integer want ->
-      let base = check env l want in
-      let count = synth env r in
-      verify_shift_count r.span count;
-      mk want (TBinOp (op, base, count))
+  | BinOp (op, l, r) -> (
+      match op.value with
+      | (Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor)
+        when binop_accepts op.value want ->
+          mk want (TBinOp (op.value, check env l want, check env r want))
+      | (Lshift | Rshift) when is_integer want ->
+          let base = check env l want in
+          let count = synth env r in
+          verify_shift_count r.span count;
+          mk want (TBinOp (op.value, base, count))
+      | _ -> check_by_synth env e want)
   | Block body ->
       let tb, ty = check_scoped_block env e.span body (Expect want) in
       mk ty (TBlock tb)
@@ -1349,7 +1364,7 @@ and coerce_expr e want te =
     in
     let mismatch =
       match (e.desc, resolve_ty want) with
-      | Assign (None, _, _), TBool ->
+      | Assign ({ value = None; _ }, _, _), TBool ->
           Diagnostic.help "did you mean `==` to compare?" mismatch
       | _ -> mismatch
     in
@@ -1357,14 +1372,23 @@ and coerce_expr e want te =
     te
   end
 
-and check_matching_operands env l r =
-  coerce_common_pair env ~contextual:is_num_literal l r
+and check_matching_operands env accepts l r =
+  coerce_common_pair env is_num_literal accepts l r
+
+and check_comparison_operands env accepts l r =
+  let is_contextual_literal e =
+    is_num_literal e || match e.desc with String _ -> true | _ -> false
+  in
+  coerce_common_pair env is_contextual_literal accepts l r
 
 and check_range_bounds env lo hi =
-  let tlo, thi, t = check_matching_operands env lo hi in
-  if not (is_integer t) then
-    Diagnostic.emit (Diagnostic.error lo.span "range bounds must be integers");
-  (tlo, thi, t)
+  let tlo, thi, t = check_matching_operands env is_integer lo hi in
+  if is_integer t then (tlo, thi, t)
+  else begin
+    let bad = if is_integer tlo.ty then hi else lo in
+    Diagnostic.emit (Diagnostic.error bad.span "range bounds must be integers");
+    (tlo, thi, TError)
+  end
 
 (* A bad count drops the args so walk them or their errors never show *)
 and walk_unpaired_args env args = List.iter (fun a -> ignore (synth env a)) args
@@ -1408,40 +1432,36 @@ and check_args env span fsig args =
   end
   else List.map2 (check env) args fsig.param_tys
 
-and synth_binop env op l r =
+and synth_binop env { value = op; span = op_span } l r =
   match op with
   | Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor ->
-      let tl, tr, t = check_matching_operands env l r in
-      verify_operands l.span op t;
-      mk t (TBinOp (op, tl, tr))
+      let tl, tr, t = check_matching_operands env (binop_accepts op) l r in
+      mk (verify_operands op_span op t [ tl.ty; tr.ty ]) (TBinOp (op, tl, tr))
   | Lshift | Rshift ->
       let tl = synth env l in
       let tr = synth env r in
-      verify_operands l.span op tl.ty;
+      let t = verify_operands op_span op tl.ty [ tl.ty ] in
       verify_shift_count r.span tr;
-      mk tl.ty (TBinOp (op, tl, tr))
+      mk t (TBinOp (op, tl, tr))
   | Eq | Neq | Lt | Gt | Lte | Gte ->
-      let tl, tr, t = check_comparison_operands env l r in
-      verify_operands l.span op t;
-      mk TBool (TBinOp (op, tl, tr))
+      let tl, tr, t = check_comparison_operands env (binop_accepts op) l r in
+      let ty =
+        if has_error (verify_operands op_span op t [ tl.ty; tr.ty ]) then TError
+        else TBool
+      in
+      mk ty (TBinOp (op, tl, tr))
   | And | Or ->
       let tl = check env l TBool in
       let tr = check env r TBool in
       mk TBool (TBinOp (op, tl, tr))
 
-and synth_assign env base l r =
-  let tl, tr = check_assign_operands env base l r in
+and synth_assign env { value = base; span = op_span } l r =
+  let tl, tr = check_assign_operands env base op_span l r in
   (* Whoever reads this back must not be told it went fine *)
   let ty = if is_poisoned tl || is_poisoned tr then TError else TUnit in
   mk ty (TAssign (base, tl, tr))
 
-and check_comparison_operands env l r =
-  let is_contextual_literal e =
-    is_num_literal e || match e.desc with String _ -> true | _ -> false
-  in
-  coerce_common_pair env ~contextual:is_contextual_literal l r
-
-and check_assign_operands env base l r =
+and check_assign_operands env base op_span l r =
   let tl = synth env l in
   let no_place = tl.ty <> TError && not (is_lvalue tl) in
   if no_place then
@@ -1458,8 +1478,13 @@ and check_assign_operands env base l r =
           Diagnostic.emit (Diagnostic.error l.span "cannot assign to immutable")
       | _ -> ())
   | _ -> ());
-  let t = if no_place then TError else tl.ty in
-  Option.iter (fun op -> verify_operands l.span op t) base;
+  let t =
+    if no_place then TError
+    else
+      match base with
+      | Some op -> verify_operands op_span op tl.ty [ tl.ty ]
+      | None -> tl.ty
+  in
   let tr =
     match base with
     | Some (Lshift | Rshift) ->

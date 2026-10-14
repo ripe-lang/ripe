@@ -1,0 +1,4 @@
+error: invalid operand
+  at main.rp:4:8
+      if p * 2 > 2 { return 1 }
+           ^ cannot apply `*` to Point and i32

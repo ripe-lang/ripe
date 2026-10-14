@@ -1,0 +1,6 @@
+Point :: struct { x: i32, y: i32 };
+main :: fn() -> i32 {
+  p := Point.{ 5, 4 };
+  if p * 2 > 2 { return 1 }
+  return 0;
+};

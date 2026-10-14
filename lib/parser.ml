@@ -18,7 +18,13 @@ type state = {
 
 type chain = Comparison | Range
 type assoc = Left | Right | Chain of chain
-type infix = { prec : int; assoc : assoc; build : expr -> expr -> expr_desc }
+
+type infix = {
+  prec : int;
+  assoc : assoc;
+  build : span -> expr -> expr -> expr_desc;
+}
+
 type field_form = NamedField | PositionalField
 type binding_context = LocalBinding | GlobalBinding
 type expression_context = NormalExpression | HeaderExpression
@@ -171,8 +177,8 @@ let abi_wants_func st = function
 let left prec build = Some { prec; assoc = Left; build }
 let right prec build = Some { prec; assoc = Right; build }
 let chain prec c build = Some { prec; assoc = Chain c; build }
-let bin op l r = BinOp (op, l, r)
-let assign op l r = Assign (op, l, r)
+let bin op span l r = BinOp (spanned op span, l, r)
+let assign op span l r = Assign (spanned op span, l, r)
 
 let infix_of = function
   | ASSIGN -> right 1 (assign None)
@@ -188,8 +194,8 @@ let infix_of = function
   | RSHIFT_ASSIGN -> right 1 (assign (Some Rshift))
   | AND_ASSIGN -> right 1 (assign (Some And))
   | OR_ASSIGN -> right 1 (assign (Some Or))
-  | DOTDOT -> chain 2 Range (fun l r -> Range (l, r))
-  | DOTDOTEQ -> chain 2 Range (fun l r -> RangeInclusive (l, r))
+  | DOTDOT -> chain 2 Range (fun _ l r -> Range (l, r))
+  | DOTDOTEQ -> chain 2 Range (fun _ l r -> RangeInclusive (l, r))
   | OR -> left 3 (bin Or)
   | AND -> left 4 (bin And)
   | EQ -> chain 5 Comparison (bin Eq)
@@ -451,7 +457,7 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
           match op.assoc with Right -> op.prec | Left | Chain _ -> op.prec + 1
         in
         let rhs = parse_expr ~context ~min_prec:next_min_prec st in
-        let lhs = mk lo st (op.build lhs rhs) in
+        let lhs = mk lo st (op.build op_span lhs rhs) in
         match (op.assoc, infix_of (cur_token st)) with
         | Chain chain, Some { assoc = Chain next; _ } when chain = next ->
             let name, help =
