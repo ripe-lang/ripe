@@ -896,3 +896,29 @@ let%expect_test "mir: a deref through a pointer is a place projection" =
         return copy %0.deref
     }
     |}]
+
+let%expect_test "mir: a logical compound assign skips the right side" =
+  Pipeline.run_mir
+    {|f :: fn(b: bool) -> bool {
+  a := true;
+  a &&= b;
+  return a;
+};|};
+  [%expect
+    {|
+    fn _R1f(%0: bool) bool {
+      local %0 b: bool param
+      local %1 a: bool user
+
+      block0:
+        %1 = true
+        branch copy %1 block1 block2
+
+      block1:
+        %1 = copy %0
+        jump block2
+
+      block2:
+        return copy %1
+    }
+    |}]

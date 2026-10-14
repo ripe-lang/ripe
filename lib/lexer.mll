@@ -116,6 +116,8 @@ rule read_token = parse
   | "&=" { AMP_ASSIGN }
   | "|=" { PIPE_ASSIGN }
   | "^=" { CARET_ASSIGN }
+  | "&&=" { AND_ASSIGN }
+  | "||=" { OR_ASSIGN }
   | '!' { BANG }
   | '+' { PLUS }
   | '-' { MINUS }

@@ -372,14 +372,14 @@ let%expect_test "typred: equality reaches further than ordering" =
     lt Point = false
     lt () = false
 
-    and i32 = true
-    and f64 = true
+    and i32 = false
+    and f64 = false
     and bool = true
-    and char = true
-    and *i8 = true
-    and str = true
-    and Point = true
-    and () = true
+    and char = false
+    and *i8 = false
+    and str = false
+    and Point = false
+    and () = false
     |}]
 
 let%expect_test "typred: negation takes numbers and bitnot takes integers" =

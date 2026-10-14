@@ -36,6 +36,8 @@ type token =
   | CARET_ASSIGN
   | LSHIFT_ASSIGN
   | RSHIFT_ASSIGN
+  | AND_ASSIGN
+  | OR_ASSIGN
   | RETURN
   | IF
   | ELSE
@@ -153,6 +155,8 @@ let show_token = function
   | CARET_ASSIGN -> "^="
   | LSHIFT_ASSIGN -> "<<="
   | RSHIFT_ASSIGN -> ">>="
+  | AND_ASSIGN -> "&&="
+  | OR_ASSIGN -> "||="
   | CARET -> "^"
   | LPAREN -> "("
   | RPAREN -> ")"

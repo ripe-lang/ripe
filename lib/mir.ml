@@ -863,9 +863,22 @@ and lower_slice state destination expr base lo hi =
 and lower_compound_assign state (expr : texpr) op (left : texpr) right =
   let target = lower_place state left in
   let old = copy left.span left.ty target in
-  let right = lower_expr state right in
-  lower_arith_check state op old.ty right expr.span;
-  lower_binary state target expr.span left.ty op old right
+  match op with
+  | Ast.And | Ast.Or ->
+      let right_block = new_block state in
+      let join = new_block state in
+      let yes, no =
+        if op = Ast.And then (right_block, join) else (join, right_block)
+      in
+      terminate state (Branch (old, yes, no)) expr.span;
+      switch state right_block;
+      assign state target (lower_expr state right);
+      terminate state (Jump join) expr.span;
+      switch state join
+  | _ ->
+      let right = lower_expr state right in
+      lower_arith_check state op old.ty right expr.span;
+      lower_binary state target expr.span left.ty op old right
 
 (* A later break can widen the loop type the earlier ones settled on *)
 (* %1 = 1, %1 = cast copy %0 to i64 *)
