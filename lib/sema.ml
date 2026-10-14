@@ -181,34 +181,27 @@ let lookup_var_opt env span =
   find env.scopes
 
 (* A span the resolver never bound falls back so checking can carry on *)
-let symbol_in ctx span ~(missing : 'a) (read : Symbol.t -> 'a) =
+let symbol_at ctx span ~(missing : 'a) (read : Symbol.t -> 'a) =
   match Resolve.sym_at_opt ctx.symbols span with
   | Some symbol -> read symbol
   | None -> missing
 
-let symbol_at env = symbol_in env.ctx
-
-let key_in ctx span =
-  symbol_in ctx span ~missing:Symbol.unresolved_key Symbol.key
-
 (* Two declarations can go by one name so lookups key on which one it is *)
-let key_at env span = key_in env.ctx span
+let key_at ctx span =
+  symbol_at ctx span ~missing:Symbol.unresolved_key Symbol.key
 
-let keyname_at env span fallback =
-  symbol_at env span ~missing:(Keyname.unresolved fallback) Resolve.keyname_of
-
-let keyname_in ctx span fallback =
-  symbol_in ctx span ~missing:(Keyname.unresolved fallback) Resolve.keyname_of
+let keyname_at ctx span fallback =
+  symbol_at ctx span ~missing:(Keyname.unresolved fallback) Resolve.keyname_of
 
 (* What the linker calls this declaration was worked out once by the resolver *)
 let link_name_at env span fallback =
-  symbol_at env span ~missing:fallback (fun s -> s.Symbol.link_name)
+  symbol_at env.ctx span ~missing:fallback (fun s -> s.Symbol.link_name)
 
 let is_entry env span =
-  symbol_at env span ~missing:false (fun s -> s.Symbol.entry_point)
+  symbol_at env.ctx span ~missing:false (fun s -> s.Symbol.entry_point)
 
 let lookup_func env span =
-  match Symbol.Table.find_opt env.ctx.func_sigs (key_at env span) with
+  match Symbol.Table.find_opt env.ctx.func_sigs (key_at env.ctx span) with
   | Some s -> s
   | None ->
       Diagnostic.emit (Diagnostic.error span "undefined function");
@@ -220,10 +213,15 @@ let lookup_func env span =
         param_hole = true;
       }
 
-let lookup_struct env span name =
-  match Symbol.Table.find_opt env.ctx.type_defs (Keyname.key name) with
+let struct_info ctx key =
+  match Symbol.Table.find_opt ctx.type_defs key with
   | Some (Struct_type { contents = Completed info }) -> Some info
-  | _ ->
+  | _ -> None
+
+let lookup_struct env span key =
+  match struct_info env.ctx key with
+  | Some _ as found -> found
+  | None ->
       Diagnostic.emit (Diagnostic.error span "undefined struct");
       None
 
@@ -248,10 +246,10 @@ let is_uninhabited env ty =
   and struct_holds_never seen key =
     if List.mem key seen then false
     else
-      match Symbol.Table.find_opt env.ctx.type_defs key with
-      | Some (Struct_type { contents = Completed info }) ->
+      match struct_info env.ctx key with
+      | Some info ->
           List.exists (fun (_, ft) -> go (key :: seen) ft) info.field_tys
-      | _ -> false
+      | None -> false
   in
   go [] ty
 
@@ -286,13 +284,13 @@ let unresolved_named_ty env span =
   | _ -> Diagnostic.ice ~span "type name escaped the resolver"
 
 let named_ty env span shown =
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env span) with
+  match Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx span) with
   | Some (Builtin_type ty) -> ty
-  | Some (Struct_type _) -> TStruct (keyname_at env span shown, [])
+  | Some (Struct_type _) -> TStruct (keyname_at env.ctx span shown, [])
   | Some (Alias_type { contents = Completed aliased }) ->
-      TAlias (keyname_at env span shown, aliased)
+      TAlias (keyname_at env.ctx span shown, aliased)
   | Some (Alias_type { contents = Unstarted | Running }) -> TError
-  | Some (Enum_type _) -> TEnum (keyname_at env span shown)
+  | Some (Enum_type _) -> TEnum (keyname_at env.ctx span shown)
   | None -> unresolved_named_ty env span
 
 (* The value of a block is its last element and unit when the block is empty *)
@@ -449,7 +447,7 @@ let adopt_int_literal span want target ~neg n =
 (* A variant is a compile time constant so nothing of the enum survives here *)
 let synth_variant env (inner : expr) info fname fspan =
   let shown = Interner.text fname in
-  let name = keyname_at env inner.span shown in
+  let name = keyname_at env.ctx inner.span shown in
   match Hashtbl.find_opt info.variants_by_name fname with
   | Some value -> mk (TEnum name) (TVariant (name, value))
   | None ->
@@ -481,7 +479,7 @@ let synth_struct_field env span te ty fname fspan =
         (Diagnostic.error span "too many pointer levels" |> Diagnostic.help hint);
       dummy_texpr
   | Some (sname, _) -> (
-      match lookup_struct env span sname with
+      match lookup_struct env span (Keyname.key sname) with
       | None -> dummy_texpr
       | Some info -> (
           match find_field info fname with
@@ -595,7 +593,7 @@ and lookup_var env span =
 
 (* A name outside the scopes is a global or hasn't been collected yet *)
 and lookup_non_local env span =
-  let key = key_at env span in
+  let key = key_at env.ctx span in
   match Symbol.Table.find_opt env.ctx.globals key with
   | Some t -> t
   | None -> (
@@ -611,8 +609,7 @@ and lookup_non_local env span =
 (* This pass does the bidirectional type checking *)
 
 (* Stamp the source span here so the mk sites underneath stay span free *)
-and synth env e = synth_operand env e
-and synth_operand env (e : expr) = stamp e.span (synth_desc env e)
+and synth env (e : expr) = stamp e.span (synth_desc env e)
 and stamp span (te : texpr) = { te with span }
 
 and synth_desc env e =
@@ -644,7 +641,7 @@ and synth_desc env e =
   | FieldAccess (inner_e, { value = fname; span = fspan }) ->
       synth_field env e.span inner_e fname fspan
   | Cast (t, inner) ->
-      synth_conversion e.span (synth_operand env inner) (ty_of_ast env t)
+      synth_conversion e.span (synth env inner) (ty_of_ast env t)
   | SizeOf t -> synth_size_of env t
   | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
   | RangeFull ->
@@ -690,7 +687,7 @@ and synth_desc env e =
 and synth_path_type env span p =
   let inner = owner_expr p in
   let { value = name; span = name_span } = p.member in
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env inner.span) with
+  match Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx inner.span) with
   | Some (Enum_type { contents = Completed info }) ->
       synth_variant env inner info name name_span
   | Some (Enum_type { contents = Unstarted | Running }) -> dummy_texpr
@@ -719,21 +716,16 @@ and synth_size_of env typ =
   | ty -> mk (TInt Usize) (TSizeOf ty)
 
 and synth_struct_lit env span name name_span inits =
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env name_span) with
-  | Some (Struct_type { contents = Completed info }) ->
+  match lookup_struct env name_span (key_at env.ctx name_span) with
+  | Some info ->
       let fields =
         match inits with
         | ({ value = None; _ }, _) :: _ -> positional_fields env span info inits
         | _ -> named_fields env span info inits
       in
-      let keyname = keyname_at env name_span (Interner.text name) in
+      let keyname = keyname_at env.ctx name_span (Interner.text name) in
       mk (TStruct (keyname, [])) (TStructLit (keyname, fields))
-  | Some
-      ( Struct_type { contents = Unstarted | Running }
-      | Builtin_type _ | Alias_type _ | Enum_type _ )
-  | None ->
-      Diagnostic.emit (Diagnostic.error name_span "undefined struct");
-      dummy_texpr
+  | None -> dummy_texpr
 
 (* A quiet probe lets a sibling anchor the block type *)
 and block_result_ty env body =
@@ -767,20 +759,19 @@ and coerce_common env first rest =
 
 and coerce_common_pair env ~(contextual : expr -> bool) left right =
   let against (typed : texpr) e =
-    if is_never typed.ty then synth_operand env e
-    else check_operand env e typed.ty
+    if is_never typed.ty then synth env e else check env e typed.ty
   in
   if contextual left && not (contextual right) then
-    let typed_right = synth_operand env right in
+    let typed_right = synth env right in
     let typed_left = against typed_right left in
     (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else if contextual right then
-    let typed_left = synth_operand env left in
+    let typed_left = synth env left in
     let typed_right = against typed_left right in
     (typed_left, typed_right, common_ty typed_left.ty typed_right.ty)
   else
-    let typed_left = synth_operand env left in
-    let typed_right = synth_operand env right in
+    let typed_left = synth env left in
+    let typed_right = synth env right in
     let common = common_ty typed_left.ty typed_right.ty in
     ( coerce_expr left common typed_left,
       coerce_expr right common typed_right,
@@ -1090,14 +1081,7 @@ and check_if_discarded env span (branches : (expr * block spanned) list)
 (* A missing expected type asks the whole if to synthesize *)
 and check_if env span (branches : (expr * block spanned) list) else_body want =
   match (want, else_body) with
-  | None, None ->
-      let tbranches =
-        List.map
-          (fun (c, { value = body; _ }) ->
-            (check env c TBool, fst (check_scoped_block env span body Discard)))
-          branches
-      in
-      mk TUnit (TIf (tbranches, None))
+  | None, None -> check_if_discarded env span branches None
   | None, Some { value = else_b; _ } ->
       let rty = reconcile_if_result env branches else_b in
       (* A probe only wants the type so don't build the tree twice *)
@@ -1266,12 +1250,11 @@ and check_match_arms env ts arms want =
   mk ty (TMatch (ts, tarms))
 
 (* This has to be this type *)
-and check env e want = check_operand env e want
-and check_operand env e want = stamp e.span (check_desc env e want)
+and check env e want = stamp e.span (check_desc env e want)
 
 (* This synthesizes then checks the result against want *)
 and check_by_synth env e want =
-  let typed = synth_operand env e in
+  let typed = synth env e in
   coerce_expr e want typed
 
 and check_size_literal env (e : expr) want target typ =
@@ -1291,7 +1274,7 @@ and check_size_literal env (e : expr) want target typ =
 and check_neg_int_literal env (e : expr) want target value =
   match adopt_int_literal e.span want target ~neg:true value with
   | Some typed -> typed
-  | None -> check_operand env { e with desc = Int (Int64.neg value, None) } want
+  | None -> check env { e with desc = Int (Int64.neg value, None) } want
 
 and check_array_literal env (e : expr) want elements =
   match resolve_ty want with
@@ -1320,16 +1303,16 @@ and check_desc env e want =
   | UnOp (Neg, { desc = Int (value, None); _ }) ->
       check_neg_int_literal env e want target value
   | UnOp (Neg, { desc = Float (f, suf); _ }) ->
-      check_operand env { e with desc = Float (-.f, suf) } want
+      check env { e with desc = Float (-.f, suf) } want
   | UnOp (Neg, { desc = Int (_, Some _); _ }) -> check_by_synth env e want
   | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
-      mk want (TUnOp (op, check_operand env operand want))
+      mk want (TUnOp (op, check env operand want))
   | ArrayLit elements -> check_array_literal env e want elements
   | BinOp (((Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor) as op), l, r)
     when binop_accepts op want ->
-      mk want (TBinOp (op, check_operand env l want, check_operand env r want))
+      mk want (TBinOp (op, check env l want, check env r want))
   | BinOp (((Lshift | Rshift) as op), l, r) when is_integer want ->
-      let base = check_operand env l want in
+      let base = check env l want in
       let count = synth env r in
       verify_shift_count r.span count;
       mk want (TBinOp (op, base, count))
@@ -1425,8 +1408,8 @@ and synth_binop env op l r =
       verify_operands l.span op t;
       mk t (TBinOp (op, tl, tr))
   | Lshift | Rshift ->
-      let tl = synth_operand env l in
-      let tr = synth_operand env r in
+      let tl = synth env l in
+      let tr = synth env r in
       verify_operands l.span op tl.ty;
       verify_shift_count r.span tr;
       mk tl.ty (TBinOp (op, tl, tr))
@@ -1435,8 +1418,8 @@ and synth_binop env op l r =
       verify_operands l.span op t;
       mk TBool (TBinOp (op, tl, tr))
   | And | Or ->
-      let tl = check_operand env l TBool in
-      let tr = check_operand env r TBool in
+      let tl = check env l TBool in
+      let tr = check env r TBool in
       mk TBool (TBinOp (op, tl, tr))
 
 and synth_assign env base l r =
@@ -1483,7 +1466,7 @@ and check_assign_operands env base l r =
 and synth_unop env op e =
   match op with
   | Neg | BitNot ->
-      let te = synth_operand env e in
+      let te = synth env e in
       let t = te.ty in
       if not (unop_accepts op t) then
         Diagnostic.emit
@@ -1548,7 +1531,7 @@ and synth_call env span callee args =
         mk (TFunc (fsig.param_tys, fsig.ret_ty, fsig.abi)) (TIdent fn_sym)
       in
       mk fsig.ret_ty (TCall (callee_texpr, targs, fixed_count))
-  | None when Symbol.Table.mem env.ctx.type_defs (key_at env callee.span) ->
+  | None when Symbol.Table.mem env.ctx.type_defs (key_at env.ctx callee.span) ->
       let sym = Resolve.sym_at env.ctx.symbols callee.span in
       Diagnostic.emit
         (Diagnostic.error callee.span "cannot call a type"
@@ -1634,7 +1617,7 @@ and global_ty env (gd : global_def) =
   | Some t, _ -> ty_of_ast env t
   | None, Some e ->
       let te =
-        try global_typed_init env e.span (key_at env gd.span)
+        try global_typed_init env e.span (key_at env.ctx gd.span)
         with Diagnostic.Errors ds ->
           List.iter Diagnostic.emit ds;
           dummy_texpr
@@ -1684,12 +1667,13 @@ let collect_func env fd =
   let abi = resolve_abi fd.extern_abi in
   let param_tys = List.map (fun p -> ty_of_ast env p.param_typ) fd.params in
   let ret_ty = ret_ty_of env fd in
-  Symbol.Table.replace env.ctx.func_sigs (key_at env fd.func_span)
+  Symbol.Table.replace env.ctx.func_sigs
+    (key_at env.ctx fd.func_span)
     { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole = false }
 
 (* A repeat name is already reported with both spans by the resolver *)
 let type_name_taken ctx span =
-  let key = key_in ctx span in
+  let key = key_at ctx span in
   key = Symbol.unresolved_key || Symbol.Table.mem ctx.type_defs key
 
 (* The reserved name enables forward field types *)
@@ -1703,13 +1687,15 @@ let reserve_struct_name ctx sd =
     in
     List.iter check_duplicate sd.fields;
     Symbol.Table.replace ctx.type_defs
-      (key_in ctx sd.struct_span)
+      (key_at ctx sd.struct_span)
       (Struct_type (ref Unstarted));
-    Layout.set_struct_fields ctx.layouts (key_in ctx sd.struct_span) []
+    Layout.set_struct_fields ctx.layouts (key_at ctx sd.struct_span) []
   end
 
 let fill_struct_fields env sd =
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env sd.struct_span) with
+  match
+    Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx sd.struct_span)
+  with
   | Some (Struct_type body) ->
       let named_ty f = (f.field_name.value, ty_of_ast env f.field_typ) in
       let field_tys = List.map named_ty sd.fields in
@@ -1726,7 +1712,7 @@ let fill_struct_fields env sd =
       in
       body := Completed { field_tys; field_index };
       Layout.set_struct_fields env.ctx.layouts
-        (key_at env sd.struct_span)
+        (key_at env.ctx sd.struct_span)
         (List.map snd field_tys)
   | _ -> ()
 
@@ -1769,7 +1755,7 @@ let verify_type_cycles ctx =
   let edges = Symbol.Table.create 16 in
   let record_edges = function
     | Struct sd -> (
-        let key = key_in ctx sd.struct_span in
+        let key = key_at ctx sd.struct_span in
         let fields = Iarray.to_list (Layout.struct_fields ctx.layouts key) in
         match List.filter_map stored_struct fields with
         | [] -> ()
@@ -1783,7 +1769,7 @@ let verify_type_cycles ctx =
   List.iter record_edges ctx.declarations;
   let cyclic = cyclic_structs edges iter_edges in
   let report_cycle = function
-    | Struct sd when Symbol.Table.mem cyclic (key_in ctx sd.struct_span) ->
+    | Struct sd when Symbol.Table.mem cyclic (key_at ctx sd.struct_span) ->
         Diagnostic.emit
           (Diagnostic.error sd.struct_name.span
              "recursive struct has infinite size")
@@ -1807,13 +1793,13 @@ let reserve_enum_name ctx ed =
       end
     in
     ignore (List.fold_left add 0L ed.variants);
-    Symbol.Table.replace ctx.type_defs (key_in ctx ed.enum_span)
+    Symbol.Table.replace ctx.type_defs (key_at ctx ed.enum_span)
       (Enum_type (ref (Completed { variants_by_name })))
   end
 
 let reserve_alias_name ctx td =
   if not (type_name_taken ctx td.alias_span) then
-    Symbol.Table.replace ctx.type_defs (key_in ctx td.alias_span)
+    Symbol.Table.replace ctx.type_defs (key_at ctx td.alias_span)
       (Alias_type (ref Unstarted))
 
 let rec named_type_spans t =
@@ -1834,7 +1820,7 @@ let resolve_type_bodies ctx =
     | TypeAlias td ->
         (* The resolver already rejected later definitions *)
         (* The unresolved key cannot identify a real dependency *)
-        let key = key_in ctx td.alias_span in
+        let key = key_at ctx td.alias_span in
         if key <> Symbol.unresolved_key && not (Hashtbl.mem defs key) then
           Hashtbl.add defs key decl
     | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
@@ -1853,7 +1839,7 @@ let resolve_type_bodies ctx =
             | Unstarted ->
                 body := Running;
                 List.iter
-                  (fun span -> resolve_alias (key_in ctx span))
+                  (fun span -> resolve_alias (key_at ctx span))
                   (named_type_spans td.alias_typ);
                 let env = make_env ctx in
                 body := Completed (ty_of_ast env td.alias_typ))
@@ -1863,13 +1849,13 @@ let resolve_type_bodies ctx =
   List.iter remember ctx.declarations;
   (* The order here follows the file so the same type gets blamed every time *)
   let resolve = function
-    | TypeAlias td -> resolve_alias (key_in ctx td.alias_span)
+    | TypeAlias td -> resolve_alias (key_at ctx td.alias_span)
     | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
   in
   List.iter resolve ctx.declarations
 
 let collect_global env (gd : global_def) =
-  let key = key_at env gd.span in
+  let key = key_at env.ctx gd.span in
   let t =
     match Symbol.Table.find_opt env.ctx.global_facts key with
     | Some fact -> pending_global_ty env gd.span key fact
@@ -1909,7 +1895,7 @@ let fill_struct_layouts ctx =
   List.iter fill ctx.declarations
 
 let check_func ?(is_extern = false) env fd =
-  let key = key_at env fd.func_span in
+  let key = key_at env.ctx fd.func_span in
   let is_entry_point = is_entry env fd.func_span in
   (* The collected signature is reused so a bad array size errors once *)
   let collected = Symbol.Table.find_opt env.ctx.func_sigs key in
@@ -1981,7 +1967,7 @@ let check_func ?(is_extern = false) env fd =
   }
 
 let check_global env (gd : global_def) =
-  let key = key_at env gd.span in
+  let key = key_at env.ctx gd.span in
   (* The collected type is reused so a bad array size errors once *)
   let t =
     match Symbol.Table.find_opt env.ctx.globals key with
@@ -2008,7 +1994,7 @@ let check_global env (gd : global_def) =
 
 let typed_struct_decl ctx sd fields =
   let name =
-    keyname_in ctx sd.struct_span (Interner.text sd.struct_name.value)
+    keyname_at ctx sd.struct_span (Interner.text sd.struct_name.value)
   in
   let is_local =
     Option.exists
@@ -2031,12 +2017,9 @@ let check_decls ctx =
     | Struct sd ->
         (* A rejected duplicate has no completed table entry *)
         let field_tys =
-          match
-            Symbol.Table.find_opt ctx.type_defs (key_in ctx sd.struct_span)
-          with
-          | Some (Struct_type { contents = Completed info }) ->
-              List.map snd info.field_tys
-          | _ ->
+          match struct_info ctx (key_at ctx sd.struct_span) with
+          | Some info -> List.map snd info.field_tys
+          | None ->
               let env = make_env ctx in
               List.map (fun f -> ty_of_ast env f.field_typ) sd.fields
         in
@@ -2047,7 +2030,7 @@ let check_decls ctx =
     | TypeAlias td ->
         let t =
           match
-            Symbol.Table.find_opt ctx.type_defs (key_in ctx td.alias_span)
+            Symbol.Table.find_opt ctx.type_defs (key_at ctx td.alias_span)
           with
           | Some (Alias_type { contents = Completed t }) -> t
           | _ ->
@@ -2055,10 +2038,10 @@ let check_decls ctx =
               ty_of_ast env td.alias_typ
         in
         TTypeAliasDecl
-          (keyname_in ctx td.alias_span (Interner.text td.alias_name.value), t)
+          (keyname_at ctx td.alias_span (Interner.text td.alias_name.value), t)
     | Enum ed ->
         TEnumDecl
-          (keyname_in ctx ed.enum_span (Interner.text ed.enum_name.value))
+          (keyname_at ctx ed.enum_span (Interner.text ed.enum_name.value))
   in
   List.map check_declaration ctx.declarations
 
@@ -2066,7 +2049,7 @@ let check_decls ctx =
 let register_globals ctx =
   let register = function
     | Global gd ->
-        Symbol.Table.replace ctx.global_facts (key_in ctx gd.span)
+        Symbol.Table.replace ctx.global_facts (key_at ctx gd.span)
           {
             declaration = gd;
             declared_ty = ref Unstarted;

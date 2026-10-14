@@ -176,11 +176,10 @@ let value_or_item scope name =
   | Some sym -> Some sym
   | None -> Names.find_opt scope.items name
 
-let rec find_type_in_scope scope name =
+let rec find_type scope name =
   match Names.find_opt scope.types name with
   | Some sym -> Some sym
-  | None ->
-      Option.bind scope.parent (fun parent -> find_type_in_scope parent name)
+  | None -> Option.bind scope.parent (fun parent -> find_type parent name)
 
 let rec find_value scope name =
   match value_or_item scope name with
@@ -247,10 +246,9 @@ let missing_value st ~what name span =
   | None -> Diagnostic.error span "undefined %s" what
 
 let use_symbol st span sym = Span.Table.replace st.out.syms span sym
-let find_type st name = find_type_in_scope st.scope name
 
 let use_type st name span =
-  match find_type st name with
+  match find_type st.scope name with
   | Some sym -> use_symbol st span sym
   | None ->
       Diagnostic.emit (Diagnostic.error span "undefined type");
@@ -258,7 +256,9 @@ let use_type st name span =
 
 (* Semantic analysis already reports an unknown struct literal *)
 let use_type_if_found st name span =
-  match find_type st name with Some sym -> use_symbol st span sym | None -> ()
+  match find_type st.scope name with
+  | Some sym -> use_symbol st span sym
+  | None -> ()
 
 let use st ~what name span =
   match lookup st name with
@@ -270,7 +270,7 @@ let use st ~what name span =
       ignore (mint st Symbol.Error name span)
 
 let use_callee st ?(what = "function") name span =
-  match (lookup st name, find_type st name) with
+  match (lookup st name, find_type st.scope name) with
   | None, Some sym -> use_symbol st span sym
   | value, _ ->
       (match value with
@@ -297,14 +297,14 @@ let use_type_name st name span =
   (* A nearer value wins so a local named str isn't the builtin type *)
   if lookup st name <> None then false
   else
-    match find_type st name with
+    match find_type st.scope name with
     | None -> false
     | Some sym ->
         use_symbol st span sym;
         true
 
 let resolve_missing_value_root st name span =
-  match find_type_in_scope st.scope name with
+  match find_type st.scope name with
   | Some _ -> false
   | None ->
       use st ~what:"variable" name span;
@@ -337,8 +337,7 @@ and rightmost e =
 and resolve_header st e =
   let tail = rightmost e in
   (match tail.desc with
-  | Ident name
-    when lookup st name = None && find_type_in_scope st.scope name <> None ->
+  | Ident name when lookup st name = None && find_type st.scope name <> None ->
       st.header_hole := Some tail.span;
       Diagnostic.emit
         (Diagnostic.error tail.span "expected a value and found a type"
