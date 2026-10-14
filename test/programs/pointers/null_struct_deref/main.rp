@@ -1,6 +1,6 @@
 Point :: struct { x: i32, y: i32 };
 main :: fn() -> i32 {
   p : *Point = null;
-  q : Point = *p;
+  q : Point = p.*;
   return q.x;
 };

@@ -82,10 +82,10 @@ error: undefined variable
 The `foo` is already under the caret, so naming it again adds nothing. The only exception is when the value is not on the line, such as an inferred type:
 
 ```text
-error: type has no fields
-  at t.rp:4:10
-      _y := *n.x + 1;
-             ^~~ on i32
+error: cannot dereference
+  at t.rp:4:9
+      _y := n.x.* + 1;
+            ^~~ on i32
 ```
 
 ### 3. Spans

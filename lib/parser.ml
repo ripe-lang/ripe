@@ -32,9 +32,9 @@ let mkt lo st tdesc = { tdesc; tspan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
-  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | MINUS | STAR | AMP | TILDE
-  | BANG | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF | LBRACE
-  | LOOP | WHILE | FOR | MATCH ->
+  | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | MINUS | AMP | TILDE | BANG
+  | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF | LBRACE | LOOP
+  | WHILE | FOR | MATCH ->
       true
   | _ -> false
 
@@ -497,7 +497,6 @@ and parse_prefix st context =
   | MINUS -> unary Neg
   | TILDE -> unary BitNot
   | AMP -> unary AddressOf
-  | STAR -> unary Deref
   | _ ->
       let lhs = parse_primary st context in
       let lhs =
@@ -510,10 +509,10 @@ and parse_prefix st context =
 (* point, Color.Red, Point { x: 1 } *)
 and parse_path st context lhs head =
   let lo = Span.lo lhs.span in
-  if at st DOT then begin
+  if at st DOT && peek_token st != STAR then begin
     advance st;
     let rec segments owners member =
-      if at st DOT then begin
+      if at st DOT && peek_token st != STAR then begin
         advance st;
         segments (member :: owners) (expect_ident_span st)
       end
@@ -534,10 +533,14 @@ and parse_path st context lhs head =
         |> fail
     | HeaderExpression -> lhs
 
-(* x.field, arr[i], f(args) *)
+(* x.field, p.*, arr[i], f(args) *)
 and parse_postfix st (lhs : expr) =
   let lo = Span.lo lhs.span in
   match cur_token st with
+  | DOT when peek_token st == STAR ->
+      advance st;
+      advance st;
+      parse_postfix st (mk lo st (UnOp (Deref, lhs)))
   | DOT ->
       advance st;
       let name = expect_ident_span st in

@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
   p : *i32 = null;
-  return *p;
+  return p.*;
 };

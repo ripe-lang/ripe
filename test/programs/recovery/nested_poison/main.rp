@@ -3,7 +3,7 @@ main :: fn() -> i32 {
   a : [1]nosuch;
   f : fn () nosuch;
   _x := p.field;
-  _y := *p;
+  _y := p.*;
   _z := f();
   _w := a[0];
   _v := cast(i32, p);

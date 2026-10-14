@@ -21,7 +21,7 @@ main :: fn() -> i32 {
   if cast(usize, p) == 0 { return 1 }
   if z != null { return 2 }
   scalars : i32 = n + w + cast(i32, b) + cast(i32, f) + cast(i32, c) + a + cast(i32, true);
-  reads : i32 = cast(i32, *q) + cast(i32, **qq) + *cast(*i32, o);
-  calls : i32 = fp(1) + (fp)(1) + (*hp)(1) + ep(1);
+  reads : i32 = cast(i32, q.*) + cast(i32, qq.*.*) + cast(*i32, o).*;
+  calls : i32 = fp(1) + (fp)(1) + hp.*(1) + ep(1);
   return scalars + reads + calls;
 };

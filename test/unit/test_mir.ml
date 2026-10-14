@@ -877,8 +877,8 @@ f :: fn(o: Outer) -> i32 { return o.i.v };|};
 
 let%expect_test "mir: a deref through a pointer is a place projection" =
   Pipeline.run_mir {|f :: fn(p: *i32) -> i32 {
-  *p = 4;
-  return *p;
+  p.* = 4;
+  return p.*;
 };|};
   [%expect
     {|

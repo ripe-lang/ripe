@@ -123,7 +123,7 @@ main :: fn() -> i32 {
   value = value + 2;
   addressed : i32 = 3;
   pointer := &addressed;
-  *pointer = value;
+  pointer.* = value;
   return addressed;
 };
 |};

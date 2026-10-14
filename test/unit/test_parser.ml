@@ -529,7 +529,7 @@ let%expect_test "parse: unary minus and not" =
   [%expect {| (&& (! flag) (> (- x) 0)) |}]
 
 let%expect_test "parse: address-of and deref chain" =
-  parse_expr "&*p";
+  parse_expr "&p.*";
   [%expect {| (& (* p)) |}]
 
 let%expect_test "parse: logical and cannot start an expression" =
@@ -582,9 +582,15 @@ let%expect_test "parse: cast without a comma" =
                                      ^ found x
     |}]
 
-let%expect_test "parse: the old paren cast is a call" =
+let%expect_test "parse: the old paren cast is an error" =
   parse_expr "(*i32)(p)";
-  [%expect {| (call (* i32) p) |}]
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:22
+        _f :: fn() { return (*i32)(p) };
+                             ^ found *
+    |}]
 
 let%expect_test "parse: range" =
   parse_expr "0..n";
@@ -1093,9 +1099,79 @@ let%expect_test "parse: address-of binds looser than field" =
   parse_expr "&s.x";
   [%expect {| (& (. s x)) |}]
 
-let%expect_test "parse: deref binds looser than field" =
-  parse_expr "*p.x";
+let%expect_test "parse: deref after a field" =
+  parse_expr "p.x.*";
   [%expect {| (* (. p x)) |}]
+
+let%expect_test "parse: deref" =
+  parse_expr "p.*";
+  [%expect {| (* p) |}]
+
+let%expect_test "parse: deref twice" =
+  parse_expr "p.*.*";
+  [%expect {| (* (* p)) |}]
+
+let%expect_test "parse: field after a deref" =
+  parse_expr "p.*.x";
+  [%expect {| (. (* p) x) |}]
+
+let%expect_test "parse: index after a deref" =
+  parse_expr "p.*[0]";
+  [%expect {| (index (* p) 0) |}]
+
+let%expect_test "parse: call after a deref" =
+  parse_expr "p.*(1)";
+  [%expect {| (call (* p) 1) |}]
+
+let%expect_test "parse: deref after a call" =
+  parse_expr "f().*";
+  [%expect {| (* (call f)) |}]
+
+let%expect_test "parse: negation binds looser than deref" =
+  parse_expr "-p.*";
+  [%expect {| (- (* p)) |}]
+
+let%expect_test "parse: deref then multiply" =
+  parse_expr "p.* * 2";
+  [%expect {| (* (* p) 2) |}]
+
+let%expect_test "parse: assign through a deref" =
+  parse_expr "p.* = 1";
+  [%expect {| (= (* p) 1) |}]
+
+let%expect_test "parse: compound assign through a deref" =
+  parse_expr "p.* += 1";
+  [%expect {| (+= (* p) 1) |}]
+
+let%expect_test "parse: a prefix star is not an expression" =
+  parse_expr "*p";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:21
+        _f :: fn() { return *p };
+                            ^ found *
+    |}]
+
+let%expect_test "parse: a star with no operand after a name" =
+  parse_expr "p*";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:22
+        _f :: fn() { return p* };
+                             ^
+    |}]
+
+let%expect_test "parse: a star then assign after a name" =
+  parse_expr "p* = 6";
+  [%expect
+    {|
+    error: expected expression
+      at <test>:1:22
+        _f :: fn() { return p* = 6 };
+                             ^
+    |}]
 
 let%expect_test "parse: postfix on a cast is rejected" =
   parse_expr "x as i32[0]";
