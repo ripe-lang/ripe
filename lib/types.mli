@@ -44,7 +44,6 @@ val builtins : (string * ty) list
 val pp_ty : Format.formatter -> ty -> unit
 val show_ty : ty -> string
 val resolve_ty : ty -> ty
-val erase_aliases : ty -> ty
 val has_error : ty -> bool
 val ty_equal : ty -> ty -> bool
 val is_float : ty -> bool

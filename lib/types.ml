@@ -141,16 +141,6 @@ let rec show_ty t =
 
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
-(* An alias is just another name for its base type so it doesn't make two types *)
-let rec erase_aliases = function
-  | TAlias (_, base) -> erase_aliases base
-  | TPointer t -> TPointer (erase_aliases t)
-  | TStruct (name, args) -> TStruct (name, List.map erase_aliases args)
-  | TFunc (ps, r, abi) -> TFunc (List.map erase_aliases ps, erase_aliases r, abi)
-  | TArray (t, n) -> TArray (erase_aliases t, n)
-  | TSlice t -> TSlice (erase_aliases t)
-  | t -> t
-
 let rec has_error = function
   | TError -> true
   | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
@@ -158,11 +148,18 @@ let rec has_error = function
   | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
   | _ -> false
 
-let ty_equal a b =
-  match (erase_aliases a, erase_aliases b) with
-  | x, y when has_error x || has_error y -> true
-  | x, y -> x = y
+(* An alias is just another name for its base type so it doesn't make two types *)
+let rec same_shape a b =
+  match (a, b) with
+  | TAlias (_, a), b | a, TAlias (_, b) -> same_shape a b
+  | TPointer a, TPointer b | TSlice a, TSlice b -> same_shape a b
+  | TArray (a, n), TArray (b, m) -> n = m && same_shape a b
+  | TStruct (x, xs), TStruct (y, ys) -> x = y && List.equal same_shape xs ys
+  | TFunc (ps, r, x), TFunc (qs, s, y) ->
+      x = y && List.equal same_shape ps qs && same_shape r s
+  | a, b -> a = b
 
+let ty_equal a b = has_error a || has_error b || same_shape a b
 let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
 let is_unsigned t =
