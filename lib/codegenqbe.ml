@@ -84,8 +84,8 @@ type ctx = {
   abi_defs : Buffer.t;
   mutable next_abi_type : int;
   mutable tmp : int;
-  temp_names : string array ref;
-  block_labels : string array ref;
+  temp_names : string Dynarray.t;
+  block_labels : string Dynarray.t;
   mutable str_ctr : int;
 }
 
@@ -100,20 +100,11 @@ type mir_ctx = {
 }
 
 (* Every function counts temps/blocks from 0 so I'll rather keep them *)
-let cached_name cache spell n =
-  let names = !cache in
-  let have = Array.length names in
-  if n < have then names.(n)
-  else begin
-    let want = max (n + 1) (2 * have) in
-    let grown = Array.make want "" in
-    Array.blit names 0 grown 0 have;
-    for i = have to want - 1 do
-      grown.(i) <- spell i
-    done;
-    cache := grown;
-    grown.(n)
-  end
+let cached_name names spell n =
+  while Dynarray.length names <= n do
+    Dynarray.add_last names (spell (Dynarray.length names))
+  done;
+  Dynarray.get names n
 
 (* Fresh temps use names like %t0 and %t1 *)
 let fresh ctx =
@@ -1042,8 +1033,8 @@ let emit ~filename ~source_map program =
       abi_defs = Buffer.create 128;
       next_abi_type = 0;
       tmp = 0;
-      temp_names = ref [||];
-      block_labels = ref [||];
+      temp_names = Dynarray.create ();
+      block_labels = Dynarray.create ();
       str_ctr = 0;
     }
   in
