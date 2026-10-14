@@ -1929,7 +1929,9 @@ let check_func ?(is_extern = false) env fd =
 
   (* The wrapper only knows how to turn nothing or an i32 into an exit code *)
   let invalid_entry_return =
-    is_entry_point && ret_ty <> TError && ret_ty <> TUnit && ret_ty <> TInt I32
+    match resolve_ty ret_ty with
+    | TError | TUnit | TInt I32 -> false
+    | _ -> is_entry_point
   in
   if invalid_entry_return then begin
     let span = match fd.ret with Some t -> t.tspan | None -> fd.func_span in

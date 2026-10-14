@@ -939,7 +939,7 @@ let emit_mir_func ctx global_types (func : Mir.func) =
 let emit_entry_wrapper ctx (func : Mir.func) =
   emit ctx "export function w $main() {\n";
   emit_label ctx "@start";
-  if func.Mir.return_ty = TInt I32 then begin
+  if resolve_ty func.Mir.return_ty = TInt I32 then begin
     let code = fresh ctx in
     emit ctx "%s =w call $%s()\n" code func.Mir.name;
     emit ctx "ret %s\n" code
