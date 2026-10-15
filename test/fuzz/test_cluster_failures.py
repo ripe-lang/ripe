@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import collections
+import json
+import os
 import sys
 
 import harness
@@ -9,16 +11,10 @@ TOP = 14
 
 
 def failures():
-    cases = (
-        ("%s: %s" % (n, lab), src, hit)
-        for n, t in harness.contexts("corpus")
-        for lab, src, hit in m.edits(t)
-    )
+    with open(m.SAVED_FAILURES) as f:
+        saved = json.load(f)
 
-    for lab, src, hit, code, out in harness.each(cases):
-        if not m.result(code, out, hit):
-            continue
-
+    for lab, src, out in saved:
         front, down = m.split_errs(out)
 
         sig = " | ".join(front)
@@ -29,6 +25,10 @@ def failures():
 
 
 def main():
+    if not os.path.exists(m.SAVED_FAILURES):
+        print("run test_mutations first")
+        return 1
+
     want = harness.opt("--show")
 
     if want:
