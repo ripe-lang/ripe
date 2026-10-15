@@ -16,7 +16,7 @@ assign :: fn() {
   pass(value);
 };
 
-indirect :: fn(g: fn (()) ()) { g(global) };
+indirect :: fn(g: (()) -> ()) { g(global) };
 
 addressable :: fn() -> i32 {
   value : () = ();

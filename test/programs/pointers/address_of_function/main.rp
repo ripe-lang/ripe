@@ -1,6 +1,6 @@
 four :: fn() -> i32 { return 4 };
 
 main :: fn() -> i32 {
-  g : *fn() i32 = &four;
+  g : *() -> i32 = &four;
   return g.*() + g.*();
 };

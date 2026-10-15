@@ -127,7 +127,6 @@ let rec show_ty t =
   | TEnum name -> Keyname.show name
   | TFunc (ps, r, abi) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
-      let r_str = match r with TUnit -> " ()" | t -> " " ^ show_ty t in
       (* The ABI is part of the type so two funcs must not read the same *)
       let abi_str =
         match abi with
@@ -135,7 +134,7 @@ let rec show_ty t =
         | C -> "extern \"C\" "
         | AbiError -> "extern "
       in
-      Printf.sprintf "%sfn (%s)%s" abi_str p_str r_str
+      Printf.sprintf "%s(%s) -> %s" abi_str p_str (show_ty r)
   | TError -> "<unknown type>"
   | TUnit -> "()"
 

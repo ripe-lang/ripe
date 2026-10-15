@@ -141,11 +141,11 @@ let%expect_test "typred: a fn matches on abi, params and result" =
   show (f Ripe [] (TInt I32)) (f Ripe [] (TInt I64));
   [%expect
     {|
-    Ripe fn (i32) () accepts Ripe fn (i32) () = true
-    Ripe fn (i32) () accepts C extern "C" fn (i32) () = false
-    Ripe fn (i32) () accepts AbiError extern fn (i32) () = true
-    Ripe fn (i32) () accepts Ripe fn () () = false
-    Ripe fn () i32 accepts Ripe fn () i64 = false
+    Ripe (i32) -> () accepts Ripe (i32) -> () = true
+    Ripe (i32) -> () accepts C extern "C" (i32) -> () = false
+    Ripe (i32) -> () accepts AbiError extern (i32) -> () = true
+    Ripe (i32) -> () accepts Ripe () -> () = false
+    Ripe () -> i32 accepts Ripe () -> i64 = false
     |}]
 
 let%expect_test "typred: an alias is the type behind it" =

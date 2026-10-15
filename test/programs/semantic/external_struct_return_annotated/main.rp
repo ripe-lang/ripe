@@ -3,7 +3,7 @@ Pair :: struct { quot: i32, rem: i32 };
 extern "C" fn div(numer: i32, denom: i32) Pair;
 
 main :: fn() -> i32 {
-  operation : extern "C" fn (i32, i32) Pair = div;
+  operation : extern "C" (i32, i32) -> Pair = div;
   result := operation(10, 3);
   return result.quot * 10 + result.rem;
 };
