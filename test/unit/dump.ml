@@ -27,8 +27,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
   | Slice t -> "[]" ^ dump_typ t
   | FuncPtr (_, params, ret) ->
       let ps = String.concat ", " (List.map dump_typ params) in
-      let r = match ret with Some t -> " " ^ dump_typ t | None -> "" in
-      "(" ^ ps ^ ")" ^ r
+      "(" ^ ps ^ ") -> " ^ dump_typ ret
   | UnitType -> "()"
 
 and dump_expr (e : Ripe.Ast.expr) =

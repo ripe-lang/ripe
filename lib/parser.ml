@@ -45,10 +45,8 @@ let is_expr_start = function
   | _ -> false
 
 let is_type_start = function
-  | IDENT _ | STAR | LBRACKET | FUNC | EXTERN | LPAREN -> true
+  | IDENT _ | STAR | LBRACKET | EXTERN | LPAREN -> true
   | _ -> false
-
-let is_member_start = function IDENT _ -> true | _ -> false
 
 let ends_in_block = function
   | Expr { desc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ } ->
@@ -241,7 +239,7 @@ and binding_initializer st =
       |> fail
   | _ -> parse_expr st
 
-(* i32, *i32, fn (i32, i32) i32 *)
+(* i32, *i32, (i32, i32) -> i32 *)
 and parse_typ st =
   let lo = cur_pos st in
   match cur_token st with
@@ -269,19 +267,7 @@ and parse_typ st =
         let n = parse_expr st in
         expect st RBRACKET;
         mkt lo st (Array (n, parse_typ st))
-  | FUNC when is_member_start (peek_token st) ->
-      Diagnostic.error (cur_span st) "expected type" |> found st |> fail
-  | FUNC -> parse_func_ptr st lo NoAbi
-  | LPAREN ->
-      advance st;
-      if at st RPAREN then begin
-        advance st;
-        mkt lo st UnitType
-      end
-      else
-        let inner = parse_typ st in
-        expect st RPAREN;
-        { inner with tspan = span_from lo st }
+  | LPAREN -> parse_func_ptr st lo NoAbi
   | _ -> Diagnostic.error (cur_span st) "expected type" |> found st |> fail
 
 (* x : i32, x : i32 = 42, x := 42 *)
@@ -297,16 +283,21 @@ and parse_binding st context =
   let init = if at st ASSIGN then Some (binding_initializer st) else None in
   (name, typ, init)
 
-(* fn (i32, i32) i32, extern "C" fn (i32) i32 *)
+(* (i32, i32) -> i32, () -> (), (i32), extern "C" (i32) -> i32 *)
 and parse_func_ptr st lo abi =
-  expect st FUNC;
   expect st LPAREN;
   let params = comma_sep st RPAREN parse_typ in
   expect st RPAREN;
-  let ret =
-    if is_type_start (cur_token st) then Some (parse_typ st) else None
-  in
-  mkt lo st (FuncPtr (abi, params, ret))
+  if at st ARROW then begin
+    advance st;
+    mkt lo st (FuncPtr (abi, params, parse_typ st))
+  end
+  else
+    match (abi, params) with
+    | NoAbi, [] -> mkt lo st UnitType
+    | NoAbi, [ inner ] -> { inner with tspan = span_from lo st }
+    | (NoAbi | NamedAbi _), _ ->
+        Diagnostic.error (cur_span st) "expected `->`" |> found st |> fail
 
 (* The "C" of extern "C" fn exit(code: i32) never *)
 and parse_abi st =

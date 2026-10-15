@@ -10,11 +10,11 @@ SHAPES = (
     ("i32", "0"),
     ("*i32", "null"),
     ("[2]i32", "[0, 0]"),
-    ("fn (i32) i32", "h0"),
+    ("(i32) -> i32", "h0"),
     ("*[2]i32", "null"),
     ("[2]*i32", "[null, null]"),
     ("never", "spin()"),
-    ('extern "C" fn (i32) i32', "hc"),
+    ('extern "C" (i32) -> i32', "hc"),
     ("**i32", "null"),
     ("ptr", "null"),
     ("bool", "true"),
@@ -37,8 +37,6 @@ SKIP = {
     ("ret", "never"),
     ("local_ret", "never"),
     ("cast", "[2]*i32"),
-    ("alias", "fn (i32) i32"),
-    ("local_alias", "fn (i32) i32"),
 }
 
 CORRUPTIONS = {

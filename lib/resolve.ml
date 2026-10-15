@@ -421,7 +421,7 @@ and resolve_typ st t =
       resolve_typ st t
   | FuncPtr (_, ps, ret) ->
       List.iter (resolve_typ st) ps;
-      Option.iter (resolve_typ st) ret
+      resolve_typ st ret
   | UnitType -> ()
 
 and declare_block_item st d =

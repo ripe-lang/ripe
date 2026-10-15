@@ -23,7 +23,7 @@ CLOSERS = (")", "}", "]", ")]", "}}")
 NAMES = "abcdefghijklmnopqrstuvwxyz"
 
 FIELD_TYPES = (("i32", "0"), ("*i32", "null"), ("[2]i32", "[0, 0]"))
-PARAM_TYPES = FIELD_TYPES + (("fn (i32) i32", "h0"),)
+PARAM_TYPES = FIELD_TYPES + (("(i32) -> i32", "h0"),)
 
 PRELUDE = "h0 :: fn(a: i32) -> i32 { return a };\n"
 

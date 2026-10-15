@@ -30,8 +30,8 @@ let%expect_test "types: a type prints the way it is written" =
     [3][]char
     Point
     Word
-    fn (i32, str) bool
-    extern "C" fn () ()
+    (i32, str) -> bool
+    extern "C" () -> ()
     <unknown type>
     never
     null
@@ -76,7 +76,7 @@ let%expect_test "types: an alias equals the type behind it" =
     [2]Word equals [2]i64 = true
     [2]Word equals [3]i64 = false
     []Word equals []i64 = true
-    fn (Word) Word equals fn (i64) i64 = true
+    (Word) -> Word equals (i64) -> i64 = true
     Point[Word] equals Point[i64] = true
     |}]
 
@@ -98,8 +98,8 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
     has_error [2]<unknown type> = true
     has_error []<unknown type> = true
     has_error Bad = true
-    has_error fn (i32) <unknown type> = true
-    has_error fn (<unknown type>) () = true
+    has_error (i32) -> <unknown type> = true
+    has_error (<unknown type>) -> () = true
     has_error Point[<unknown type>] = true
     has_error *i32 = false
     |}]
@@ -175,7 +175,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
     wide ptr = true
     wide null = true
     wide cstr = true
-    wide fn () () = true
+    wide () -> () = true
     wide f64 = false
     wide Word = true
     |}]

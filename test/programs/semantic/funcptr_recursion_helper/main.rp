@@ -3,6 +3,6 @@ fib :: fn(n: i32) -> i32 {
   return fib(n - 1) + fib(n - 2);
 };
 
-apply :: fn(g: fn (i32) i32, v: i32) -> i32 { return g(v) };
+apply :: fn(g: (i32) -> i32, v: i32) -> i32 { return g(v) };
 
 main :: fn() -> i32 { return apply(fib, 9) };

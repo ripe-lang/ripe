@@ -1,6 +1,6 @@
 twice :: fn(n: i32) -> i32 { return n * 2 };
 main :: struct() -> i32 {
-  f : fn (i32) i32 = twice;
-  g : extern "C" fn (i32) i32 = twice;
+  f : (i32) -> i32 = twice;
+  g : extern "C" (i32) -> i32 = twice;
   return f(1);
 }

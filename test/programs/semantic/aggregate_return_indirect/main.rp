@@ -12,6 +12,6 @@ sum_pair :: fn(value: Pair) -> i32 {
 };
 
 main :: fn() -> i32 {
-  make : fn (i32, i32) Pair = make_pair;
+  make : (i32, i32) -> Pair = make_pair;
   return sum_pair(make(8, 13));
 };

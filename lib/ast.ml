@@ -132,7 +132,7 @@ and local_decl =
 and typ_desc =
   | Named of name
   | Pointer of typ
-  | FuncPtr of abi * typ list * typ option
+  | FuncPtr of abi * typ list * typ
   | Array of expr * typ
   | Slice of typ
   | UnitType

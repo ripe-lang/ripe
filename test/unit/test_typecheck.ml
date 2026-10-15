@@ -135,7 +135,7 @@ let%expect_test "typecheck: fn ptr assign and call" =
     {|
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() {
-  op : fn (i32, i32) i32 = add;
+  op : (i32, i32) -> i32 = add;
   op(1, 2);
 };
 |};
@@ -157,15 +157,15 @@ let%expect_test "typecheck: fn ptr signature mismatch" =
     {|
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() {
-  op : fn (i32) i32 = add;
+  op : (i32) -> i32 = add;
 };
 |};
   [%expect
     {|
     error: type mismatch
       at <test>:4:23
-          op : fn (i32) i32 = add;
-                              ^~~ expected fn (i32) i32, found fn (i32, i32) i32
+          op : (i32) -> i32 = add;
+                              ^~~ expected (i32) -> i32, found (i32, i32) -> i32
     |}]
 
 let%expect_test "typecheck: non-callable variable" =
@@ -241,7 +241,7 @@ let%expect_test "typecheck: fn ptr as parameter" =
   run_src
     {|
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
-apply :: fn(f: fn (i32, i32) i32, a: i32, b: i32) -> i32 { return f(a, b) };
+apply :: fn(f: (i32, i32) -> i32, a: i32, b: i32) -> i32 { return f(a, b) };
 g :: fn() { apply(add, 1, 2) };
 |};
   [%expect {| ok |}]
@@ -251,7 +251,7 @@ let%expect_test "typecheck: fn ptr wrong arity at call" =
     {|
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() {
-  op : fn (i32, i32) i32 = add;
+  op : (i32, i32) -> i32 = add;
   op(1);
 };
 |};
@@ -267,7 +267,7 @@ let%expect_test "typecheck: fn ptr forward reference" =
   run_src
     {|
 f :: fn() {
-  op : fn (i32, i32) i32 = add;
+  op : (i32, i32) -> i32 = add;
   op(1, 2);
 };
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
@@ -278,7 +278,7 @@ let%expect_test "typecheck: fn ptr returning fn ptr" =
   run_src
     {|
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
-get_op :: fn() -> fn (i32, i32) i32 { return add };
+get_op :: fn() -> (i32, i32) -> i32 { return add };
 f :: fn() {
   op := get_op();
   op(1, 2);
@@ -290,7 +290,7 @@ let%expect_test "typecheck: unit fn ptr zero args" =
   run_src {|
 noop :: fn() {};
 f :: fn() {
-  p : fn () = noop;
+  p : () -> () = noop;
   p();
 };
 |};
@@ -2038,7 +2038,7 @@ f :: fn() -> i32 { p : Pt = Point.{ x: 1, y: 2 }; return p.x };
 let%expect_test "typecheck: type alias of a function pointer is callable" =
   run_src
     {|
-BinOp :: (fn (i32, i32) i32);
+BinOp :: (i32, i32) -> i32;
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() -> i32 { op : BinOp = add; return op(2, 3) };
 |};
@@ -2413,7 +2413,7 @@ let%expect_test "typecheck: function pointer may return never" =
   run_src
     {|
 extern "C" fn exit(code: i32) never;
-f :: fn() { stop : extern "C" fn (i32) never = exit;
+f :: fn() { stop : extern "C" (i32) -> never = exit;
  stop(1) };
 |};
   [%expect {| ok |}]
@@ -3931,7 +3931,7 @@ let%expect_test "typecheck: widening reaches remaining value positions" =
     {|
 take :: fn(value: i64) -> i64 { value };
 tail :: fn(value: i32) -> i64 { value };
-apply :: fn(f: fn (i64) i64, value: i8) -> i64 { f(value) };
+apply :: fn(f: (i64) -> i64, value: i8) -> i64 { f(value) };
 f :: fn(small: i8, index: u8) -> i64 {
   left : i64 = 0;
   right : i64 = 0;  

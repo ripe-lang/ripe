@@ -1,7 +1,7 @@
 main :: fn() -> i32 {
   p : *nosuch = null;
   a : [1]nosuch;
-  f : fn () nosuch;
+  f : () -> nosuch;
   _x := p.field;
   _y := p.*;
   _z := f();

@@ -569,8 +569,8 @@ let%expect_test "parse: cast" =
   [%expect {| (+ (cast *[2]i32 p) (cast i64 x)) |}]
 
 let%expect_test "parse: cast to a function pointer type" =
-  parse_expr {|cast(extern "C" fn (i32) i32, f)(1)|};
-  [%expect {| (call (cast (i32) i32 f) 1) |}]
+  parse_expr {|cast(extern "C" (i32) -> i32, f)(1)|};
+  [%expect {| (call (cast (i32) -> i32 f) 1) |}]
 
 let%expect_test "parse: cast without a comma" =
   parse_expr "cast(i32 x)";
@@ -1199,14 +1199,14 @@ f :: fn() {
 
 let%expect_test "parse: function pointer parameter type" =
   run_src {|
-apply :: fn(g: fn (i32) i32, v: i32) -> i32 { return g(v) };
+apply :: fn(g: (i32) -> i32, v: i32) -> i32 { return g(v) };
 |};
   [%expect {| ok |}]
 
 let%expect_test "parse: C function pointer parameter type" =
   run_src
     {|
-apply :: fn(g: extern "C" fn (i32) i32, v: i32) -> i32 { return g(v) };
+apply :: fn(g: extern "C" (i32) -> i32, v: i32) -> i32 { return g(v) };
 |};
   [%expect {| ok |}]
 
@@ -1419,12 +1419,44 @@ let%expect_test "parse: slice bounds are expressions" =
   [%expect {| (index a (.. (+ i 1) n)) |}]
 
 let%expect_test "parse: function pointer returning array" =
-  run_src "T :: (fn (i32) [3]i32);";
+  run_src "T :: (i32) -> [3]i32;";
   [%expect {| ok |}]
 
 let%expect_test "parse: function pointer returning slice" =
-  run_src "T :: (fn (i32) []i32);";
+  run_src "T :: (i32) -> []i32;";
   [%expect {| ok |}]
+
+let%expect_test "parse: a function type with no params" =
+  parse_expr "cast(() -> (), f)";
+  [%expect {| (cast () -> () f) |}]
+
+let%expect_test "parse: a function type arrow groups to the right" =
+  parse_expr "cast(() -> (i32) -> i32, f)";
+  [%expect {| (cast () -> (i32) -> i32 f) |}]
+
+let%expect_test "parse: a function type takes a function type" =
+  parse_expr "cast(((i32) -> i32) -> i32, f)";
+  [%expect {| (cast ((i32) -> i32) -> i32 f) |}]
+
+let%expect_test "parse: two types in parens need an arrow" =
+  run_src "T :: (i32, i32);";
+  [%expect
+    {|
+    error: expected `->`
+      at <test>:1:16
+        T :: (i32, i32);
+                       ^ found ;
+    |}]
+
+let%expect_test "parse: fn is not a type" =
+  run_src "T :: *fn (i32) i32;";
+  [%expect
+    {|
+    error: expected type
+      at <test>:1:7
+        T :: *fn (i32) i32;
+              ^~ found `fn`
+    |}]
 
 let%expect_test "parse: struct fields need a separator" =
   run_src "S :: struct { x: i32 y: i32 };";

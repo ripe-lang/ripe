@@ -3,7 +3,7 @@ extern "C" fn malloc(n: usize) ptr;
 
 Point :: struct { x: i32, y: i32 };
 
-BinOp :: (fn (i32, i32) i32);
+BinOp :: (i32, i32) -> i32;
 
 add :: fn(a: i32, b: i32) -> i32 { return a + b };
 
@@ -22,7 +22,7 @@ main :: fn() -> i32 {
   deep : **u8 = cast(**u8, p);
   rows : *[2]i32 = cast(*[2]i32, p);
   fp : *BinOp = cast(*BinOp, p);
-  indirect : *fn (i32, i32) i32 = cast(*fn (i32, i32) i32, p);
+  indirect : *(i32, i32) -> i32 = cast(*(i32, i32) -> i32, p);
   erased : ptr = cast(ptr, p);
 
   op : BinOp = add;

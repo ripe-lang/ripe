@@ -561,8 +561,7 @@ let rec ty_of_ast env t =
   | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
   | FuncPtr (abi, ps, ret) -> (
       let pts = List.map (ty_of_ast env) ps in
-      let rt = match ret with Some t -> ty_of_ast env t | None -> TUnit in
-      match (resolve_abi abi, rt, List.exists has_error pts) with
+      match (resolve_abi abi, ty_of_ast env ret, List.exists has_error pts) with
       | AbiError, _, _ -> TError
       | abi, rt, false when not (has_error rt) -> TFunc (pts, rt, abi)
       | _ -> TError)
@@ -1841,8 +1840,7 @@ let rec named_type_spans t =
   | Named _ -> [ t.tspan ]
   | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
   | FuncPtr (_, params, ret) ->
-      List.concat_map named_type_spans params
-      @ Option.value ~default:[] (Option.map named_type_spans ret)
+      List.concat_map named_type_spans params @ named_type_spans ret
   | UnitType -> []
 
 (* An alias is only a second name for what it points at. A pointer in the

@@ -8,5 +8,5 @@ error: undefined type
              ^~~~~~
 error: undefined type
   at main.rp:4:13
-      f : fn () nosuch;
+      f : () -> nosuch;
                 ^~~~~~

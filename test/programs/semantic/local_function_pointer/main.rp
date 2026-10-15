@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
-  handler : fn (i32) i32 = {
+  handler : (i32) -> i32 = {
     increment :: fn(value: i32) -> i32 { value + 1 };
     increment
   };
