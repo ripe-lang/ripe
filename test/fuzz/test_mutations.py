@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import json
+import os
 import re
 import sys
 
@@ -71,6 +73,8 @@ DOWNSTREAM_KINDS = 2
 
 DELIMS = set(harness.DELIMS)
 
+SAVED_FAILURES = os.path.join(harness.WORK, "mutations.json")
+
 
 def split_errs(out):
     heads = re.findall(r"^error: (.*)$", out, re.M)
@@ -137,6 +141,9 @@ def main():
             bad.append((tag, lab, src, out))
 
     print("worst %d front end messages" % worst)
+
+    with open(SAVED_FAILURES, "w") as f:
+        json.dump([(lab, src, out) for _tag, lab, src, out in bad], f)
 
     return harness.summary("single token edits", ran, bad, shown)
 
