@@ -7,6 +7,9 @@
 
 A systems programming language.
 
+> [!NOTE]
+> I'm taking a break from Ripe because it was a great way to learn how compilers work but it didn't land me a compiler job.
+
 > [!WARNING]
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.
 
