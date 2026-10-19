@@ -24,7 +24,6 @@ let i32_locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |]
 let func locals stmts terminator =
   {
     M.func_name = "f";
-    func_source_name = "f";
     func_export = false;
     func_abi = Ripe.Types.Ripe;
     func_params = [];
@@ -323,20 +322,15 @@ main :: fn() -> i32 {
     }
     |}]
 
-let%expect_test "mir: a bounds check splits the block it guards" =
+let%expect_test "mir: an index stays in the block it reads from" =
   Pipeline.run_mir "get :: fn(a: []i32, i: usize) -> i32 { return a[i] };";
   [%expect
     {|
     fn _R3get(%0: []i32, %1: usize) i32 {
       local %0 a: []i32 param
       local %1 i: usize param
-      local %2: usize temp
 
       block0:
-        %2 = len %0
-        check_bounds copy %1 copy %2 block1
-
-      block1:
         return copy %0[copy %1]
     }
     |}]
@@ -352,21 +346,18 @@ let%expect_test "mir: a -1 divisor skips the divide" =
       local %3: bool temp
 
       block0:
-        check_div_zero copy %1 block1
+        %3 = copy %1 == -1
+        branch copy %3 block1 block2
 
       block1:
-        %3 = copy %1 == -1
-        branch copy %3 block2 block3
+        %2 = -copy %0
+        jump block3
 
       block2:
-        %2 = -copy %0
-        jump block4
+        %2 = copy %0 / copy %1
+        jump block3
 
       block3:
-        %2 = copy %0 / copy %1
-        jump block4
-
-      block4:
         return copy %2
     }
     |}]
@@ -704,13 +695,8 @@ let%expect_test "mir: a slice expression carries a base and a length" =
     fn _R1f(%1: [4]i32) []i32 {
       local %0 result: []i32 result
       local %1 a: [4]i32 param
-      local %2: usize temp
 
       block0:
-        %2 = len %1
-        check_slice_bounds 1 3 copy %2 block1
-
-      block1:
         %0 = slice %1 1 3
         return
     }
@@ -727,22 +713,12 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     {|
     fn _R1f() i32 {
       local %0 a: [2]i32 user
-      local %1: usize temp
-      local %2: usize temp
 
       block0:
         %0 = undef
         %0[0] = 1
         %0[1] = 2
-        %1 = len %0
-        check_bounds 0 copy %1 block1
-
-      block1:
         %0[0] = copy %0[0] + 5
-        %2 = len %0
-        check_bounds 0 copy %2 block2
-
-      block2:
         return copy %0[0]
     }
     |}]
@@ -755,24 +731,23 @@ let%expect_test "mir: a shift guards against an out of range count" =
       local %0 a: i32 param
       local %1 b: i32 param
       local %2: i32 temp
-      local %3: bool temp
+      local %3: u64 temp
+      local %4: bool temp
 
       block0:
-        check_negative_shift copy %1 block1
+        %3 = cast copy %1 to u64
+        %4 = copy %3 < 32
+        branch copy %4 block1 block2
 
       block1:
-        %3 = copy %1 < 32
-        branch copy %3 block2 block3
+        %2 = copy %0 << copy %1
+        jump block3
 
       block2:
-        %2 = copy %0 << copy %1
-        jump block4
+        %2 = 0
+        jump block3
 
       block3:
-        %2 = 0
-        jump block4
-
-      block4:
         return copy %2
     }
     |}]
@@ -802,17 +777,12 @@ let%expect_test "mir: an array literal writes each element in order" =
     {|
     fn _R1f() i32 {
       local %0 a: [3]i32 user
-      local %1: usize temp
 
       block0:
         %0 = undef
         %0[0] = 7
         %0[1] = 8
         %0[2] = 9
-        %1 = len %0
-        check_bounds 1 copy %1 block1
-
-      block1:
         return copy %0[1]
     }
     |}]
@@ -883,13 +853,7 @@ let%expect_test "mir: a deref through a pointer is a place projection" =
       local %0 p: *i32 param
 
       block0:
-        check_null copy %0 block1
-
-      block1:
         %0.deref = 4
-        check_null copy %0 block2
-
-      block2:
         return copy %0.deref
     }
     |}]

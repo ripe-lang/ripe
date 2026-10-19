@@ -1,6 +1,5 @@
 (TFuncDecl
-   { tfunc_key = 0; tfunc_name = "_R3add"; tfunc_source_name = "add";
-     tfunc_entry_point = false;
+   { tfunc_key = 0; tfunc_name = "_R3add"; tfunc_entry_point = false;
      tfunc_params =
      [({ id = 2; name = "a"; link_name = "a"; kind = Param;
          entry_point = false; span = (10,16); name_span = (10,16) },
@@ -33,8 +32,8 @@
        ];
      tfunc_export = false; tfunc_abi = Ripe })
 (TFuncDecl
-   { tfunc_key = 1; tfunc_name = "_R4main"; tfunc_source_name = "main";
-     tfunc_entry_point = true; tfunc_params = []; tfunc_ret = (TInt I32);
+   { tfunc_key = 1; tfunc_name = "_R4main"; tfunc_entry_point = true;
+     tfunc_params = []; tfunc_ret = (TInt I32);
      tfunc_body =
      [{ tdesc =
         (TReturn

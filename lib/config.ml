@@ -73,21 +73,3 @@ let toolchain () =
   | "linux-x86_64" ->
       { assembler = [ assembler (); "--64" ]; linker = [ linker () ] }
   | _ -> failwith "no toolchain for this host"
-
-(* A fresh build has no install site so we also look beside the binary *)
-let runtime_object () =
-  let dir = executable_dir () in
-  let candidates =
-    Option.to_list (nonempty_environment "RIPE_RUNTIME")
-    @ List.map
-        (fun site -> Filename.concat site "panic.o")
-        Ripesites.Sites.runtime
-    @ [
-        Filename.concat dir
-          (Filename.concat Filename.parent_dir_name "runtime/panic.o");
-        Filename.concat dir "../lib/ripe/runtime/panic.o";
-      ]
-  in
-  match List.find_opt Sys.file_exists candidates with
-  | Some path -> path
-  | None -> failwith "runtime not found (set RIPE_RUNTIME)"

@@ -1,4 +1,0 @@
-panic: negative shift amount
-  at main.rp:3:10
-  in main
-exit: 79

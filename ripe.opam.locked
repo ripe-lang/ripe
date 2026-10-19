@@ -25,17 +25,13 @@ depends: [
   "cmdliner" {= "2.1.1" & with-dev-setup}
   "compiler-cloning" {= "enabled"}
   "cppo" {= "1.8.0"}
-  "csexp" {= "1.5.2"}
+  "csexp" {= "1.5.2" & with-test}
   "dune" {= "3.24.2"}
   "dune-build-info" {= "3.24.2" & with-dev-setup}
   "dune-configurator" {= "3.24.2" & with-test}
-  "dune-private-libs" {= "3.24.2"}
-  "dune-site" {= "3.24.2"}
-  "dyn" {= "3.24.2"}
   "either" {= "1.0.0" & with-dev-setup}
   "fix" {= "20250919" & with-dev-setup}
   "fpath" {= "0.7.3" & with-dev-setup}
-  "fs-io" {= "3.24.2"}
   "jane-street-headers" {= "v0.17.0" & with-test}
   "jst-config" {= "v0.17.0" & with-test}
   "menhir" {= "20260209" & with-dev-setup}
@@ -55,8 +51,6 @@ depends: [
   "ocamlformat" {= "0.29.0" & with-dev-setup}
   "ocamlformat-lib" {= "0.29.0" & with-dev-setup}
   "ocp-indent" {= "1.10.0" & with-dev-setup}
-  "ordering" {= "3.24.2"}
-  "pp" {= "2.0.0"}
   "ppx_assert" {= "v0.17.0" & with-test}
   "ppx_base" {= "v0.17.0" & with-test}
   "ppx_cold" {= "v0.17.0" & with-test}
@@ -77,9 +71,7 @@ depends: [
   "sexplib0" {= "v0.17.0"}
   "stdio" {= "v0.17.0" & with-test}
   "stdlib-shims" {= "0.3.0"}
-  "stdune" {= "3.24.2"}
   "time_now" {= "v0.17.0" & with-test}
-  "top-closure" {= "3.24.2"}
   "topkg" {= "1.1.1" & with-dev-setup}
   "uucp" {= "18.0.0" & with-dev-setup}
   "uuseg" {= "18.0.0" & with-dev-setup}
@@ -88,18 +80,16 @@ depends: [
 build: [
   ["dune" "subst"] {dev}
   [
-    "dune"
-    "build"
-    "-p"
-    name
-    "-j"
-    jobs
-    "--promote-install-files=false"
-    "@install"
-    "@runtest" {with-test}
-    "@doc" {with-doc}
-  ]
-  ["dune" "install" "-p" name "--create-install-files" name]
+  "dune"
+  "build"
+  "-p"
+  name
+  "-j"
+  jobs
+  "@install"
+  "@runtest" {with-test}
+  "@doc" {with-doc}
+]
 ]
 dev-repo: "git+https://github.com/ripe-lang/ripe.git"
 x-maintenance-intent: ["(latest)"]

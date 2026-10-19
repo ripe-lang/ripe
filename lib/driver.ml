@@ -76,7 +76,7 @@ let assemble qbe toolchain il =
 
 let link toolchain ~output object_file libraries =
   let args =
-    [ "-o"; output; object_file; Config.runtime_object () ]
+    [ "-o"; output; object_file ]
     @ List.map (fun library -> "-l" ^ library) libraries
   in
   run (shell_command (toolchain.Config.linker @ args));
@@ -214,10 +214,7 @@ let compile stage backend ~out libraries filename =
     match backend with
     | Backend.X86 -> link_bytes (Codegenx86.emit mir)
     | Backend.Qbe ->
-        let il =
-          Codegenqbe.emit program.Program.filename program.Program.source_map
-            mir
-        in
+        let il = Codegenqbe.emit mir in
 
         stop_at Qbe (fun () -> Output.text output il);
         let qbe = Config.qbe () in

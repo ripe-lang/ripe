@@ -64,7 +64,6 @@ let mk span ty desc = { tdesc = desc; ty; tspan = span }
 type tfunc_def = {
   tfunc_key : Symbol.key;
   tfunc_name : string;
-  tfunc_source_name : string;
   tfunc_entry_point : bool;
   tfunc_params : (Symbol.t * ty) list;
   tfunc_ret : ty;

@@ -38,7 +38,6 @@ jobs:
               - 'bin/**'
               - 'lib/**'
               - 'test/**'
-              - 'runtime/**'
               - 'dune-project'
               - 'ripe.opam'
               - 'ripe.opam.locked'

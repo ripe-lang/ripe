@@ -26,8 +26,7 @@ let mir_src src =
   Ripe.Mir.verify program;
   program
 
-let emit_src src =
-  Ripe.Codegenqbe.emit "<test>" (Ripe.Sourcemap.create src) (mir_src src)
+let emit_src src = Ripe.Codegenqbe.emit (mir_src src)
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =

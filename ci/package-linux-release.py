@@ -34,16 +34,13 @@ if RELEASE_ROOT.exists() or ARCHIVE.exists() or CHECKSUM.exists():
 
 QBE = ROOT / "vendor/qbe/qbe"
 RIPEC = ROOT / "_build/install/default/bin/ripec"
-RUNTIME = ROOT / "_build/install/default/lib/ripe/runtime/panic.o"
 TOOLCHAIN = RELEASE_ROOT / "lib/ripe/toolchain/linux-x86_64"
 
 (RELEASE_ROOT / "bin").mkdir(parents=True)
-(RELEASE_ROOT / "lib/ripe/runtime").mkdir(parents=True)
 (TOOLCHAIN / "bin").mkdir(parents=True)
 (RELEASE_ROOT / "licenses").mkdir(parents=True)
 
 shutil.copy2(RIPEC, RELEASE_ROOT / "bin")
-shutil.copy2(RUNTIME, RELEASE_ROOT / "lib/ripe/runtime")
 shutil.copy2(QBE, TOOLCHAIN / "bin")
 
 shutil.copy2(ROOT / "COPYRIGHT.md", RELEASE_ROOT)

@@ -71,13 +71,6 @@ type call = {
   call_variadic_start : int option;
 }
 
-type check =
-  | Bounds of operand * operand
-  | SliceBounds of operand * operand * operand
-  | Null of operand
-  | DivZero of operand
-  | NegativeShift of operand
-
 type stmt = { stmt_desc : stmt_desc; stmt_span : Ast.span }
 
 and stmt_desc =
@@ -90,7 +83,6 @@ type terminator = { term_desc : terminator_desc; term_span : Ast.span }
 and terminator_desc =
   | Jump of block_id
   | Branch of operand * block_id * block_id
-  | Check of check * block_id
   | ReturnValue of operand option
   | Unreachable
 
@@ -105,7 +97,6 @@ type block = { block_stmts : stmt list; block_term : terminator option }
 
 type func = {
   func_name : string;
-  func_source_name : string;
   func_export : bool;
   func_abi : Types.func_abi;
   func_params : local_id list;
