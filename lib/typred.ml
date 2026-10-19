@@ -44,7 +44,7 @@ let rec root_lvalue te =
   | Tast.TIndex (base, _) -> root_through base
   | _ -> None
 
-(* Going through a pointer or slice lands on memory this binding doesn't own *)
+(* A walk through a pointer or slice lands on memory this binding doesn't own *)
 and root_through base =
   match resolve_ty base.Tast.ty with
   | TPointer _ | TSlice _ -> None

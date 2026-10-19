@@ -31,14 +31,13 @@ type texpr_desc =
   | TVariant of Keyname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
-  | TWhile of Ast.loop_label option * texpr * tblock
-  | TFor of Ast.loop_label option * Symbol.t * ty * texpr * tblock
+  | TFor of Symbol.t * ty * texpr * tblock
   | TBinding of Symbol.t * ty * texpr
   | TReturn of texpr option
-  | TBreak of Ast.loop_label option * texpr option
-  | TContinue of Ast.loop_label option
+  | TBreak of int * texpr option
+  | TContinue of int
   | TLocalDecl
-  | TLoop of Ast.loop_label option * tblock
+  | TLoop of tblock
   | TMatch of texpr * tarm list
   | TUnitLit
 
@@ -56,7 +55,6 @@ type tfunc_def = {
   tfunc_ret : ty;
   tfunc_body : tblock;
   tfunc_export : bool;
-  tfunc_variadic : bool;
   tfunc_abi : func_abi;
 }
 
@@ -74,7 +72,6 @@ type tdecl =
   | TExternDecl of tfunc_def
   | TGlobalDecl of tglobal_def
   | TTypeAliasDecl of Keyname.t * ty
-  | TEnumDecl of Keyname.t
 
-val mk : ?span:Ast.span -> ty -> texpr_desc -> texpr
+val mk : Ast.span -> ty -> texpr_desc -> texpr
 val show_tdecl : tdecl -> string

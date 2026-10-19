@@ -4,6 +4,7 @@ open Types
 
 type t
 
+val tag_ty : ty
 val create : unit -> t
 val set_struct_fields : t -> Symbol.key -> ty list -> unit
 val struct_fields : t -> Symbol.key -> ty iarray

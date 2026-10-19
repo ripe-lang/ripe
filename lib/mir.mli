@@ -142,5 +142,6 @@ type program = {
 }
 
 val build : Tast.tdecl list -> program
+val with_entry : program -> program
 val dump : program -> string
 val verify : program -> unit

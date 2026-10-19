@@ -17,10 +17,13 @@ type 'a spanned = { value : 'a; span : span }
 
 let spanned value span = { value; span }
 
-type loop_label = name spanned [@@deriving show { with_path = false }]
-
 (* The Point of Point :: struct { x: i32 } *)
 type ident = name spanned [@@deriving show { with_path = false }]
+type loop_label = name spanned [@@deriving show { with_path = false }]
+
+(* A while is a loop too but only a plain loop can break with a value *)
+type loop_source = PlainLoop | WhileLoop | ForLoop
+[@@deriving show { with_path = false }]
 
 type binop =
   | Add
@@ -74,6 +77,9 @@ let show_unop_sym = function
   | Deref -> "*"
   | AddressOf -> "&"
 
+(* The = of x := 5 and the second : of N :: 5 *)
+type binder = RunTime | CompileTime [@@deriving show { with_path = false }]
+
 type expr_desc =
   | Int of int64 * string option
   | Float of float * string option
@@ -101,17 +107,17 @@ type expr_desc =
   | StructLit of name spanned * (name option spanned * expr) list
   | Block of block
   | If of (expr * block spanned) list * block spanned option
-  | While of loop_label option * expr * block
   | For of loop_label option * name spanned * expr * block
-  | Binding of name spanned * typ option * expr option
+  | Binding of binding
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
-  | Loop of loop_label option * block
+  | Loop of loop_label option * loop_source * block
   | Match of expr * arm list
   | Unit
 
 and expr = { edesc : expr_desc; espan : span }
+and block = expr list
 
 (* math.Vec, value.field *)
 and path = { owner : name spanned Nonempty.t; member : name spanned }
@@ -151,7 +157,8 @@ and struct_def = {
   struct_span : span;
 }
 
-and type_alias_def = { alias_name : ident; alias_typ : typ; alias_span : span }
+(* x : i32 = 5, x := 5, x : i32 *)
+and bind_form = Typed of typ * expr | Inferred of expr | Declared of typ
 
 (* TODO(f1ac): every enum is an i32 and flags don't exist *)
 (* TODO(d737): a variant carries no explicit value and no payload *)
@@ -179,6 +186,11 @@ let owner_expr p =
   | [], { value; span } -> { edesc = Ident value; espan = span }
   | first :: rest, last ->
       path_expr { owner = Nonempty.make first rest; member = last }
+
+let bind_value b =
+  match b.bind_form with
+  | Typed (_, e) | Inferred e -> Some e
+  | Declared _ -> None
 
 let path_names p = List.map (fun n -> n.value) (Nonempty.to_list p.owner)
 let path_split p = (path_names p, p.member.value)

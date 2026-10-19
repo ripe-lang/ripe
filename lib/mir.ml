@@ -147,7 +147,6 @@ type program = {
 }
 
 type loop_ctx = {
-  label : Ast.name option;
   continue_block : block_id;
   break_block : block_id;
   result : (place * ty) option;
@@ -224,18 +223,6 @@ let terminate state desc span =
   if Option.is_none b.block_term then
     Dynarray.set state.blocks state.current
       { b with block_term = Some { term_desc = desc; term_span = span } }
-
-let loop_target state label span =
-  let target =
-    match (label, state.loops) with
-    | None, loop :: _ -> Some loop
-    | None, [] -> None
-    | Some label, loops ->
-        List.find_opt (fun loop -> loop.label = Some label.Ast.value) loops
-  in
-  match target with
-  | Some target -> target
-  | None -> Diagnostic.ice ~span "loop target does not exist"
 
 let local_place span id =
   { place_base = Local id; place_projs = []; place_span = span }
@@ -488,24 +475,11 @@ and lower_match state destination expr scrutinee arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
   let join = new_block state in
-  let ty = scrutinee.ty in
-  let wanted value =
-    match resolve_ty ty with
-    | TBool -> Bool (value <> 0L)
-    | TChar -> Char (Int64.to_int value)
-    | _ -> Int value
-  in
   let rec lower_arms = function
     | [] -> terminate state Unreachable expr.tspan
     | { tpat = TPatWild; tbody } :: _ ->
         lower_arm state destination expr join tbody
-    | { tpat = TPatBind (symbol, bound_ty); tbody } :: _ ->
-        let id = declare state symbol User bound_ty expr.tspan in
-        assign state
-          (local_place expr.tspan id)
-          (copy expr.tspan bound_ty subject);
-        lower_arm state destination expr join tbody
-    | { tpat = TPatConst value; tbody } :: rest ->
+    | { tpat; tbody } :: rest ->
         let no = new_block state in
         let yes = new_block state in
         let against = const expr.tspan ty (wanted value) in
@@ -546,30 +520,11 @@ and lower_cond state expr yes no =
       let condition = lower_expr state expr in
       terminate state (Branch (condition, yes, no)) expr.tspan
 
-(* jump block1
-   block1:
-     %2 = copy %1 < copy %0
-     branch copy %2 block2 block3
-   block2:
-     %1 = copy %1 + 1
-     jump block1 *)
-and lower_while state span label condition body =
-  let condition_block = new_block state in
-  let body_block = new_block state in
-  let exit_block = new_block state in
-  terminate state (Jump condition_block) span;
-  switch state condition_block;
-  lower_cond state condition body_block exit_block;
-  switch state body_block;
-  lower_loop_body state span label condition_block exit_block None body;
-  switch state exit_block
-
 (* The stack gives nested loop control the nearest matching target *)
 (* %1 = copy %1 + 1
    jump block1 *)
-and lower_loop_body state span label continue_block break_block result body =
-  let label = Option.map (fun label -> label.Ast.value) label in
-  state.loops <- { label; continue_block; break_block; result } :: state.loops;
+and lower_loop_body state span continue_block break_block result body =
+  state.loops <- { continue_block; break_block; result } :: state.loops;
   List.iter (lower_stmt state) body;
   state.loops <- List.tl state.loops;
   if is_live state then terminate state (Jump continue_block) span
@@ -583,7 +538,7 @@ and lower_loop_body state span label continue_block break_block result body =
      %4 = copy %1 + 1
      %1 = copy %4
      jump block1 *)
-and lower_counted_loop state span label op ty counter limit elem body =
+and lower_counted_loop state span op ty counter limit elem body =
   let condition_block = new_block state in
   let body_block = new_block state in
   let step_block = new_block state in
@@ -598,7 +553,7 @@ and lower_counted_loop state span label op ty counter limit elem body =
   (match elem with
   | Some (destination, value) -> assign state destination value
   | None -> ());
-  lower_loop_body state span label step_block exit_block None body;
+  lower_loop_body state span step_block exit_block None body;
   switch state step_block;
   if op = Lte then begin
     let increment_block = new_block state in
@@ -611,17 +566,16 @@ and lower_counted_loop state span label op ty counter limit elem body =
   terminate state (Jump condition_block) span;
   switch state exit_block
 
-and lower_for state span label symbol elem_ty iter body =
+and lower_for state span symbol elem_ty iter body =
   match iter.tdesc with
-  | TRange (lo, hi) ->
-      lower_range_for state span label symbol elem_ty lo hi Lt body
+  | TRange (lo, hi) -> lower_range_for state span symbol elem_ty lo hi Lt body
   | TRangeInclusive (lo, hi) ->
-      lower_range_for state span label symbol elem_ty lo hi Lte body
-  | _ -> lower_each_for state span label symbol elem_ty iter body
+      lower_range_for state span symbol elem_ty lo hi Lte body
+  | _ -> lower_each_for state span symbol elem_ty iter body
 
 (* %1 = 0
    %2 = 3 *)
-and lower_range_for state span label symbol elem_ty lo hi op body =
+and lower_range_for state span symbol elem_ty lo hi op body =
   let loop_id = declare state symbol User elem_ty symbol.Symbol.span in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
@@ -631,7 +585,7 @@ and lower_range_for state span label symbol elem_ty lo hi op body =
     local_place span (add_local state (Some "for.hi") Temp elem_ty hi.op_span)
   in
   assign state limit hi;
-  lower_counted_loop state span label op elem_ty counter limit None body
+  lower_counted_loop state span op elem_ty counter limit None body
 
 (* %6 = data_ptr %0
    %7 = len %0
@@ -640,7 +594,7 @@ and lower_range_for state span label symbol elem_ty lo hi op body =
    %4 = 0
    ...
    %5 = copy %2[copy %4] *)
-and lower_each_for state span label symbol elem_ty iter body =
+and lower_each_for state span symbol elem_ty iter body =
   let usize = TInt Usize in
   let source = lower_expr state iter |> materialize state in
   let source =
@@ -663,7 +617,7 @@ and lower_each_for state span label symbol elem_ty iter body =
   assign state index (const span usize (Int 0L));
   let at_index = add_projection ptr_place (Index (copy span usize index)) in
   let elem = (local_place span loop_id, copy span elem_ty at_index) in
-  lower_counted_loop state span label Lt usize index len_place (Some elem) body
+  lower_counted_loop state span Lt usize index len_place (Some elem) body
 
 (* jump block1
    block1:
@@ -672,13 +626,13 @@ and lower_each_for state span label symbol elem_ty iter body =
    block4:
      %1 = 1
      jump block2 *)
-and lower_loop state destination span label ty body =
+and lower_loop state destination span ty body =
   let body_block = new_block state in
   let exit_block = new_block state in
   terminate state (Jump body_block) span;
   switch state body_block;
   let result = Option.map (fun place -> (place, ty)) destination in
-  lower_loop_body state span label body_block exit_block result body;
+  lower_loop_body state span body_block exit_block result body;
   switch state exit_block
 
 (* copy %0, 1 *)
@@ -765,16 +719,14 @@ and lower_into state destination expr =
   | TDataPtr inner ->
       store_value (DataPtr (lower_expr state inner |> materialize state))
   | TArrayLit elems -> lower_array_lit state (slot ()) expr elems
-  | TStructLit (_, fields) -> lower_struct_lit state (slot ()) expr fields
   | TSliceExpr (base, lo, hi) -> lower_slice state (slot ()) expr base lo hi
-  | TLoop (label, body) ->
-      lower_loop state destination expr.tspan label expr.ty body
+  | TLoop body -> lower_loop state destination expr.tspan expr.ty body
   | TBlock body -> lower_block state destination body
   | TIf (branches, else_body) ->
       lower_if state destination expr branches else_body
   | TMatch (scrutinee, arms) ->
       lower_match state destination expr scrutinee arms
-  | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TWhile _ | TFor _ ->
+  | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TFor _ ->
       lower_stmt state expr
   | TLocalDecl | TUnitLit -> ());
   if is_never expr.ty then terminate state Unreachable expr.tspan
@@ -927,22 +879,19 @@ and lower_stmt state expr =
           | None, _ -> None
         in
         terminate state (ReturnValue returned) expr.tspan
-    | TBreak (label, value) ->
-        let target = loop_target state label expr.tspan in
-        Option.iter
-          (fun value ->
-            match target.result with
-            | Some result -> lower_break state result value
-            | None -> lower_into state None value)
-          value;
+    | TBreak (depth, value) ->
+        let target = List.nth state.loops depth in
+        begin match (value, target.result) with
+        | Some value, Some result -> lower_break state result value
+        | Some value, None -> lower_into state None value
+        | None, _ -> ()
+        end;
         terminate state (Jump target.break_block) expr.tspan
-    | TContinue label ->
-        let target = loop_target state label expr.tspan in
+    | TContinue depth ->
+        let target = List.nth state.loops depth in
         terminate state (Jump target.continue_block) expr.tspan
-    | TWhile (label, condition, body) ->
-        lower_while state expr.tspan label condition body
-    | TFor (label, symbol, elem_ty, iter, body) ->
-        lower_for state expr.tspan label symbol elem_ty iter body
+    | TFor (symbol, elem_ty, iter, body) ->
+        lower_for state expr.tspan symbol elem_ty iter body
     | _ -> lower_into state None expr
 
 let rec global_value_of expr =
@@ -1005,21 +954,17 @@ let build_func global_names func =
   }
 
 let build decls =
-  let structs, globals, funcs =
+  let adts, globals, funcs =
     List.fold_right
-      (fun decl (structs, globals, funcs) ->
-        let add name fields local =
-          { struct_name = name; struct_fields = fields; struct_local = local }
-          :: structs
-        in
+      (fun decl (adts, globals, funcs) ->
         match decl with
         | TStructDecl (name, fields) -> (add name fields false, globals, funcs)
         | TLocalStructDecl (name, fields) ->
             (add name fields true, globals, funcs)
         | TGlobalDecl global when is_valued global.tglobal_ty ->
-            (structs, global :: globals, funcs)
-        | TFuncDecl func -> (structs, globals, func :: funcs)
-        | _ -> (structs, globals, funcs))
+            (adts, global :: globals, funcs)
+        | TFuncDecl func -> (adts, globals, func :: funcs)
+        | _ -> (adts, globals, funcs))
       decls ([], [], [])
   in
   let global_names = Hashtbl.create 16 in
@@ -1344,8 +1289,8 @@ let signature_of ctx span call =
       | None -> (None, call.call_ret))
   | Indirect callee -> (
       match resolve_ty (verify_operand ctx callee) with
-      | TFunc (params, ret_ty, _) ->
-          (Some (List.filter is_valued params), ret_ty)
+      | TFunc { sig_params; sig_ret; _ } ->
+          (Some (List.filter is_valued sig_params), sig_ret)
       | ty -> fail ctx span "callee is %s but should be a function" (show_ty ty)
       )
 

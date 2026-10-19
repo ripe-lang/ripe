@@ -21,7 +21,6 @@ type ty =
   | TSlice of ty
   | TAlias of Keyname.t * ty
   | TError
-  | TEnum of Keyname.t
   | TUnit
 
 val show_int_kind : int_kind -> string
@@ -48,7 +47,6 @@ val has_error : ty -> bool
 val ty_equal : ty -> ty -> bool
 val is_float : ty -> bool
 val is_unsigned : ty -> bool
-val is_aggregate : ty -> bool
 val is_wide : ty -> bool
 val is_never : ty -> bool
 val is_unit : ty -> bool

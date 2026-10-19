@@ -9,6 +9,7 @@ val shadowed_at : t -> Ast.span -> Symbol.t option
 val keyname_of : Symbol.t -> Keyname.t
 val local_decls : t -> Ast.decl list
 val builtins : t -> (Symbol.key * Types.ty) list
+val decl_link_name : string -> string
 
 (* This is the `--emit resolve` output *)
 val dump : t -> string

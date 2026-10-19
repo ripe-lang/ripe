@@ -84,8 +84,6 @@ type ty =
   | TSlice of ty
   | TAlias of Keyname.t * ty
   | TError
-  (* TODO(2e26): every enum is an i32 until a backing type can be written down *)
-  | TEnum of Keyname.t
   | TUnit
 [@@deriving show { with_path = false }]
 
@@ -106,6 +104,8 @@ let builtins =
     ]
 
 let rec show_ty t =
+  let tok = Tokens.show_token in
+  let list ts = String.concat (tok COMMA ^ " ") ts in
   match t with
   | TInt k -> String.lowercase_ascii (show_int_kind k)
   | TFloat k -> String.lowercase_ascii (show_float_kind k)
@@ -128,15 +128,17 @@ let rec show_ty t =
   | TFunc (ps, r, abi) ->
       let p_str = String.concat ", " (List.map show_ty ps) in
       (* The ABI is part of the type so two funcs must not read the same *)
-      let abi_str =
-        match abi with
+      let abi =
+        match f.sig_abi with
         | Ripe -> ""
         | C -> "extern \"C\" "
         | AbiError -> "extern "
       in
-      Printf.sprintf "%s(%s) -> %s" abi_str p_str (show_ty r)
+      abi ^ tok LPAREN
+      ^ list (List.map show_ty f.sig_params @ rest)
+      ^ tok RPAREN ^ " " ^ tok ARROW ^ " " ^ show_ty f.sig_ret
   | TError -> "<unknown type>"
-  | TUnit -> "()"
+  | TUnit -> tok LPAREN ^ tok RPAREN
 
 let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 
@@ -163,12 +165,6 @@ let is_float t = match resolve_ty t with TFloat _ -> true | _ -> false
 
 let is_unsigned t =
   match resolve_ty t with TInt k -> int_kind_is_unsigned k | _ -> false
-
-(* Aggregates are addressed by pointer: an ident of this type is its base address *)
-let is_aggregate t =
-  match resolve_ty t with
-  | TArray _ | TSlice _ | TStr | TStruct _ -> true
-  | _ -> false
 
 let is_wide t =
   match resolve_ty t with

@@ -12,8 +12,7 @@ let qbe_scalar t =
   | TInt k -> ( match int_kind_size k with 1 -> B | 2 -> H | 4 -> W | _ -> L)
   | TFloat F32 -> S
   | TFloat F64 -> D
-  | TPointer _ | TPtr | TNull | TCStr | TFunc _ | TStruct _ | TArray _
-  | TSlice _ | TStr ->
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ | TArray _ | TSlice _ | TStr ->
       L
   | TNever -> Diagnostic.ice "TNever has no QBE type"
   | TError -> Diagnostic.ice "TError has no QBE type"
@@ -378,13 +377,13 @@ let rec qbe_ext_ty (struct_name : Keyname.t -> string) t =
   match resolve_ty t with
   | TStruct (sn, _) -> ":" ^ struct_name sn
   (* QBE repeats a field type so { w 3 } means three words *)
-  | TArray (e, n) ->
+  | None, TArray (e, n) ->
       (* A QBE field cannot nest counts, so every dimension collapses into one *)
       let rec flatten t reps =
         match resolve_ty t with
         | TArray (e, n) -> flatten e (reps * n)
         | TSlice _ -> ("l", reps * 2)
-        | _ -> (qbe_ext_ty struct_name t, reps)
+        | _ -> (qbe_ext_ty ctx t, reps)
       in
       let unit_ty, reps = flatten e n in
       Printf.sprintf "%s %d" unit_ty reps
@@ -697,7 +696,7 @@ let qbe_aggregate_abi_ty ctx aggregate =
       let name = Printf.sprintf "RipeAbi%d" id in
       Hashtbl.add ctx.abi_types aggregate name;
       Printf.bprintf ctx.abi_defs "type :%s = { %s }\n" name
-        (qbe_ext_ty (qbe_struct_name ctx) aggregate);
+        (qbe_ext_ty ctx aggregate);
       ":" ^ name
 
 let qbe_abi_ty ctx ty =
@@ -716,7 +715,7 @@ let qbe_call_ty ctx kind ty =
 let qbe_param_ty ctx abi ty =
   if abi = C && is_aggregate ty then qbe_abi_ty ctx ty else qbe_ty ty
 
-let c_result_slot func bindings =
+let c_result_slot ctx func bindings =
   match func.Mir.func_result with
   | Some id when func.Mir.func_abi = C && is_aggregate func.Mir.func_ret -> (
       match bindings.(id) with Value name | Memory name -> Some name)
@@ -783,7 +782,7 @@ let emit_mir_terminator mctx terminator =
       emit_label ctx fail;
       emit_mir_panic mctx terminator.Mir.term_span check
   | Mir.ReturnValue None -> (
-      match c_result_slot mctx.func mctx.bindings with
+      match c_result_slot ctx mctx.func mctx.bindings with
       | Some slot -> emit ctx "ret %s\n" slot
       | None -> put ctx "ret\n")
   | Mir.ReturnValue (Some returned) ->
@@ -855,7 +854,7 @@ let emit_mir_func ctx global_types func =
   ctx.tmp <- 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
-  let returns_itself = c_result_slot func bindings <> None in
+  let returns_itself = c_result_slot ctx func bindings <> None in
   (* The result local lives in the caller's storage so it borrows the hidden pointer *)
   let result_tmp =
     match func.Mir.func_result with
@@ -946,8 +945,7 @@ let rec emit_mir_global_fields ctx expected = function
       let label = intern_string ctx content in
       Printf.sprintf "l %s, l %d" label (String.length content)
   | Mir.GlobalConst (constant, ty) ->
-      Printf.sprintf "%s %s"
-        (qbe_ext_ty (qbe_struct_name ctx) ty)
+      Printf.sprintf "%s %s" (qbe_ext_ty ctx ty)
         (emit_mir_constant ctx ty constant)
   | Mir.GlobalAddress name -> "l $" ^ name
   | Mir.GlobalArray values ->
@@ -993,6 +991,12 @@ let emit_mir_global ctx global =
 let emit filename source_map program =
   let structs = Layout.create () in
   let struct_names = Symbol.Table.create 8 in
+  let register name local =
+    let key = Keyname.key name in
+    Symbol.Table.add struct_names key
+      (if local then Printf.sprintf "_Rlocal%d" (key :> int)
+       else Keyname.show name)
+  in
   List.iter
     (fun decl ->
       let key = Keyname.key decl.Mir.struct_name in
@@ -1026,8 +1030,8 @@ let emit filename source_map program =
     }
   in
   (* The QBE format requires member structs before containing structs *)
-  let emitted = Symbol.Table.create (List.length program.Mir.prog_structs) in
-  let rec emit_struct name =
+  let emitted = Symbol.Table.create 8 in
+  let rec emit_type name =
     let key = Keyname.key name in
     if not (Symbol.Table.mem emitted key) then begin
       Symbol.Table.add emitted key ();
