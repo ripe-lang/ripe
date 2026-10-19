@@ -6,10 +6,14 @@ type t
 
 val tag_ty : ty
 val create : unit -> t
-val set_struct_fields : t -> Symbol.key -> ty list -> unit
-val struct_fields : t -> Symbol.key -> ty iarray
-val struct_field_ty : t -> Keyname.t -> int -> ty
-val field_offset : t -> Keyname.t -> int -> int
+val set_variants : t -> Symbol.key -> adt_kind -> ty list list -> unit
+val tagged : t -> Symbol.key -> bool
+val has_payload : t -> ty -> bool
+val named_aggregate : t -> ty -> Keyname.t option
+val is_aggregate : t -> ty -> bool
+val variants : t -> Symbol.key -> ty iarray iarray
+val field_ty : t -> Keyname.t -> int -> int -> ty
+val field_offset : t -> Keyname.t -> int -> int -> int
 val ty_size : t -> ty -> int
 val ty_align : t -> ty -> int
 val stride : t -> ty -> int

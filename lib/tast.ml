@@ -28,8 +28,7 @@ type texpr_desc =
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero
-  | TStructLit of Keyname.t * (int * texpr) list
-  (* TODO(6c3f): a payload variant carries its arguments here too *)
+  | TBuild of Keyname.t * int64 * (int * texpr) list
   | TVariant of Keyname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
@@ -53,7 +52,11 @@ and tarm = { tpat : tpattern; tbody : tblock }
 [@@deriving show { with_path = false }]
 
 (* A test compares part of the scrutinee and a binding names part of it *)
-and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
+and tpattern =
+  | TPatWild
+  | TPatBind of Symbol.t * ty
+  | TPatConst of int64
+  | TPatVariant of int64 * tpattern list
 [@@deriving show { with_path = false }]
 
 let mk span ty desc = { tdesc = desc; ty; tspan = span }
@@ -81,9 +84,9 @@ type tglobal_def = {
 
 type tdecl =
   | TFuncDecl of tfunc_def
-  | TStructDecl of Keyname.t * ty list (* This has a name and typed fields *)
-  | TLocalStructDecl of Keyname.t * ty list
-  | TExternDecl of tfunc_def
+  | TAdtDecl of Keyname.t * adt_kind * ty list list
+  | TLocalAdtDecl of Keyname.t * adt_kind * ty list list
+  | TExternDecl of string * ty
   | TGlobalDecl of tglobal_def
   | TTypeAliasDecl of Keyname.t * ty
 [@@deriving show { with_path = false }]

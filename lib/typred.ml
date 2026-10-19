@@ -14,12 +14,13 @@ let rec compatible want got =
   | TPointer a, TPointer b -> compatible_under_ptr a b
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
-  | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
-      (abi1 = abi2 || abi1 = AbiError || abi2 = AbiError)
-      && List.compare_lengths p1 p2 = 0
-      && List.for_all2 compatible p1 p2
-      && compatible r1 r2
-  | TStruct (n1, a1), TStruct (n2, a2) ->
+  | TFunc f, TFunc g ->
+      (f.sig_abi = g.sig_abi || f.sig_abi = AbiError || g.sig_abi = AbiError)
+      && f.sig_arity = g.sig_arity
+      && List.compare_lengths f.sig_params g.sig_params = 0
+      && List.for_all2 compatible f.sig_params g.sig_params
+      && compatible f.sig_ret g.sig_ret
+  | TAdt (n1, a1), TAdt (n2, a2) ->
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
   | _, _ -> ty_equal want got
 
@@ -76,7 +77,7 @@ let rec is_comparable t =
   else
     match t with
     | TInt _ | TFloat _ | TBool | TChar | TCStr | TPointer _ | TPtr | TNull
-    | TEnum _ ->
+    | TAdt _ ->
         true
     | TAlias (_, base) -> is_comparable base
     | TError | TStr | TNever | TFunc _ | TArray _ | TSlice _ | TUnit | TType ->
@@ -137,8 +138,7 @@ let cast_class t =
   match resolve_ty t with
   | TInt _ | TFloat _ | TBool | TChar -> Numeric
   | TPointer _ | TPtr | TCStr | TNull | TFunc _ -> Ptr
-  | TStr | TNever | TStruct _ | TArray _ | TSlice _ | TError | TEnum _ | TUnit
-    ->
+  | TStr | TNever | TAdt _ | TArray _ | TSlice _ | TError | TUnit | TType ->
       Aggregate
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 

@@ -136,45 +136,25 @@ and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }
 
 (* TODO(7ea0): no ranges, alternatives or destructuring *)
-and pattern_desc = PatValue of expr | PatWild | PatBind of name
-and block = block_item list
-and block_item = Expr of expr | Decl of local_decl
+and pattern_desc =
+  | PatValue of expr
+  | PatWild
+  | PatBind of name
+  | PatVariant of expr * pattern list
 
-and local_decl =
-  | LocalStruct of struct_def
-  | LocalTypeAlias of type_alias_def
-  | LocalFunc of func_def
-  | LocalEnum of enum_def
-
-and typ_desc =
-  | Named of name
-  | Pointer of typ
-  | FuncPtr of abi * typ list * typ
-  | Array of expr * typ
-  | Slice of typ
-  | UnitType
-
-(* The prefix keeps these labels apart from the expr ones in this group *)
-and typ = { tdesc : typ_desc; tspan : span }
-
-(* The "C" of extern "C" fn exit(code: i32) never *)
-and abi = NoAbi | NamedAbi of string spanned
-and field = { field_name : ident; field_typ : typ }
-
-(* Point :: struct { x: i32, y: i32 } *)
-and struct_def = {
-  struct_name : ident;
-  fields : field list;
-  struct_span : span;
+(* x : i32 = 5, x := 5, N :: 5, main :: fn { } *)
+and binding = {
+  bind_name : ident;
+  binder : binder;
+  bind_form : bind_form;
+  bind_span : span;
 }
 
 (* x : i32 = 5, x := 5, x : i32 *)
 and bind_form = Typed of typ * expr | Inferred of expr | Declared of typ
 
-(* TODO(f1ac): every enum is an i32 and flags don't exist *)
-(* TODO(d737): a variant carries no explicit value and no payload *)
-and enum_def = { enum_name : ident; variants : ident list; enum_span : span }
-and param = { param_name : ident; param_typ : typ; param_span : span }
+(* The i32 of x : i32 = 5 *)
+and typ = expr
 
 (* fn(a: i32) -> i32 => a, fn { } *)
 and lambda = {
@@ -184,6 +164,15 @@ and lambda = {
   lambda_abi : abi;
   lambda_span : span;
 }
+
+and param = { param_name : ident; param_typ : typ; param_span : span }
+and field = { field_name : ident; field_typ : typ }
+
+(* Red, Circle(i32) *)
+and variant = { variant_name : ident; variant_payload : typ list }
+
+(* The "C" of total :: extern "C" fn(p: Pair) -> i32 { p.a + p.b } *)
+and abi = NoAbi | NamedAbi of string spanned
 [@@deriving show { with_path = false }]
 
 (* main :: fn { }, count := 0, puts : (CStr) -> i32 : extern "C" *)
@@ -207,28 +196,3 @@ let bind_value b =
 
 let path_names p = List.map (fun n -> n.value) (Nonempty.to_list p.owner)
 let path_split p = (path_names p, p.member.value)
-
-type global_def = {
-  name : ident;
-  typ : typ option;
-  init : expr option;
-  span : span;
-}
-[@@deriving show { with_path = false }]
-
-(* fn add(a: i32, b: i32) i32 { ... }, extern "C" fn puts(s: cstr) i32 *)
-type decl =
-  | Func of func_def
-  | Struct of struct_def
-  | Extern of func_def
-  | Global of global_def
-  | TypeAlias of type_alias_def
-  | Enum of enum_def
-[@@deriving show { with_path = false }]
-
-(* A local decl carries the same payload so it checks like a global one *)
-let decl_of_local = function
-  | LocalStruct sd -> Struct sd
-  | LocalTypeAlias td -> TypeAlias td
-  | LocalFunc fd -> Func fd
-  | LocalEnum ed -> Enum ed

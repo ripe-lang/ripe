@@ -27,7 +27,7 @@ type texpr_desc =
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero
-  | TStructLit of Keyname.t * (int * texpr) list
+  | TBuild of Keyname.t * int64 * (int * texpr) list
   | TVariant of Keyname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
@@ -45,7 +45,12 @@ type texpr_desc =
 and texpr = { tdesc : texpr_desc; ty : ty; tspan : Ast.span }
 and tblock = texpr list
 and tarm = { tpat : tpattern; tbody : tblock }
-and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
+
+and tpattern =
+  | TPatWild
+  | TPatBind of Symbol.t * ty
+  | TPatConst of int64
+  | TPatVariant of int64 * tpattern list
 
 type tfunc_def = {
   tfunc_key : Symbol.key;
@@ -68,9 +73,9 @@ type tglobal_def = {
 
 type tdecl =
   | TFuncDecl of tfunc_def
-  | TStructDecl of Keyname.t * ty list
-  | TLocalStructDecl of Keyname.t * ty list
-  | TExternDecl of tfunc_def
+  | TAdtDecl of Keyname.t * adt_kind * ty list list
+  | TLocalAdtDecl of Keyname.t * adt_kind * ty list list
+  | TExternDecl of string * ty
   | TGlobalDecl of tglobal_def
   | TTypeAliasDecl of Keyname.t * ty
 

@@ -274,8 +274,18 @@ and parse_fields st =
 and parse_variants st =
   let variants = ref [] in
   while not (at st RBRACE || at st EOF) do
-    variants := expect_ident_span st :: !variants;
-    expect_decl_sep st ~what:"variant"
+    let name = expect_ident_span st in
+    let payload =
+      if at st LPAREN then begin
+        advance st;
+        let tys = comma_sep st RPAREN parse_typ in
+        expect st RPAREN;
+        tys
+      end
+      else []
+    in
+    variants := { variant_name = name; variant_payload = payload } :: !variants;
+    expect_decl_sep st "variant"
   done;
   List.rev !variants
 
@@ -741,6 +751,20 @@ and parse_pattern st =
   | IDENT name when not (List.mem (peek_token st) [ DOT; LPAREN ]) ->
       advance st;
       pattern (PatBind (Interner.intern name))
+  | IDENT _ | DOT -> (
+      let callee = parse_primary st HeaderExpression in
+      let callee =
+        match callee.edesc with
+        | Ident head -> parse_path st callee head
+        | _ -> callee
+      in
+      match cur_token st with
+      | LPAREN ->
+          advance st;
+          let subs = comma_sep st RPAREN parse_pattern in
+          expect st RPAREN;
+          pattern (PatVariant (callee, subs))
+      | _ -> { pdesc = PatValue callee; pspan = callee.espan })
   | _ ->
       let e = parse_header_expr st in
       { pdesc = PatValue e; pspan = e.espan }

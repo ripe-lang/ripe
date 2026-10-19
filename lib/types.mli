@@ -3,6 +3,8 @@
 type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 type float_kind = F32 | F64
 type func_abi = Ripe | C | AbiError
+type func_arity = Fixed | Variadic
+type adt_kind = Struct | Enum
 
 type ty =
   | TInt of int_kind
@@ -15,8 +17,8 @@ type ty =
   | TNull
   | TPointer of ty
   | TPtr
-  | TStruct of Keyname.t * ty list
-  | TFunc of ty list * ty * func_abi
+  | TAdt of Keyname.t * ty list
+  | TFunc of func_ty
   | TArray of ty * int
   | TSlice of ty
   | TAlias of Keyname.t * ty
@@ -47,6 +49,7 @@ val float_kind_exact_limit : float_kind -> int64
 val pp_func_abi : Format.formatter -> func_abi -> unit
 val show_func_abi : func_abi -> string
 val func_abi_of_string : string -> func_abi option
+val pp_adt_kind : Format.formatter -> adt_kind -> unit
 val builtins : (string * ty) list
 val pp_ty : Format.formatter -> ty -> unit
 val show_ty : ty -> string

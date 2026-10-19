@@ -3,8 +3,10 @@
 open Types
 open Option.Syntax
 
-type layout = { size : int; align : int; offsets : int iarray }
+type layout = { size : int; align : int; offsets : int iarray iarray }
+type shape = Untagged | Tagged | TagOnly
 
+(* A struct is one untagged variant so both share the same placement *)
 type entry = {
   variants : ty iarray iarray;
   shape : shape;
@@ -16,25 +18,57 @@ type t = { types : entry Symbol.Table.t; mutable revision : int }
 let tag_ty = TInt I32
 let create () = { types = Symbol.Table.create 16; revision = 0 }
 
-let set_struct_fields t key fields =
-  Symbol.Table.replace t.structs key
-    { field_tys = Iarray.of_list fields; cached_layout = None };
+let set_variants t key kind variants =
+  let shape =
+    match kind with
+    | Struct -> Untagged
+    | Enum when List.exists (Fun.negate List.is_empty) variants -> Tagged
+    | Enum -> TagOnly
+  in
+  let variants = Iarray.of_list (List.map Iarray.of_list variants) in
+  Symbol.Table.replace t.types key { variants; shape; cached_layout = None };
   t.revision <- t.revision + 1
 
 let shape_of t key =
   Option.map (fun entry -> entry.shape) (Symbol.Table.find_opt t.types key)
 
-let struct_fields t key =
-  match entry_of t key with Some e -> e.field_tys | None -> no_fields
+let tagged t key = shape_of t key = Some Tagged
 
-let struct_field_ty t name index =
-  match entry_of t (Keyname.key name) with
-  | Some e when index < Iarray.length e.field_tys ->
-      Iarray.get e.field_tys index
-  | _ ->
-      Diagnostic.ice
-        (Printf.sprintf "unknown field %d on struct %s" index
-           (Keyname.show name))
+let has_payload t ty =
+  match resolve_ty ty with
+  | TAdt (name, _) -> tagged t (Keyname.key name)
+  | _ -> false
+
+(* A unit only enum is a plain int so it has no fields to lay out *)
+let named_aggregate t ty =
+  match resolve_ty ty with
+  | TAdt (name, _) ->
+      let* shape = shape_of t (Keyname.key name) in
+      if shape = TagOnly then None else Some name
+  | _ -> None
+
+(* An aggregate is addressed by pointer so an ident of this type is its base address *)
+let is_aggregate t ty =
+  match resolve_ty ty with
+  | TArray _ | TSlice _ | TStr -> true
+  | _ -> Option.is_some (named_aggregate t ty)
+
+let variants t key =
+  match Symbol.Table.find_opt t.types key with
+  | Some entry -> entry.variants
+  | None -> Iarray.of_list []
+
+let field_ty t name variant index =
+  let unknown () =
+    Diagnostic.ice
+      (Printf.sprintf "unknown field %d.%d on %s" variant index
+         (Keyname.show name))
+  in
+  let variants = variants t (Keyname.key name) in
+  if variant >= Iarray.length variants then unknown ()
+  else
+    let tys = Iarray.get variants variant in
+    if index < Iarray.length tys then Iarray.get tys index else unknown ()
 
 let align_to n a = Int.cdiv n a * a
 
@@ -82,13 +116,14 @@ and ty_measure t ty =
       let n = float_kind_size k in
       (n, n)
   | TBool -> (1, 1)
-  | TChar | TEnum _ -> (4, 4)
-  | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> (8, 8)
-  | TSlice _ | TStr -> (16, 8)
-  | TUnit | TNever | TError -> (0, 1)
-  | TStruct (name, _) ->
+  | TAdt (name, _) when Option.is_some (named_aggregate t ty) ->
       let layout = layout_of t name in
       (layout.size, layout.align)
+  | TAdt _ -> ty_measure t tag_ty
+  | TChar -> (4, 4)
+  | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> (8, 8)
+  | TSlice _ | TStr -> (16, 8)
+  | TUnit | TNever | TError | TType -> (0, 1)
   | TArray (e, n) -> (n * stride t e, ty_align t e)
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 

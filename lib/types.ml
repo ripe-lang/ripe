@@ -60,6 +60,8 @@ let float_kind_exact_limit = function
   | F64 -> 9007199254740992L
 
 type func_abi = Ripe | C | AbiError [@@deriving show { with_path = false }]
+type func_arity = Fixed | Variadic [@@deriving show { with_path = false }]
+type adt_kind = Struct | Enum [@@deriving show { with_path = false }]
 
 let func_abi_of_string = function
   | "Ripe" -> Some Ripe
@@ -78,8 +80,8 @@ type ty =
   | TPointer of ty
   | TPtr
   (* TODO(39ca): the ty list stays empty until generics land *)
-  | TStruct of Keyname.t * ty list
-  | TFunc of ty list * ty * func_abi
+  | TAdt of Keyname.t * ty list
+  | TFunc of func_ty
   | TArray of ty * int
   | TSlice of ty
   | TAlias of Keyname.t * ty
@@ -116,26 +118,21 @@ let rec show_ty t =
   let tok = Tokens.show_token in
   let list ts = String.concat (tok COMMA ^ " ") ts in
   match t with
-  | TInt k -> String.lowercase_ascii (show_int_kind k)
-  | TFloat k -> String.lowercase_ascii (show_float_kind k)
-  | TBool -> "bool"
-  | TChar -> "char"
-  | TCStr -> "cstr"
-  | TStr -> "str"
-  | TNever -> "never"
-  | TNull -> "null"
-  | TPointer t -> "*" ^ show_ty t
-  | TPtr -> "ptr"
-  | TStruct (name, []) -> Keyname.show name
-  | TStruct (name, args) ->
-      Printf.sprintf "%s[%s]" (Keyname.show name)
-        (String.concat ", " (List.map show_ty args))
-  | TArray (t, n) -> Printf.sprintf "[%d]%s" n (show_ty t)
-  | TSlice t -> "[]" ^ show_ty t
-  | TAlias (name, _) -> Keyname.show name
-  | TEnum name -> Keyname.show name
-  | TFunc (ps, r, abi) ->
-      let p_str = String.concat ", " (List.map show_ty ps) in
+  | TInt _ | TFloat _ | TBool | TChar | TCStr | TStr | TNever | TPtr | TType ->
+      fst (List.find (fun (_, b) -> b = t) builtins)
+  | TNull -> tok NULL
+  | TPointer t -> tok STAR ^ show_ty t
+  | TAdt (name, []) | TAlias (name, _) -> Keyname.show name
+  | TAdt (name, args) ->
+      Keyname.show name ^ tok LBRACKET
+      ^ list (List.map show_ty args)
+      ^ tok RBRACKET
+  | TArray (t, n) -> tok LBRACKET ^ string_of_int n ^ tok RBRACKET ^ show_ty t
+  | TSlice t -> tok LBRACKET ^ tok RBRACKET ^ show_ty t
+  | TFunc f ->
+      let rest =
+        match f.sig_arity with Fixed -> [] | Variadic -> [ tok DOTDOT ]
+      in
       (* The ABI is part of the type so two funcs must not read the same *)
       let abi =
         match f.sig_abi with
@@ -154,8 +151,9 @@ let rec resolve_ty = function TAlias (_, base) -> resolve_ty base | t -> t
 let rec has_error = function
   | TError -> true
   | TAlias (_, t) | TPointer t | TSlice t | TArray (t, _) -> has_error t
-  | TStruct (_, args) -> List.exists has_error args
-  | TFunc (ps, r, _) -> List.exists has_error ps || has_error r
+  | TAdt (_, args) -> List.exists has_error args
+  | TFunc { sig_params; sig_ret; _ } ->
+      List.exists has_error sig_params || has_error sig_ret
   | _ -> false
 
 (* An alias is just another name for its base type so it doesn't make two types *)
@@ -164,9 +162,11 @@ let rec same_shape a b =
   | TAlias (_, a), b | a, TAlias (_, b) -> same_shape a b
   | TPointer a, TPointer b | TSlice a, TSlice b -> same_shape a b
   | TArray (a, n), TArray (b, m) -> n = m && same_shape a b
-  | TStruct (x, xs), TStruct (y, ys) -> x = y && List.equal same_shape xs ys
-  | TFunc (ps, r, x), TFunc (qs, s, y) ->
-      x = y && List.equal same_shape ps qs && same_shape r s
+  | TAdt (x, xs), TAdt (y, ys) -> x = y && List.equal same_shape xs ys
+  | TFunc f, TFunc g ->
+      f.sig_abi = g.sig_abi && f.sig_arity = g.sig_arity
+      && List.equal same_shape f.sig_params g.sig_params
+      && same_shape f.sig_ret g.sig_ret
   | a, b -> a = b
 
 let ty_equal a b = has_error a || has_error b || same_shape a b

@@ -14,7 +14,8 @@ type variant_info = {
   field_index : (name, int * ty) Hashtbl.t option;
 }
 
-type enum_info = { variants_by_name : (name, int64) Hashtbl.t }
+(* A struct is one variant named after itself *)
+type adt_info = { kind : adt_kind; variants : (name * variant_info) list }
 type 'a deferred = Unstarted | Running | Completed of 'a
 type result_use = Infer | Expect of ty | Discard
 type coverage = Covered | Missing of string list | Unbounded | Unknown
@@ -42,6 +43,28 @@ type global_fact = {
   declared_ty : ty deferred ref;
   typed : texpr deferred ref;
 }
+
+(* The thing a name stands for and what's been worked out about it so far *)
+type item =
+  | FuncItem of {
+      def : func_def;
+      annot : typ option;
+      fsig : func_sig deferred ref;
+    }
+  | ExternItem of {
+      decl : binding;
+      abi : string spanned;
+      fsig : func_sig deferred ref;
+    }
+  | GlobalItem of global_fact
+  | AdtItem of {
+      decl : binding;
+      kind : adt_kind;
+      written : (ident * (ident option * typ) list) list;
+      info : adt_info deferred ref;
+    }
+  | AliasItem of { decl : binding; body : typ; aliased : ty deferred ref }
+  | BuiltinItem of ty
 
 type loop_result =
   (* value := loop { continue } *)
@@ -96,12 +119,42 @@ let make_ctx symbols decls =
 let make_env ctx =
   { ctx; scopes = []; ret_ty = TUnit; loops = []; in_probe = false }
 
-let decl_span = function
-  | Func fd | Extern fd -> fd.func_span
-  | Global gd -> gd.span
-  | Struct sd -> sd.struct_span
-  | TypeAlias td -> td.alias_span
-  | Enum ed -> ed.enum_span
+let rec has_hole t =
+  match t.edesc with
+  | Hole -> true
+  | PointerType t | SliceType t -> has_hole t
+  | ArrayType (n, t) -> has_hole n || has_hole t
+  | FuncType (_, ps, ret) -> List.exists has_hole ps || has_hole ret
+  | _ -> false
+
+(* A :: of a fn is a function and any value that isn't a type errors as one *)
+let item_of_decl (Bind b) =
+  match (b.binder, bind_value b) with
+  | RunTime, _ ->
+      GlobalItem
+        { decl = b; declared_ty = ref Unstarted; typed = ref Unstarted }
+  | CompileTime, Some { edesc = Lambda lambda; _ } ->
+      let annot = match b.bind_form with Typed (t, _) -> Some t | _ -> None in
+      let def = { func_name = b.bind_name; lambda; func_span = b.bind_span } in
+      FuncItem { def; annot; fsig = ref Unstarted }
+  | CompileTime, Some { edesc = Extern abi; _ } ->
+      ExternItem { decl = b; abi; fsig = ref Unstarted }
+  | CompileTime, Some { edesc = StructType fields; _ } ->
+      let fields =
+        List.map (fun f -> (Some f.field_name, f.field_typ)) fields
+      in
+      let written = [ (b.bind_name, fields) ] in
+      AdtItem { decl = b; kind = Struct; written; info = ref Unstarted }
+  | CompileTime, Some { edesc = EnumType variants; _ } ->
+      let variant v =
+        (v.variant_name, List.map (fun t -> (None, t)) v.variant_payload)
+      in
+      let written = List.map variant variants in
+      AdtItem { decl = b; kind = Enum; written; info = ref Unstarted }
+  | CompileTime, Some value ->
+      AliasItem { decl = b; body = value; aliased = ref Unstarted }
+  | CompileTime, None ->
+      Diagnostic.ice ~span:b.bind_span "compile time binding has no value"
 
 let sym env span = Resolve.sym_at env.ctx.symbols span
 let error_expr span = mk span TError TErrorExpr
@@ -315,8 +368,9 @@ let verify_shift_count span tr =
       |> Diagnostic.found (show_ty tr.ty))
 
 (* A bad operand poisons the result so the next operator up stays quiet *)
-let verify_operands span op t operands =
-  if binop_accepts op t then t
+let verify_operands layouts span op t operands =
+  if binop_accepts op t && Option.is_none (Layout.named_aggregate layouts t)
+  then t
   else begin
     let shown =
       match operands with
@@ -353,17 +407,25 @@ let adopt_int_lit span want target neg n =
   | TError -> Some (mk span want (TIntLit signed))
   | _ -> None
 
-(* A variant is a compile time constant so nothing of the enum survives here *)
-let synth_variant env (inner : expr) info fname fspan =
-  let shown = Interner.text fname in
-  let name = keyname_at env.ctx inner.espan shown in
-  match Hashtbl.find_opt info.variants_by_name fname with
-  | Some value -> mk (TEnum name) (TVariant (name, value))
+(* A payload variant is a function that builds the enum *)
+let build_variant span name info fname fspan =
+  let adt = TAdt (name, []) in
+  match List.assoc_opt fname info.variants with
+  | Some { tag; field_tys = []; _ } -> mk span adt (TBuild (name, tag, []))
+  | Some { tag; field_tys; _ } ->
+      let func =
+        {
+          sig_params = List.map snd field_tys;
+          sig_ret = adt;
+          sig_abi = Ripe;
+          sig_arity = Fixed;
+        }
+      in
+      mk span (TFunc func) (TVariant (name, tag))
   | None ->
       fail span
         (Diagnostic.error fspan "no variant"
-        |> Diagnostic.label "on enum %s" (show_ty (TEnum name)));
-      dummy_texpr
+        |> Diagnostic.label "on enum %s" (show_ty adt))
 
 let synth_conversion span te ty =
   let refused = not (cast_ok te.ty ty) in
@@ -412,24 +474,117 @@ let direct_callee env callee =
       if Symbol.is_func symbol.Symbol.kind then Some symbol else None
   | _ -> None
 
-let rec ty_of_ast env (t : typ) =
-  match t.tdesc with
-  | Named name -> named_ty env t.tspan (Interner.text name)
-  | Pointer t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
-  | Array (e, t) -> array_ty_of_ast env e t
-  | Slice t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
-  | FuncPtr (abi, ps, ret) -> (
-      let pts = List.map (ty_of_ast env) ps in
-      match (resolve_abi abi, ty_of_ast env ret, List.exists has_error pts) with
-      | AbiError, _, _ -> TError
-      | abi, rt, false when not (has_error rt) -> TFunc (pts, rt, abi)
-      | _ -> TError)
-  | UnitType -> TUnit
+let keyword_span span keyword =
+  let lo = Span.lo span in
+  Span.make lo (lo + String.length (Tokens.show_token keyword))
 
-and array_ty_of_ast env size element =
-  match ty_of_ast env element with
-  | ty when has_error ty -> TError
-  | ty -> TArray (ty, eval_array_size env size)
+let adt_keyword_span e =
+  match e.edesc with
+  | StructType _ -> keyword_span e.espan Tokens.STRUCT
+  | EnumType _ -> keyword_span e.espan Tokens.ENUM
+  | _ -> e.espan
+
+let type_as_value e =
+  fail e.espan
+    (Diagnostic.error (adt_keyword_span e) "expected a value"
+    |> Diagnostic.found (show_ty TType))
+
+let type_item ctx key =
+  match Symbol.Table.find_opt ctx.items key with
+  | Some ((AdtItem _ | AliasItem _ | BuiltinItem _) as item) -> Some item
+  | Some (FuncItem _ | ExternItem _ | GlobalItem _) | None -> None
+
+let rec ty_of_ast env t =
+  match t.edesc with
+  | Ident name -> (
+      match type_item env.ctx (key_at env.ctx t.espan) with
+      | Some item -> named_ty env t.espan (Interner.text name) item
+      | None -> value_as_type env t)
+  | PointerType t -> lift_ty (fun ty -> TPointer ty) (ty_of_ast env t)
+  | ArrayType (({ edesc = Hole; _ } as size), _) -> ty_of_ast env size
+  | ArrayType (n, t) -> (
+      match ty_of_ast env t with
+      | ty when has_error ty -> TError
+      | ty -> TArray (ty, eval_array_size env n))
+  | SliceType t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
+  | FuncType (abi, ps, ret) ->
+      func_ty_of_ast abi ps (fun _ p -> ty_of_ast env p) (ty_of_ast env ret)
+  | Unit -> TUnit
+  | Hole ->
+      Diagnostic.emit
+        (Diagnostic.error t.espan "expected type"
+        |> Diagnostic.found (Tokens.show_found_token Tokens.UNDERSCORE));
+      TError
+  | _ -> value_as_type env t
+
+and func_ty_of_ast abi ps param_ty ret_ty =
+  let rec go i = function
+    | [ { edesc = RangeFull; _ } ] -> ([], Variadic)
+    | p :: rest ->
+        let pt = param_ty i p in
+        let pts, arity = go (i + 1) rest in
+        (pt :: pts, arity)
+    | [] -> ([], Fixed)
+  in
+  let pts, arity = go 0 ps in
+  match (resolve_abi abi, List.exists has_error pts) with
+  | AbiError, _ -> TError
+  | abi, false when not (has_error ret_ty) ->
+      TFunc
+        { sig_params = pts; sig_ret = ret_ty; sig_abi = abi; sig_arity = arity }
+  | _ -> TError
+
+(* A _ in a written type takes the matching part of the value's type *)
+and fill_ty env t actual =
+  match (t.edesc, resolve_ty actual) with
+  | Hole, _ -> actual
+  | _, TError -> TError
+  | PointerType t, TPointer a ->
+      lift_ty (fun ty -> TPointer ty) (fill_ty env t a)
+  | SliceType t, TSlice a -> lift_ty (fun ty -> TSlice ty) (fill_ty env t a)
+  | ArrayType (n, t), TArray (a, len) ->
+      let len = match n.edesc with Hole -> len | _ -> eval_array_size env n in
+      lift_ty (fun ty -> TArray (ty, len)) (fill_ty env t a)
+  | FuncType (abi, ps, ret), TFunc f ->
+      let param_ty i p =
+        fill_ty env p
+          (Option.value (List.nth_opt f.sig_params i) ~default:TError)
+      in
+      func_ty_of_ast abi ps param_ty (fill_ty env ret f.sig_ret)
+  | _ -> ty_of_ast env t
+
+(* A signature's _ reads the fn's own params and return *)
+and lambda_want env t l =
+  match t.edesc with
+  | FuncType (abi, ps, ret) ->
+      let param_ty i p =
+        match (p.edesc, List.nth_opt l.lambda_params i) with
+        | Hole, Some { param_typ = { edesc = Hole; _ }; param_name; _ } ->
+            Diagnostic.emit
+              (Diagnostic.error param_name.span "cannot infer type");
+            TError
+        | Hole, Some lp -> ty_of_ast env lp.param_typ
+        | Hole, None -> TError
+        | _ -> ty_of_ast env p
+      in
+      let ret_ty =
+        match (ret.edesc, l.lambda_ret) with
+        | Hole, (None | Some { edesc = Hole; _ }) -> TUnit
+        | Hole, Some lr -> ty_of_ast env lr
+        | _ -> ty_of_ast env ret
+      in
+      func_ty_of_ast abi ps param_ty ret_ty
+  | _ -> ty_of_ast env t
+
+(* A quiet probe gives the value's type without reporting it twice *)
+and written_want env t value =
+  if not (has_hole t) then ty_of_ast env t
+  else
+    match value.edesc with
+    | Lambda l -> lambda_want env t l
+    | _ ->
+        let probe = Diagnostic.quietly (fun () -> synth (probing env) value) in
+        fill_ty env t probe.ty
 
 (* An array size may name a global not collected yet so type it now *)
 and pending_global_ty env span fact =
@@ -449,14 +604,220 @@ and lookup_var env span =
 (* A name outside the scopes is a global or hasn't been collected yet *)
 and lookup_non_local env span =
   let key = key_at env.ctx span in
-  match Symbol.Table.find_opt env.ctx.globals key with
-  | Some t -> t
-  | None -> (
-      match Symbol.Table.find_opt env.ctx.global_facts key with
-      | Some fact -> pending_global_ty env span key fact
-      | None -> (
-          match Symbol.Table.find_opt env.ctx.func_sigs key with
-          | Some fsig -> TFunc (fsig.param_tys, fsig.ret_ty, fsig.abi)
+  match Symbol.Table.find_opt env.ctx.items key with
+  | Some (GlobalItem fact) -> pending_global_ty env span fact
+  | _ -> (
+      match func_sig env span key with
+      | Some fsig -> TFunc fsig.func
+      | None ->
+          Diagnostic.emit (Diagnostic.error span "undefined variable");
+          TError)
+
+(* A signature fills on first read so a type body can call a later fn *)
+and func_sig env span key =
+  let* item, cell =
+    match Symbol.Table.find_opt env.ctx.items key with
+    | Some ((FuncItem { fsig; _ } | ExternItem { fsig; _ }) as item) ->
+        Some (item, fsig)
+    | _ -> None
+  in
+  try
+    Some
+      (force_deferred span cell poisoned_sig (fun () ->
+           collect_func env.ctx item))
+  with Diagnostic.Errors ds ->
+    List.iter Diagnostic.emit ds;
+    Some poisoned_sig
+
+(* The value says the ABI so the written type doesn't repeat it *)
+and collect_func ctx item =
+  let env = make_env ctx in
+  match item with
+  | FuncItem { def; annot; _ } ->
+      let l = def.lambda in
+      let abi = resolve_abi l.lambda_abi in
+      let declared =
+        match Option.map (fun t -> lambda_want env t l) annot with
+        | Some (TFunc ({ sig_abi = Ripe; _ } as f)) ->
+            Some (TFunc { f with sig_abi = abi })
+        | declared -> declared
+      in
+      { func = lambda_sig env l abi declared; param_hole = false }
+  | ExternItem { decl = b; abi = name; _ } -> (
+      let abi = resolve_named_abi name.value name.span in
+      match b.bind_form with
+      | Inferred _ | Declared _ ->
+          Diagnostic.emit (Diagnostic.error b.bind_name.span "missing type");
+          poisoned_sig
+      | Typed (t, _) -> (
+          match resolve_ty (ty_of_ast env t) with
+          | TFunc f -> { func = { f with sig_abi = abi }; param_hole = false }
+          | TError -> poisoned_sig
+          | ty ->
+              Diagnostic.emit
+                (Diagnostic.error t.espan "type mismatch"
+                |> Diagnostic.label "expected function type, found %s"
+                     (show_ty ty));
+              poisoned_sig))
+  | GlobalItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ ->
+      Diagnostic.ice "signature has no fn"
+
+and find_func env span =
+  match func_sig env span (key_at env.ctx span) with
+  | Some s -> s
+  | None ->
+      Diagnostic.emit (Diagnostic.error span "undefined function");
+      poisoned_sig
+
+and named_ty env span shown = function
+  | BuiltinItem ty -> ty
+  | AdtItem _ -> TAdt (keyname_at env.ctx span shown, [])
+  | AliasItem { decl; body; aliased } -> (
+      match alias_body env.ctx decl body aliased with
+      | Some aliased -> TAlias (keyname_at env.ctx span shown, aliased)
+      | None -> TError)
+  | FuncItem _ | ExternItem _ | GlobalItem _ ->
+      Diagnostic.ice ~span "named type has no type"
+
+(* A pointer doesn't save a recursive alias like it saves a struct field *)
+and alias_body ctx b t aliased =
+  match !aliased with
+  | Completed ty -> Some ty
+  | Running ->
+      Diagnostic.emit (Diagnostic.error b.bind_name.span "recursive type");
+      None
+  | Unstarted ->
+      aliased := Running;
+      let env = make_env ctx in
+      let ty = if declares_type env b then ty_of_ast env t else TError in
+      aliased := Completed ty;
+      Some ty
+
+and declares_type env b =
+  match b.bind_form with
+  | Typed (a, value) ->
+      let declared = written_want env a value in
+      let is_type = resolve_ty declared = TType in
+      if not (is_type || has_error declared) then begin
+        let te = check env value declared in
+        if (not (has_error te.ty)) && ty_equal te.ty declared then
+          Diagnostic.emit (Diagnostic.error value.espan "unsupported constant")
+      end;
+      is_type
+  | Inferred _ | Declared _ -> true
+
+and adt_info ctx key =
+  match Symbol.Table.find_opt ctx.items key with
+  | Some (AdtItem { info = { contents = Completed info }; _ }) -> Some info
+  | Some (AdtItem { kind; written; info = { contents = Unstarted } as info; _ })
+    ->
+      Some (fill_adt ctx key info kind written)
+  | _ -> None
+
+(* A repeat name is already reported so it gets no tag of its own *)
+and fill_adt ctx key body kind written =
+  body := Running;
+  let env = make_env ctx in
+  let index field_tys =
+    if List.compare_length_with field_tys 8 <= 0 then None
+    else
+      let index = Hashtbl.create (List.length field_tys) in
+      List.iteri
+        (fun field_id (name, ty) ->
+          match name with
+          | Some name when not (Hashtbl.mem index name) ->
+              Hashtbl.add index name (field_id, ty)
+          | _ -> ())
+        field_tys;
+      Some index
+  in
+  let add (next, variants) (name, fields) =
+    if List.mem_assoc name.value variants then (next, variants)
+    else
+      let field_tys =
+        List.map
+          (fun (name, t) ->
+            (Option.map (fun n -> n.value) name, ty_of_ast env t))
+          fields
+      in
+      let variant = { tag = next; field_tys; field_index = index field_tys } in
+      (Int64.succ next, (name.value, variant) :: variants)
+  in
+  let _, variants = List.fold_left add (0L, []) written in
+  let info = { kind; variants = List.rev variants } in
+  body := Completed info;
+  Layout.set_variants ctx.layouts key kind
+    (List.map (fun (_, v) -> List.map snd v.field_tys) info.variants);
+  info
+
+and find_struct env span key =
+  match Option.bind (adt_info env.ctx key) struct_variant with
+  | Some _ as found -> found
+  | None ->
+      Diagnostic.emit (Diagnostic.error span "undefined struct");
+      None
+
+and enum_of env ty =
+  match resolve_ty ty with
+  | TAdt (name, _) ->
+      let* info = adt_info env.ctx (Keyname.key name) in
+      if info.kind = Enum then Some (name, info) else None
+  | _ -> None
+
+(* A type holding never has no value either *)
+and is_uninhabited env ty =
+  let rec go seen ty =
+    match resolve_ty ty with
+    | TNever -> true
+    | TArray (elem, n) -> n > 0 && go seen elem
+    | TAdt (name, _) -> struct_holds_never seen (Keyname.key name)
+    | _ -> false
+  and struct_holds_never seen key =
+    if List.mem key seen then false
+    else
+      match Option.bind (adt_info env.ctx key) struct_variant with
+      | Some v -> List.exists (fun (_, ft) -> go (key :: seen) ft) v.field_tys
+      | None -> false
+  in
+  go [] ty
+
+and zero_init_ty env span ty =
+  let is_func = match resolve_ty ty with TFunc _ -> true | _ -> false in
+  if is_func || is_uninhabited env ty then begin
+    Diagnostic.emit
+      (Diagnostic.error span "cannot zero init this type"
+      |> Diagnostic.label "on %s" (show_ty ty));
+    TError
+  end
+  else ty
+
+and synth_struct_field env span te ty fname fspan =
+  let rec peel depth = function
+    | TAdt (sname, _) -> (
+        match adt_info env.ctx (Keyname.key sname) with
+        | Some { kind = Enum; _ } -> None
+        | Some { kind = Struct; _ } | None -> Some (sname, depth))
+    | TAlias (_, base) -> peel depth base
+    | TPointer t -> peel (depth + 1) t
+    | _ -> None
+  in
+  match peel 0 ty with
+  | None when resolve_ty ty = TError -> error_expr span
+  | None ->
+      let shown = show_ty ty in
+      fail span
+        (Diagnostic.error span "no fields" |> Diagnostic.label "on %s" shown)
+  | Some (_, depth) when depth > 1 ->
+      fail span
+        (Diagnostic.error span "too many pointer levels"
+        |> Diagnostic.label "on %s" (show_ty ty)
+        |> Diagnostic.help "dereference with `.*` first")
+  | Some (sname, _) -> (
+      match find_struct env span (Keyname.key sname) with
+      | None -> error_expr span
+      | Some info -> (
+          match find_field info fname with
+          | Some (field_id, ft) -> mk span ft (TFieldAccess (te, field_id))
           | None ->
               fail span
                 (Diagnostic.error fspan "no field"
@@ -1027,7 +1388,7 @@ and check_pattern env sty pat =
       in
       match te.tdesc with
       | _ when not (Typred.compatible sty te.ty) -> (env, None)
-      | TVariant (_, value) -> (env, Some (TPatConst value))
+      | TBuild (_, tag, []) -> (env, Some (TPatVariant (tag, [])))
       | TIntLit n -> (env, Some (TPatConst n))
       | TBoolLit b -> (env, Some (TPatConst (if b then 1L else 0L)))
       | TCharLit c -> (env, Some (TPatConst (Int64.of_int c)))
@@ -1041,7 +1402,11 @@ and check_match env span scrutinee arms use =
   let arm_env a =
     match a.pat.pdesc with
     | PatBind _ -> extend_var (push_scope env) a.pat.pspan ts.ty
-    | _ -> env
+    | PatVariant _ ->
+        fst
+          (Diagnostic.quietly (fun () ->
+               check_pattern (push_scope env) ts.ty a.pat))
+    | PatWild | PatValue _ -> env
   in
   let bodies = List.map (fun a -> (arm_env a, a.arm_body.value)) arms in
   match use with
@@ -1063,13 +1428,18 @@ and coverage_of env ty seen =
   match resolve_ty ty with
   | TError -> Unknown
   | TBool -> in_declared_order (absent 0L "false" (absent 1L "true" []))
-  | TEnum name -> (
-      match Symbol.Table.find_opt env.ctx.type_defs (Keyname.key name) with
-      | Some (Enum_type { contents = Completed info }) ->
-          (* An alias can't spell its own variants so name the enum itself *)
-          let shown = show_ty (TEnum name) in
-          let gather variant value rest =
-            absent value (shown ^ "." ^ Interner.text variant) rest
+  | TAdt (name, _) -> (
+      match adt_info env.ctx (Keyname.key name) with
+      | Some { kind = Enum; variants } ->
+          let shown = Keyname.show name in
+          let gather (variant, v) rest =
+            let holes =
+              match v.field_tys with
+              | [] -> ""
+              | tys ->
+                  "(" ^ String.concat ", " (List.map (Fun.const "_") tys) ^ ")"
+            in
+            absent v.tag (shown ^ "." ^ Interner.text variant ^ holes) rest
           in
           in_declared_order (List.fold_right gather variants [])
       | Some { kind = Struct; _ } -> Unbounded
@@ -1099,6 +1469,10 @@ and check_match_arms env span ts arms want =
   let arm_use = match want with Some w -> Expect w | None -> Discard in
   let seen = Hashtbl.create 8 in
   let caught_all = ref false in
+  let catches_all = function
+    | TPatWild | TPatBind _ -> true
+    | TPatConst _ | TPatVariant _ -> false
+  in
   let record pat tpat =
     let mark n =
       if Hashtbl.mem seen n then
@@ -1110,10 +1484,8 @@ and check_match_arms env span ts arms want =
     else
       match tpat with
       | TPatWild | TPatBind _ -> caught_all := true
-      | TPatConst n ->
-          if Hashtbl.mem seen n then
-            Diagnostic.emit (Diagnostic.error pat.pspan "duplicate pattern")
-          else Hashtbl.add seen n ()
+      | TPatConst n -> mark n
+      | TPatVariant (n, subs) -> if List.for_all catches_all subs then mark n
   in
   let check_arm a =
     let arm_env, tpat = check_pattern (push_scope env) ts.ty a.pat in
@@ -1240,7 +1612,7 @@ and coerce_expr e want te =
   else if widens_to got want then mk e.espan want (TCast te)
   else begin
     let mismatch =
-      Diagnostic.error e.espan "type mismatch"
+      Diagnostic.error (adt_keyword_span e) "type mismatch"
       |>
       match (resolve_ty want, resolve_ty got) with
       | TPtr, (TPointer _ | TCStr) | (TPointer _ | TCStr), TPtr ->
@@ -1321,18 +1693,25 @@ and check_args env span fsig args =
 and synth_binop env span { value = op; span = op_span } l r =
   match op with
   | Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor ->
-      let tl, tr, t = check_matching_operands env (binop_accepts op) l r in
-      mk (verify_operands op_span op t [ tl.ty; tr.ty ]) (TBinOp (op, tl, tr))
+      let tl, tr, t =
+        coerce_common_pair env is_num_lit (binop_accepts op) l r
+      in
+      mk span
+        (verify_operands env.ctx.layouts op_span op t [ tl.ty; tr.ty ])
+        (TBinOp (op, tl, tr))
   | Lshift | Rshift ->
       let tl = synth env l in
       let tr = synth env r in
-      let t = verify_operands op_span op tl.ty [ tl.ty ] in
+      let t = verify_operands env.ctx.layouts op_span op tl.ty [ tl.ty ] in
       verify_shift_count r.espan tr;
       mk span t (TBinOp (op, tl, tr))
   | Eq | Neq | Lt | Gt | Lte | Gte ->
       let tl, tr, t = check_comparison_operands env (binop_accepts op) l r in
       let ty =
-        if has_error (verify_operands op_span op t [ tl.ty; tr.ty ]) then TError
+        if
+          has_error
+            (verify_operands env.ctx.layouts op_span op t [ tl.ty; tr.ty ])
+        then TError
         else TBool
       in
       mk span ty (TBinOp (op, tl, tr))
@@ -1370,7 +1749,7 @@ and check_assign_operands env base op_span l r =
     if no_place then TError
     else
       match base with
-      | Some op -> verify_operands op_span op tl.ty [ tl.ty ]
+      | Some op -> verify_operands env.ctx.layouts op_span op tl.ty [ tl.ty ]
       | None -> tl.ty
   in
   let tr =
@@ -1457,13 +1836,14 @@ and synth_call env span callee args =
 (* The callee is a value holding a fn ptr so call through it *)
 and apply_callee env span callee callee_texpr args =
   match resolve_ty callee_texpr.ty with
-  | TError -> dummy_texpr
-  | TFunc (param_tys, ret_ty, abi) ->
-      let fsig =
-        { param_tys; ret_ty; variadic = false; abi; param_hole = false }
-      in
-      let targs = check_args env span fsig args in
-      mk ret_ty (TCall (callee_texpr, targs, None))
+  | TError -> error_expr span
+  | TFunc f -> (
+      let targs = check_args env span { func = f; param_hole = false } args in
+      match callee_texpr.tdesc with
+      | TVariant (name, tag) ->
+          mk span f.sig_ret
+            (TBuild (name, tag, List.mapi (fun i a -> (i, a)) targs))
+      | _ -> mk span f.sig_ret (TCall (callee_texpr, targs, fixed_count f)))
   | _ ->
       let d =
         Diagnostic.error callee.espan "not callable"
@@ -1557,103 +1937,8 @@ and type_global_init env span b =
 
 and eval_array_size env e =
   let te = synth env e in
-  match te.tdesc with
-  | _ when not (is_integer te.ty) -> bad "array size must be an integer"
-  | TIntLit n ->
-      let shown =
-        if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
-      in
-      if
-        Int64.compare n 0x7FFF_FFFFL > 0
-        || (Int64.compare n 0L < 0 && is_unsigned te.ty)
-      then bad ("array size is too large: " ^ shown)
-      else if Int64.compare n 0L < 0 then
-        bad ("array size is negative: " ^ shown)
-      else Int64.to_int n
-  | _ when has_error te.ty -> 0
-  | _ -> bad "array size must be a literal"
-
-let ret_ty_of env fd =
-  match fd.ret with Some t -> ty_of_ast env t | None -> TUnit
-
-(* The signature pass enables forward calls *)
-let collect_func env fd =
-  let abi = resolve_abi fd.extern_abi in
-  let param_tys = List.map (fun p -> ty_of_ast env p.param_typ) fd.params in
-  let ret_ty = ret_ty_of env fd in
-  Symbol.Table.replace env.ctx.func_sigs
-    (key_at env.ctx fd.func_span)
-    { param_tys; ret_ty; variadic = fd.variadic; abi; param_hole = false }
-
-(* A repeat name is already reported with both spans by the resolver *)
-let type_name_taken ctx span =
-  let key = key_at ctx span in
-  key = Symbol.unresolved_key || Symbol.Table.mem ctx.type_defs key
-
-(* The reserved name enables forward field types *)
-let reserve_struct_name ctx sd =
-  if not (type_name_taken ctx sd.struct_span) then begin
-    let seen = Hashtbl.create 8 in
-    let check_duplicate f =
-      if Hashtbl.mem seen f.field_name.value then
-        Diagnostic.emit (Diagnostic.error f.field_name.span "duplicate field")
-      else Hashtbl.add seen f.field_name.value ()
-    in
-    List.iter check_duplicate sd.fields;
-    Symbol.Table.replace ctx.type_defs
-      (key_at ctx sd.struct_span)
-      (Struct_type (ref Unstarted));
-    Layout.set_struct_fields ctx.layouts (key_at ctx sd.struct_span) []
-  end
-
-let fill_struct_fields env sd =
-  match
-    Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx sd.struct_span)
-  with
-  | Some (Struct_type body) ->
-      let named_ty f = (f.field_name.value, ty_of_ast env f.field_typ) in
-      let field_tys = List.map named_ty sd.fields in
-      let field_index =
-        if List.compare_length_with field_tys 8 <= 0 then None
-        else
-          let index = Hashtbl.create (List.length field_tys) in
-          List.iteri
-            (fun field_id (name, ty) ->
-              if not (Hashtbl.mem index name) then
-                Hashtbl.add index name (field_id, ty))
-            field_tys;
-          Some index
-      in
-      body := Completed { field_tys; field_index };
-      Layout.set_struct_fields env.ctx.layouts
-        (key_at env.ctx sd.struct_span)
-        (List.map snd field_tys)
-  | _ -> ()
-
-type visit = On_path | Finished
-
-(* A back edge closes a cycle so everything still on the path is in it *)
-let cyclic_structs defs iter_edges =
-  let state = Symbol.Table.create (Symbol.Table.length defs) in
-  let cyclic = Symbol.Table.create 8 in
-  let path = ref [] in
-  let rec visit key =
-    match Symbol.Table.find_opt state key with
-    | Some Finished -> ()
-    | Some On_path ->
-        let rec mark = function
-          | [] -> ()
-          | node :: rest ->
-              Symbol.Table.replace cyclic node ();
-              if node <> key then mark rest
-        in
-        mark !path
-    | None ->
-        Symbol.Table.replace state key On_path;
-        path := key :: !path;
-        iter_edges key visit;
-        path := List.tl !path;
-        Symbol.Table.replace state key Finished
+  let shown n =
+    if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
   in
   let size =
     match te.tdesc with
@@ -1668,104 +1953,20 @@ let cyclic_structs defs iter_edges =
     | _ when has_error te.ty -> Ok 0
     | _ -> Error "expected a literal"
   in
-  let edges = Symbol.Table.create 16 in
-  let record_edges = function
-    | Struct sd -> (
-        let key = key_at ctx sd.struct_span in
-        let fields = Iarray.to_list (Layout.struct_fields ctx.layouts key) in
-        match List.filter_map stored_struct fields with
-        | [] -> ()
-        | targets -> Symbol.Table.replace edges key targets)
-    | Func _ | Extern _ | Global _ | TypeAlias _ | Enum _ -> ()
-  in
-  let iter_edges key visit =
-    Option.iter (List.iter visit) (Symbol.Table.find_opt edges key)
-  in
-  (* A struct can name one written later so all edges land before the walk *)
-  List.iter record_edges ctx.declarations;
-  let cyclic = cyclic_structs edges iter_edges in
-  let report_cycle = function
-    | Struct sd when Symbol.Table.mem cyclic (key_at ctx sd.struct_span) ->
-        Diagnostic.emit
-          (Diagnostic.error sd.struct_name.span
-             "recursive struct has infinite size")
-    | Struct _ | Func _ | Extern _ | Global _ | TypeAlias _ | Enum _ -> ()
-  in
-  (* The report follows the file so the same struct is blamed every time *)
-  List.iter report_cycle ctx.declarations
+  match size with
+  | Ok n -> n
+  | Error label ->
+      Diagnostic.emit
+        (Diagnostic.error e.espan "invalid array size"
+        |> Diagnostic.label "%s" label);
+      0
 
-(* A variant names no type so one pass settles the whole enum *)
-let reserve_enum_name ctx ed =
-  if not (type_name_taken ctx ed.enum_span) then begin
-    let variants_by_name = Hashtbl.create (List.length ed.variants) in
-    let add next (v : ident) =
-      if Hashtbl.mem variants_by_name v.value then begin
-        Diagnostic.emit (Diagnostic.error v.span "duplicate variant");
-        next
-      end
-      else begin
-        Hashtbl.add variants_by_name v.value next;
-        Int64.succ next
-      end
-    in
-    ignore (List.fold_left add 0L ed.variants);
-    Symbol.Table.replace ctx.type_defs (key_at ctx ed.enum_span)
-      (Enum_type (ref (Completed { variants_by_name })))
-  end
-
-let reserve_alias_name ctx td =
-  if not (type_name_taken ctx td.alias_span) then
-    Symbol.Table.replace ctx.type_defs (key_at ctx td.alias_span)
-      (Alias_type (ref Unstarted))
-
-let rec named_type_spans (t : typ) =
-  match t.tdesc with
-  | Named _ -> [ t.tspan ]
-  | Pointer inner | Slice inner | Array (_, inner) -> named_type_spans inner
-  | FuncPtr (_, params, ret) ->
-      List.concat_map named_type_spans params @ named_type_spans ret
-  | UnitType -> []
-
-(* An alias is only a second name for what it points at. A pointer in the
-   middle doesn't save it the way it saves a struct field *)
-let resolve_type_bodies ctx =
-  let defs = Hashtbl.create 16 in
-  let remember decl =
-    match decl with
-    | TypeAlias td ->
-        (* The resolver already rejected later definitions *)
-        (* The unresolved key cannot identify a real dependency *)
-        let key = key_at ctx td.alias_span in
-        if key <> Symbol.unresolved_key && not (Hashtbl.mem defs key) then
-          Hashtbl.add defs key decl
-    | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
-  in
-  let rec resolve_alias key =
-    match Hashtbl.find_opt defs key with
-    | None -> ()
-    | Some (TypeAlias td) -> (
-        match Symbol.Table.find_opt ctx.type_defs key with
-        | Some (Alias_type body) -> (
-            match !body with
-            | Completed _ -> ()
-            | Running ->
-                Diagnostic.emit
-                  (Diagnostic.error td.alias_name.span "recursive type")
-            | Unstarted ->
-                body := Running;
-                List.iter
-                  (fun span -> resolve_alias (key_at ctx span))
-                  (named_type_spans td.alias_typ);
-                let env = make_env ctx in
-                body := Completed (ty_of_ast env td.alias_typ))
-        | Some (Struct_type _ | Builtin_type _ | Enum_type _) | None -> ())
-    | Some (Func _ | Extern _ | Global _ | Struct _ | Enum _) -> ()
-  in
-  List.iter remember ctx.declarations;
-  (* The order here follows the file so the same type gets blamed every time *)
-  let resolve = function
-    | TypeAlias td -> resolve_alias (key_at ctx td.alias_span)
-    | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
+(* A param or return left out reads its type from the wanted fn type *)
+and lambda_sig env l abi declared =
+  let given =
+    match Option.map resolve_ty declared with
+    | Some (TFunc f) -> Some f
+    | Some _ | None -> None
   in
   let param_ty i p =
     match (p.param_typ.edesc, given, declared) with
@@ -1799,14 +2000,46 @@ let resolve_type_bodies ctx =
       sig_arity = Fixed;
     }
   in
-  List.iter collect ctx.declarations
+  let poisoned =
+    {
+      found with
+      sig_params = List.map (fun _ -> TError) param_tys;
+      sig_ret = TError;
+    }
+  in
+  let n = List.length l.lambda_params in
+  let wanted =
+    match given with Some f -> List.length f.sig_params | None -> n
+  in
+  let span = keyword_span l.lambda_span Tokens.FUNC in
+  match declared with
+  | None -> found
+  | Some _ when wanted <> n ->
+      Diagnostic.emit
+        (Diagnostic.error span "wrong number of parameters"
+        |> Diagnostic.label "expected %d parameter%s, found %d" wanted
+             (if wanted = 1 then "" else "s")
+             n);
+      poisoned
+  | Some want when not (ty_equal want (TFunc found)) ->
+      Diagnostic.emit
+        (Diagnostic.error span "type mismatch"
+        |> Diagnostic.label "expected %s, found %s" (show_ty want)
+             (show_ty (TFunc found)));
+      poisoned
+  | Some _ -> found
 
-let fill_struct_layouts ctx =
-  let fill = function
-    | Struct sd ->
-        let env = make_env ctx in
-        fill_struct_fields env sd
-    | Func _ | Extern _ | Global _ | TypeAlias _ | Enum _ -> ()
+(* A fn is checked where it's written so the wanted type can fill it in *)
+and check_lambda env e l want =
+  let key = key_at env.ctx e.espan in
+  let abi = resolve_abi l.lambda_abi in
+  let func = lambda_sig env l abi want in
+  let fd =
+    {
+      func_name = spanned (Interner.intern "fn") e.espan;
+      lambda = l;
+      func_span = e.espan;
+    }
   in
   let fsig = ref (Completed { func; param_hole = false }) in
   Symbol.Table.replace env.ctx.items key
@@ -1892,9 +2125,146 @@ and check_func env fd =
     tfunc_abi = func.sig_abi;
   }
 
-let check_global env (gd : global_def) =
-  let key = key_at env.ctx gd.span in
-  (* The collected type is reused so a bad array size errors once *)
+(* A repeat name is already reported with both spans by the resolver *)
+let reserve_adt_name ctx b kind written =
+  let key = key_at ctx b.bind_span in
+  if key <> Symbol.unresolved_key then begin
+    let check_duplicates message names =
+      let seen = Hashtbl.create 8 in
+      let check n =
+        if Hashtbl.mem seen n.value then
+          Diagnostic.emit (Diagnostic.error n.span message)
+        else Hashtbl.add seen n.value ()
+      in
+      List.iter check names
+    in
+    check_duplicates "duplicate variant" (List.map fst written);
+    List.iter
+      (fun (_, fields) ->
+        check_duplicates "duplicate field" (List.filter_map fst fields))
+      written;
+    if kind = Struct then Layout.set_variants ctx.layouts key Struct [ [] ]
+  end
+
+type visit = OnPath | Finished
+
+(* A back edge closes a cycle so everything still on the path is in it *)
+let cyclic_types defs iter_edges =
+  let state = Symbol.Table.create (Symbol.Table.length defs) in
+  let cyclic = Symbol.Table.create 8 in
+  let path = ref [] in
+  let rec visit key =
+    match Symbol.Table.find_opt state key with
+    | Some Finished -> ()
+    | Some OnPath ->
+        let rec mark = function
+          | [] -> ()
+          | node :: rest ->
+              Symbol.Table.replace cyclic node ();
+              if node <> key then mark rest
+        in
+        mark !path
+    | None ->
+        Symbol.Table.replace state key OnPath;
+        path := key :: !path;
+        iter_edges key visit;
+        path := List.tl !path;
+        Symbol.Table.replace state key Finished
+  in
+  Symbol.Table.iter (fun key _ -> visit key) defs;
+  cyclic
+
+(* A pointer or slice field is just an address so it can't grow the struct *)
+let verify_type_cycles ctx =
+  let rec stored_type ty =
+    match resolve_ty ty with
+    | TAdt (name, _) -> Some (Keyname.key name)
+    | TArray (elem, _) -> stored_type elem
+    | _ -> None
+  in
+  let edges = Symbol.Table.create 16 in
+  let record key info =
+    let field_tys =
+      List.concat_map (fun (_, v) -> List.map snd v.field_tys) info.variants
+    in
+    match List.filter_map stored_type field_tys with
+    | [] -> ()
+    | targets -> Symbol.Table.replace edges key targets
+  in
+  let record_edges = function
+    | AdtItem { decl; _ } ->
+        let key = key_at ctx decl.bind_span in
+        Option.iter (record key) (adt_info ctx key)
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
+        ()
+  in
+  List.iter record_edges ctx.decls;
+  let cyclic =
+    cyclic_types edges (fun key visit ->
+        Option.iter (List.iter visit) (Symbol.Table.find_opt edges key))
+  in
+  let report_cycle = function
+    | AdtItem { decl; kind; _ }
+      when Symbol.Table.mem cyclic (key_at ctx decl.bind_span) ->
+        let noun = match kind with Struct -> "struct" | Enum -> "enum" in
+        Diagnostic.emit
+          (Diagnostic.error decl.bind_name.span "recursive %s has infinite size"
+             noun)
+    | AdtItem _ | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _
+    | BuiltinItem _ ->
+        ()
+  in
+  List.iter report_cycle ctx.decls
+
+(* The file order blames the same type every run *)
+let resolve_type_bodies ctx =
+  let resolve = function
+    | AliasItem { decl; _ } -> (
+        match Symbol.Table.find_opt ctx.items (key_at ctx decl.bind_span) with
+        | Some (AliasItem { decl; body; aliased }) ->
+            ignore (alias_body ctx decl body aliased)
+        | _ -> ())
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AdtItem _ | BuiltinItem _ -> ()
+  in
+  List.iter resolve ctx.decls
+
+let reserve_adt_names ctx =
+  let reserve = function
+    | AdtItem { decl; kind; written; _ } ->
+        reserve_adt_name ctx decl kind written
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
+        ()
+  in
+  List.iter reserve ctx.decls
+
+(* A global can hold a fn written after it so every signature lands first *)
+let collect_decls ctx =
+  let collect_sig = function
+    | FuncItem { def = { func_span = span; _ }; _ }
+    | ExternItem { decl = { bind_span = span; _ }; _ } ->
+        ignore (func_sig (make_env ctx) span (key_at ctx span))
+    | GlobalItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ -> ()
+  in
+  let collect_global_ty = function
+    | GlobalItem fact ->
+        ignore (pending_global_ty (make_env ctx) fact.decl.bind_span fact)
+    | FuncItem _ | ExternItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ -> ()
+  in
+  List.iter collect_sig ctx.decls;
+  List.iter collect_global_ty ctx.decls
+
+let fill_type_layouts ctx =
+  let fill = function
+    | AdtItem { decl; _ } -> ignore (adt_info ctx (key_at ctx decl.bind_span))
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
+        ()
+  in
+  List.iter fill ctx.decls
+
+(* The collected type is reused so a bad array size errors once *)
+let check_global env fact =
+  let b = fact.decl in
+  let key = key_at env.ctx b.bind_span in
   let t =
     match !(fact.declared_ty) with Completed t -> t | _ -> global_ty env fact
   in
@@ -1924,19 +2294,23 @@ let check_decls ctx =
         TFuncDecl tfd
     | ExternItem { decl = b; _ } ->
         let env = make_env ctx in
-        let tfd = check_func ~is_extern:true env fd in
-        TExternDecl tfd
-    | Struct sd ->
-        (* A rejected duplicate has no completed table entry *)
-        let field_tys =
-          match struct_info ctx (key_at ctx sd.struct_span) with
-          | Some info -> List.map snd info.field_tys
-          | None ->
-              let env = make_env ctx in
-              List.map (fun f -> ty_of_ast env f.field_typ) sd.fields
+        let name = Interner.text b.bind_name.value in
+        TExternDecl
+          (link_name_at env b.bind_span name, find_non_local env b.bind_span)
+    | AdtItem { decl = b; kind; _ } ->
+        ignore (declares_type (make_env ctx) b);
+        let variants =
+          match adt_info ctx (key_at ctx b.bind_span) with
+          | Some info ->
+              List.map (fun (_, v) -> List.map snd v.field_tys) info.variants
+          | None -> []
         in
-        typed_struct_decl ctx sd field_tys
-    | Global gd ->
+        let name =
+          keyname_at ctx b.bind_span (Interner.text b.bind_name.value)
+        in
+        if is_local_type ctx b then TLocalAdtDecl (name, kind, variants)
+        else TAdtDecl (name, kind, variants)
+    | GlobalItem fact ->
         let env = make_env ctx in
         TGlobalDecl (check_global env fact)
     | AliasItem { decl = b; body; aliased } ->
@@ -1948,35 +2322,46 @@ let check_decls ctx =
               ty_of_ast env body
         in
         TTypeAliasDecl
-          (keyname_at ctx td.alias_span (Interner.text td.alias_name.value), t)
-    | Enum ed ->
-        TEnumDecl
-          (keyname_at ctx ed.enum_span (Interner.text ed.enum_name.value))
+          (keyname_at ctx b.bind_span (Interner.text b.bind_name.value), ty)
+    | BuiltinItem _ -> Diagnostic.ice "builtin type in the decls"
   in
-  List.map check_declaration ctx.declarations
+  let decls = List.map check_decl ctx.decls in
+  let lambdas =
+    Symbol.Table.to_seq ctx.lambdas
+    |> List.of_seq
+    |> List.sort (fun ((a : Symbol.key), _) (b, _) ->
+        Int.compare (a :> int) (b :> int))
+    |> List.map (fun (_, tfd) -> TFuncDecl tfd)
+  in
+  decls @ lambdas
 
-(* A global init can read a later global so defs go in first *)
-let register_globals ctx =
-  let register = function
-    | Global gd ->
-        Symbol.Table.replace ctx.global_facts (key_at ctx gd.span)
-          {
-            declaration = gd;
-            declared_ty = ref Unstarted;
-            typed = ref Unstarted;
-          }
-    | Func _ | Extern _ | Struct _ | TypeAlias _ | Enum _ -> ()
+(* A binding can be read before it's written so every one goes in first *)
+let register_items ctx =
+  let register item =
+    let span =
+      match item with
+      | FuncItem { def; _ } -> def.func_span
+      | ExternItem { decl; _ }
+      | GlobalItem { decl; _ }
+      | AdtItem { decl; _ }
+      | AliasItem { decl; _ } ->
+          decl.bind_span
+      | BuiltinItem _ -> Diagnostic.ice "builtin type in the decls"
+    in
+    let key = key_at ctx span in
+    if key <> Symbol.unresolved_key && not (Symbol.Table.mem ctx.items key) then
+      Symbol.Table.add ctx.items key item
   in
-  List.iter register ctx.declarations
+  List.iter register ctx.decls
 
 (* The partial tree stays available so later checks can still run *)
 let analyze uses decls =
   let decls = List.map item_of_decl (decls @ Resolve.local_decls uses) in
   let ctx = make_ctx uses decls in
-  register_globals ctx;
-  reserve_type_names ctx;
+  register_items ctx;
+  reserve_adt_names ctx;
   resolve_type_bodies ctx;
-  fill_struct_layouts ctx;
+  fill_type_layouts ctx;
   collect_decls ctx;
   verify_type_cycles ctx;
   check_decls ctx

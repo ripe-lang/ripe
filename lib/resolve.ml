@@ -289,6 +289,9 @@ and resolve_pattern st p =
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
   | PatBind name -> declare_local st Symbol.MatchBind name p.pspan
+  | PatVariant (callee, subs) ->
+      resolve_expr st callee;
+      List.iter (resolve_pattern st) subs
 
 (* A bare name is the one thing a type position reads differently *)
 and resolve_typ st t =

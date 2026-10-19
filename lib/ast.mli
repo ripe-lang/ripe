@@ -81,17 +81,11 @@ and path = { owner : name spanned Nonempty.t; member : name spanned }
 and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }
 
-and typ_desc =
-  | Named of name
-  | Pointer of typ
-  | FuncPtr of abi * typ list * typ
-  | Array of expr * typ
-  | Slice of typ
-  | UnitType
-
-and typ = { tdesc : typ_desc; tspan : span }
-and abi = NoAbi | NamedAbi of string spanned
-and field = { field_name : ident; field_typ : typ }
+and pattern_desc =
+  | PatValue of expr
+  | PatWild
+  | PatBind of name
+  | PatVariant of expr * pattern list
 
 and binding = {
   bind_name : ident;
@@ -111,12 +105,10 @@ and lambda = {
   lambda_span : span;
 }
 
-type global_def = {
-  name : ident;
-  typ : typ option;
-  init : expr option;
-  span : span;
-}
+and param = { param_name : ident; param_typ : typ; param_span : span }
+and field = { field_name : ident; field_typ : typ }
+and variant = { variant_name : ident; variant_payload : typ list }
+and abi = NoAbi | NamedAbi of string spanned
 
 type decl = Bind of binding
 
