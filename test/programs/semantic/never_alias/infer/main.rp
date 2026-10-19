@@ -1,0 +1,15 @@
+exit : (i32) -> never : extern "C";
+
+Never : _ : never;
+
+die : _ : fn() -> Never {
+  exit(7)
+};
+
+pick : _ : fn(b: bool) -> i32 {
+  if b { 1 } else { die() }
+};
+
+main : _ : fn() -> i32 {
+  return pick(false);
+};

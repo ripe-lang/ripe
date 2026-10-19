@@ -1,0 +1,3 @@
+// BROKEN: constants aren't decided yet
+LIMIT : _ : 4;
+main : _ : fn -> i32 { LIMIT };

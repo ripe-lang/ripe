@@ -1,0 +1,4 @@
+error: wrong number of parameters
+  at main.rp:1:22
+    add : (i32) -> i32 : fn(x, y) => x;
+                         ^~ expected 1 parameter, found 2

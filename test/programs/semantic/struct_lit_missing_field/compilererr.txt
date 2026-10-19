@@ -1,0 +1,4 @@
+error: missing field
+  at main.rp:4:8
+      p := Point.{ x = 7 };
+           ^~~~~ missing y

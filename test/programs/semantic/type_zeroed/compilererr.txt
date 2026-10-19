@@ -1,0 +1,4 @@
+error: undefined variable
+  at main.rp:3:3
+      t : type;
+      ^ no t to set

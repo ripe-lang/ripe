@@ -114,17 +114,6 @@ let render_program program diags =
   in
   List.iter (fun d -> Printf.eprintf "%s" (Diagnostic.render ctx d)) diags
 
-(* The C runtime we link calls main, so refuse before the linker leaks its own error *)
-let check_has_main tdecls =
-  let is_main = function
-    | Tast.TFuncDecl fd -> fd.Tast.tfunc_entry_point
-    | _ -> false
-  in
-  if not (List.exists is_main tdecls) then
-    Diagnostic.emit
-      (Diagnostic.error_no_span "no `main` function found"
-      |> Diagnostic.help "add a `main :: fn {}` entry point")
-
 let file_tokens filename =
   if not (Sys.file_exists filename) then
     die (Printf.sprintf "no such file: %s" filename);
@@ -189,10 +178,6 @@ let compile stage backend ~out libraries filename =
   end;
 
   let program = load filename in
-
-  (* A missing main is noise once the program failed to load *)
-  let load_had_errors = Diagnostic.has_errors () in
-
   let stop_at target emit =
     if stage = target then begin
       emit ();
@@ -217,10 +202,10 @@ let compile stage backend ~out libraries filename =
     stop_at Tast (fun () ->
         Output.text output
           (String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"));
-    if stage = Bin && not load_had_errors then check_has_main tdecls;
     render_and_exit_if_failed program;
 
     let mir = Mir.build tdecls in
+    let mir = if stage = Bin then Mir.with_entry mir else mir in
     Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
     stop_at Llvm (fun () ->

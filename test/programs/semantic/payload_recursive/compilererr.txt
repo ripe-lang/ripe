@@ -1,0 +1,8 @@
+error: recursive enum has infinite size
+  at main.rp:1:1
+    List : type : enum { Nil, Cons(i32, List) };
+    ^~~~
+error: recursive enum has infinite size
+  at main.rp:2:1
+    Tree :: enum { Leaf, Node(Tree, Tree) };
+    ^~~~

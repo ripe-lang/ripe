@@ -1,4 +1,0 @@
-main :: fn() -> i32 {
-  s : str;
-  return cast(i32, s.len) + 3;
-};

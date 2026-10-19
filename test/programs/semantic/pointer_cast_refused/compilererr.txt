@@ -10,7 +10,7 @@ error: invalid conversion
   at main.rp:8:15
       _c : bool = cast(bool, &p);
                   ^~~~~~~~~~~~~~ cannot convert *Point to bool
-help: compare with zero instead e.g. `x != 0`
+help: compare with zero: `x != 0`
 error: invalid conversion
   at main.rp:9:17
       _d : *Point = cast(*Point, true);

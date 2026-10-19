@@ -26,7 +26,7 @@ type place = {
   place_span : Ast.span;
 }
 
-and projection = Deref | Field of int | Index of operand
+and projection = Deref | Field of int * int | Index of operand | Tag
 and operand = { op_desc : operand_desc; op_ty : ty; op_span : Ast.span }
 and operand_desc = Copy of place | Const of constant
 
@@ -122,17 +122,18 @@ type func = {
   func_span : Ast.span;
 }
 
-type struct_decl = {
-  struct_name : Keyname.t;
-  struct_fields : ty list;
-  struct_local : bool;
+type adt_decl = {
+  adt_name : Keyname.t;
+  adt_kind : adt_kind;
+  adt_variants : ty list list;
+  adt_local : bool;
 }
 
 type global_value =
   | GlobalConst of constant * ty
   | GlobalAddress of string
   | GlobalArray of global_value list
-  | GlobalStruct of (int * global_value) list
+  | GlobalFields of int * (int * global_value) list
 
 type global = {
   global_name : string;
@@ -141,13 +142,12 @@ type global = {
 }
 
 type program = {
-  prog_structs : struct_decl list;
+  prog_adts : adt_decl list;
   prog_globals : global list;
   prog_funcs : func list;
 }
 
 type loop_ctx = {
-  label : Ast.name option;
   continue_block : block_id;
   break_block : block_id;
   result : (place * ty) option;
@@ -155,6 +155,8 @@ type loop_ctx = {
 
 type builder = {
   global_names : (Symbol.key, string) Hashtbl.t;
+  layouts : Layout.t;
+  variant_funcs : (string, Keyname.t * int64 * func_ty) Hashtbl.t;
   locals : local Dynarray.t;
   symbols : (Symbol.id, local_id) Hashtbl.t;
   blocks : block Dynarray.t;
@@ -164,15 +166,17 @@ type builder = {
 }
 
 type ctx = {
-  structs : ty array Symbol.Table.t;
+  layouts : Layout.t;
   globals : (string, ty) Hashtbl.t;
   signatures : (string, ty list * ty) Hashtbl.t;
   func : func;
 }
 
-let make_builder global_names =
+let make_builder global_names layouts variant_funcs =
   {
     global_names;
+    layouts;
+    variant_funcs;
     locals = Dynarray.create ();
     symbols = Hashtbl.create 16;
     blocks = Dynarray.make 1 { block_stmts = []; block_term = None };
@@ -225,18 +229,6 @@ let terminate state desc span =
     Dynarray.set state.blocks state.current
       { b with block_term = Some { term_desc = desc; term_span = span } }
 
-let loop_target state label span =
-  let target =
-    match (label, state.loops) with
-    | None, loop :: _ -> Some loop
-    | None, [] -> None
-    | Some label, loops ->
-        List.find_opt (fun loop -> loop.label = Some label.Ast.value) loops
-  in
-  match target with
-  | Some target -> target
-  | None -> Diagnostic.ice ~span "loop target does not exist"
-
 let local_place span id =
   { place_base = Local id; place_projs = []; place_span = span }
 
@@ -278,11 +270,24 @@ let symbol_place state span symbol =
       Diagnostic.ice ~span
         (Printf.sprintf "no MIR place for symbol %s" symbol.name)
 
+let variant_func variant_funcs name tag func =
+  let func_name =
+    Printf.sprintf "_Rvariant%d_%Ld" (Keyname.key name :> int) tag
+  in
+  Hashtbl.replace variant_funcs func_name (name, tag, func);
+  func_name
+
+let start_variant state destination span ty tag =
+  assign state destination (const span ty Undef);
+  assign state
+    (add_projection destination Tag)
+    (const span Layout.tag_ty (Int tag))
+
 (* TODO(7a4f): This is temporary until global inits fold again *)
 let constant_of expr =
   match expr.tdesc with
   (* The MIR keeps the value but not the variant name *)
-  | TIntLit value | TVariant (_, value) -> Int value
+  | TIntLit value | TBuild (_, value, []) -> Int value
   | TFloatLit value -> Float value
   | TBoolLit value -> Bool value
   | TNullLit -> Null
@@ -488,39 +493,53 @@ and lower_match state destination expr scrutinee arms =
   (* The scrutinee is a place so a field pattern can project into it *)
   let subject = materialize state (lower_expr state scrutinee) in
   let join = new_block state in
-  let ty = scrutinee.ty in
-  let wanted value =
-    match resolve_ty ty with
-    | TBool -> Bool (value <> 0L)
-    | TChar -> Char (Int64.to_int value)
-    | _ -> Int value
-  in
   let rec lower_arms = function
     | [] -> terminate state Unreachable expr.tspan
-    | { tpat = TPatWild; tbody } :: _ ->
+    | { tpat = (TPatWild | TPatBind _) as tpat; tbody } :: _ ->
+        lower_pattern state expr.tspan subject scrutinee.ty tpat join;
         lower_arm state destination expr join tbody
-    | { tpat = TPatBind (symbol, bound_ty); tbody } :: _ ->
-        let id = declare state symbol User bound_ty expr.tspan in
-        assign state
-          (local_place expr.tspan id)
-          (copy expr.tspan bound_ty subject);
-        lower_arm state destination expr join tbody
-    | { tpat = TPatConst value; tbody } :: rest ->
+    | { tpat; tbody } :: rest ->
         let no = new_block state in
-        let yes = new_block state in
-        let against = const expr.tspan ty (wanted value) in
-        let found = copy expr.tspan ty subject in
-        let equal =
-          tmp_value state TBool expr.tspan (BinOp (Eq, found, against))
-        in
-        terminate state (Branch (equal, yes, no)) expr.tspan;
-        switch state yes;
+        lower_pattern state expr.tspan subject scrutinee.ty tpat no;
         lower_arm state destination expr join tbody;
         switch state no;
         lower_arms rest
   in
   lower_arms arms;
   switch state join
+
+(* %2 = copy %0.tag == 1
+   branch copy %2 block3 block2
+   block3:
+     %3 = copy %0.variant1_field0 *)
+and lower_pattern state span subject ty tpat no =
+  let test found value =
+    let yes = new_block state in
+    let against = const span found.op_ty value in
+    let equal = tmp_value state TBool span (BinOp (Eq, found, against)) in
+    terminate state (Branch (equal, yes, no)) span;
+    switch state yes
+  in
+  match (tpat, resolve_ty ty) with
+  | TPatWild, _ -> ()
+  | TPatBind (symbol, bound_ty), _ ->
+      let id = declare state symbol User bound_ty span in
+      assign state (local_place span id) (copy span bound_ty subject)
+  | TPatConst value, TBool -> test (copy span ty subject) (Bool (value <> 0L))
+  | TPatConst value, TChar ->
+      test (copy span ty subject) (Char (Int64.to_int value))
+  | TPatVariant (tag, subs), TAdt (name, _)
+    when Layout.has_payload state.layouts ty ->
+      test (copy span Layout.tag_ty (add_projection subject Tag)) (Int tag);
+      let variant = Int64.to_int tag in
+      List.iteri
+        (fun i sub ->
+          let part = add_projection subject (Field (variant, i)) in
+          let part_ty = Layout.field_ty state.layouts name variant i in
+          lower_pattern state span part part_ty sub no)
+        subs
+  | (TPatConst value | TPatVariant (value, _)), _ ->
+      test (copy span ty subject) (Int value)
 
 (* %1 = 10
    jump block1 *)
@@ -546,30 +565,11 @@ and lower_cond state expr yes no =
       let condition = lower_expr state expr in
       terminate state (Branch (condition, yes, no)) expr.tspan
 
-(* jump block1
-   block1:
-     %2 = copy %1 < copy %0
-     branch copy %2 block2 block3
-   block2:
-     %1 = copy %1 + 1
-     jump block1 *)
-and lower_while state span label condition body =
-  let condition_block = new_block state in
-  let body_block = new_block state in
-  let exit_block = new_block state in
-  terminate state (Jump condition_block) span;
-  switch state condition_block;
-  lower_cond state condition body_block exit_block;
-  switch state body_block;
-  lower_loop_body state span label condition_block exit_block None body;
-  switch state exit_block
-
 (* The stack gives nested loop control the nearest matching target *)
 (* %1 = copy %1 + 1
    jump block1 *)
-and lower_loop_body state span label continue_block break_block result body =
-  let label = Option.map (fun label -> label.Ast.value) label in
-  state.loops <- { label; continue_block; break_block; result } :: state.loops;
+and lower_loop_body state span continue_block break_block result body =
+  state.loops <- { continue_block; break_block; result } :: state.loops;
   List.iter (lower_stmt state) body;
   state.loops <- List.tl state.loops;
   if is_live state then terminate state (Jump continue_block) span
@@ -583,7 +583,7 @@ and lower_loop_body state span label continue_block break_block result body =
      %4 = copy %1 + 1
      %1 = copy %4
      jump block1 *)
-and lower_counted_loop state span label op ty counter limit elem body =
+and lower_counted_loop state span op ty counter limit elem body =
   let condition_block = new_block state in
   let body_block = new_block state in
   let step_block = new_block state in
@@ -598,7 +598,7 @@ and lower_counted_loop state span label op ty counter limit elem body =
   (match elem with
   | Some (destination, value) -> assign state destination value
   | None -> ());
-  lower_loop_body state span label step_block exit_block None body;
+  lower_loop_body state span step_block exit_block None body;
   switch state step_block;
   if op = Lte then begin
     let increment_block = new_block state in
@@ -611,17 +611,16 @@ and lower_counted_loop state span label op ty counter limit elem body =
   terminate state (Jump condition_block) span;
   switch state exit_block
 
-and lower_for state span label symbol elem_ty iter body =
+and lower_for state span symbol elem_ty iter body =
   match iter.tdesc with
-  | TRange (lo, hi) ->
-      lower_range_for state span label symbol elem_ty lo hi Lt body
+  | TRange (lo, hi) -> lower_range_for state span symbol elem_ty lo hi Lt body
   | TRangeInclusive (lo, hi) ->
-      lower_range_for state span label symbol elem_ty lo hi Lte body
-  | _ -> lower_each_for state span label symbol elem_ty iter body
+      lower_range_for state span symbol elem_ty lo hi Lte body
+  | _ -> lower_each_for state span symbol elem_ty iter body
 
 (* %1 = 0
    %2 = 3 *)
-and lower_range_for state span label symbol elem_ty lo hi op body =
+and lower_range_for state span symbol elem_ty lo hi op body =
   let loop_id = declare state symbol User elem_ty symbol.Symbol.span in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
@@ -631,7 +630,7 @@ and lower_range_for state span label symbol elem_ty lo hi op body =
     local_place span (add_local state (Some "for.hi") Temp elem_ty hi.op_span)
   in
   assign state limit hi;
-  lower_counted_loop state span label op elem_ty counter limit None body
+  lower_counted_loop state span op elem_ty counter limit None body
 
 (* %6 = data_ptr %0
    %7 = len %0
@@ -640,7 +639,7 @@ and lower_range_for state span label symbol elem_ty lo hi op body =
    %4 = 0
    ...
    %5 = copy %2[copy %4] *)
-and lower_each_for state span label symbol elem_ty iter body =
+and lower_each_for state span symbol elem_ty iter body =
   let usize = TInt Usize in
   let source = lower_expr state iter |> materialize state in
   let source =
@@ -663,7 +662,7 @@ and lower_each_for state span label symbol elem_ty iter body =
   assign state index (const span usize (Int 0L));
   let at_index = add_projection ptr_place (Index (copy span usize index)) in
   let elem = (local_place span loop_id, copy span elem_ty at_index) in
-  lower_counted_loop state span label Lt usize index len_place (Some elem) body
+  lower_counted_loop state span Lt usize index len_place (Some elem) body
 
 (* jump block1
    block1:
@@ -672,20 +671,20 @@ and lower_each_for state span label symbol elem_ty iter body =
    block4:
      %1 = 1
      jump block2 *)
-and lower_loop state destination span label ty body =
+and lower_loop state destination span ty body =
   let body_block = new_block state in
   let exit_block = new_block state in
   terminate state (Jump body_block) span;
   switch state body_block;
   let result = Option.map (fun place -> (place, ty)) destination in
-  lower_loop_body state span label body_block exit_block result body;
+  lower_loop_body state span body_block exit_block result body;
   switch state exit_block
 
 (* copy %0, 1 *)
 and lower_arg state expr =
   let value = lower_expr state expr in
   if is_unit value.op_ty then None
-  else if is_aggregate value.op_ty then
+  else if Layout.is_aggregate state.layouts value.op_ty then
     Some (copy value.op_span value.op_ty (materialize state value))
   else Some value
 
@@ -694,9 +693,17 @@ and lower_arg state expr =
 and lower_expr state expr =
   match expr.tdesc with
   | TIdent _ when is_unit expr.ty -> const expr.tspan expr.ty Undef
-  | TIntLit _ | TVariant _ | TFloatLit _ | TBoolLit _ | TNullLit | TCStrLit _
-  | TStrLit _ | TCharLit _ | TZero ->
+  | TIntLit _ | TFloatLit _ | TBoolLit _ | TNullLit | TCStrLit _ | TStrLit _
+  | TCharLit _ | TZero ->
       const expr.tspan expr.ty (constant_of expr)
+  | TBuild _ when not (Layout.is_aggregate state.layouts expr.ty) ->
+      const expr.tspan expr.ty (constant_of expr)
+  | TVariant (name, tag) -> (
+      match resolve_ty expr.ty with
+      | TFunc func ->
+          const expr.tspan expr.ty
+            (Function (variant_func state.variant_funcs name tag func))
+      | _ -> Diagnostic.ice ~span:expr.tspan "variant value is not a function")
   | TIdent symbol when Symbol.is_func symbol.Symbol.kind ->
       const expr.tspan expr.ty (constant_of expr)
   | TIdent symbol ->
@@ -727,6 +734,8 @@ and lower_into state destination expr =
   | TErrorExpr -> Diagnostic.ice ~span:expr.tspan "error expression reached MIR"
   | TRange _ | TRangeInclusive _ ->
       Diagnostic.ice ~span:expr.tspan "range outside a for loop"
+  | TBuild (_, tag, fields) when Layout.is_aggregate state.layouts expr.ty ->
+      lower_build state (slot ()) expr tag fields
   | TCall (callee, args, variadic_start) ->
       let destination = if is_valued expr.ty then Some (slot ()) else None in
       lower_call state destination expr callee args variadic_start
@@ -753,8 +762,9 @@ and lower_into state destination expr =
   | TUnOp (Ast.AddressOf, inner) ->
       store_value (AddressOf (lower_place state inner))
   | TUnOp (Ast.Deref, _)
-  | TFieldAccess _ | TIndex _ | TIdent _ | TIntLit _ | TVariant _ | TFloatLit _
-  | TBoolLit _ | TNullLit | TCStrLit _ | TStrLit _ | TCharLit _ | TZero ->
+  | TFieldAccess _ | TIndex _ | TIdent _ | TIntLit _ | TBuild _ | TVariant _
+  | TFloatLit _ | TBoolLit _ | TNullLit | TCStrLit _ | TStrLit _ | TCharLit _
+  | TZero ->
       let value = lower_expr state expr in
       Option.iter (fun d -> assign state d value) destination
   | TUnOp (op, inner) -> store_value (UnOp (unop_of op, lower_expr state inner))
@@ -765,18 +775,16 @@ and lower_into state destination expr =
   | TDataPtr inner ->
       store_value (DataPtr (lower_expr state inner |> materialize state))
   | TArrayLit elems -> lower_array_lit state (slot ()) expr elems
-  | TStructLit (_, fields) -> lower_struct_lit state (slot ()) expr fields
   | TSliceExpr (base, lo, hi) -> lower_slice state (slot ()) expr base lo hi
-  | TLoop (label, body) ->
-      lower_loop state destination expr.tspan label expr.ty body
+  | TLoop body -> lower_loop state destination expr.tspan expr.ty body
   | TBlock body -> lower_block state destination body
   | TIf (branches, else_body) ->
       lower_if state destination expr branches else_body
   | TMatch (scrutinee, arms) ->
       lower_match state destination expr scrutinee arms
-  | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TWhile _ | TFor _ ->
+  | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TFor _ ->
       lower_stmt state expr
-  | TLocalDecl | TUnitLit -> ());
+  | TLocalDecl | TUnitLit | TTypeExpr -> ());
   if is_never expr.ty then terminate state Unreachable expr.tspan
 
 (* %0 = call @g(), call @puts(copy %1) *)
@@ -784,7 +792,7 @@ and lower_call state destination expr callee args variadic_start =
   let args = List.filter_map (lower_arg state) args in
   let kind =
     match resolve_ty callee.ty with
-    | TFunc (_, _, C) -> External
+    | TFunc { sig_abi = C; _ } -> External
     | _ -> Internal
   in
   let callee =
@@ -817,7 +825,7 @@ and lower_place state expr =
         | TPointer _ -> lower_deref state base base.tspan
         | _ -> lower_expr state base |> materialize state
       in
-      add_projection source (Field field)
+      add_projection source (Field (0, field))
   | TIndex (base, index) ->
       let base_value = lower_expr state base in
       let source = materialize state base_value in
@@ -854,14 +862,17 @@ and lower_array_lit state destination expr elems =
       lower_into state (Some target) elem)
     elems
 
-(* %0 = zero
-   %0.field1 = call @side(1)
-   %0.field0 = call @side(2) *)
-and lower_struct_lit state destination expr fields =
-  assign state destination (const expr.tspan expr.ty Zero);
+(* %0 = undef
+   %0.tag = 1
+   %0.variant1.field0 = 3 *)
+and lower_build state destination expr tag fields =
+  if Layout.has_payload state.layouts expr.ty then
+    start_variant state destination expr.tspan expr.ty tag
+  else assign state destination (const expr.tspan expr.ty Zero);
   List.iter
     (fun (field, value) ->
-      lower_into state (Some (add_projection destination (Field field))) value)
+      let part = add_projection destination (Field (Int64.to_int tag, field)) in
+      lower_into state (Some part) value)
     fields
 
 (* %2 = len %1
@@ -927,46 +938,84 @@ and lower_stmt state expr =
           | None, _ -> None
         in
         terminate state (ReturnValue returned) expr.tspan
-    | TBreak (label, value) ->
-        let target = loop_target state label expr.tspan in
-        Option.iter
-          (fun value ->
-            match target.result with
-            | Some result -> lower_break state result value
-            | None -> lower_into state None value)
-          value;
+    | TBreak (depth, value) ->
+        let target = List.nth state.loops depth in
+        begin match (value, target.result) with
+        | Some value, Some result -> lower_break state result value
+        | Some value, None -> lower_into state None value
+        | None, _ -> ()
+        end;
         terminate state (Jump target.break_block) expr.tspan
-    | TContinue label ->
-        let target = loop_target state label expr.tspan in
+    | TContinue depth ->
+        let target = List.nth state.loops depth in
         terminate state (Jump target.continue_block) expr.tspan
-    | TWhile (label, condition, body) ->
-        lower_while state expr.tspan label condition body
-    | TFor (label, symbol, elem_ty, iter, body) ->
-        lower_for state expr.tspan label symbol elem_ty iter body
+    | TFor (symbol, elem_ty, iter, body) ->
+        lower_for state expr.tspan symbol elem_ty iter body
     | _ -> lower_into state None expr
 
-let rec global_value_of expr =
+let rec global_value_of layouts variant_funcs expr =
+  let value_of = global_value_of layouts variant_funcs in
   match expr.tdesc with
   | TUnOp (Ast.AddressOf, { tdesc = TIdent symbol; _ }) ->
       GlobalAddress symbol.Symbol.link_name
-  | TArrayLit values -> GlobalArray (List.map global_value_of values)
-  | TStructLit (_, fields) ->
+  | TArrayLit values -> GlobalArray (List.map value_of values)
+  | TBuild (_, tag, fields) when Layout.is_aggregate layouts expr.ty ->
       let compare_field_ids (left, _) (right, _) = Int.compare left right in
-      GlobalStruct
-        (List.map
-           (fun (field, value) -> (field, global_value_of value))
-           (List.sort compare_field_ids fields))
+      GlobalFields
+        ( Int64.to_int tag,
+          List.map
+            (fun (field, value) -> (field, value_of value))
+            (List.sort compare_field_ids fields) )
+  | TVariant (name, tag) -> (
+      match resolve_ty expr.ty with
+      | TFunc func ->
+          GlobalConst
+            (Function (variant_func variant_funcs name tag func), expr.ty)
+      | _ -> Diagnostic.ice ~span:expr.tspan "variant value is not a function")
   | _ -> GlobalConst (constant_of expr, expr.ty)
 
-let build_global global =
+let build_global layouts variant_funcs global =
   {
     global_name = global.tglobal_name;
     global_ty = global.tglobal_ty;
-    global_init = Option.map global_value_of global.tglobal_init;
+    global_init =
+      Option.map (global_value_of layouts variant_funcs) global.tglobal_init;
   }
 
-let build_func global_names func =
-  let state = make_builder global_names in
+(* A variant fn is only built when a variant is passed around as a function *)
+let build_variant_func layouts (func_name, (name, tag, func)) =
+  let state = make_builder (Hashtbl.create 0) layouts (Hashtbl.create 0) in
+  let span = Ast.dummy_span in
+  let result = add_local state (Some "result") Result func.sig_ret span in
+  let params =
+    List.map
+      (fun ty -> (add_local state None Param ty span, ty))
+      func.sig_params
+  in
+  let destination = local_place span result in
+  start_variant state destination span func.sig_ret tag;
+  List.iteri
+    (fun i (id, ty) ->
+      let part = add_projection destination (Field (Int64.to_int tag, i)) in
+      assign state part (copy span ty (local_place span id)))
+    params;
+  terminate state (ReturnValue None) span;
+  {
+    func_name;
+    func_source_name = Keyname.show name;
+    func_export = false;
+    func_abi = Ripe;
+    func_params = List.map fst params;
+    func_result = Some result;
+    func_locals = Dynarray.to_array state.locals;
+    func_blocks = finish_blocks state;
+    func_ret = func.sig_ret;
+    func_entry_point = false;
+    func_span = span;
+  }
+
+let build_func global_names layouts variant_funcs func =
+  let state = make_builder global_names layouts variant_funcs in
   let span =
     match (func.tfunc_body, func.tfunc_params) with
     | first :: _, _ -> first.tspan
@@ -975,7 +1024,7 @@ let build_func global_names func =
   in
   (* A returned aggregate needs somewhere to live that outlives the frame *)
   (* TODO(73fc): A universal result slot would simplify inlining *)
-  if is_aggregate func.tfunc_ret then
+  if Layout.is_aggregate layouts func.tfunc_ret then
     state.result <-
       Some (add_local state (Some "result") Result func.tfunc_ret span);
   let params =
@@ -1005,32 +1054,85 @@ let build_func global_names func =
   }
 
 let build decls =
-  let structs, globals, funcs =
+  let adts, globals, funcs =
     List.fold_right
-      (fun decl (structs, globals, funcs) ->
-        let add name fields local =
-          { struct_name = name; struct_fields = fields; struct_local = local }
-          :: structs
-        in
+      (fun decl (adts, globals, funcs) ->
         match decl with
-        | TStructDecl (name, fields) -> (add name fields false, globals, funcs)
-        | TLocalStructDecl (name, fields) ->
-            (add name fields true, globals, funcs)
+        | TAdtDecl (name, kind, variants) ->
+            ( {
+                adt_name = name;
+                adt_kind = kind;
+                adt_variants = variants;
+                adt_local = false;
+              }
+              :: adts,
+              globals,
+              funcs )
+        | TLocalAdtDecl (name, kind, variants) ->
+            ( {
+                adt_name = name;
+                adt_kind = kind;
+                adt_variants = variants;
+                adt_local = true;
+              }
+              :: adts,
+              globals,
+              funcs )
         | TGlobalDecl global when is_valued global.tglobal_ty ->
-            (structs, global :: globals, funcs)
-        | TFuncDecl func -> (structs, globals, func :: funcs)
-        | _ -> (structs, globals, funcs))
+            (adts, global :: globals, funcs)
+        | TFuncDecl func -> (adts, globals, func :: funcs)
+        | _ -> (adts, globals, funcs))
       decls ([], [], [])
   in
+  let layouts = Layout.create () in
+  List.iter
+    (fun adt ->
+      Layout.set_variants layouts (Keyname.key adt.adt_name) adt.adt_kind
+        adt.adt_variants)
+    adts;
   let global_names = Hashtbl.create 16 in
   List.iter
     (fun g -> Hashtbl.add global_names g.tglobal_key g.tglobal_name)
     globals;
+  let variant_funcs = Hashtbl.create 8 in
+  let globals = List.map (build_global layouts variant_funcs) globals in
+  let functions =
+    List.map (build_func global_names layouts variant_funcs) funcs
+  in
+  let variant_bodies =
+    Hashtbl.to_seq variant_funcs
+    |> List.of_seq
+    |> List.sort (fun (a, _) (b, _) -> String.compare a b)
+    |> List.map (build_variant_func layouts)
+  in
   {
-    prog_structs = structs;
-    prog_globals = List.map build_global globals;
-    prog_funcs = List.map (build_func global_names) funcs;
+    prog_adts = adts;
+    prog_globals = globals;
+    prog_funcs = functions @ variant_bodies;
   }
+
+(* A file without main still builds into a program that does nothing *)
+let with_entry program =
+  if List.exists (fun func -> func.func_entry_point) program.prog_funcs then
+    program
+  else
+    let main =
+      {
+        tfunc_key = Symbol.unresolved_key;
+        tfunc_name = Resolve.decl_link_name "main";
+        tfunc_source_name = "main";
+        tfunc_entry_point = true;
+        tfunc_params = [];
+        tfunc_ret = TUnit;
+        tfunc_body = [];
+        tfunc_export = false;
+        tfunc_abi = Ripe;
+      }
+    in
+    let main =
+      build_func (Hashtbl.create 0) (Layout.create ()) (Hashtbl.create 0) main
+    in
+    { program with prog_funcs = program.prog_funcs @ [ main ] }
 
 let show_storage = function
   | Param -> "param"
@@ -1073,8 +1175,11 @@ let show_binop = function
 let rec show_place value =
   let projection = function
     | Deref -> ".deref"
-    | Field field -> Printf.sprintf ".field%d" field
+    | Field (0, field) -> Printf.sprintf ".field%d" field
+    | Field (variant, field) ->
+        Printf.sprintf ".variant%d.field%d" variant field
     | Index index -> Printf.sprintf "[%s]" (show_operand index)
+    | Tag -> ".tag"
   in
   let base =
     match value.place_base with
@@ -1225,9 +1330,10 @@ let local_of ctx span id =
     fail ctx span "local %d does not exist" id;
   ctx.func.func_locals.(id)
 
-let constant_fits ty constant =
+let constant_fits layouts ty constant =
   match (constant, resolve_ty ty) with
-  | Int _, (TInt _ | TEnum _)
+  | Int _, TAdt _ -> not (Layout.is_aggregate layouts ty)
+  | Int _, TInt _
   | Float _, TFloat _
   | Bool _, TBool
   | Null, (TNull | TPointer _ | TPtr)
@@ -1243,7 +1349,7 @@ let constant_fits ty constant =
 let rec verify_operand ctx operand =
   (match operand.op_desc with
   | Const constant ->
-      if not (constant_fits operand.op_ty constant) then
+      if not (constant_fits ctx.layouts operand.op_ty constant) then
         fail ctx operand.op_span "constant %s can't be %s"
           (show_constant constant) (show_ty operand.op_ty)
   | Copy source ->
@@ -1256,15 +1362,14 @@ and verify_projection ctx span ty = function
       match resolve_ty ty with
       | TPointer inner -> inner
       | _ -> fail ctx span "deref projection requires a pointer")
-  | Field field -> (
-      match resolve_ty ty with
-      | TStruct (name, _) -> (
-          match Symbol.Table.find_opt ctx.structs (Keyname.key name) with
-          | Some fields when field >= 0 && field < Array.length fields ->
-              fields.(field)
-          | Some _ -> fail ctx span "field projection %d does not exist" field
-          | None -> fail ctx span "struct %s has no layout" (Keyname.show name))
-      | _ -> fail ctx span "field projection requires a struct")
+  | Field (variant, field) -> (
+      match Layout.named_aggregate ctx.layouts ty with
+      | Some name -> Layout.field_ty ctx.layouts name variant field
+      | None -> fail ctx span "field projection requires fields")
+  | Tag ->
+      if not (Layout.has_payload ctx.layouts ty) then
+        fail ctx span "tag projection requires a payload enum";
+      Layout.tag_ty
   | Index index -> (
       expect_int ctx index.op_span "index" (verify_operand ctx index);
       match resolve_ty ty with
@@ -1344,8 +1449,8 @@ let signature_of ctx span call =
       | None -> (None, call.call_ret))
   | Indirect callee -> (
       match resolve_ty (verify_operand ctx callee) with
-      | TFunc (params, ret_ty, _) ->
-          (Some (List.filter is_valued params), ret_ty)
+      | TFunc { sig_params; sig_ret; _ } ->
+          (Some (List.filter is_valued sig_params), sig_ret)
       | ty -> fail ctx span "callee is %s but should be a function" (show_ty ty)
       )
 
@@ -1454,12 +1559,12 @@ let verify_func ctx =
     func.func_blocks
 
 let verify program =
-  let structs =
-    List.to_seq program.prog_structs
-    |> Seq.map (fun s ->
-        (Keyname.key s.struct_name, Array.of_list s.struct_fields))
-    |> Symbol.Table.of_seq
-  in
+  let layouts = Layout.create () in
+  List.iter
+    (fun adt ->
+      Layout.set_variants layouts (Keyname.key adt.adt_name) adt.adt_kind
+        adt.adt_variants)
+    program.prog_adts;
   let globals =
     List.to_seq program.prog_globals
     |> Seq.map (fun g -> (g.global_name, g.global_ty))
@@ -1475,5 +1580,5 @@ let verify program =
     |> Hashtbl.of_seq
   in
   List.iter
-    (fun func -> verify_func { structs; globals; signatures; func })
+    (fun func -> verify_func { layouts; globals; signatures; func })
     program.prog_funcs

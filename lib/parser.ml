@@ -34,24 +34,23 @@ let cur_span st = st.current.span
 let cur_pos st = Span.lo (cur_span st)
 let span_from lo st = Span.make lo st.prev_end
 let mk lo st desc = { edesc = desc; espan = span_from lo st }
-let mkt lo st tdesc = { tdesc; tspan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
 let is_expr_start = function
   | INT _ | FLOAT _ | IDENT _ | STRING _ | CHAR _ | MINUS | AMP | TILDE | BANG
   | TRUE | FALSE | NULL | SIZEOF | CAST | LPAREN | LBRACKET | IF | LBRACE | LOOP
-  | WHILE | FOR | MATCH ->
+  | WHILE | FOR | MATCH | FUNC | STRUCT | ENUM | DOT ->
       true
   | _ -> false
 
 let is_type_start = function
-  | IDENT _ | STAR | LBRACKET | EXTERN | LPAREN -> true
+  | IDENT _ | STAR | LBRACKET | EXTERN | LPAREN | UNDERSCORE -> true
   | _ -> false
 
-let ends_in_block = function
-  | Expr { edesc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ } ->
-      true
-  | Expr _ | Decl _ -> false
+let ends_in_block e =
+  match e.edesc with
+  | If _ | Match _ | For _ | Loop _ | Block _ -> true
+  | _ -> false
 
 let next_token st last = match last.token with EOF -> last | _ -> st.read ()
 
@@ -101,7 +100,6 @@ let skip_semi st =
     advance st
   done
 
-let has_abi st = match peek_token st with STRING _ -> true | _ -> false
 let has_arm st = not (at st RBRACE || at st EOF)
 
 let expect st t =
@@ -130,14 +128,13 @@ let expect_ident_span st =
   let span = cur_span st in
   spanned (expect_ident st) span
 
-let expect_decl_sep st ~what =
+let expect_decl_sep st what =
   match cur_token st with
   | COMMA -> advance st
   | RBRACE | EOF -> ()
   | _ ->
-      Diagnostic.error (cur_span st) "expected %s separator" what
-      |> Diagnostic.help ("separate " ^ what ^ "s with `,`")
-      |> fail
+      Diagnostic.error (cur_span st) "expected `,` between %ss" what
+      |> found st |> fail
 
 let expect_lit_field_sep st =
   match cur_token st with
@@ -166,11 +163,6 @@ let comma_sep st stop parse_one =
   else
     let first = parse_one st in
     first :: rest ()
-
-let abi_wants_func st = function
-  | NamedAbi _ ->
-      Diagnostic.error (cur_span st) "expected `fn`" |> found st |> fail
-  | NoAbi -> ()
 
 let left prec build = Some { prec; assoc = Left; build }
 let right prec build = Some { prec; assoc = Right; build }
@@ -229,92 +221,43 @@ and binding_name st ctx =
       spanned (Interner.intern "_") span
   | _ -> expect_ident_span st
 
-and binding_initializer st =
-  expect st ASSIGN;
-  match cur_token st with
-  | STRUCT | ENUM ->
-      Diagnostic.error (cur_span st) "expected expression"
-      |> found st
-      |> Diagnostic.help "declare a type with `::`"
-      |> fail
-  | _ -> parse_expr st
-
-(* i32, *i32, (i32, i32) -> i32 *)
+(* i32, *i32, []i32, (i32) -> i32, _ *)
 and parse_typ st =
-  let lo = cur_pos st in
-  match cur_token st with
-  | EXTERN when not (has_abi st) ->
-      Diagnostic.error (cur_span st) "expected type" |> found st |> fail
-  | EXTERN ->
-      advance st;
-      parse_func_ptr st lo (parse_abi st)
-  | STAR ->
-      advance st;
-      mkt lo st (Pointer (parse_typ st))
-  | IDENT _ when starts_member st ->
-      Diagnostic.error (cur_span st) "expected type" |> found st |> fail
-  | IDENT name ->
-      advance st;
-      mkt lo st (Named (Interner.intern name))
-  (* [N]T fixed size array, []T slice *)
-  | LBRACKET ->
-      advance st;
-      if at st RBRACKET then begin
-        advance st;
-        mkt lo st (Slice (parse_typ st))
-      end
-      else
-        let n = parse_expr st in
-        expect st RBRACKET;
-        mkt lo st (Array (n, parse_typ st))
-  | LPAREN -> parse_func_ptr st lo NoAbi
-  | _ -> Diagnostic.error (cur_span st) "expected type" |> found st |> fail
+  if not (is_type_start (cur_token st)) then
+    Diagnostic.error (cur_span st) "expected type" |> found st |> fail;
+  parse_prefix st NormalExpression
 
-(* x : i32, x : i32 = 42, x := 42 *)
+(* x : i32, x : i32 = 42, x : _ = 42, x := 42, N :: 5, N : i32 : 5, N : _ : 5 *)
 and parse_binding st ctx =
+  let lo = cur_pos st in
   let name = binding_name st ctx in
+  expect st COLON;
   let typ =
-    if peek_token st == ASSIGN then begin
-      expect st COLON;
-      None
-    end
-    else Some (typ_after st COLON)
+    match cur_token st with
+    | COLON | ASSIGN -> { edesc = Hole; espan = name.span }
+    | _ -> parse_typ st
   in
-  let init = if at st ASSIGN then Some (binding_initializer st) else None in
-  (name, typ, init)
+  let binder = if at st COLON then CompileTime else RunTime in
+  let form =
+    match (typ.edesc, cur_token st) with
+    | Hole, (COLON | ASSIGN) ->
+        advance st;
+        Inferred (parse_expr st)
+    | _, (COLON | ASSIGN) ->
+        advance st;
+        Typed (typ, parse_expr st)
+    | _ -> Declared typ
+  in
+  { bind_name = name; binder; bind_form = form; bind_span = span_from lo st }
 
-(* (i32, i32) -> i32, () -> (), (i32), extern "C" (i32) -> i32 *)
-and parse_func_ptr st lo abi =
-  expect st LPAREN;
-  let params = comma_sep st RPAREN parse_typ in
-  expect st RPAREN;
-  if at st ARROW then begin
-    advance st;
-    mkt lo st (FuncPtr (abi, params, parse_typ st))
-  end
-  else
-    match (abi, params) with
-    | NoAbi, [] -> mkt lo st UnitType
-    | NoAbi, [ inner ] -> { inner with tspan = span_from lo st }
-    | (NoAbi | NamedAbi _), _ ->
-        Diagnostic.error (cur_span st) "expected `->`" |> found st |> fail
-
-(* The "C" of extern "C" fn exit(code: i32) never *)
+(* "C" *)
 and parse_abi st =
   match cur_token st with
   | STRING name ->
       let span = cur_span st in
       advance st;
-      NamedAbi (spanned name span)
+      spanned name span
   | _ -> Diagnostic.error (cur_span st) "expected ABI name" |> found st |> fail
-
-(* extern "C" *)
-and parse_decl_abi st =
-  if at st EXTERN then begin
-    advance st;
-    parse_abi st
-  end
-  else NoAbi
 
 (* x: i32, y: i32 *)
 and parse_fields st =
@@ -323,116 +266,79 @@ and parse_fields st =
     let name = expect_ident_span st in
     let typ = typ_after st COLON in
     fields := { field_name = name; field_typ = typ } :: !fields;
-    expect_decl_sep st ~what:"field"
+    expect_decl_sep st "field"
   done;
   List.rev !fields
 
-(* Point :: struct { x: i32, y: i32 } *)
-and parse_struct_def st lo name =
-  expect st LBRACE;
-  let fields = parse_fields st in
-  expect st RBRACE;
-  { struct_name = name; fields; struct_span = span_from lo st }
-
-(* Red, Green, Blue *)
+(* Red, Circle(i32), Rectangle(Point, Point) *)
 and parse_variants st =
   let variants = ref [] in
   while not (at st RBRACE || at st EOF) do
-    variants := expect_ident_span st :: !variants;
-    expect_decl_sep st ~what:"variant"
+    let name = expect_ident_span st in
+    let payload =
+      if at st LPAREN then begin
+        advance st;
+        let tys = comma_sep st RPAREN parse_typ in
+        expect st RPAREN;
+        tys
+      end
+      else []
+    in
+    variants := { variant_name = name; variant_payload = payload } :: !variants;
+    expect_decl_sep st "variant"
   done;
   List.rev !variants
 
-(* Color :: enum { Red, Green, Blue } *)
-and parse_enum_def st lo name =
-  expect st LBRACE;
-  let variants = parse_variants st in
-  expect st RBRACE;
-  { enum_name = name; variants; enum_span = span_from lo st }
-
-(* Meters :: f64, Row :: [3]i32 *)
-and parse_alias_def st lo name =
-  let typ = parse_typ st in
-  { alias_name = name; alias_typ = typ; alias_span = span_from lo st }
-
-(* x: i32 *)
+(* x: i32, x: _, x *)
 and parse_param st =
   let lo = cur_pos st in
   let name = expect_ident_span st in
-  let typ = typ_after st COLON in
+  let typ =
+    if at st COLON then typ_after st COLON
+    else { edesc = Hole; espan = name.span }
+  in
   { param_name = name; param_typ = typ; param_span = span_from lo st }
 
-(* (a: i32, b: i32), (fmt: cstr, ...) *)
+(* (a: i32, b: i32) *)
 and parse_params st =
   expect st LPAREN;
   let params = ref [] in
-  let variadic = ref None in
   while not (at st RPAREN || at st EOF) do
+    params := parse_param st :: !params;
     match cur_token st with
-    | ELLIPSIS ->
-        variadic := Some (cur_span st);
-        advance st;
-        if not (at st RPAREN) then
-          Diagnostic.error (cur_span st) "`...` must be the last parameter"
-          |> fail
-    | _ -> (
-        params := parse_param st :: !params;
-        match cur_token st with
-        | COMMA -> advance st
-        | RPAREN | EOF -> ()
-        | _ ->
-            Diagnostic.error (cur_span st) "expected parameter separator"
-            |> Diagnostic.help "separate parameters with `,`"
-            |> fail)
+    | COMMA -> advance st
+    | RPAREN | EOF -> ()
+    | _ ->
+        Diagnostic.error (cur_span st) "expected `,` between parameters"
+        |> found st |> fail
   done;
   expect st RPAREN;
-  (List.rev !params, !variadic)
+  List.rev !params
 
-(* i32 *)
-and parse_ret_type st =
-  match cur_token st with
-  | IDENT _ when peek_token st == COLON -> None
-  | tok when not (is_type_start tok) -> None
-  | _ -> Some (parse_typ st)
-
-(* extern "C" fn puts(s: cstr) i32, add :: fn(a: i32) -> i32 => a, main :: fn { } *)
-and parse_func_def st abi lo name =
-  let params, variadic = if at st LPAREN then parse_params st else ([], None) in
+(* fn(a: i32) -> i32 => a, fn { }, extern "C" fn(p: Pair) -> i32 { p.a } *)
+and parse_lambda st abi lo =
+  let params = if at st LPAREN then parse_params st else [] in
   let ret =
     if at st ARROW then begin
       advance st;
       Some (parse_typ st)
     end
-    else if abi <> NoAbi then parse_ret_type st
     else None
   in
-  let imported = abi <> NoAbi && not (at st LBRACE || at st FATARROW) in
   let body =
-    if imported then []
-    else if at st FATARROW then begin
+    if at st FATARROW then begin
       advance st;
-      [ Expr (parse_expr st) ]
+      [ parse_expr st ]
     end
     else (parse_block st).value
   in
-  if not imported then
-    begin match variadic with
-    | Some span ->
-        Diagnostic.error span "a function with a body cannot be variadic"
-        |> Diagnostic.help "`...` only works on a declaration with no body"
-        |> fail
-    | None -> ()
-    end;
-  ( {
-      func_name = name;
-      params;
-      ret;
-      body;
-      variadic = Option.is_some variadic;
-      extern_abi = abi;
-      func_span = span_from lo st;
-    },
-    imported )
+  {
+    lambda_params = params;
+    lambda_ret = ret;
+    lambda_body = body;
+    lambda_abi = abi;
+    lambda_span = span_from lo st;
+  }
 
 (* a + b * c *)
 and parse_expr st = parse_infix st NormalExpression 1
@@ -456,13 +362,10 @@ and parse_infix st ctx min_prec =
         | Chain chain, Some { assoc = Chain next; _ } when chain = next ->
             let name, help =
               match chain with
-              | Comparison ->
-                  ( "comparison",
-                    "split the chain into separate comparisons joined with `&&`"
-                  )
-              | Range -> ("range", "parenthesize a range if nesting is intended")
+              | Comparison -> ("comparison", "join them with `&&`")
+              | Range -> ("range", "parenthesize the inner range")
             in
-            Diagnostic.error (cur_span st) "%s operators cannot be chained" name
+            Diagnostic.error (cur_span st) "chained %s" name
             |> Diagnostic.label "second %s operator" name
             |> Diagnostic.secondary op_span
                  (Printf.sprintf "first %s operator" name)
@@ -472,9 +375,8 @@ and parse_infix st ctx min_prec =
   in
   infix (parse_prefix st ctx)
 
-(* Point.{ x: 1 } *)
+(* Point.{ x = 1 }, .{ 1, 2 } *)
 and parse_struct_lit st lo name =
-  expect st DOT;
   expect st LBRACE;
   let fields = parse_struct_lit_fields st in
   expect st RBRACE;
@@ -495,6 +397,9 @@ and parse_prefix st ctx =
   | MINUS -> unop Neg
   | TILDE -> unop BitNot
   | AMP -> unop AddressOf
+  | STAR ->
+      advance st;
+      mk lo st (PointerType (parse_prefix st ctx))
   | _ ->
       let lhs = parse_primary st ctx in
       let lhs =
@@ -502,11 +407,13 @@ and parse_prefix st ctx =
       in
       parse_postfix st lhs
 
-(* point, Color.Red, Point.{ x: 1 } *)
+(* point, Color.Red, Point.{ x = 1 } *)
 and parse_path st lhs head =
   let lo = Span.lo lhs.espan in
-  if at st DOT && peek_token st == LBRACE then
-    parse_struct_lit st lo (spanned head lhs.espan)
+  if at st DOT && peek_token st == LBRACE then begin
+    advance st;
+    parse_struct_lit st lo (Some (spanned head lhs.espan))
+  end
   else if at st DOT && peek_token st != STAR then begin
     advance st;
     let rec segments owners member =
@@ -546,20 +453,29 @@ and parse_postfix st lhs =
       parse_postfix st (mk lo st (Call (lhs, args)))
   | _ -> lhs
 
-(* (), (x) *)
-and parse_paren st =
-  let lo = cur_pos st in
+(* (), (x), (i32, *u8) -> i32, extern "C" (i32) -> i32, (cstr, ..) -> i32 *)
+and parse_paren st lo abi =
   expect st LPAREN;
-  if at st RPAREN then begin
-    advance st;
-    mk lo st Unit
-  end
-  else
-    let e = parse_expr st in
-    expect st RPAREN;
-    e
+  let elems =
+    comma_sep st RPAREN (fun st ->
+        if at st DOTDOT then begin
+          let dots_lo = cur_pos st in
+          advance st;
+          mk dots_lo st RangeFull
+        end
+        else parse_expr st)
+  in
+  expect st RPAREN;
+  match (abi, elems, cur_token st) with
+  | _, _, ARROW ->
+      advance st;
+      let ret = parse_typ st in
+      mk lo st (FuncType (abi, elems, ret))
+  | NoAbi, [], _ -> mk lo st Unit
+  | NoAbi, [ e ], _ -> e
+  | _ -> Diagnostic.error (cur_span st) "expected `->`" |> found st |> fail
 
-(* 1, x, "str", foo(a, b) *)
+(* 1, x, "str", foo(a, b), [1, 2, 3], [3]i32, []i32, _, .Green, .{ 1, 2 } *)
 and parse_primary st ctx =
   let lo = cur_pos st in
   match cur_token st with
@@ -581,13 +497,48 @@ and parse_primary st ctx =
   | NULL ->
       advance st;
       mk lo st Null
-  | LPAREN -> parse_paren st
-  (* [1, 2, 3] array literal *)
-  | LBRACKET ->
+  | UNDERSCORE ->
+      advance st;
+      mk lo st Hole
+  | DOT -> (
+      advance st;
+      match cur_token st with
+      | LBRACE -> parse_struct_lit st lo None
+      | _ -> mk lo st (DotVariant (expect_ident_span st)))
+  | LPAREN -> parse_paren st lo NoAbi
+  | EXTERN -> (
+      advance st;
+      let name = parse_abi st in
+      match cur_token st with
+      | LPAREN -> parse_paren st lo (NamedAbi name)
+      | FUNC ->
+          let func_lo = cur_pos st in
+          advance st;
+          mk lo st (Lambda (parse_lambda st (NamedAbi name) func_lo))
+      | _ -> mk lo st (Extern name))
+  | LBRACKET -> (
       advance st;
       let elems = parse_comma_list st RBRACKET in
       expect st RBRACKET;
-      mk lo st (ArrayLit elems)
+      match (elems, is_type_start (cur_token st)) with
+      | [], true -> mk lo st (SliceType (parse_typ st))
+      | [ n ], true -> mk lo st (ArrayType (n, parse_typ st))
+      | _ -> mk lo st (ArrayLit elems))
+  | FUNC ->
+      advance st;
+      mk lo st (Lambda (parse_lambda st NoAbi lo))
+  | STRUCT ->
+      advance st;
+      expect st LBRACE;
+      let fields = parse_fields st in
+      expect st RBRACE;
+      mk lo st (StructType fields)
+  | ENUM ->
+      advance st;
+      expect st LBRACE;
+      let variants = parse_variants st in
+      expect st RBRACE;
+      mk lo st (EnumType variants)
   (* sizeof(x) *)
   | SIZEOF ->
       advance st;
@@ -615,7 +566,7 @@ and parse_primary st ctx =
   | IF -> parse_if st
   | MATCH -> parse_match st
   | LBRACE when ctx = HeaderExpression ->
-      Diagnostic.error (cur_span st) "expected expression" |> fail
+      Diagnostic.error (cur_span st) "expected expression" |> found st |> fail
   | LBRACE ->
       let body = (parse_block st).value in
       mk lo st (Block body)
@@ -623,9 +574,9 @@ and parse_primary st ctx =
   | WHILE -> parse_while st
   | FOR -> parse_for st
   | ELSE ->
-      Diagnostic.error (cur_span st) "`else` without a matching `if`"
+      Diagnostic.error (cur_span st) "`else` without `if`"
       |> found st
-      |> Diagnostic.help "an `if` used as a value closes at its `}`"
+      |> Diagnostic.help "an `if` value ends at its `}`"
       |> fail
   | _ ->
       Diagnostic.error (cur_span st) "expected expression" |> found st |> fail
@@ -658,12 +609,12 @@ and parse_index_arg st =
 (* a, b, c *)
 and parse_comma_list st stop = comma_sep st stop (fun st -> parse_expr st)
 
-(* x: 3, y: 4 or 3, 4 *)
+(* x = 3, y = 4 or 3, 4 *)
 and parse_struct_lit_fields st =
   skip_semi st;
   let field_form () =
     match (cur_token st, peek_token st) with
-    | IDENT _, COLON -> NamedField
+    | IDENT _, ASSIGN -> NamedField
     | _ -> PositionalField
   in
   let form = field_form () in
@@ -679,7 +630,7 @@ and parse_struct_lit_fields st =
     match form with
     | NamedField ->
         let name = expect_ident_span st in
-        expect st COLON;
+        expect st ASSIGN;
         (spanned (Some name.value) name.span, parse_expr st)
     | PositionalField ->
         let e = parse_expr st in
@@ -723,52 +674,30 @@ and parse_stmts st =
 and parse_stmt st =
   let lo = cur_pos st in
   match cur_token st with
-  | IF -> Expr (parse_if st)
-  | MATCH -> Expr (parse_match st)
-  | WHILE -> Expr (parse_while st)
-  | FOR -> Expr (parse_for st)
-  | LOOP -> Expr (parse_loop st)
+  | IF -> parse_if st
+  | MATCH -> parse_match st
+  | WHILE -> parse_while st
+  | FOR -> parse_for st
+  | LOOP -> parse_loop st
   | LBRACE ->
       let body = (parse_block st).value in
-      Expr (mk lo st (Block body))
-  | IDENT _ when peek_token st == COLON && (peek_nth st 1).token == COLON ->
-      Decl (parse_local_decl st)
+      mk lo st (Block body)
   | (IDENT _ | UNDERSCORE) when peek_token st == COLON ->
-      let name, ann, e = parse_binding st LocalBinding in
-      Expr (mk lo st (Binding (name, ann, e)))
+      let b = parse_binding st LocalBinding in
+      mk lo st (Binding b)
   | BREAK ->
       advance st;
       let target = parse_loop_target st in
-      if at_value_end st then Expr (mk lo st (Break (target, None)))
-      else Expr (mk lo st (Break (target, Some (parse_expr st))))
+      if at_value_end st then mk lo st (Break (target, None))
+      else mk lo st (Break (target, Some (parse_expr st)))
   | CONTINUE ->
       advance st;
-      Expr (mk lo st (Continue (parse_loop_target st)))
+      mk lo st (Continue (parse_loop_target st))
   | RETURN ->
       advance st;
-      if at_value_end st then Expr (mk lo st (Return None))
-      else Expr (mk lo st (Return (Some (parse_expr st))))
-  | EXTERN ->
-      Diagnostic.error (cur_span st) "`extern` must be at the top level" |> fail
-  | _ -> Expr (parse_expr st)
-
-(* main :: fn { }, Point :: struct { x: i32 }, Color :: enum { Red }, Meters :: f64 *)
-and parse_local_decl st =
-  let lo = cur_pos st in
-  let name = expect_ident_span st in
-  expect st COLON;
-  expect st COLON;
-  match cur_token st with
-  | FUNC ->
-      advance st;
-      LocalFunc (fst (parse_func_def st NoAbi lo name))
-  | STRUCT ->
-      advance st;
-      LocalStruct (parse_struct_def st lo name)
-  | ENUM ->
-      advance st;
-      LocalEnum (parse_enum_def st lo name)
-  | _ -> LocalTypeAlias (parse_alias_def st lo name)
+      if at_value_end st then mk lo st (Return None)
+      else mk lo st (Return (Some (parse_expr st)))
+  | _ -> parse_expr st
 
 (* if x < 0 { return lo } else if x > 0 { 1 } else { 0 } *)
 and parse_if st =
@@ -813,9 +742,8 @@ and parse_arms st lo scrutinee =
         (at st RBRACE || at st EOF
         || List.for_all ends_in_block arm.arm_body.value)
     then
-      Diagnostic.error (cur_span st) "expected arm separator"
-      |> Diagnostic.help "separate arms with `,`"
-      |> fail
+      Diagnostic.error (cur_span st) "expected `,` between arms"
+      |> found st |> fail
   done;
   expect st RBRACE;
   mk lo st (Match (scrutinee, List.rev !arms))
@@ -829,7 +757,7 @@ and parse_arm st =
   let body = spanned [ parse_stmt st ] (span_from body_lo st) in
   { pat; arm_body = body; arm_span = span_from lo st }
 
-(* _, n, Color.Red *)
+(* _, n, Color.Red, .Red, .Circle(r), Shape.Rectangle(a, _) *)
 and parse_pattern st =
   let lo = cur_pos st in
   let pattern pdesc = { pdesc; pspan = span_from lo st } in
@@ -837,9 +765,23 @@ and parse_pattern st =
   | UNDERSCORE ->
       advance st;
       pattern PatWild
-  | IDENT name when peek_token st != DOT ->
+  | IDENT name when not (List.mem (peek_token st) [ DOT; LPAREN ]) ->
       advance st;
       pattern (PatBind (Interner.intern name))
+  | IDENT _ | DOT -> (
+      let callee = parse_primary st HeaderExpression in
+      let callee =
+        match callee.edesc with
+        | Ident head -> parse_path st callee head
+        | _ -> callee
+      in
+      match cur_token st with
+      | LPAREN ->
+          advance st;
+          let subs = comma_sep st RPAREN parse_pattern in
+          expect st RPAREN;
+          pattern (PatVariant (callee, subs))
+      | _ -> { pdesc = PatValue callee; pspan = callee.espan })
   | _ ->
       let e = parse_header_expr st in
       { pdesc = PatValue e; pspan = e.espan }
@@ -850,8 +792,10 @@ and parse_while st =
   expect st WHILE;
   let label = parse_loop_target st in
   let cond = parse_header_expr st in
-  let body = (parse_block st).value in
-  mk lo st (While (label, cond, body))
+  let body = parse_block st in
+  let stop = { edesc = Break (None, None); espan = cond.espan } in
+  let check = If ([ (cond, body) ], Some (spanned [ stop ] cond.espan)) in
+  mk lo st (Loop (label, WhileLoop, [ { edesc = check; espan = cond.espan } ]))
 
 (* break @outer, loop @outer { } *)
 and parse_loop_target st =
@@ -879,29 +823,12 @@ and parse_loop st =
   expect st LOOP;
   let label = parse_loop_target st in
   let body = (parse_block st).value in
-  mk lo st (Loop (label, body))
+  mk lo st (Loop (label, PlainLoop, body))
 
-(* n : i32 = 0, flag : bool *)
-let parse_global st =
-  let lo = cur_pos st in
-  let name, typ, init = parse_binding st GlobalBinding in
-  Global { name; typ; init; span = span_from lo st }
-
-(* main :: fn { }, extern "C" fn puts(s: cstr) i32 *)
+(* main :: fn { }, puts : (cstr) -> i32 : extern "C" *)
 let parse_decl st =
-  let abi = parse_decl_abi st in
-  begin match cur_token st with IDENT _ -> abi_wants_func st abi | _ -> ()
-  end;
   match cur_token st with
-  | FUNC when abi <> NoAbi ->
-      let lo = cur_pos st in
-      advance st;
-      let name = expect_ident_span st in
-      let fd, imported = parse_func_def st abi lo name in
-      if imported then Extern fd else Func fd
-  | IDENT _ when peek_token st == COLON && (peek_nth st 1).token == COLON ->
-      decl_of_local (parse_local_decl st)
-  | IDENT _ -> parse_global st
+  | IDENT _ -> Bind (parse_binding st GlobalBinding)
   | _ ->
       Diagnostic.error (cur_span st) "expected declaration" |> found st |> fail
 
@@ -910,14 +837,8 @@ let parse_file st =
   skip_semi st;
   let decls = ref [] in
   while not (at st EOF) do
-    let decl = parse_decl st in
-    decls := decl :: !decls;
-    let ends_in_brace =
-      match decl with
-      | Func fd -> fd.extern_abi <> NoAbi
-      | Extern _ | Global _ | TypeAlias _ | Struct _ | Enum _ -> false
-    in
-    if not (ends_in_brace || at st SEMI) then
+    decls := parse_decl st :: !decls;
+    if not (at st SEMI) then
       Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail;
     skip_semi st
   done;

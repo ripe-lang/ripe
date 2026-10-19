@@ -4,11 +4,11 @@ Pair :: struct {
 };
 
 make_pair :: fn(x: i32, y: i32) -> Pair {
-  return Pair.{ x: x, y: y };
+  return Pair.{ x = x, y = y };
 };
 
 merge_pair :: fn(left: Pair, right: Pair) -> Pair {
-  return Pair.{ x: left.x + right.x, y: left.y + right.y };
+  return Pair.{ x = left.x + right.x, y = left.y + right.y };
 };
 
 sum_pair :: fn(left: Pair, right: Pair) -> i32 {

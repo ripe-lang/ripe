@@ -1,6 +1,6 @@
 Pair :: struct { quot: i32, rem: i32 };
 
-extern "C" fn div(numer: i32, denom: i32) Pair;
+div : (i32, i32) -> Pair : extern "C";
 
 main :: fn() -> i32 {
   operation := div;

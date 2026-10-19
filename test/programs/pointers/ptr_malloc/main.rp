@@ -1,4 +1,4 @@
-extern "C" fn malloc(n: usize) ptr;
+malloc : (usize) -> ptr : extern "C";
 
 Point :: struct { x: i32, y: i32 };
 

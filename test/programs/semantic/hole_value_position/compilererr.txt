@@ -1,0 +1,8 @@
+error: expected expression
+  at main.rp:2:8
+      x := _;
+           ^ found _
+error: expected expression
+  at main.rp:3:17
+      buf : [4]u8 = _;
+                    ^ found _

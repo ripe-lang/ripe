@@ -1,0 +1,12 @@
+error: expected a value
+  at main.rp:2:14
+      A : type = i32;
+                 ^~~ found type
+error: expected a value
+  at main.rp:3:8
+      B := i32;
+           ^~~ found type
+error: expected a value
+  at main.rp:4:8
+      C := struct { x: i32 };
+           ^~~~~~ found type

@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:1:9
+    count : i32 : extern "C";
+            ^~~ expected function type, found i32

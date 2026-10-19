@@ -4,22 +4,24 @@
 
 open Ripe
 
-let symbol ?(kind = Symbol.Type) ?(entry_point = false) ?name id =
-  let name = Option.value name ~default:("s" ^ string_of_int id) in
+let symbol kind name id =
   {
     Symbol.id;
     name;
     link_name = name;
     kind;
-    entry_point;
+    entry_point = false;
     span = Span.dummy;
     name_span = Span.dummy;
   }
 
-let key ?kind id = Symbol.key (symbol ?kind id)
+let key id = Symbol.key (symbol Symbol.Type ("s" ^ string_of_int id) id)
 let keyname id name = Keyname.make (key id) name
-let struct_ty id name = Types.TStruct (keyname id name, [])
+let struct_ty id name = Types.TAdt (keyname id name, [])
 let alias_ty id name base = Types.TAlias (keyname id name, base)
+
+let func_ty sig_params sig_ret sig_abi sig_arity =
+  Types.TFunc { sig_params; sig_ret; sig_abi; sig_arity }
 
 let hex s =
   String.to_seq s

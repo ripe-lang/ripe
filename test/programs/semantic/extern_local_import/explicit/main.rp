@@ -1,0 +1,4 @@
+main :: fn {
+  puts : (cstr) -> i32 : extern "C";
+  puts("local import");
+};

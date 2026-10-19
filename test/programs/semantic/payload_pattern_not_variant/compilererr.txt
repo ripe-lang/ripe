@@ -1,0 +1,8 @@
+error: undefined variable
+  at main.rp:7:18
+      a := match s { Circle(r) => r, _ => 0 };
+                     ^~~~~~
+error: not a variant
+  at main.rp:8:18
+      b := match s { make(r) => r, _ => 0 };
+                     ^~~~ found (i32) -> Shape

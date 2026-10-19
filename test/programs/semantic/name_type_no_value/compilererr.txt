@@ -1,0 +1,4 @@
+error: undefined variable
+  at main.rp:3:3
+      counter : i32;
+      ^~~~~~~ no counter to set

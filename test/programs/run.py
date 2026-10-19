@@ -14,6 +14,7 @@ BROKEN_MARK = "// BROKEN:"
 BROKEN_SCAN_LINES = 10
 FLAGS_FILE = "flags.txt"
 FLAGS_WITHOUT_BINARY = {"-e", "--emit", "-h", "--help"}
+FORMS = ("explicit", "infer", "implicit")
 CC = "cc"
 RESET = "\033[0m"
 CYAN = "\033[36m"
@@ -77,6 +78,22 @@ def tests(testname):
     return sorted(found)
 
 
+def form_parent(testdir):
+    """The test folder a form like explicit/ sits in, or None for a plain test."""
+    if os.path.basename(testdir) in FORMS:
+        return os.path.dirname(testdir)
+    return None
+
+
+def shared(testdir, name):
+    """A form's own file, or the one its forms share in the folder above."""
+    path = os.path.join(testdir, name)
+    parent = form_parent(testdir)
+    if parent and not os.path.exists(path):
+        return os.path.join(parent, name)
+    return path
+
+
 def diff(want, actual, golden):
     lines = difflib.unified_diff(
         want.splitlines(keepends=True),
@@ -104,7 +121,7 @@ def broken_reason(testdir):
 
 def extra_flags(testdir):
     """The extra ripec arguments a test needs."""
-    path = os.path.join(testdir, FLAGS_FILE)
+    path = shared(testdir, FLAGS_FILE)
     if not os.path.isfile(path):
         return None
     with open(path, encoding="utf-8") as f:
@@ -113,8 +130,13 @@ def extra_flags(testdir):
 
 def c_sources(testdir):
     """The C files a test links against the compiled ripe object."""
-    found = [name for name in os.listdir(testdir) if name.endswith(".c")]
-    return sorted(os.path.join(testdir, name) for name in found)
+    for folder in (testdir, form_parent(testdir)):
+        if folder is None:
+            continue
+        found = [name for name in os.listdir(folder) if name.endswith(".c")]
+        if found:
+            return sorted(os.path.join(folder, name) for name in found)
+    return []
 
 
 def scrub(text, testdir):
@@ -163,7 +185,7 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
     except subprocess.TimeoutExpired:
         return "compiler timeout", "compiler did not finish\n"
 
-    err_golden = os.path.join(testdir, "compilererr.txt")
+    err_golden = shared(testdir, "compilererr.txt")
     if os.path.isfile(err_golden):
         if compile.returncode == 0:
             return "compiled clean", "expected a compile error, got none\n"
@@ -173,9 +195,9 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
     if compile.returncode != 0:
         return "compiler error", "Error:\n" + indented(compile.stdout + compile.stderr)
 
+    out_golden = shared(testdir, "out.txt")
     if not builds:
         actual = scrub(compile.stdout + compile.stderr, testdir)
-        out_golden = os.path.join(testdir, "out.txt")
         if not os.path.isfile(out_golden):
             return "no golden", "out.txt missing\nActual:\n" + indented(actual)
         return compare(actual, out_golden, "out.txt", promote)
@@ -196,7 +218,6 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
         return "run timeout", "program did not finish\n"
     actual = run.stdout + run.stderr + "exit: %d\n" % run.returncode
 
-    out_golden = os.path.join(testdir, "out.txt")
     if not os.path.isfile(out_golden):
         return "no golden", "out.txt missing\nActual:\n" + indented(actual)
     return compare(actual, out_golden, "out.txt", promote)

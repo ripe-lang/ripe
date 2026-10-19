@@ -3,7 +3,7 @@ Inner :: struct { a: i32 };
 Outer :: struct { i: Inner, b: i32 };
 
 main :: fn() -> i32 {
-  o : Outer = Outer.{ i: Inner.{ a: 1 }, b: 2 };
+  o : Outer = Outer.{ i = Inner.{ a = 1 }, b = 2 };
   po : *Outer = &o;
   po.i.a = 99;
   return o.i.a;

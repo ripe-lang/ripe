@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:1:25
+    spin :: fn() -> never { while true {} };
+                            ^~~~~~~~~~~~~ expected never, found ()

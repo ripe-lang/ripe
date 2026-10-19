@@ -1,0 +1,56 @@
+error: expected a struct
+  at main.rp:5:15
+        a : i32 = .{ 1 };
+                  ^~~~~~ found i32
+error: expected a struct
+  at main.rp:6:10
+        b := i32.{ 1 };
+             ^~~ found i32
+error: expected a struct
+  at main.rp:7:17
+        c : Shape = .{ 3 };
+                    ^~~~~~ found Shape
+error: expected a struct
+  at main.rp:8:10
+        d := Shape.{ 3 };
+             ^~~~~ found Shape
+error: no variant
+  at main.rp:9:18
+        e : Point = .Dot;
+                     ^~~ on struct Point
+error: no variant
+  at main.rp:10:16
+        f := Point.Dot;
+                   ^~~ on struct Point
+error: no variant
+  at main.rp:11:16
+        g : i32 = .Dot;
+                   ^~~ on i32
+error: no variant
+  at main.rp:12:14
+        h := i32.Dot;
+                 ^~~ on i32
+error: no variant
+  at main.rp:13:18
+        i : Shape = .Nope;
+                     ^~~~ on enum Shape
+error: no variant
+  at main.rp:14:16
+        j := Shape.Nope;
+                   ^~~~ on enum Shape
+error: no variant
+  at main.rp:15:18
+        k : Point = .Circle(3);
+                     ^~~~~~ on struct Point
+error: no variant
+  at main.rp:16:16
+        l := Point.Circle(3);
+                   ^~~~~~ on struct Point
+error: undefined struct
+  at main.rp:18:10
+        n := nope.{ 1 };
+             ^~~~
+error: undefined variable
+  at main.rp:19:10
+        o := Nope.Dot;
+             ^~~~

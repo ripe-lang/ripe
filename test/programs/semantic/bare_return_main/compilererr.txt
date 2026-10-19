@@ -1,4 +1,4 @@
-error: empty return in non-unit function
+error: missing return value
   at main.rp:2:13
       if true { return }
                 ^~~~~~

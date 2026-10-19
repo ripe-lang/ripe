@@ -1,0 +1,4 @@
+error: expected a struct
+  at main.rp:4:8
+      p := Point.{ x = 1 };
+           ^~~~~ this names a value

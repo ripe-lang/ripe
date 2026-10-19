@@ -1,8 +1,8 @@
-extern "C" fn doubled(x: i32) i32 {
+doubled :: extern "C" fn(x: i32) -> i32 {
   return x * 2;
-}
+};
 
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 main :: fn() -> i32 {
   return doubled(printf("n"));

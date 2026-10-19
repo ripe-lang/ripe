@@ -70,25 +70,7 @@ There are two more fields but they're only used in special cases:
 The main goal is to be direct, stating what is true not what the
 compiler did.
 
-### 2. Drop what the source already shows
-
-```text
-error: undefined variable
-  at t.rp:1:8
-    return foo;
-           ^~~
-```
-
-The `foo` is already under the caret, so naming it again adds nothing. The only exception is when the value is not on the line, such as an inferred type:
-
-```text
-error: cannot dereference
-  at t.rp:4:9
-      _y := n.x.* + 1;
-            ^~~ on i32
-```
-
-### 3. Spans
+### 2. Spans
 
 The point is to be obvious and minimal about where the fault is at.
 
@@ -117,7 +99,7 @@ error: already defined
 
 There might be where the caret that is shown is a few dozen columns. This is just the result of whatever node was in hand.
 
-### 4. Severity
+### 3. Severity
 
 | type | desc |
 | ---- | ---- |
@@ -126,7 +108,7 @@ There might be where the caret that is shown is a few dozen columns. This is jus
 | note | context belongs to another diagnostic |
 | help | closing suggestion |
 
-### 5. Avoid cascading
+### 4. Avoid cascading
 
 This is not about grouping all unused variables into one message: but rather one cause, one diagnostic.
 
@@ -139,7 +121,7 @@ error: undefined variable
 (and not a second error for n + 1 on a type we don't know)
 ```
 
-### 6. Long lines
+### 5. Long lines
 
 Self explanatory. The elide points toward the caret with `...`.
 
@@ -149,7 +131,7 @@ Self explanatory. The elide points toward the caret with `...`.
                                                    ^ expected *i8, found i32
 ```
 
-### 7. Helpers
+### 6. Helpers
 
 There are a bunch of helper functions under `diagnostic.ml` that range from common user errors to internal compiler errors. I only write a helper function if there are two or more call sites. For the one off errors, I use the pipeline.
 

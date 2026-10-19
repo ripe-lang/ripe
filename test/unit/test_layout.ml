@@ -6,15 +6,15 @@ open Fake
 
 (* The table is shared so a field can name a struct defined before it *)
 let define structs name fields =
-  Layout.set_struct_fields structs (Keyname.key name) fields;
-  TStruct (name, [])
+  Layout.set_variants structs (Keyname.key name) Struct [ fields ];
+  TAdt (name, [])
 
 let measure structs t =
   Printf.printf "%s size %d align %d\n" (show_ty t) (Layout.ty_size structs t)
     (Layout.ty_align structs t)
 
 let offsets structs name count =
-  let at i = string_of_int (Layout.field_offset structs name i) in
+  let at i = string_of_int (Layout.field_offset structs name 0 i) in
   print_endline (String.concat " " (List.init count at))
 
 let%expect_test "layout: scalars measure as wide as they align" =
@@ -195,7 +195,7 @@ let%expect_test "layout: the recorded fields come back in order" =
   let structs = Layout.create () in
   let name = keyname 1 "Mixed" in
   ignore (define structs name [ TInt I8; TFloat F64; TBool ]);
-  let fields = Layout.struct_fields structs (Keyname.key name) in
+  let fields = Iarray.get (Layout.variants structs (Keyname.key name)) 0 in
   Iarray.iter (fun t -> print_string (show_ty t ^ " ")) fields;
   print_newline ();
   Printf.printf "%d\n" (Iarray.length fields);
@@ -204,18 +204,17 @@ let%expect_test "layout: the recorded fields come back in order" =
     3
     |}]
 
-let%expect_test "layout: an unknown struct has no fields" =
+let%expect_test "layout: an unknown type has no variants" =
   let structs = Layout.create () in
   Printf.printf "%d\n"
-    (Iarray.length
-       (Layout.struct_fields structs (Keyname.key (keyname 9 "Ghost"))));
+    (Iarray.length (Layout.variants structs (Keyname.key (keyname 9 "Ghost"))));
   [%expect {| 0 |}]
 
 let%expect_test "layout: a field type comes back by index" =
   let structs = Layout.create () in
   let name = keyname 1 "Mixed" in
   ignore (define structs name [ TInt I8; TFloat F64; TBool ]);
-  let at i = show_ty (Layout.struct_field_ty structs name i) in
+  let at i = show_ty (Layout.field_ty structs name 0 i) in
   Printf.printf "%s %s %s\n" (at 0) (at 1) (at 2);
   [%expect {| i8 f64 bool |}]
 
@@ -223,7 +222,87 @@ let%expect_test "layout: a field index past the end is a compiler bug" =
   let structs = Layout.create () in
   let name = keyname 1 "Mixed" in
   ignore (define structs name [ TInt I8 ]);
-  (try ignore (Layout.struct_field_ty structs name 3)
+  (try ignore (Layout.field_ty structs name 0 3)
    with Diagnostic.Errors ds ->
      List.iter (fun d -> print_endline (Diagnostic.headline d)) ds);
   [%expect {| internal compiler error |}]
+
+let%expect_test "layout: an aggregate is addressed by pointer" =
+  let structs = Layout.create () in
+  let point = define structs (keyname 1 "Point") [ TInt I32 ] in
+  let shape = keyname 2 "Shape" in
+  let color = keyname 3 "Color" in
+  Layout.set_variants structs (Keyname.key shape) Enum [ [ TInt I32 ]; [] ];
+  Layout.set_variants structs (Keyname.key color) Enum [ []; [] ];
+  let tys =
+    [
+      TInt I64;
+      TStr;
+      TSlice (TInt I8);
+      TArray (TInt I8, 2);
+      point;
+      TPointer point;
+      TUnit;
+      TAdt (shape, []);
+      TAdt (color, []);
+    ]
+  in
+  List.iter
+    (fun t ->
+      Printf.printf "aggregate %s = %b\n" (show_ty t)
+        (Layout.is_aggregate structs t))
+    tys;
+  [%expect
+    {|
+    aggregate i64 = false
+    aggregate str = true
+    aggregate []i8 = true
+    aggregate [2]i8 = true
+    aggregate Point = true
+    aggregate *Point = false
+    aggregate () = false
+    aggregate Shape = true
+    aggregate Color = false
+    |}]
+
+let%expect_test "layout: every variant starts right after the tag" =
+  let structs = Layout.create () in
+  let point = define structs (keyname 1 "Point") [ TInt I32; TInt I32 ] in
+  let shape = keyname 2 "Shape" in
+  Layout.set_variants structs (Keyname.key shape) Enum
+    [ [ TInt I32 ]; [ point; TInt I32 ]; [] ];
+  measure structs (TAdt (shape, []));
+  let at variant i =
+    string_of_int (Layout.field_offset structs shape variant i)
+  in
+  Printf.printf "%s | %s %s\n" (at 0 0) (at 1 0) (at 1 1);
+  [%expect {|
+    Shape size 16 align 4
+    4 | 4 12
+    |}]
+
+let%expect_test "layout: the widest variant sets the alignment" =
+  let structs = Layout.create () in
+  let wide = keyname 1 "Wide" in
+  Layout.set_variants structs (Keyname.key wide) Enum
+    [ [ TInt U8 ]; [ TInt I64 ] ];
+  measure structs (TAdt (wide, []));
+  let at variant i =
+    string_of_int (Layout.field_offset structs wide variant i)
+  in
+  Printf.printf "%s %s\n" (at 0 0) (at 1 0);
+  [%expect {|
+    Wide size 16 align 8
+    4 8
+    |}]
+
+let%expect_test "layout: a unit only enum is a plain tag" =
+  let structs = Layout.create () in
+  let color = keyname 1 "Color" in
+  Layout.set_variants structs (Keyname.key color) Enum [ []; []; [] ];
+  measure structs (TAdt (color, []));
+  Printf.printf "%b\n" (Layout.tagged structs (Keyname.key color));
+  [%expect {|
+    Color size 4 align 4
+    false
+    |}]

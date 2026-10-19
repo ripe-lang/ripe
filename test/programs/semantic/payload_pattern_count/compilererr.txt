@@ -1,0 +1,12 @@
+error: wrong number of fields
+  at main.rp:5:18
+      a := match s { Shape.Rect(w) => w, _ => 0 };
+                     ^~~~~~~~~~~~~ expected 2, found 1
+error: wrong number of fields
+  at main.rp:6:18
+      b := match s { .Circle(r, extra) => r + extra, _ => 0 };
+                     ^~~~~~~~~~~~~~~~~ expected 1, found 2
+error: wrong number of fields
+  at main.rp:7:18
+      c := match s { .Empty(r) => r, _ => 0 };
+                     ^~~~~~~~~ expected 0, found 1

@@ -45,10 +45,10 @@ let%expect_test "a parser error shows the token it found" =
   Pipeline.run_src "main :: fn() -> i32 {\n  struct = 1;\n  return 0;\n};\n";
   [%expect
     {|
-    error: expected expression
-      at <test>:2:3
+    error: expected `{`
+      at <test>:2:10
           struct = 1;
-          ^~~~~~ found `struct`
+                 ^ found =
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =
@@ -179,8 +179,7 @@ let%expect_test "diagnostics come back sorted by where they point" =
 let%expect_test "the rendered text picks up color when asked" =
   let src = "abc\n" in
   let colored =
-    Diagnostic.render (ctx ~color:true src)
-      Diagnostic.(error (span src "abc") "boom")
+    Diagnostic.render (ctx true src) Diagnostic.(error (span src "abc") "boom")
   in
   Printf.printf "%S\n" colored;
   [%expect

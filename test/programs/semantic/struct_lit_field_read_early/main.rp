@@ -1,0 +1,6 @@
+// BROKEN: `y = _` in a struct literal isn't built yet (the Struct literals rule)
+Point :: struct { x: i32, y: i32 };
+main :: fn() -> i32 {
+  q := Point.{ x = 7, y = _ };
+  q.y
+};

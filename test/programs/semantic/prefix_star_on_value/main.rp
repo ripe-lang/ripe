@@ -1,0 +1,5 @@
+main :: fn() -> i32 {
+  x := 1;
+  p := &x;
+  return *p;
+};

@@ -1,5 +1,4 @@
-error: expected field separator
+error: expected `,` between fields
   at main.rp:1:25
     Point :: struct { x: i32; y: i32 };
-                            ^
-help: separate fields with `,`
+                            ^ found ;

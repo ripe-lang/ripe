@@ -1,4 +1,4 @@
-extern "C" fn exit(code: i32) never;
+exit : (i32) -> never : extern "C";
 
 main :: fn() -> i32 {
   exit(42);

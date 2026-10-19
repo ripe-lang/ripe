@@ -127,7 +127,6 @@ rule read_token = parse
   | '&' { AMP }
   | '|' { PIPE }
   | '~' { TILDE }
-  | "..." { ELLIPSIS }
   | "..=" { DOTDOTEQ }
   | ".." { DOTDOT }
   | '.' { DOT }

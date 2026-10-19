@@ -2,26 +2,22 @@
 
 open Ast
 
-(* Names are interned so a scope lookup is an int compare *)
+(* A name is interned so a scope lookup is an int compare *)
 module Names = Hashtbl.Make (struct
   type t = name
 
-  let equal (a : t) (b : t) = a = b
+  let equal a b = a = b
   let hash t = t
 end)
 
 type namespace = Symbol.t Names.t
 
-type scope = {
-  values : namespace;
-  items : namespace;
-  types : namespace;
-  parent : scope option;
-}
+(* A type, a fn and a value share one set of names like Swift *)
+type scope = { names : namespace; parent : scope option }
 
+(* The shadowed table keeps what a callee would have found if a value hadn't taken the name *)
 type t = {
   syms : Symbol.t Span.Table.t;
-  (* What a callee would have found if the value hadn't taken the name *)
   shadowed : Symbol.t Span.Table.t;
   prelude : scope;
   mutable local_decls : decl list;
@@ -35,35 +31,26 @@ type state = {
   next_id : Symbol.id ref;
 }
 
-let prelude_symbol id name =
-  {
-    Symbol.id;
-    name;
-    link_name = name;
-    kind = Symbol.Type;
-    entry_point = false;
-    span = dummy_span;
-    name_span = dummy_span;
-  }
-
-let new_scope parent =
-  {
-    values = Names.create 16;
-    items = Names.create 16;
-    types = Names.create 16;
-    parent;
-  }
+let new_scope parent = { names = Names.create 16; parent }
 
 (* A builtin sits in the outermost scope so a program can shadow it like any name *)
 let make_output () =
   let prelude = new_scope None in
-  let seed id (name, _) =
-    Names.replace prelude.types (Interner.intern name) (prelude_symbol id name);
-    id - 1
-  in
-  (* We go negative so a builtin never grabs an id the program wants *)
-  ignore
-    (List.fold_left seed ((Symbol.unresolved_key :> int) - 1) Types.builtins);
+  List.iteri
+    (fun i (name, _) ->
+      (* We go negative so a builtin never grabs an id the program wants *)
+      let id = (Symbol.unresolved_key :> int) - 1 - i in
+      Names.replace prelude.names (Interner.intern name)
+        {
+          Symbol.id;
+          name;
+          link_name = name;
+          kind = Symbol.Type;
+          entry_point = false;
+          span = dummy_span;
+          name_span = dummy_span;
+        })
+    Types.builtins;
   {
     syms = Span.Table.create 16;
     shadowed = Span.Table.create 16;
@@ -101,28 +88,25 @@ let keyname_of s = Keyname.make (Symbol.key s) s.Symbol.name
 let local_decls r = List.rev r.local_decls
 
 let builtins r =
-  let entry (name, builtin) =
-    let keyed sym = (Symbol.key sym, builtin) in
-    Option.map keyed (Names.find_opt r.prelude.types (Interner.intern name))
-  in
-  List.filter_map entry Types.builtins
+  List.map
+    (fun (name, builtin) ->
+      (Symbol.key (Names.find r.prelude.names (Interner.intern name)), builtin))
+    Types.builtins
 
 let main_name = Interner.intern "main"
-let is_entry kind name = kind = Symbol.Func && name = main_name
 
-let mint ?link_name ?name_span st kind name span =
+let mint st kind name span link_name name_span =
   let id = !(st.next_id) in
   st.next_id := id + 1;
-  let link_name = Option.value ~default:(Interner.text name) link_name in
   let sym =
     {
       Symbol.id;
       name = Interner.text name;
       link_name;
       kind;
-      entry_point = is_entry kind name;
+      entry_point = kind = Symbol.Func && name = main_name;
       span;
-      name_span = Option.value ~default:span name_span;
+      name_span;
     }
   in
   Span.Table.replace st.out.syms span sym;
@@ -132,243 +116,140 @@ let mint ?link_name ?name_span st kind name span =
 let enter_scope st = { st with scope = new_scope (Some st.scope) }
 
 (* The innermost scope holds params and top level body binders *)
+(* A param or arm name can't repeat and a :: keeps its name for the whole block *)
 let declare_local st kind name span =
-  Names.replace st.scope.values name (mint st kind name span)
+  match Names.find_opt st.scope.names name with
+  | Some prev
+    when kind = Symbol.Param || kind = Symbol.MatchBind
+         || not (Symbol.is_local prev.Symbol.kind) ->
+      Diagnostic.emit
+        (Diagnostic.error span "already defined"
+        |> Diagnostic.secondary prev.Symbol.name_span "previous definition here"
+        );
+      ignore (mint st Symbol.Error name span (Interner.text name) span)
+  | _ ->
+      Names.replace st.scope.names name
+        (mint st kind name span (Interner.text name) span)
 
-let declaration_link_name name =
-  "_R" ^ string_of_int (String.length name) ^ name
+let decl_link_name name = "_R" ^ string_of_int (String.length name) ^ name
 
-let declare_in ?link_name table st kind (ident : ident) span =
-  let name = ident.value in
-  match Names.find_opt table name with
+let declare_in table st kind ident span link_name =
+  match Names.find_opt table ident.value with
   | Some prev ->
       Diagnostic.emit
         (Diagnostic.error ident.span "already defined"
         |> Diagnostic.secondary prev.Symbol.name_span "previous definition here"
         )
   | None ->
-      let link_name =
-        Option.value
-          ~default:(declaration_link_name (Interner.text name))
-          link_name
-      in
-      Names.replace table name
-        (mint ~link_name ~name_span:ident.span st kind name span)
+      Names.replace table ident.value
+        (mint st kind ident.value span link_name ident.span)
 
-let declare_global ?link_name st kind ident span =
-  declare_in ?link_name st.top.values st kind ident span
+(* A body's :: names go in first so a call can come before them *)
+let declare_local_bound st b =
+  let text = Interner.text b.bind_name.value in
+  begin match bind_value b with
+  | Some { edesc = Extern _; _ } ->
+      declare_in st.scope.names st Symbol.Extern b.bind_name b.bind_span text
+  | Some { edesc = Lambda _; _ } ->
+      let link_name = Printf.sprintf "_Rlocal%d_%s" !(st.next_id) text in
+      declare_in st.scope.names st Symbol.LocalFunc b.bind_name b.bind_span
+        link_name
+  | Some _ | None ->
+      declare_in st.scope.names st Symbol.LocalType b.bind_name b.bind_span
+        (decl_link_name text)
+  end;
+  st.out.local_decls <- Bind b :: st.out.local_decls
 
-let declare_type st ident span =
-  declare_in st.top.types st Symbol.Type ident span
+let rec find_up pick scope =
+  match (pick scope, scope.parent) with
+  | None, Some parent -> find_up pick parent
+  | found, _ -> found
 
-let declare_local_type st ident span =
-  declare_in st.scope.types st Symbol.LocalType ident span
+type lookup = Found of Symbol.t | Captured | Missing
 
-let declare_local_func st (ident : ident) span =
-  let link_name =
-    Printf.sprintf "_Rlocal%d_%s" !(st.next_id) (Interner.text ident.value)
+(* A lookup past a fn's own scopes only sees what a :: or a global declared *)
+let find st name =
+  let rec go outside scope =
+    let outside = outside || Option.exists (( == ) scope) st.value_boundary in
+    match (Names.find_opt scope.names name, scope.parent) with
+    | Some sym, _ when outside && Symbol.is_local sym.Symbol.kind -> Captured
+    | Some sym, _ -> Found sym
+    | None, Some parent -> go outside parent
+    | None, None -> Missing
   in
-  declare_in ~link_name st.scope.items st Symbol.LocalFunc ident span
-
-let value_or_item scope name =
-  match Names.find_opt scope.values name with
-  | Some sym -> Some sym
-  | None -> Names.find_opt scope.items name
-
-let rec find_type scope name =
-  match Names.find_opt scope.types name with
-  | Some sym -> Some sym
-  | None -> Option.bind scope.parent (fun parent -> find_type parent name)
-
-let rec find_value scope name =
-  match value_or_item scope name with
-  | Some sym -> Some sym
-  | None -> Option.bind scope.parent (fun parent -> find_value parent name)
-
-(* Top level funcs sit in values and the local ones sit in items *)
-let rec find_func_in_scope scope name =
-  let here =
-    match Names.find_opt scope.values name with
-    | Some sym when Symbol.is_func sym.Symbol.kind -> Some sym
-    | _ -> Names.find_opt scope.items name
-  in
-  match here with
-  | Some _ -> here
-  | None ->
-      Option.bind scope.parent (fun parent -> find_func_in_scope parent name)
-
-let is_item_value sym =
-  match sym.Symbol.kind with
-  | Symbol.Func | Symbol.Extern | Symbol.Global | Symbol.LocalFunc -> true
-  | Symbol.Error | Symbol.Type | Symbol.LocalType | Symbol.Local | Symbol.Param
-  | Symbol.ForVar | Symbol.MatchBind ->
-      false
-
-let rec find_item_value scope name =
-  match Names.find_opt scope.items name with
-  | Some sym -> Some sym
-  | None -> find_item_value_or_parent scope name
-
-and find_item_value_or_parent scope name =
-  match Names.find_opt scope.values name with
-  | Some sym when is_item_value sym -> Some sym
-  | Some _ -> None
-  | None -> Option.bind scope.parent (fun parent -> find_item_value parent name)
-
-let boundary_value boundary scope name =
-  if scope == boundary then find_item_value boundary name
-  else value_or_item scope name
-
-let rec find_before_boundary boundary scope name =
-  match boundary_value boundary scope name with
-  | Some sym -> Some sym
-  | None when scope == boundary -> None
-  | None ->
-      Option.bind scope.parent (fun parent ->
-          find_before_boundary boundary parent name)
-
-let lookup st name =
-  match st.value_boundary with
-  | Some boundary -> find_before_boundary boundary st.scope name
-  | None -> find_value st.scope name
-
-let captured_in name boundary =
-  match find_value boundary name with
-  | Some sym when not (is_item_value sym) -> Some sym
-  | Some _ | None -> None
-
-let captured_value st name = Option.bind st.value_boundary (captured_in name)
-
-let missing_value st ~what name span =
-  match captured_value st name with
-  | Some _ -> Diagnostic.error span "local function cannot capture variable"
-  | None -> (
-      match find_type st.scope name with
-      | Some sym ->
-          Diagnostic.error span "expected a value"
-          |> Diagnostic.label "this names %s"
-               (Symbol.describe_kind sym.Symbol.kind)
-      | None -> Diagnostic.error span "undefined %s" what)
+  go false st.scope
 
 let use_symbol st span sym = Span.Table.replace st.out.syms span sym
 
-let use_type st name span =
-  match find_type st.scope name with
-  | Some sym -> use_symbol st span sym
-  | None ->
-      let d =
-        match lookup st name with
-        | Some sym ->
-            Diagnostic.error span "expected a type"
-            |> Diagnostic.label "this names %s"
-                 (Symbol.describe_kind sym.Symbol.kind)
-        | None -> Diagnostic.error span "undefined type"
-      in
-      Diagnostic.emit d;
-      ignore (mint st Symbol.Error name span)
-
-(* Semantic analysis reports what's wrong so a value is kept to say what it is *)
+(* The semantic pass reports what's wrong so a value is kept to say what it is *)
 let use_struct_lit_name st name span =
-  match find_type st.scope name with
-  | Some sym -> use_symbol st span sym
-  | None -> Option.iter (use_symbol st span) (lookup st name)
+  match find st name with
+  | Found sym -> use_symbol st span sym
+  | Captured | Missing -> ()
 
-let use st ~what name span =
-  match lookup st name with
-  | Some sym -> Span.Table.replace st.out.syms span sym
-  | None ->
-      Diagnostic.emit (missing_value st ~what name span);
-      ignore (mint st Symbol.Error name span)
-
-let use_callee st ?(what = "function") name span =
-  match (lookup st name, find_type st.scope name) with
-  | None, Some sym -> use_symbol st span sym
-  | value, _ ->
-      (match value with
-      | Some sym when not (Symbol.is_func sym.Symbol.kind) ->
-          Option.iter
-            (Span.Table.replace st.out.shadowed span)
-            (find_func_in_scope st.scope name)
-      | Some _ | None -> ());
-      use st ~what name span
-
-(* Body binders can redeclare but params can't repeat *)
-let declare_param st p =
-  let name = p.param_name.value in
-  match Names.find_opt st.scope.values name with
-  | Some prev ->
+(* A type is a value too so semantic analysis says where it can't go *)
+let use st what name span =
+  match find st name with
+  | Found sym -> use_symbol st span sym
+  | (Captured | Missing) as missed ->
       Diagnostic.emit
-        (Diagnostic.error p.param_span "already defined"
-        |> Diagnostic.secondary prev.Symbol.span "previous definition here");
-      Span.Table.replace st.out.syms p.param_span prev
-  | None -> declare_local st Symbol.Param name p.param_span
+        (if missed = Captured then
+           Diagnostic.error span "cannot capture variable"
+         else Diagnostic.error span "undefined %s" what);
+      ignore (mint st Symbol.Error name span (Interner.text name) span)
 
 (* Color.Red puts a type name where a value usually goes *)
-let use_type_name st name span =
-  (* A nearer value wins so a local named str isn't the builtin type *)
-  if lookup st name <> None then false
-  else
-    match find_type st.scope name with
-    | None -> false
-    | Some sym ->
-        use_symbol st span sym;
-        true
-
-let resolve_missing_value_root st name span =
-  match find_type st.scope name with
-  | Some _ -> false
-  | None ->
-      use st ~what:"variable" name span;
-      true
-
-let resolve_value_root st p =
-  let { value = name; span } = Nonempty.hd p.owner in
-  match lookup st name with
-  | Some sym ->
-      use_symbol st span sym;
-      true
-  | None -> resolve_missing_value_root st name span
-
+(* A nearer value wins so a local named str isn't the builtin type *)
 let rec resolve_path st p =
-  if not (resolve_value_root st p) then
-    let prefix = owner_expr p in
-    match prefix.edesc with
-    | Ident name when use_type_name st name prefix.espan -> ()
-    | _ -> resolve_expr st prefix
+  let { value = name; span } = Nonempty.hd p.owner in
+  use st "variable" name span
 
+(* A fn no :: names still needs a symbol to be called through *)
 and resolve_expr st e =
   match e.edesc with
-  | Ident name -> use st ~what:"variable" name e.espan
+  | Ident name -> use st "variable" name e.espan
   | Call ({ edesc = Ident name; espan = span }, args) ->
-      use_callee st name span;
-      List.iter (resolve_expr st) args
-  | Call ({ edesc = Path segs; _ }, args) ->
-      resolve_path st segs;
+      begin match find st name with
+      | Found sym ->
+          let func s =
+            match Names.find_opt s.names name with
+            | Some sym when Symbol.is_func sym.Symbol.kind -> Some sym
+            | _ -> None
+          in
+          if not (Symbol.is_func sym.Symbol.kind) then
+            Option.iter
+              (Span.Table.replace st.out.shadowed span)
+              (find_up func st.scope);
+          use_symbol st span sym
+      | Captured | Missing -> use st "function" name span
+      end;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
       resolve_expr st callee;
       List.iter (resolve_expr st) args
-  | BinOp (_, l, r) | Assign (_, l, r) ->
+  | BinOp (_, l, r)
+  | Assign (_, l, r)
+  | Range (l, r)
+  | RangeInclusive (l, r)
+  | Index (l, r) ->
       resolve_expr st l;
       resolve_expr st r
-  | UnOp (_, inner) -> resolve_expr st inner
-  | Range (l, r) | RangeInclusive (l, r) ->
-      resolve_expr st l;
-      resolve_expr st r
-  | RangeFrom e | RangeTo e | RangeToInclusive e -> resolve_expr st e
-  | RangeFull -> ()
+  | UnOp (_, e)
+  | FieldAccess (e, _)
+  | RangeFrom e
+  | RangeTo e
+  | RangeToInclusive e ->
+      resolve_expr st e
   | Path segs -> resolve_path st segs
-  | FieldAccess (inner, _) -> resolve_expr st inner
   | Cast (ty, inner) ->
       resolve_typ st ty;
       resolve_expr st inner
   | SizeOf ty -> resolve_typ st ty
-  | Index (base, idx) ->
-      resolve_expr st base;
-      resolve_expr st idx
   | ArrayLit elems -> List.iter (resolve_expr st) elems
-  | StructLit ({ value = name; span = name_span }, fields) ->
-      use_struct_lit_name st name name_span;
+  | StructLit (name, fields) ->
+      Option.iter
+        (fun { value; span } -> use_struct_lit_name st value span)
+        name;
       List.iter (fun (_, e) -> resolve_expr st e) fields
   | Block body -> resolve_block st body
   | Match (scrutinee, arms) ->
@@ -381,24 +262,35 @@ and resolve_expr st e =
           resolve_block st body)
         branches;
       Option.iter (fun { value = b; _ } -> resolve_block st b) else_body
-  | While (_, cond, body) ->
-      resolve_expr st cond;
-      resolve_block st body
-  | Loop (_, body) -> resolve_block st body
+  | Loop (_, _, body) -> resolve_block st body
   | For (_, { value = name; span = nspan }, iter, body) ->
       resolve_expr st iter;
       let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
       resolve_block_contents st body
-  | Binding ({ value = name; span = nspan }, ann, e) ->
-      Option.iter (resolve_typ st) ann;
-      Option.iter (resolve_expr st) e;
-      declare_local st Symbol.Local name nspan
-  | Return e -> Option.iter (resolve_expr st) e
-  | Break (_, value) -> Option.iter (resolve_expr st) value
-  | Continue _ -> ()
-  | Int _ | Float _ | Bool _ | Null | Char _ | String _ -> ()
-  | Unit -> ()
+  | Binding ({ binder = RunTime; _ } as b) ->
+      resolve_binding st b;
+      declare_local st Symbol.Local b.bind_name.value b.bind_name.span
+  | Binding ({ binder = CompileTime; _ } as b) -> resolve_binding st b
+  | Return e | Break (_, e) -> Option.iter (resolve_expr st) e
+  | Lambda l ->
+      let name = Interner.intern "fn" in
+      let link_name = Printf.sprintf "_Rlambda%d" !(st.next_id) in
+      ignore (mint st Symbol.LocalFunc name e.espan link_name e.espan);
+      resolve_lambda st l
+  | PointerType t | SliceType t -> resolve_typ st t
+  | ArrayType (n, t) ->
+      resolve_expr st n;
+      resolve_typ st t
+  | FuncType (_, ps, ret) ->
+      List.iter (resolve_typ st) ps;
+      resolve_typ st ret
+  | StructType fields -> List.iter (fun f -> resolve_typ st f.field_typ) fields
+  | EnumType variants ->
+      List.iter (fun v -> List.iter (resolve_typ st) v.variant_payload) variants
+  | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Unit | Hole | Extern _
+  | RangeFull | DotVariant _ | Continue _ ->
+      ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
 and resolve_arm st a =
@@ -411,93 +303,74 @@ and resolve_pattern st p =
   | PatWild -> ()
   | PatValue e -> resolve_expr st e
   | PatBind name -> declare_local st Symbol.MatchBind name p.pspan
+  | PatVariant (callee, subs) ->
+      resolve_expr st callee;
+      List.iter (resolve_pattern st) subs
 
+(* A bare name is the one thing a type position reads differently *)
 and resolve_typ st t =
-  match t.tdesc with
-  | Named name -> use_type st name t.tspan
-  | Pointer t | Slice t -> resolve_typ st t
-  | Array (e, t) ->
-      resolve_expr st e;
-      resolve_typ st t
-  | FuncPtr (_, ps, ret) ->
-      List.iter (resolve_typ st) ps;
-      resolve_typ st ret
-  | UnitType -> ()
+  match t.edesc with
+  | Ident name -> use st "type" name t.espan
+  | _ -> resolve_expr st t
 
-and declare_block_item st d =
-  (match d with
-  | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
-  | LocalTypeAlias td -> declare_local_type st td.alias_name td.alias_span
-  | LocalFunc fd -> declare_local_func st fd.func_name fd.func_span
-  | LocalEnum ed -> declare_local_type st ed.enum_name ed.enum_span);
-  st.out.local_decls <- decl_of_local d :: st.out.local_decls
-
-and resolve_local_decl st d =
-  match d with
-  | LocalFunc fd -> resolve_local_func st fd
-  | LocalStruct _ | LocalTypeAlias _ | LocalEnum _ ->
-      resolve_decl st (decl_of_local d)
-
-and resolve_block_item st = function
-  | Expr e -> resolve_expr st e
-  | Decl d -> resolve_local_decl st d
+(* A :: of a fn is a function and any other :: is a type *)
+and resolve_binding st b =
+  let resolve_value e =
+    match (b.binder, e.edesc) with
+    | CompileTime, Lambda l -> resolve_lambda st l
+    | CompileTime, _ -> resolve_typ st e
+    | RunTime, _ -> resolve_expr st e
+  in
+  match b.bind_form with
+  | Typed (t, e) ->
+      resolve_typ st t;
+      resolve_value e
+  | Inferred e -> resolve_value e
+  | Declared t -> resolve_typ st t
 
 and resolve_block_contents st body =
-  List.iter (function Expr _ -> () | Decl d -> declare_block_item st d) body;
-  List.iter (resolve_block_item st) body
+  List.iter
+    (function
+      | { edesc = Binding ({ binder = CompileTime; _ } as b); _ } ->
+          declare_local_bound st b
+      | _ -> ())
+    body;
+  List.iter (resolve_expr st) body
 
 and resolve_block st body = resolve_block_contents (enter_scope st) body
 
-and resolve_func st fd =
-  let st = enter_scope st in
+(* A fn can't see the enclosing body's variables *)
+and resolve_lambda st l =
+  let st = enter_scope { st with value_boundary = Some st.scope } in
   List.iter
     (fun p ->
       resolve_typ st p.param_typ;
-      declare_param st p)
-    fd.params;
-  Option.iter (resolve_typ st) fd.ret;
-  resolve_block_contents st fd.body
-
-(* A local fn can't see the enclosing body's variables *)
-and resolve_local_func st fd =
-  resolve_func { st with value_boundary = Some st.scope } fd
-
-and resolve_decl st = function
-  | Func fd | Extern fd -> resolve_func st fd
-  | Global gd ->
-      Option.iter (resolve_typ st) gd.typ;
-      Option.iter (resolve_expr st) gd.init
-  | Struct sd -> List.iter (fun f -> resolve_typ st f.field_typ) sd.fields
-  | TypeAlias td -> resolve_typ st td.alias_typ
-  (* TODO(c111): nothing to walk until a variant can hold a type *)
-  | Enum _ -> ()
-
-(* An extern fn with a body is there for C to call so it keeps its own name *)
-let foreign_link_name (fd : func_def) =
-  if fd.extern_abi <> NoAbi then Some (Interner.text fd.func_name.value)
-  else None
+      declare_local st Symbol.Param p.param_name.value p.param_span)
+    l.lambda_params;
+  Option.iter (resolve_typ st) l.lambda_ret;
+  resolve_block_contents st l.lambda_body
 
 (* A top level name lands first so a body can forward reference *)
-let declare_decls st decls =
-  List.iter
-    (function
-      | Func fd ->
-          declare_global ?link_name:(foreign_link_name fd) st Symbol.Func
-            fd.func_name fd.func_span
-      | Extern fd ->
-          declare_global
-            ~link_name:(Interner.text fd.func_name.value)
-            st Symbol.Extern fd.func_name fd.func_span
-      | Global gd -> declare_global st Symbol.Global gd.name gd.span
-      | Struct sd -> declare_type st sd.struct_name sd.struct_span
-      | TypeAlias td -> declare_type st td.alias_name td.alias_span
-      | Enum ed -> declare_type st ed.enum_name ed.enum_span)
-    decls
+(* An export is there for C to call so it keeps its own name *)
+let declare_decl st (Bind b) =
+  let name = b.bind_name and span = b.bind_span in
+  let text = Interner.text name.value in
+  let mangled = decl_link_name text in
+  match (b.binder, bind_value b) with
+  | RunTime, _ -> declare_in st.top.names st Symbol.Global name span mangled
+  | CompileTime, Some { edesc = Lambda { lambda_abi = NamedAbi _; _ }; _ } ->
+      declare_in st.top.names st Symbol.Func name span text
+  | CompileTime, Some { edesc = Extern _; _ } ->
+      declare_in st.top.names st Symbol.Extern name span text
+  | CompileTime, Some { edesc = Lambda _; _ } ->
+      declare_in st.top.names st Symbol.Func name span mangled
+  | CompileTime, (Some _ | None) ->
+      declare_in st.top.names st Symbol.Type name span mangled
 
 let resolve decls =
   let out = make_output () in
   let top = new_scope (Some out.prelude) in
   let st = { out; top; scope = top; value_boundary = None; next_id = ref 0 } in
-  declare_decls st decls;
-  List.iter (resolve_decl st) decls;
+  List.iter (declare_decl st) decls;
+  List.iter (fun (Bind b) -> resolve_binding st b) decls;
   out

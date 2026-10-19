@@ -2,4 +2,4 @@ error: match is not exhaustive
   at main.rp:6:16
       return match s {
                    ^ Color.Green, Color.Blue not covered
-help: add an arm for each, or `_ => { }`
+help: add the arms or `_ => { }`

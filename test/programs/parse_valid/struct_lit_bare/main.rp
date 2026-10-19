@@ -1,0 +1,17 @@
+Point :: struct { x: i32, y: i32 };
+Line :: struct { a: Point, b: Point };
+Empty :: struct { };
+Pt :: Point;
+g : Point = .{ 4, 2 };
+take :: fn(p: Point) -> i32 { return p.x };
+make :: fn() -> Point { return .{ 7, 8 } };
+main :: fn() -> i32 {
+  p : Point = .{ y = 2, x = 1 };
+  l := Line.{ .{ 1, 2 }, .{ 3, 4 } };
+  l.a = .{ 5, 6 };
+  a : [2]Point = [.{ 1, 2 }, .{ 3, 4 }];
+  q : Point = if p.x > 0 { .{ 1, 1 } } else { .{ 0, 0 } };
+  r : Pt = .{ 3, 3 };
+  _e : Empty = .{ };
+  return take(.{ 9, 0 }) + make().y + g.x + l.a.x + a[1].y + q.y + p.y + r.x;
+};

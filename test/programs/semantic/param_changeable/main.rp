@@ -1,0 +1,3 @@
+// BROKEN: a param can't take `=` yet (the Where a value comes from rule)
+bump :: fn(m : i32 = _) -> i32 { m += 1; m };
+main :: fn() -> i32 { bump(4) };

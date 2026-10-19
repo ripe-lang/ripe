@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-let tok_str (t : Ripe.Tokens.token) =
+let tok_str t =
   let open Ripe.Tokens in
   match t with
   | IDENT s -> "IDENT " ^ s
@@ -16,22 +16,11 @@ let tok_str (t : Ripe.Tokens.token) =
         "KW " ^ show_token other
       else show_token other
 
-let dump_ident (i : Ripe.Ast.ident) = Ripe.Interner.text i.value
+let dump_ident i = Ripe.Interner.text i.Ripe.Ast.value
 
 (* a compact s-expr for expr trees with no spans *)
-let rec dump_typ (t : Ripe.Ast.typ) =
-  match t.tdesc with
-  | Named n -> Ripe.Interner.text n
-  | Pointer p -> "*" ^ dump_typ p
-  | Array (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_typ t
-  | Slice t -> "[]" ^ dump_typ t
-  | FuncPtr (_, params, ret) ->
-      let ps = String.concat ", " (List.map dump_typ params) in
-      "(" ^ ps ^ ") -> " ^ dump_typ ret
-  | UnitType -> "()"
-
-and dump_expr (e : Ripe.Ast.expr) =
-  match e.edesc with
+let rec dump_expr e =
+  match e.Ripe.Ast.edesc with
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | Bool b -> string_of_bool b
@@ -68,8 +57,8 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ ")"
   | FieldAccess (e, f) ->
       "(. " ^ dump_expr e ^ " " ^ Ripe.Interner.text f.value ^ ")"
-  | Cast (t, e) -> "(cast " ^ dump_typ t ^ " " ^ dump_expr e ^ ")"
-  | SizeOf t -> "(sizeof " ^ dump_typ t ^ ")"
+  | Cast (t, e) -> "(cast " ^ dump_expr t ^ " " ^ dump_expr e ^ ")"
+  | SizeOf t -> "(sizeof " ^ dump_expr t ^ ")"
   | ArrayLit elems ->
       "(array"
       ^ String.concat "" (List.map (fun e -> " " ^ dump_expr e) elems)
@@ -77,15 +66,18 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Index (base, idx) -> "(index " ^ dump_expr base ^ " " ^ dump_expr idx ^ ")"
   | StructLit (name, fields) ->
       "(struct "
-      ^ Ripe.Interner.text name.value
+      ^ Option.fold ~none:"."
+          ~some:(fun n -> Ripe.Interner.text n.Ripe.Ast.value)
+          name
       ^ String.concat ""
           (List.map
-             (fun ((f : _ Ripe.Ast.spanned), e) ->
-               match f.value with
+             (fun (f, e) ->
+               match f.Ripe.Ast.value with
                | Some f -> " (" ^ Ripe.Interner.text f ^ " " ^ dump_expr e ^ ")"
                | None -> " " ^ dump_expr e)
              fields)
       ^ ")"
+  | DotVariant name -> "(. " ^ Ripe.Interner.text name.value ^ ")"
   | Block body -> dump_block body
   | If (branches, else_body) ->
       let arm (c, body) =
@@ -97,16 +89,19 @@ and dump_expr (e : Ripe.Ast.expr) =
         | Some b -> " " ^ dump_block b.Ripe.Ast.value
         | None -> "")
       ^ ")"
-  | While (_, c, body) -> "(while " ^ dump_expr c ^ " " ^ dump_block body ^ ")"
-  | Loop (_, body) -> "(loop " ^ dump_block body ^ ")"
+  | Loop (_, _, body) -> "(loop " ^ dump_block body ^ ")"
   | For (_, name, iter, body) ->
       "(for "
       ^ Ripe.Interner.text name.value
       ^ " " ^ dump_expr iter ^ " " ^ dump_block body ^ ")"
-  | Binding (name, _, init) ->
-      "(bind "
-      ^ Ripe.Interner.text name.value
-      ^ (match init with Some e -> " " ^ dump_expr e | None -> "")
+  | Binding b ->
+      let head =
+        match b.binder with RunTime -> "(bind " | CompileTime -> "(:: "
+      in
+      head ^ dump_ident b.bind_name
+      ^ (match Ripe.Ast.bind_value b with
+        | Some e -> " " ^ dump_expr e
+        | None -> "")
       ^ ")"
   | Return e ->
       "(return"
@@ -116,8 +111,10 @@ and dump_expr (e : Ripe.Ast.expr) =
   | Break (_, None) -> "(break)"
   | Continue _ -> "(continue)"
   | Match (scrutinee, arms) ->
-      let arm (a : Ripe.Ast.arm) =
-        " (" ^ dump_pattern a.pat ^ " "
+      let arm a =
+        " ("
+        ^ dump_pattern a.Ripe.Ast.pat
+        ^ " "
         ^ dump_block a.arm_body.Ripe.Ast.value
         ^ ")"
       in
@@ -125,26 +122,45 @@ and dump_expr (e : Ripe.Ast.expr) =
       ^ String.concat "" (List.map arm arms)
       ^ ")"
   | Unit -> "()"
+  | Lambda l -> "(fn " ^ dump_block l.lambda_body ^ ")"
+  | StructType fields ->
+      let field f =
+        " ("
+        ^ dump_ident f.Ripe.Ast.field_name
+        ^ " " ^ dump_expr f.field_typ ^ ")"
+      in
+      "(struct_type" ^ String.concat "" (List.map field fields) ^ ")"
+  | EnumType variants ->
+      let variant v =
+        match v.Ripe.Ast.variant_payload with
+        | [] -> " " ^ dump_ident v.variant_name
+        | payload ->
+            " (" ^ dump_ident v.variant_name
+            ^ String.concat "" (List.map (fun t -> " " ^ dump_expr t) payload)
+            ^ ")"
+      in
+      "(enum_type" ^ String.concat "" (List.map variant variants) ^ ")"
+  | PointerType t -> "*" ^ dump_expr t
+  | ArrayType (n, t) -> "[" ^ dump_expr n ^ "]" ^ dump_expr t
+  | SliceType t -> "[]" ^ dump_expr t
+  | FuncType (_, params, ret) ->
+      let ps = String.concat ", " (List.map dump_expr params) in
+      "(" ^ ps ^ ") -> " ^ dump_expr ret
+  | Hole -> "_"
+  | Extern abi -> Printf.sprintf "extern %S" abi.value
 
-and dump_pattern (p : Ripe.Ast.pattern) : string =
-  match p.pdesc with
+and dump_pattern p =
+  match p.Ripe.Ast.pdesc with
   | PatValue e -> dump_expr e
   | PatWild -> "_"
   | PatBind name -> Ripe.Interner.text name
+  | PatVariant (callee, subs) ->
+      "(" ^ dump_expr callee
+      ^ String.concat "" (List.map (fun p -> " " ^ dump_pattern p) subs)
+      ^ ")"
 
-and dump_block (body : Ripe.Ast.block) : string =
-  let dump_item (item : Ripe.Ast.block_item) =
-    match item with
-    | Expr e -> dump_expr e
-    | Decl (LocalStruct sd) ->
-        "(local struct " ^ dump_ident sd.struct_name ^ ")"
-    | Decl (LocalTypeAlias td) ->
-        "(local type " ^ dump_ident td.alias_name ^ ")"
-    | Decl (LocalFunc fd) ->
-        "(local fn " ^ dump_ident fd.func_name ^ " " ^ dump_block fd.body ^ ")"
-    | Decl (LocalEnum ed) -> "(local enum " ^ dump_ident ed.enum_name ^ ")"
-  in
-  "(block " ^ String.concat " " (List.map dump_item body) ^ ")"
+and dump_block body =
+  "(block " ^ String.concat " " (List.map dump_expr body) ^ ")"
 
 let dump_tokens src =
   Diag.fresh ();

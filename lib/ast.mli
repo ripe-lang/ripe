@@ -3,8 +3,9 @@
 type span = Span.t
 type name = Interner.id
 type 'a spanned = { value : 'a; span : span }
-type loop_label = name spanned
 type ident = name spanned
+type loop_label = name spanned
+type loop_source = PlainLoop | WhileLoop | ForLoop
 
 type binop =
   | Add
@@ -27,6 +28,7 @@ type binop =
   | Rshift
 
 type unop = Neg | Not | BitNot | Deref | AddressOf
+type binder = RunTime | CompileTime
 
 type expr_desc =
   | Int of int64 * string option
@@ -52,79 +54,64 @@ type expr_desc =
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
-  | StructLit of name spanned * (name option spanned * expr) list
+  | StructLit of name spanned option * (name option spanned * expr) list
+  | DotVariant of name spanned
   | Block of block
   | If of (expr * block spanned) list * block spanned option
-  | While of loop_label option * expr * block
   | For of loop_label option * name spanned * expr * block
-  | Binding of name spanned * typ option * expr option
+  | Binding of binding
   | Return of expr option
   | Break of loop_label option * expr option
   | Continue of loop_label option
-  | Loop of loop_label option * block
+  | Loop of loop_label option * loop_source * block
   | Match of expr * arm list
   | Unit
+  | Lambda of lambda
+  | StructType of field list
+  | EnumType of variant list
+  | PointerType of expr
+  | FuncType of abi * expr list * expr
+  | ArrayType of expr * expr
+  | SliceType of expr
+  | Hole
+  | Extern of string spanned
 
 and expr = { edesc : expr_desc; espan : span }
+and block = expr list
 and path = { owner : name spanned Nonempty.t; member : name spanned }
 and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }
-and pattern_desc = PatValue of expr | PatWild | PatBind of name
-and block = block_item list
-and block_item = Expr of expr | Decl of local_decl
 
-and local_decl =
-  | LocalStruct of struct_def
-  | LocalTypeAlias of type_alias_def
-  | LocalFunc of func_def
-  | LocalEnum of enum_def
+and pattern_desc =
+  | PatValue of expr
+  | PatWild
+  | PatBind of name
+  | PatVariant of expr * pattern list
 
-and typ_desc =
-  | Named of name
-  | Pointer of typ
-  | FuncPtr of abi * typ list * typ
-  | Array of expr * typ
-  | Slice of typ
-  | UnitType
-
-and typ = { tdesc : typ_desc; tspan : span }
-and abi = NoAbi | NamedAbi of string spanned
-and field = { field_name : ident; field_typ : typ }
-
-and struct_def = {
-  struct_name : ident;
-  fields : field list;
-  struct_span : span;
+and binding = {
+  bind_name : ident;
+  binder : binder;
+  bind_form : bind_form;
+  bind_span : span;
 }
 
-and type_alias_def = { alias_name : ident; alias_typ : typ; alias_span : span }
-and enum_def = { enum_name : ident; variants : ident list; enum_span : span }
+and bind_form = Typed of typ * expr | Inferred of expr | Declared of typ
+and typ = expr
+
+and lambda = {
+  lambda_params : param list;
+  lambda_ret : typ option;
+  lambda_body : block;
+  lambda_abi : abi;
+  lambda_span : span;
+}
+
 and param = { param_name : ident; param_typ : typ; param_span : span }
+and field = { field_name : ident; field_typ : typ }
+and variant = { variant_name : ident; variant_payload : typ list }
+and abi = NoAbi | NamedAbi of string spanned
 
-and func_def = {
-  func_name : ident;
-  params : param list;
-  ret : typ option;
-  body : block;
-  variadic : bool;
-  extern_abi : abi;
-  func_span : span;
-}
-
-type global_def = {
-  name : ident;
-  typ : typ option;
-  init : expr option;
-  span : span;
-}
-
-type decl =
-  | Func of func_def
-  | Struct of struct_def
-  | Extern of func_def
-  | Global of global_def
-  | TypeAlias of type_alias_def
-  | Enum of enum_def
+type decl = Bind of binding
 
 val pp_span : Format.formatter -> span -> unit
 val pp_loop_label : Format.formatter -> loop_label -> unit
@@ -138,4 +125,4 @@ val show_unop_sym : unop -> string
 val path_expr : path -> expr
 val owner_expr : path -> expr
 val path_split : path -> name list * name
-val decl_of_local : local_decl -> decl
+val bind_value : binding -> expr option

@@ -1,0 +1,9 @@
+Point : _ : struct { x: i32, y: i32 };
+
+PtPtr : _ : *Point;
+
+main : _ : fn() -> i32 {
+  p : _ = Point.{ x = 10, y = 20 };
+  pp : PtPtr = &p;
+  return pp.x + pp.y;
+};

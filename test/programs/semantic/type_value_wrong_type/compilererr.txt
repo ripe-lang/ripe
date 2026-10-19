@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:1:11
+    P : i32 : struct { x: i32 };
+              ^~~~~~ expected i32, found type
+error: type mismatch
+  at main.rp:2:12
+    T : type : 5;
+               ^ expected type, found i32

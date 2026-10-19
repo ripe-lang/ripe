@@ -1,0 +1,4 @@
+main :: fn {
+  puts :: extern "C";
+  puts("local import");
+};

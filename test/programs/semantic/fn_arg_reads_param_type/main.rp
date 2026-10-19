@@ -1,0 +1,2 @@
+apply :: fn(f: (i32) -> i32, v: i32) -> i32 => f(v);
+main :: fn -> i32 { apply(fn(a) => a + 1, 6) };

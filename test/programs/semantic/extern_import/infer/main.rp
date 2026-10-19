@@ -1,0 +1,5 @@
+puts : _ : extern "C";
+
+main : _ : fn {
+  puts("import");
+};

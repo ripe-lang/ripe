@@ -1,0 +1,15 @@
+error: already defined
+  at main.rp:3:1
+    point := point.{ 3, 4 };
+    ^~~~~
+  at main.rp:1:1
+    point :: struct { x: i32, y: i32 };
+    ^~~~~ previous definition here
+error: no variant
+  at main.rp:6:16
+      return point.x + point.y;
+                   ^ on struct point
+error: no variant
+  at main.rp:6:26
+      return point.x + point.y;
+                             ^ on struct point

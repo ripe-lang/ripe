@@ -21,17 +21,29 @@ SHAPES = (
     ("char", "'a'"),
     ("f64", "1.0"),
     ("cstr", '"s"'),
-    ("Pt", "Pt.{ x: 0 }"),
+    ("Pt", "Pt.{ x = 0 }"),
     ("Word", "0"),
 )
 
 PRELUDE = (
     "h0 :: fn(a: i32) -> i32 { return a };\n"
-    'extern "C" fn hc(a: i32) i32 { return a }\n'
+    'hc :: extern "C" fn(a: i32) -> i32 { return a };\n'
     "spin :: fn() -> never { loop {} };\n"
     "Pt :: struct { x: i32 };\n"
     "Word :: i32;\n"
 )
+
+HOLE_SHAPES = (
+    ("_", "0"),
+    ("[_]i32", "[0, 0]"),
+    ("[2]_", "[0, 0]"),
+    ("[_]_", "[0, 0]"),
+    ("(_) -> i32", "h0"),
+    ("(i32) -> _", "h0"),
+    ('extern "C" (_) -> _', "hc"),
+)
+
+HOLE_READS = {"local", "global"}
 
 SKIP = {
     ("ret", "never"),
@@ -73,6 +85,23 @@ def cases():
                 yield (
                     "%s/%s/%s" % (n, shape, kn),
                     PRELUDE + body.replace(TYPE, broken),
+                    "broken",
+                )
+
+        for shape, lit in HOLE_SHAPES:
+            body = t.replace(LIT, lit)
+            kind = "valid" if n in HOLE_READS else "broken"
+
+            yield (
+                "%s/%s/none" % (n, shape),
+                PRELUDE + body.replace(TYPE, shape),
+                kind,
+            )
+
+            for kn, corrupt in CORRUPTIONS.items():
+                yield (
+                    "%s/%s/%s" % (n, shape, kn),
+                    PRELUDE + body.replace(TYPE, corrupt(shape)),
                     "broken",
                 )
 

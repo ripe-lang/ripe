@@ -23,7 +23,7 @@ type place = {
   place_span : Ast.span;
 }
 
-and projection = Deref | Field of int | Index of operand
+and projection = Deref | Field of int * int | Index of operand | Tag
 and operand = { op_desc : operand_desc; op_ty : Types.ty; op_span : Ast.span }
 and operand_desc = Copy of place | Const of constant
 
@@ -117,17 +117,18 @@ type func = {
   func_span : Ast.span;
 }
 
-type struct_decl = {
-  struct_name : Keyname.t;
-  struct_fields : Types.ty list;
-  struct_local : bool;
+type adt_decl = {
+  adt_name : Keyname.t;
+  adt_kind : Types.adt_kind;
+  adt_variants : Types.ty list list;
+  adt_local : bool;
 }
 
 type global_value =
   | GlobalConst of constant * Types.ty
   | GlobalAddress of string
   | GlobalArray of global_value list
-  | GlobalStruct of (int * global_value) list
+  | GlobalFields of int * (int * global_value) list
 
 type global = {
   global_name : string;
@@ -136,11 +137,12 @@ type global = {
 }
 
 type program = {
-  prog_structs : struct_decl list;
+  prog_adts : adt_decl list;
   prog_globals : global list;
   prog_funcs : func list;
 }
 
 val build : Tast.tdecl list -> program
+val with_entry : program -> program
 val dump : program -> string
 val verify : program -> unit

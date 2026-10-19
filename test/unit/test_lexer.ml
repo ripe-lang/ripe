@@ -119,7 +119,7 @@ let%expect_test "lexer: operators and compound assignment" =
     |}]
 
 let%expect_test "lexer: punctuation" =
-  dump_tokens "( ) { } [ ] , : . .. ..= ... ;";
+  dump_tokens "( ) { } [ ] , : . .. ..= ;";
   [%expect
     {|
     (
@@ -133,7 +133,6 @@ let%expect_test "lexer: punctuation" =
     .
     ..
     ..=
-    ...
     SEMI
     EOF
     |}]

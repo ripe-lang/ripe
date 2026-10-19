@@ -63,7 +63,6 @@ type token =
   | COLON
   | DOTDOT
   | DOTDOTEQ
-  | ELLIPSIS
   | DOT
   | SEMI
   | EOF
@@ -168,7 +167,6 @@ let show_token = function
   | COLON -> ":"
   | DOTDOT -> ".."
   | DOTDOTEQ -> "..="
-  | ELLIPSIS -> "..."
   | DOT -> "."
   | FATARROW -> "=>"
   | UNDERSCORE -> "_"

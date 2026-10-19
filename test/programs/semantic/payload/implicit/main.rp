@@ -1,0 +1,28 @@
+Point :: struct { x: i32, y: i32 };
+Shape :: enum { Circle(i32), Rect(Point, i32), Empty };
+Holder :: struct { s: Shape, n: i32 };
+
+g : Shape = .Rect(.{1, 2}, 3);
+
+area :: fn(s: Shape) -> i32 {
+  match s {
+    .Circle(r) => r * r,
+    .Rect(p, w) => p.x + p.y + w,
+    .Empty => 10,
+  }
+};
+
+pick :: fn(big: bool) -> Shape {
+  if big { return .Rect(.{4, 5}, 6) };
+  .Circle(2)
+};
+
+main :: fn -> i32 {
+  a := Shape.Circle(3);
+  e := Shape.Empty;
+  shapes := [Shape.Circle(1), Shape.Empty];
+  h := Holder.{ .Circle(5), 1 };
+  mk := Shape.Circle;
+  area(a) + area(e) + area(g) + area(pick(true)) + area(pick(false))
+    + area(shapes[0]) + area(shapes[1]) + area(h.s) + area(mk(1))
+};

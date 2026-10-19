@@ -1,0 +1,4 @@
+error: read before set
+  at main.rp:5:3
+      q.y
+      ^~~ y has no value yet

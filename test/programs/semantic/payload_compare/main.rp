@@ -1,0 +1,10 @@
+Shape : type : enum { Circle(i32), Empty };
+Other :: enum { Dot(i32) };
+
+main :: fn -> i32 {
+  a : Shape = Shape.Circle(1);
+  b := Other.Dot(2);
+  x : bool = a == Shape.Empty;
+  y := b != b;
+  0
+};

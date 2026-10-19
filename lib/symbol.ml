@@ -38,6 +38,10 @@ let is_func = function Func | LocalFunc | Extern -> true | _ -> false
 let is_global = function Global -> true | _ -> false
 let is_immutable = function ForVar | MatchBind | Param -> true | _ -> false
 
+let is_local = function
+  | Local | Param | ForVar | MatchBind -> true
+  | _ -> false
+
 let describe_kind = function
   | Func | LocalFunc | Extern -> "a function"
   | Type | LocalType -> "a type"

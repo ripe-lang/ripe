@@ -1,8 +1,0 @@
-Hole :: struct { a: never, b: i32 };
-
-main :: fn() -> i32 {
-  bare : never;
-  wHole : Hole;
-  partial := Hole.{ b: 1 };
-  return 0;
-};

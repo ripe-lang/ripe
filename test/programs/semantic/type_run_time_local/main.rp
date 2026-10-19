@@ -1,0 +1,5 @@
+main :: fn {
+  A : type = i32;
+  B := i32;
+  C := struct { x: i32 };
+};

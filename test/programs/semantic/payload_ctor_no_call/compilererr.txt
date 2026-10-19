@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:4:15
+      s : Shape = Shape.Circle;
+                  ^~~~~~~~~~~~ expected Shape, found (i32) -> Shape
+error: type mismatch
+  at main.rp:5:15
+      t : Shape = .Circle;
+                  ^~~~~~~ expected Shape, found (i32) -> Shape

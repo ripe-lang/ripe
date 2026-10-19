@@ -28,21 +28,20 @@ type texpr_desc =
   | TSliceExpr of texpr * texpr * texpr
   | TDataPtr of texpr
   | TZero
-  | TStructLit of Keyname.t * (int * texpr) list
-  (* TODO(6c3f): a payload variant carries its arguments here too *)
+  | TBuild of Keyname.t * int64 * (int * texpr) list
   | TVariant of Keyname.t * int64
   | TBlock of tblock
   | TIf of (texpr * tblock) list * tblock option
-  | TWhile of Ast.loop_label option * texpr * tblock
-  | TFor of Ast.loop_label option * Symbol.t * ty * texpr * tblock
+  | TFor of Symbol.t * ty * texpr * tblock
   | TBinding of Symbol.t * ty * texpr
   | TReturn of texpr option
-  | TBreak of Ast.loop_label option * texpr option
-  | TContinue of Ast.loop_label option
+  | TBreak of int * texpr option
+  | TContinue of int
   | TLocalDecl
-  | TLoop of Ast.loop_label option * tblock
+  | TLoop of tblock
   | TMatch of texpr * tarm list
   | TUnitLit
+  | TTypeExpr
 
 and texpr = { tdesc : texpr_desc; ty : ty; tspan : Ast.span }
 [@@deriving show { with_path = false }]
@@ -53,10 +52,14 @@ and tarm = { tpat : tpattern; tbody : tblock }
 [@@deriving show { with_path = false }]
 
 (* A test compares part of the scrutinee and a binding names part of it *)
-and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
+and tpattern =
+  | TPatWild
+  | TPatBind of Symbol.t * ty
+  | TPatConst of int64
+  | TPatVariant of int64 * tpattern list
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) ty desc = { tdesc = desc; ty; tspan = span }
+let mk span ty desc = { tdesc = desc; ty; tspan = span }
 
 type tfunc_def = {
   tfunc_key : Symbol.key;
@@ -67,7 +70,6 @@ type tfunc_def = {
   tfunc_ret : ty;
   tfunc_body : tblock;
   tfunc_export : bool;
-  tfunc_variadic : bool;
   tfunc_abi : func_abi;
 }
 [@@deriving show { with_path = false }]
@@ -82,11 +84,9 @@ type tglobal_def = {
 
 type tdecl =
   | TFuncDecl of tfunc_def
-  | TStructDecl of Keyname.t * ty list (* This has a name and typed fields *)
-  | TLocalStructDecl of Keyname.t * ty list
-  | TExternDecl of tfunc_def
+  | TAdtDecl of Keyname.t * adt_kind * ty list list
+  | TLocalAdtDecl of Keyname.t * adt_kind * ty list list
+  | TExternDecl of string * ty
   | TGlobalDecl of tglobal_def
   | TTypeAliasDecl of Keyname.t * ty
-  (* An enum is an integer at runtime so nothing past here needs its variants *)
-  | TEnumDecl of Keyname.t
 [@@deriving show { with_path = false }]

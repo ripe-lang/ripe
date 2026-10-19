@@ -1,0 +1,10 @@
+Color :: enum { Red, Green, Blue };
+Point :: struct { x: i32, y: i32 };
+gc : Color = .Blue;
+main :: fn() -> i32 {
+  c : Color = .Green;
+  p : Point = .{ x = 1, y = 2 };
+  ps : [2]Point = [.{ 3, 4 }, Point.{ 5, 6 }];
+  n := match c { .Red => 0, Color.Green => p.x, _ => 2 };
+  return if c == .Green { n + ps[1].y } else { 0 };
+};

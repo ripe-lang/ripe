@@ -3,7 +3,7 @@ Line :: struct { a: Point, b: Point };
 Empty :: struct { };
 take :: fn(p: Point) -> i32 { return p.x };
 main :: fn() -> i32 {
-  a := Point.{ x: 1, y: 2 };
+  a := Point.{ x = 1, y = 2 };
   b := Point.{ 3, 4, };
   _e := Empty.{ };
   l := Line.{ Point.{ 5, 6 }, Point . { 7, 8 } };

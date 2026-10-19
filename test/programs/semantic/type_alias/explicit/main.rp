@@ -1,0 +1,2 @@
+Code : type : i32;
+main :: fn -> Code { 3 };

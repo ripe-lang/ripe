@@ -1,2 +1,2 @@
-extern 99 fn puts(s: cstr) i32;
+puts : (cstr) -> i32 : extern 99;
 main :: fn() -> i32 { return puts("hi") };

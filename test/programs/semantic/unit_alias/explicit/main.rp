@@ -1,0 +1,9 @@
+Nothing : type : ();
+
+hello :: fn() -> Nothing {
+};
+
+main :: fn() -> i32 {
+  hello();
+  return 3;
+};

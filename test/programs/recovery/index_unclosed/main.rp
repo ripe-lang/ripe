@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
 main :: fn() -> i32 {
-  a : [3]i32;
+  a : [3]i32 = [1, 2, 3];
   return a[0;
 };

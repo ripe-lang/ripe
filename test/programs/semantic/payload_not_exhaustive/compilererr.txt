@@ -1,0 +1,10 @@
+error: match is not exhaustive
+  at main.rp:5:14
+      a := match s { Shape.Circle(r) => r, Shape.Empty => 0 };
+                 ^ Shape.Rect(_, _) not covered
+help: add `Shape.Rect(_, _) => { }` or `_ => { }`
+error: match is not exhaustive
+  at main.rp:6:14
+      b := match s { .Empty => 0 };
+                 ^ Shape.Circle(_), Shape.Rect(_, _) not covered
+help: add the arms or `_ => { }`

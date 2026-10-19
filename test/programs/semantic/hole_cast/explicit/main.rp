@@ -1,0 +1,5 @@
+main :: fn -> i32 {
+  big : i32 = 300;
+  small : u8 = cast(u8, big);
+  cast(i32, small)
+};

@@ -1,4 +1,4 @@
-error: expected `:`
+error: expected `,` between parameters
   at main.rp:1:13
     add :: fn(a i32, b: i32) -> i32 { return b };
                 ^~~ found i32

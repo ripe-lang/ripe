@@ -31,7 +31,7 @@
                    ty = (TInt I32); tspan = (44,49) }));
         ty = TNever; tspan = (37,49) }
        ];
-     tfunc_export = false; tfunc_variadic = false; tfunc_abi = Ripe })
+     tfunc_export = false; tfunc_abi = Ripe })
 (TFuncDecl
    { tfunc_key = 1; tfunc_name = "_R4main"; tfunc_source_name = "main";
      tfunc_entry_point = true; tfunc_params = []; tfunc_ret = (TInt I32);
@@ -46,8 +46,11 @@
                              kind = Func; entry_point = false; span = (0,52);
                              name_span = (0,3) });
                         ty =
-                        (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
-                        tspan = (-1,-1) },
+                        (TFunc
+                           { sig_params = [(TInt I32); (TInt I32)];
+                             sig_ret = (TInt I32); sig_abi = Ripe;
+                             sig_arity = Fixed });
+                        tspan = (86,89) },
                       [{ tdesc = (TIntLit 1L); ty = (TInt I32);
                          tspan = (90,91) };
                         { tdesc = (TIntLit 2L); ty = (TInt I32);
@@ -57,4 +60,4 @@
                    ty = (TInt I32); tspan = (86,95) }));
         ty = TNever; tspan = (79,95) }
        ];
-     tfunc_export = false; tfunc_variadic = false; tfunc_abi = Ripe })
+     tfunc_export = false; tfunc_abi = Ripe })

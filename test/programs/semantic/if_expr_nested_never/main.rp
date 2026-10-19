@@ -1,4 +1,4 @@
-extern "C" fn exit(code: i32) never;
+exit : (i32) -> never : extern "C";
 
 pick :: fn(a: bool, b: bool) -> i32 {
   y := if a {

@@ -1,0 +1,9 @@
+Shape :: enum { Circle(i32), Rect(i32, i32), Empty };
+
+main :: fn -> i32 {
+  s : Shape = .Empty;
+  a := match s { Shape.Rect(w) => w, _ => 0 };
+  b := match s { .Circle(r, extra) => r + extra, _ => 0 };
+  c := match s { .Empty(r) => r, _ => 0 };
+  a + b + c
+};

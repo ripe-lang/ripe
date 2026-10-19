@@ -1,11 +1,11 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 Kind :: enum { Circle, Square };
 
 Shape :: struct { kind: Kind, size: i32 };
 
 main :: fn() -> i32 {
-  s := Shape.{ kind: Kind.Square, size: 3 };
+  s := Shape.{ kind = Kind.Square, size = 3 };
   printf("%d %d\n", s.kind == Kind.Square, s.size);
   return 0;
 };

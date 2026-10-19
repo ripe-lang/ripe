@@ -1,0 +1,3 @@
+main :: fn {
+  puts := extern "C";
+};

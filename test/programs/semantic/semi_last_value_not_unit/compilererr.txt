@@ -1,0 +1,5 @@
+error: type mismatch
+  at main.rp:3:14
+    main :: fn { g() };
+                 ^~~ expected (), found i32
+help: write `_ := g()` to drop the value on purpose

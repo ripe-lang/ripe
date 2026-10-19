@@ -1,0 +1,3 @@
+table : _ = [10, 20, 30];
+
+main : _ : fn() -> i32 { return table[1] };

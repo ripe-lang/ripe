@@ -1,8 +1,8 @@
 // BROKEN: an array size can't be sizeof yet
 
-extern "C" fn printf(fmt: cstr, ...) i32;
-extern "C" fn malloc(n: u64) ptr;
-extern "C" fn free(p: ptr);
+printf : (cstr, ..) -> i32 : extern "C";
+malloc : (u64) -> ptr : extern "C";
+free : (ptr) -> () : extern "C";
 
 Pt :: struct { x: i32, y: i32 };
 
@@ -13,7 +13,7 @@ main :: fn() -> i32 {
   b : i32 = sizeof(i32);
   c : u8 = sizeof(Pt);
   d := sizeof(Pt);
-  buf : [sizeof(Pt)]u8;
+  buf : [sizeof(Pt)]u8 = _;
   p := malloc(sizeof(Pt));
   free(p);
   printf("%llu %d %d %llu %d %d\n", a, b, cast(i32, c), d, cast(i32, buf.len),

@@ -1,0 +1,4 @@
+error: no variant
+  at main.rp:3:16
+      c : Color = .Purple;
+                   ^~~~~~ on enum Color

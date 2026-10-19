@@ -1,4 +1,0 @@
-error: expected expression
-  at main.rp:2:3
-      fn (i32) i32;
-      ^~ found `fn`

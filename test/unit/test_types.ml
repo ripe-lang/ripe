@@ -2,7 +2,7 @@
 
 open Ripe
 open Types
-open! Fake
+open Fake
 
 let point = struct_ty 1 "Point"
 let word = alias_ty 2 "Word" (TInt I64)
@@ -16,11 +16,13 @@ let%expect_test "types: a type prints the way it is written" =
   show (TArray (TSlice TChar, 3));
   show point;
   show word;
-  show (TFunc ([ TInt I32; TStr ], TBool, Ripe));
-  show (TFunc ([], TUnit, C));
+  show (func_ty [ TInt I32; TStr ] TBool Ripe Fixed);
+  show (func_ty [] TUnit C Fixed);
   show TError;
   show TNever;
   show TNull;
+  show (func_ty [ TCStr ] (TInt I32) C Variadic);
+  show (func_ty [] TUnit C Variadic);
   [%expect
     {|
     u8
@@ -35,6 +37,8 @@ let%expect_test "types: a type prints the way it is written" =
     <unknown type>
     never
     null
+    extern "C" (cstr, ..) -> i32
+    extern "C" (..) -> ()
     |}]
 
 let%expect_test "types: resolving walks down a chain of aliases" =
@@ -55,14 +59,16 @@ let%expect_test "types: an alias equals the type behind it" =
   show (TInt I32) TError;
   show (TPointer TError) (TInt I32);
   show (TArray (TError, 2)) (TInt I32);
-  show point (TStruct (keyname 1 "Point", []));
+  show point (TAdt (keyname 1 "Point", []));
   show (TArray (word, 2)) (TArray (TInt I64, 2));
   show (TArray (word, 2)) (TArray (TInt I64, 3));
   show (TSlice word) (TSlice (TInt I64));
-  show (TFunc ([ word ], word, Ripe)) (TFunc ([ TInt I64 ], TInt I64, Ripe));
   show
-    (TStruct (keyname 1 "Point", [ word ]))
-    (TStruct (keyname 1 "Point", [ TInt I64 ]));
+    (func_ty [ word ] word Ripe Fixed)
+    (func_ty [ TInt I64 ] (TInt I64) Ripe Fixed);
+  show
+    (TAdt (keyname 1 "Point", [ word ]))
+    (TAdt (keyname 1 "Point", [ TInt I64 ]));
   [%expect
     {|
     Word equals i64 = true
@@ -87,9 +93,9 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
   show (TArray (TError, 2));
   show (TSlice TError);
   show (TAlias (keyname 5 "Bad", TError));
-  show (TFunc ([ TInt I32 ], TError, Ripe));
-  show (TFunc ([ TError ], TUnit, Ripe));
-  show (TStruct (keyname 1 "Point", [ TError ]));
+  show (func_ty [ TInt I32 ] TError Ripe Fixed);
+  show (func_ty [ TError ] TUnit Ripe Fixed);
+  show (TAdt (keyname 1 "Point", [ TError ]));
   show (TPointer (TInt I32));
   [%expect
     {|
@@ -124,30 +130,6 @@ let%expect_test "types: only some kinds are unsigned or float" =
     float Word = false
     |}]
 
-let%expect_test "types: an aggregate is addressed by pointer" =
-  let tys =
-    [
-      TInt I64;
-      TStr;
-      TSlice (TInt I8);
-      TArray (TInt I8, 2);
-      point;
-      TPointer point;
-      TUnit;
-    ]
-  in
-  List.iter (pred "aggregate" is_aggregate) tys;
-  [%expect
-    {|
-    aggregate i64 = false
-    aggregate str = true
-    aggregate []i8 = true
-    aggregate [2]i8 = true
-    aggregate Point = true
-    aggregate *Point = false
-    aggregate () = false
-    |}]
-
 let%expect_test "types: a wide value takes the full eight bytes" =
   let tys =
     [
@@ -159,7 +141,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
       TPtr;
       TNull;
       TCStr;
-      TFunc ([], TUnit, Ripe);
+      func_ty [] TUnit Ripe Fixed;
       TFloat F64;
       word;
     ]
@@ -294,6 +276,7 @@ let%expect_test "types: the builtin table covers every spelled out type" =
     str str
     never never
     ptr ptr
+    type type
     |}]
 
 let%expect_test "types: only the two named abis parse" =

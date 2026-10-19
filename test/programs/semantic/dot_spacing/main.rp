@@ -1,0 +1,12 @@
+Point :: struct { x: i32 };
+Shape :: enum { Circle(i32), Dot };
+main :: fn() -> i32 {
+    a : Point = . { 7 };
+    b := Point . { 1 };
+    c : Shape = . Dot;
+    d := Shape . Circle(3);
+    e : Shape = .
+      Circle(4);
+    f := a . x;
+    return a.x + b.x + f + match c { .Dot => 10, .Circle(r) => r } + match d { .Dot => 0, .Circle(r) => r } + match e { .Dot => 0, .Circle(r) => r }
+};

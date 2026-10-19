@@ -1,4 +1,4 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 Pair :: struct {
   x: i32,
@@ -23,7 +23,7 @@ make :: fn() -> Pair {
 
 main :: fn() -> i32 {
   p := Pair.{ 4, 5 };
-  named := Pair.{ y: 5, x: 4 };
+  named := Pair.{ y = 5, x = 4 };
   n := Nest.{ Pair.{ 3, 4 }, [5, 6, 7], 9 };
   m := make();
   a := 1;

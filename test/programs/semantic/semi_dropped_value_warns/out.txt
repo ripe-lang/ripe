@@ -1,0 +1,6 @@
+warning: unused value
+  at main.rp:4:3
+      g();
+      ^~~ the i32 from g() is thrown away
+help: write `_ := g()` to drop it on purpose
+typecheck: ok

@@ -1,4 +1,4 @@
-error: expected type
-  at main.rp:1:19
+error: expected `,` between fields
+  at main.rp:1:20
     S :: struct { x: *y: i32 };
-                      ^ found y
+                       ^ found :

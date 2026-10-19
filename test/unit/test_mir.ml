@@ -36,9 +36,9 @@ let func locals stmts terminator =
     func_span = span;
   }
 
-let verify structs function_ =
+let verify adts function_ =
   let program =
-    { M.prog_structs = structs; prog_globals = []; prog_funcs = [ function_ ] }
+    { M.prog_adts = adts; prog_globals = []; prog_funcs = [ function_ ] }
   in
   match Ripe.Mir.verify program with
   | () -> print_endline "ok"
@@ -112,7 +112,7 @@ let%expect_test "mir verifier: every referenced local exists" =
 
 let%expect_test "mir verifier: aggregate call storage has the result type" =
   let struct_name = Ripe.Keyname.unresolved "pair" in
-  let pair = Ripe.Types.TStruct (struct_name, []) in
+  let pair = Ripe.Types.TAdt (struct_name, []) in
   let call =
     {
       M.call_dest = Some (place 0 []);
@@ -126,10 +126,11 @@ let%expect_test "mir verifier: aggregate call storage has the result type" =
   let stmt = { M.stmt_desc = M.Call call; stmt_span = span } in
   let struct_decl =
     {
-      M.struct_name;
-      struct_fields =
-        [ Ripe.Types.TInt Ripe.Types.I32; Ripe.Types.TInt Ripe.Types.I32 ];
-      struct_local = false;
+      M.adt_name = struct_name;
+      adt_kind = Ripe.Types.Struct;
+      adt_variants =
+        [ [ Ripe.Types.TInt Ripe.Types.I32; Ripe.Types.TInt Ripe.Types.I32 ] ];
+      adt_local = false;
     }
   in
   verify [ struct_decl ] (func i32_locals [ stmt ] (term M.Unreachable));
@@ -210,7 +211,7 @@ f :: fn() -> i32 {
 let%expect_test "mir: labeled break targets the outer loop" =
   Pipeline.run_mir
     {|
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 main :: fn() -> i32 {
   n := 0;
@@ -264,7 +265,7 @@ main :: fn() -> i32 {
 let%expect_test "mir: labeled break writes the outer loop value" =
   Pipeline.run_mir
     {|
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 main :: fn() -> i32 {
   i := 0;
@@ -390,7 +391,7 @@ Pair :: struct { x: i32, y: i32 };
 
 f :: fn(a: i32, b: i32) -> i32 {
   positional := Pair.{ a, b };
-  named := Pair.{ y: b, x: a };
+  named := Pair.{ y = b, x = a };
   return positional.x + named.y;
 };
 |};
@@ -423,7 +424,7 @@ Pair :: struct { x: i32, y: i32 };
 side :: fn(v: i32) -> i32 { return v };
 
 f :: fn() -> Pair {
-  return Pair.{ y: side(1), x: side(2) };
+  return Pair.{ y = side(1), x = side(2) };
 };
 |};
   [%expect
@@ -778,7 +779,7 @@ let%expect_test "mir: a shift guards against an out of range count" =
 
 let%expect_test "mir: a variadic call marks where the fixed params stop" =
   Pipeline.run_mir
-    {|extern "C" fn printf(fmt: cstr, ...) i32;
+    {|printf : (cstr, ..) -> i32 : extern "C";
 f :: fn() -> i32 { return printf("%d %d\n", 1, 2) };|};
   [%expect
     {|

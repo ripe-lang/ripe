@@ -1,4 +1,4 @@
-error: expected `:`
-  at main.rp:1:12
+error: cannot infer type
+  at main.rp:1:9
     f :: fn(i32) -> i32 { return 0 };
-               ^ found )
+            ^~~

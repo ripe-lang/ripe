@@ -1,0 +1,14 @@
+error: already defined
+  at main.rp:7:27
+      a := match s { .Rect(n, n) => n, _ => 0 };
+                              ^
+  at main.rp:7:24
+      a := match s { .Rect(n, n) => n, _ => 0 };
+                           ^ previous definition here
+error: already defined
+  at main.rp:9:41
+      c := match o { Opt.Some(Shape.Rect(y, y)) => y, _ => 0 };
+                                            ^
+  at main.rp:9:38
+      c := match o { Opt.Some(Shape.Rect(y, y)) => y, _ => 0 };
+                                         ^ previous definition here

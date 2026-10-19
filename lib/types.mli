@@ -3,6 +3,8 @@
 type int_kind = I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 | Isize | Usize
 type float_kind = F32 | F64
 type func_abi = Ripe | C | AbiError
+type func_arity = Fixed | Variadic
+type adt_kind = Struct | Enum
 
 type ty =
   | TInt of int_kind
@@ -15,14 +17,21 @@ type ty =
   | TNull
   | TPointer of ty
   | TPtr
-  | TStruct of Keyname.t * ty list
-  | TFunc of ty list * ty * func_abi
+  | TAdt of Keyname.t * ty list
+  | TFunc of func_ty
   | TArray of ty * int
   | TSlice of ty
   | TAlias of Keyname.t * ty
   | TError
-  | TEnum of Keyname.t
   | TUnit
+  | TType
+
+and func_ty = {
+  sig_params : ty list;
+  sig_ret : ty;
+  sig_abi : func_abi;
+  sig_arity : func_arity;
+}
 
 val show_int_kind : int_kind -> string
 val int_kinds : int_kind list
@@ -40,6 +49,7 @@ val float_kind_exact_limit : float_kind -> int64
 val pp_func_abi : Format.formatter -> func_abi -> unit
 val show_func_abi : func_abi -> string
 val func_abi_of_string : string -> func_abi option
+val pp_adt_kind : Format.formatter -> adt_kind -> unit
 val builtins : (string * ty) list
 val pp_ty : Format.formatter -> ty -> unit
 val show_ty : ty -> string
@@ -48,7 +58,6 @@ val has_error : ty -> bool
 val ty_equal : ty -> ty -> bool
 val is_float : ty -> bool
 val is_unsigned : ty -> bool
-val is_aggregate : ty -> bool
 val is_wide : ty -> bool
 val is_never : ty -> bool
 val is_unit : ty -> bool

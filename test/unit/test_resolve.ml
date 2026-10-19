@@ -3,12 +3,7 @@
 open Spanutils
 open Pipeline
 
-let decl_name_span = function
-  | Ripe.Ast.Func fd | Ripe.Ast.Extern fd -> (fd.func_name, fd.func_span)
-  | Ripe.Ast.Struct sd -> (sd.struct_name, sd.struct_span)
-  | Ripe.Ast.Global gd -> (gd.name, gd.span)
-  | Ripe.Ast.TypeAlias td -> (td.alias_name, td.alias_span)
-  | Ripe.Ast.Enum ed -> (ed.enum_name, ed.enum_span)
+let decl_name_span (Ripe.Ast.Bind b) = (b.bind_name, b.bind_span)
 
 let%expect_test "resolve: global and function collide" =
   run_src {|
@@ -283,7 +278,7 @@ main :: fn() -> i32 {
 let%expect_test "resolve: extern and function names coexist" =
   run_src
     {|
-extern "C" fn puts(s: cstr) i32;
+puts : (cstr) -> i32 : extern "C";
 main :: fn() -> i32 { return 0 };
 |};
   [%expect {| ok |}]
@@ -340,20 +335,17 @@ let%expect_test "resolve: only an extern ABI keeps the name C spells" =
     resolve_src
       {|
 main :: fn() -> i32 { return 0 };
-extern "C" fn puts(s: cstr) i32;
-extern "C" fn exported(x: i32) i32 { return x }
-extern "Ripe" fn unmangled(x: i32) i32 { return x }
+puts : (cstr) -> i32 : extern "C";
+exported :: extern "C" fn(x: i32) -> i32 { return x };
+unmangled :: extern "Ripe" fn(x: i32) -> i32 { return x };
 plain :: fn(x: i32) -> i32 { return x };
 binary_search :: fn() -> i32 { return 0 };
 |}
   in
-  let show (decl : Ripe.Ast.decl) =
-    match decl with
-    | Ripe.Ast.Func fd | Ripe.Ast.Extern fd ->
-        let sym = Ripe.Resolve.sym_at uses fd.func_span in
-        Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name
-          sym.Ripe.Symbol.link_name
-    | _ -> ()
+  let show decl =
+    let _, span = decl_name_span decl in
+    let sym = Ripe.Resolve.sym_at uses span in
+    Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name sym.Ripe.Symbol.link_name
   in
   List.iter show decls;
   [%expect
@@ -384,7 +376,7 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 };|};
   [%expect
     {|
-    error: local function cannot capture variable
+    error: cannot capture variable
       at <test>:3:25
           read :: fn() -> i32 { x };
                                 ^
@@ -413,7 +405,7 @@ outer :: fn() -> i32 {
 };|};
   [%expect
     {|
-    error: local function cannot capture variable
+    error: cannot capture variable
       at <test>:4:26
           inner :: fn() -> i32 { x() };
                                  ^
@@ -460,7 +452,7 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
 };|}
   in
   let decls, uses = resolve_src src in
-  let name (decl : Ripe.Ast.decl) =
+  let name decl =
     let n, _ = decl_name_span decl in
     Ripe.Interner.text n.value
   in
@@ -485,8 +477,8 @@ let%expect_test "resolve: the builtin types are all in scope" =
   Printf.printf "%d\n" (List.length builtins);
   [%expect
     {|
-    i8 i16 i32 i64 u8 u16 u32 u64 isize usize f32 f64 bool char cstr str never ptr
-    18
+    i8 i16 i32 i64 u8 u16 u32 u64 isize usize f32 f64 bool char cstr str never ptr type
+    19
     |}]
 
 let%expect_test "resolve: the dump lists what each name resolved to" =

@@ -63,7 +63,6 @@ type token =
   | COLON
   | DOTDOT
   | DOTDOTEQ
-  | ELLIPSIS
   | DOT
   | SEMI
   | EOF

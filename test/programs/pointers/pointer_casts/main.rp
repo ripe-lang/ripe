@@ -1,5 +1,5 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
-extern "C" fn malloc(n: usize) ptr;
+printf : (cstr, ..) -> i32 : extern "C";
+malloc : (usize) -> ptr : extern "C";
 
 Point :: struct { x: i32, y: i32 };
 

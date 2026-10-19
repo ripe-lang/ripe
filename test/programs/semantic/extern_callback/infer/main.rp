@@ -1,0 +1,9 @@
+printf : (cstr, ..) -> i32 : extern "C";
+qsort : (*i32, usize, usize, extern "C" (*i32, *i32) -> i32) -> () : extern "C";
+
+main : _ : fn {
+  xs : _ = [3, 1, 4, 2];
+  cmp : _ = extern "C" fn(a: *i32, b: *i32) -> i32 { a.* - b.* };
+  qsort(&xs[0], 4, 4, cmp);
+  printf("%d %d %d %d\n", xs[0], xs[1], xs[2], xs[3]);
+};

@@ -46,11 +46,11 @@ let%expect_test "typecheck: int literal a float can't hold exactly" =
   run_src "f :: fn() { x : f32 = 16777217 };";
   [%expect
     {|
-    error: integer literal loses precision
+    error: literal loses precision
       at <test>:1:23
         f :: fn() { x : f32 = 16777217 };
                               ^~~~~~~~ becomes 16777216
-    help: write 16777217.0 to accept the rounding
+    help: write 16777217.0 to round
     |}]
 
 let%expect_test "typecheck: float suffix disagrees with the annotation" =
@@ -180,10 +180,10 @@ f :: fn() {
     error: not callable
       at <test>:4:3
           x(1);
-          ^ this has type i32
+          ^ found i32
     |}]
 
-let%expect_test "typecheck: a value shadowing a type still converts" =
+let%expect_test "typecheck: a value shadowing a type hides it in a cast" =
   run_src
     {|
 word :: i64;
@@ -192,7 +192,13 @@ f :: fn() {
   _w := cast(word, word);
 };
 |};
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:5:14
+          _w := cast(word, word);
+                     ^~~~ expected type, found i32
+    |}]
 
 let%expect_test "typecheck: a value shadowing a fn is not a call" =
   run_src
@@ -205,14 +211,17 @@ f :: fn() {
 |};
   [%expect
     {|
-    error: not callable
-      at <test>:5:3
-          point(1);
-          ^~~~~ this has type i32
+    error: already defined
+      at <test>:4:3
+          point : i32 = 5;
+          ^~~~~
       at <test>:3:3
           point :: fn() {};
-          ^~~~~ shadowed by the value
-    help: rename the value to call this function
+          ^~~~~ previous definition here
+    error: wrong number of arguments
+      at <test>:5:3
+          point(1);
+          ^~~~~~~~ expected 0 arguments, found 1
     |}]
 
 let%expect_test "typecheck: a shadowed fn wins the note over a type" =
@@ -227,14 +236,45 @@ f :: fn() {
 |};
   [%expect
     {|
-    error: not callable
-      at <test>:6:3
-          point(1);
-          ^~~~~ this has type i32
+    error: already defined
       at <test>:4:3
           point :: fn() {};
+          ^~~~~
+      at <test>:3:3
+          point :: struct { x: i32, y: i32 };
+          ^~~~~ previous definition here
+    error: already defined
+      at <test>:5:3
+          point : i32 = 5;
+          ^~~~~
+      at <test>:3:3
+          point :: struct { x: i32, y: i32 };
+          ^~~~~ previous definition here
+    error: expected a function
+      at <test>:6:3
+          point(1);
+          ^~~~~ this names a type
+    |}]
+
+let%expect_test "typecheck: a value in an inner block hides the fn it calls" =
+  run_src
+    {|
+f :: fn() {
+  point :: fn() {};
+  { point : i32 = 5;
+    point(1) };
+};
+|};
+  [%expect
+    {|
+    error: not callable
+      at <test>:5:5
+            point(1) };
+            ^~~~~ found i32
+      at <test>:3:3
+          point :: fn() {};
           ^~~~~ shadowed by the value
-    help: rename the value to call this function
+    help: rename the value
     |}]
 
 let%expect_test "typecheck: fn ptr as parameter" =
@@ -332,7 +372,7 @@ let%expect_test "typecheck: write to a binding's struct field" =
     {|
 P :: struct { x: i32, y: i32 };
 f :: fn() {
-  p : P = P.{ x: 1, y: 2 };
+  p : P = P.{ x = 1, y = 2 };
   p.x = 5;
 };
 |};
@@ -376,10 +416,10 @@ f :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:4:8
           a : [N * 2 + 1]i32;
-               ^~~~~~~~~
+               ^~~~~~~~~ expected a literal
     |}]
 
 let%expect_test "typecheck: array size with a suffix" =
@@ -397,10 +437,10 @@ a : [0 - 1]i32;
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:2:6
         a : [0 - 1]i32;
-             ^~~~~
+             ^~~~~ expected a literal
     |}]
 
 let%expect_test "typecheck: bad array size in a param errors once" =
@@ -409,10 +449,10 @@ f :: fn(a: [0 - 1]i32) {};
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:2:13
         f :: fn(a: [0 - 1]i32) {};
-                    ^~~~~
+                    ^~~~~ expected a literal
     |}]
 
 let%expect_test "typecheck: huge array size" =
@@ -421,10 +461,10 @@ a : [9999999999i64]i32;
 |};
   [%expect
     {|
-    error: array size is too large: 9999999999
+    error: invalid array size
       at <test>:2:6
         a : [9999999999i64]i32;
-             ^~~~~~~~~~~~~
+             ^~~~~~~~~~~~~ 9999999999 is too large
     |}]
 
 let%expect_test "typecheck: huge unsigned array size" =
@@ -433,10 +473,10 @@ a : [cast(u64, 0 - 1)]i32;
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:2:6
         a : [cast(u64, 0 - 1)]i32;
-             ^~~~~~~~~~~~~~~~
+             ^~~~~~~~~~~~~~~~ expected a literal
     |}]
 
 let%expect_test "typecheck: array size literal with a type suffix" =
@@ -451,7 +491,7 @@ a : [300u8]i32;
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:2:6
         a : [300u8]i32;
              ^~~~~ does not fit in u8
@@ -463,10 +503,10 @@ a : [1.5]i32;
 |};
   [%expect
     {|
-    error: array size must be an integer
+    error: invalid array size
       at <test>:2:6
         a : [1.5]i32;
-             ^~~
+             ^~~ expected integer, found f64
     |}]
 
 let%expect_test "typecheck: array size names a global" =
@@ -476,10 +516,10 @@ a : [n]i32;
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:3:6
         a : [n]i32;
-             ^
+             ^ expected a literal
     |}]
 
 let%expect_test "typecheck: array size calls a function" =
@@ -489,10 +529,10 @@ a : [g()]i32;
 |};
   [%expect
     {|
-    error: array size must be a literal
+    error: invalid array size
       at <test>:3:6
         a : [g()]i32;
-             ^~~
+             ^~~ expected a literal
     |}]
 
 let%expect_test "typecheck: int arithmetic ok" =
@@ -551,7 +591,7 @@ let%expect_test "typecheck: address of rvalue rejected" =
   run_src "f :: fn() { x := &5 };";
   [%expect
     {|
-    error: cannot take address of expression
+    error: cannot take address
       at <test>:1:19
         f :: fn() { x := &5 };
                           ^
@@ -629,14 +669,14 @@ let%expect_test "typecheck: cast int to bool rejected" =
       at <test>:1:24
         f :: fn() { b : bool = cast(bool, 256) };
                                ^~~~~~~~~~~~~~~ cannot convert i32 to bool
-    help: compare with zero instead e.g. `x != 0`
+    help: compare with zero: `x != 0`
     |}]
 
 let%expect_test "typecheck: missing return value" =
   run_src "f :: fn() -> i32 { return };";
   [%expect
     {|
-    error: empty return in non-unit function
+    error: missing return value
       at <test>:1:20
         f :: fn() -> i32 { return };
                            ^~~~~~
@@ -769,7 +809,7 @@ f :: fn() {
 |};
   [%expect
     {|
-    error: type has no fields
+    error: no fields
       at <test>:4:9
           _y := n.x.* + 1;
                 ^~~ on i32
@@ -817,7 +857,7 @@ f :: fn() {
 |};
   [%expect
     {|
-    error: type has no fields
+    error: no fields
       at <test>:4:8
           y := x.foo;
                ^~~~~ on i32
@@ -876,7 +916,7 @@ f :: fn() { g(true) };
 let%expect_test "typecheck: extern decl callable" =
   run_src
     {|
-extern "C" fn puts(s: *i8) i32;
+puts : (*i8) -> i32 : extern "C";
 f :: fn() {
   p : *i8 = null;
   puts(p);
@@ -887,29 +927,29 @@ f :: fn() {
 let%expect_test "typecheck: extern definition callable" =
   run_src
     {|
-extern "C" fn add(a: i32, b: i32) i32 { return a + b }
+add :: extern "C" fn(a: i32, b: i32) -> i32 { return a + b };
 f :: fn() -> i32 { return add(1, 2) };
 |};
   [%expect {| ok |}]
 
 let%expect_test "typecheck: extern definition checks its body" =
-  run_src {|extern "C" fn add(a: i32, b: i32) i32 { return a > b }|};
+  run_src {|add :: extern "C" fn(a: i32, b: i32) -> i32 { return a > b };|};
   [%expect
     {|
     error: type mismatch
-      at <test>:1:48
-        extern "C" fn add(a: i32, b: i32) i32 { return a > b }
-                                                       ^~~~~ expected i32, found bool
+      at <test>:1:54
+        add :: extern "C" fn(a: i32, b: i32) -> i32 { return a > b };
+                                                             ^~~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: an unsupported ABI on a definition" =
-  run_src {|extern "Rust" fn add(a: i32) i32 { return a }|};
+  run_src {|add :: extern "Rust" fn(a: i32) -> i32 { return a };|};
   [%expect
     {|
     error: unsupported ABI
-      at <test>:1:8
-        extern "Rust" fn add(a: i32) i32 { return a }
-               ^~~~~~ this ABI is not supported here
+      at <test>:1:15
+        add :: extern "Rust" fn(a: i32) -> i32 { return a };
+                      ^~~~~~ not supported here
     |}]
 
 let%expect_test "typecheck: array literal inferred" =
@@ -954,7 +994,7 @@ let%expect_test "typecheck: empty array literal needs annotation" =
   run_src "f :: fn() { a := [] };";
   [%expect
     {|
-    error: cannot infer type of empty array literal
+    error: missing type
       at <test>:1:18
         f :: fn() { a := [] };
                          ^~
@@ -974,10 +1014,10 @@ let%expect_test "typecheck: index non-integer" =
   run_src "f :: fn() { a : [2]i32 = [1, 2]; a[true] };";
   [%expect
     {|
-    error: array index must be an integer
+    error: invalid index
       at <test>:1:36
         f :: fn() { a : [2]i32 = [1, 2]; a[true] };
-                                           ^~~~
+                                           ^~~~ expected integer, found bool
     |}]
 
 let%expect_test "typecheck: index result type" =
@@ -1070,10 +1110,10 @@ let%expect_test "typecheck: range bounds must be integers (branch 2)" =
   run_src "f :: fn() { for i := true..5 { x := i } };";
   [%expect
     {|
-    error: range bounds must be integers
+    error: invalid range bound
       at <test>:1:22
         f :: fn() { for i := true..5 { x := i } };
-                             ^~~~
+                             ^~~~ expected integer, found bool
     |}]
 
 let%expect_test "typecheck: range literal bends to typed endpoint (branch 1)" =
@@ -1213,10 +1253,10 @@ let%expect_test "typecheck: slice bounds must be integers (branch 2)" =
   run_src "f :: fn() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] };";
   [%expect
     {|
-    error: range bounds must be integers
+    error: invalid range bound
       at <test>:1:49
         f :: fn() { a : [3]i32 = [1,2,3]; s : []i32 = a[true..2] };
-                                                        ^~~~
+                                                        ^~~~ expected integer, found bool
     |}]
 
 let%expect_test "typecheck: slice .len is usize" =
@@ -1310,20 +1350,20 @@ let%expect_test "typecheck: range as value is an error" =
   run_src "f :: fn() -> i32 { return 0..5 };";
   [%expect
     {|
-    error: range is only valid in a for loop or slice
+    error: misplaced range
       at <test>:1:27
         f :: fn() -> i32 { return 0..5 };
-                                  ^~~~
+                                  ^~~~ only in a `for` or slice
     |}]
 
 let%expect_test "typecheck: range in condition is an error" =
   run_src "f :: fn() { if 0..5 { } };";
   [%expect
     {|
-    error: range is only valid in a for loop or slice
+    error: misplaced range
       at <test>:1:16
         f :: fn() { if 0..5 { } };
-                       ^~~~
+                       ^~~~ only in a `for` or slice
     |}]
 
 let%expect_test "typecheck: for over array literal" =
@@ -1361,9 +1401,15 @@ let%expect_test "typecheck: if and else both return ok" =
   run_src "f :: fn(n: i32) -> i32 { if n > 0 { return 1 } else { return 0 } };";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: while true diverges, no return needed" =
+let%expect_test "typecheck: while true is () like any while" =
   run_src "f :: fn() -> i32 { while true { } };";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:20
+        f :: fn() -> i32 { while true { } };
+                           ^~~~~~~~~~~~~~ expected i32, found ()
+    |}]
 
 let%expect_test "typecheck: while true with break still needs a return" =
   run_src "f :: fn() -> i32 { while true { break } };";
@@ -1377,7 +1423,13 @@ let%expect_test "typecheck: while true with break still needs a return" =
 
 let%expect_test "typecheck: inner loop break does not exit outer" =
   run_src "f :: fn() -> i32 { while true { while true { break } } };";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:20
+        f :: fn() -> i32 { while true { while true { break } } };
+                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ expected i32, found ()
+    |}]
 
 let%expect_test "typecheck: break under if still needs a return" =
   run_src
@@ -1395,7 +1447,7 @@ let%expect_test "typecheck: struct literal" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  p := Pt.{ x: 3, y: 4 };
+  p := Pt.{ x = 3, y = 4 };
   return p.x + p.y;
 };
 |};
@@ -1417,14 +1469,14 @@ let%expect_test "typecheck: struct literal unknown field" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := Pt.{ z: 1 };
+  p := Pt.{ z = 1 };
 };
 |};
   [%expect
     {|
     error: no field
       at <test>:4:13
-          p := Pt.{ z: 1 };
+          p := Pt.{ z = 1 };
                     ^
     |}]
 
@@ -1433,15 +1485,15 @@ let%expect_test "typecheck: struct literal duplicate field" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := Pt.{ x: 1, x: 2 };
+  p := Pt.{ x = 1, x = 2 };
 };
 |};
   [%expect
     {|
     error: duplicate field
-      at <test>:4:19
-          p := Pt.{ x: 1, x: 2 };
-                          ^
+      at <test>:4:20
+          p := Pt.{ x = 1, x = 2 };
+                           ^
     |}]
 
 let%expect_test "typecheck: struct literal wrong field type" =
@@ -1449,28 +1501,28 @@ let%expect_test "typecheck: struct literal wrong field type" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  p := Pt.{ x: true };
+  p := Pt.{ x = true };
 };
 |};
   [%expect
     {|
     error: type mismatch
-      at <test>:4:16
-          p := Pt.{ x: true };
-                       ^~~~ expected i32, found bool
+      at <test>:4:17
+          p := Pt.{ x = true };
+                        ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "typecheck: undefined struct literal" =
   run_src {|
 f :: fn() {
-  p := nope.{ x: 1 };
+  p := nope.{ x = 1 };
 };
 |};
   [%expect
     {|
     error: undefined struct
       at <test>:3:8
-          p := nope.{ x: 1 };
+          p := nope.{ x = 1 };
                ^~~~
     |}]
 
@@ -1478,7 +1530,7 @@ let%expect_test "typecheck: global struct literal" =
   run_src
     {|
 Pt :: struct { x: i32, y: i32 };
-origin : Pt = Pt.{ x: 1, y: 2 };
+origin : Pt = Pt.{ x = 1, y = 2 };
 f :: fn() -> i32 { return origin.x };
 |};
   [%expect {| ok |}]
@@ -1488,7 +1540,7 @@ let%expect_test "typecheck: global struct literal calls a function" =
     {|
 Pt :: struct { x: i32, y: i32 };
 g :: fn() -> i32 { return 1 };
-p : Pt = Pt.{ x: g(), y: 2 };
+p : Pt = Pt.{ x = g(), y = 2 };
 |};
   [%expect {| ok |}]
 
@@ -1645,7 +1697,7 @@ g :: fn() { f(true) };
 let%expect_test "typecheck: cstr parameter accepts string literal" =
   run_src
     {|
-extern "C" fn strlen(s: cstr) i64;
+strlen : (cstr) -> i64 : extern "C";
 f :: fn() -> i64 { return strlen("hi") };
 |};
   [%expect {| ok |}]
@@ -1653,7 +1705,7 @@ f :: fn() -> i64 { return strlen("hi") };
 let%expect_test "typecheck: extern variadic accepts extra args" =
   run_src
     {|
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 f :: fn() { printf("%d %d", 1, 2) };
 |};
   [%expect {| ok |}]
@@ -1670,7 +1722,7 @@ let%expect_test "typecheck: nested struct field type mismatch" =
 Inner :: struct { a: i32 };
 Outer :: struct { i: Inner };
 f :: fn() {
-  o : Outer = Outer.{ i: Inner.{ a: 1 } };
+  o : Outer = Outer.{ i = Inner.{ a = 1 } };
   o.i.a = true;
 };
 |};
@@ -1687,7 +1739,7 @@ let%expect_test "typecheck: struct with array field initializes ok" =
     {|
 Buf :: struct { data: [4]i32, n: i32 };
 f :: fn() -> i32 {
-  b : Buf = Buf.{ data: [1, 2, 3, 4], n: 4 };
+  b : Buf = Buf.{ data = [1, 2, 3, 4], n = 4 };
   return b.n;
 };
 |};
@@ -1697,7 +1749,7 @@ let%expect_test "typecheck: function returning struct ok" =
   run_src
     {|
 Pt :: struct { x: i32, y: i32 };
-origin :: fn() -> Pt { return Pt.{ x: 0, y: 0 } };
+origin :: fn() -> Pt { return Pt.{ x = 0, y = 0 } };
 f :: fn() -> i32 { return origin().x };
 |};
   [%expect {| ok |}]
@@ -1721,7 +1773,7 @@ let%expect_test "typecheck: struct field whose type is another struct" =
 Bt :: struct { x: i32 };
 A :: struct { b: Bt };
 f :: fn() -> i32 {
-  v : A = A.{ b: Bt.{ x: 1 } };
+  v : A = A.{ b = Bt.{ x = 1 } };
   return v.b.x;
 };
 |};
@@ -1732,7 +1784,7 @@ let%expect_test "typecheck: array of structs iterates element type" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
-  pts : [2]Pt = [Pt.{ x: 1, y: 2 }, Pt.{ x: 3, y: 4 }];
+  pts : [2]Pt = [Pt.{ x = 1, y = 2 }, Pt.{ x = 3, y = 4 }];
   s : i32 = 0;
   for p := pts { s += p.x }
   return s;
@@ -1776,9 +1828,8 @@ f :: fn() {
     |}]
 
 let%expect_test "typecheck: extern variadic requires the fixed args" =
-  run_src
-    {|
-extern "C" fn printf(fmt: cstr, ...) i32;
+  run_src {|
+printf : (cstr, ..) -> i32 : extern "C";
 f :: fn() { printf() };
 |};
   [%expect
@@ -1815,8 +1866,8 @@ let%expect_test "typecheck: struct equality rejected" =
     {|
 P :: struct { x: i32 };
 f :: fn() -> bool {
-  a : P = P.{ x: 1 };
-  b : P = P.{ x: 1 };
+  a : P = P.{ x = 1 };
+  b : P = P.{ x = 1 };
   return a == b;
 };
 |};
@@ -1865,7 +1916,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: empty return in non-unit function
+    error: missing return value
       at <test>:3:3
           return;
           ^~~~~~
@@ -1879,7 +1930,7 @@ g :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: empty return in non-unit function
+    error: missing return value
       at <test>:3:3
           return;
           ^~~~~~
@@ -1894,7 +1945,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:12
           x : u8 = 300;
                    ^~~ does not fit in u8
@@ -1909,7 +1960,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:12
           x : u8 = -1;
                    ^~ does not fit in u8
@@ -1935,7 +1986,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:8
           x := 3000000000;
                ^~~~~~~~~~ does not fit in i32
@@ -1971,7 +2022,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:14
           _x : i64 = 9223372036854775808;
                      ^~~~~~~~~~~~~~~~~~~ does not fit in i64
@@ -2002,7 +2053,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:14
           _x : u64 = -1;
                      ^~ does not fit in u64
@@ -2031,7 +2082,7 @@ let%expect_test "typecheck: type alias of a struct allows field access" =
     {|
 Point :: struct { x: i32, y: i32 };
 Pt :: Point;
-f :: fn() -> i32 { p : Pt = Point.{ x: 1, y: 2 }; return p.x };
+f :: fn() -> i32 { p : Pt = Point.{ x = 1, y = 2 }; return p.x };
 |};
   [%expect {| ok |}]
 
@@ -2260,7 +2311,7 @@ let%expect_test "typecheck: int literal suffix out of range" =
   run_src "f :: fn() -> u8 { return 256u8 };";
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:1:26
         f :: fn() -> u8 { return 256u8 };
                                  ^~~~~ does not fit in u8
@@ -2270,7 +2321,7 @@ let%expect_test "typecheck: negative unsigned suffix" =
   run_src "f :: fn() -> i8 { return -1u8 };";
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:1:26
         f :: fn() -> i8 { return -1u8 };
                                  ^~~~ does not fit in u8
@@ -2284,7 +2335,7 @@ let%expect_test "typecheck: assignment in condition is not a value" =
       at <test>:1:34
         f :: fn() { b : bool = false; if b = true { } };
                                          ^~~~~~~~ expected bool, found ()
-    help: did you mean `==` to compare?
+    help: use `==` to compare
     |}]
 
 let%expect_test "typecheck: chained assignment is not a value" =
@@ -2353,14 +2404,14 @@ let%expect_test "typecheck: an omitted never field cannot be zero init" =
   run_src
     {|
 S :: struct { x: never, y: i32 };
-f :: fn() { _s := S.{ y: 1 } };
+f :: fn() { _s := S.{ y = 1 } };
 |};
   [%expect
     {|
     error: cannot zero init this type
       at <test>:3:19
-        f :: fn() { _s := S.{ y: 1 } };
-                          ^~~~~~~~~~ on never
+        f :: fn() { _s := S.{ y = 1 } };
+                          ^~~~~~~~~~~ on never
     |}]
 
 let%expect_test "typecheck: a never element cannot be zero init" =
@@ -2377,7 +2428,7 @@ let%expect_test "typecheck: return in a never function is rejected" =
   run_src "spin :: fn() -> never { return };";
   [%expect
     {|
-    error: a never function cannot return
+    error: return in a never function
       at <test>:1:25
         spin :: fn() -> never { return };
                                 ^~~~~~
@@ -2387,7 +2438,7 @@ let%expect_test "typecheck: return value in a never function is rejected" =
   run_src "spin :: fn() -> never { return 5 };";
   [%expect
     {|
-    error: a never function cannot return
+    error: return in a never function
       at <test>:1:25
         spin :: fn() -> never { return 5 };
                                 ^~~~~~~~
@@ -2396,7 +2447,7 @@ let%expect_test "typecheck: return value in a never function is rejected" =
 let%expect_test "typecheck: a never call satisfies the missing return check" =
   run_src
     {|
-extern "C" fn exit(code: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() -> i32 { exit(1) };
 |};
   [%expect {| ok |}]
@@ -2404,7 +2455,7 @@ f :: fn() -> i32 { exit(1) };
 let%expect_test "typecheck: a never call coerces to the return type" =
   run_src
     {|
-extern "C" fn exit(code: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() -> i32 { return exit(1) };
 |};
   [%expect {| ok |}]
@@ -2412,44 +2463,44 @@ f :: fn() -> i32 { return exit(1) };
 let%expect_test "typecheck: function pointer may return never" =
   run_src
     {|
-extern "C" fn exit(code: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() { stop : extern "C" (i32) -> never = exit;
  stop(1) };
 |};
   [%expect {| ok |}]
 
-let%expect_test "typecheck: a typed pointer needs a cast to become ptr" =
+let%expect_test "typecheck: a typed pointer needs a cast to ptr" =
   run_src "f :: fn(p: *i32) -> ptr { return p };";
   [%expect
     {|
     error: type mismatch
       at <test>:1:34
         f :: fn(p: *i32) -> ptr { return p };
-                                         ^ *i32 needs a cast to become ptr
+                                         ^ *i32 needs a cast to ptr
     |}]
 
-let%expect_test "typecheck: cstr needs a cast to become ptr" =
+let%expect_test "typecheck: cstr needs a cast to ptr" =
   run_src "f :: fn(s: cstr) -> ptr { return s };";
   [%expect
     {|
     error: type mismatch
       at <test>:1:34
         f :: fn(s: cstr) -> ptr { return s };
-                                         ^ cstr needs a cast to become ptr
+                                         ^ cstr needs a cast to ptr
     |}]
 
 let%expect_test "typecheck: null flows into ptr" =
   run_src "f :: fn() -> ptr { return null };";
   [%expect {| ok |}]
 
-let%expect_test "typecheck: ptr needs a cast to become a typed pointer" =
+let%expect_test "typecheck: ptr needs a cast toa typed pointer" =
   run_src "f :: fn(a: ptr) -> *i32 { return a };";
   [%expect
     {|
     error: type mismatch
       at <test>:1:34
         f :: fn(a: ptr) -> *i32 { return a };
-                                         ^ ptr needs a cast to become *i32
+                                         ^ ptr needs a cast to *i32
     |}]
 
 let%expect_test "typecheck: ptr casts back to a typed pointer" =
@@ -2464,7 +2515,7 @@ let%expect_test "typecheck: cannot dereference ptr" =
       at <test>:1:33
         f :: fn(a: ptr) -> i32 { return a.* };
                                         ^
-    help: cast to a typed pointer first
+    help: cast to a typed pointer
     |}]
 
 let%expect_test "typecheck: cannot index ptr" =
@@ -2475,18 +2526,18 @@ let%expect_test "typecheck: cannot index ptr" =
       at <test>:1:33
         f :: fn(a: ptr) -> i32 { return a[0] };
                                         ^~~~
-    help: cast to a typed pointer first
+    help: cast to a typed pointer
     |}]
 
 let%expect_test "typecheck: cannot access a field of ptr" =
   run_src "f :: fn(a: ptr) -> i32 { return a.x };";
   [%expect
     {|
-    error: cannot access a field of ptr
+    error: ptr has no fields
       at <test>:1:33
         f :: fn(a: ptr) -> i32 { return a.x };
                                         ^~~
-    help: cast to a typed pointer first
+    help: cast to a typed pointer
     |}]
 
 let%expect_test "typecheck: no arithmetic on ptr" =
@@ -2518,13 +2569,13 @@ let%expect_test "typecheck: ptr and a typed pointer need a cast to compare" =
     error: type mismatch
       at <test>:1:48
         f :: fn(a: ptr, b: *i32) -> bool { return a == b };
-                                                       ^ *i32 needs a cast to become ptr
+                                                       ^ *i32 needs a cast to ptr
     |}]
 
 let%expect_test "typecheck: if-expr never arm bends to the other arm" =
   run_src
     {|
-extern "C" fn exit(c: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() -> i32 { y := if true { 10 } else { exit(1) }; return y };
 |};
   [%expect {| ok |}]
@@ -2549,7 +2600,7 @@ let%expect_test
 let%expect_test "typecheck: all-never if-expr binds as never" =
   run_src
     {|
-extern "C" fn exit(c: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() -> i32 { _y := if true { exit(3) } else { exit(4) }; return 0 };
 |};
   [%expect {| ok |}]
@@ -2557,7 +2608,7 @@ f :: fn() -> i32 { _y := if true { exit(3) } else { exit(4) }; return 0 };
 let%expect_test "typecheck: nested if-expr never arm bends to the other arm" =
   run_src
     {|
-extern "C" fn exit(c: i32) never;
+exit : (i32) -> never : extern "C";
 f :: fn() -> i32 { y := if true { if false { 10 } else { exit(1) } } else
  { 20 }; return y };
 |};
@@ -2649,13 +2700,25 @@ let%expect_test "collapse: value if without else is unit" =
                                             ^~~~~~~~~~ expected i32, found ()
     |}]
 
-let%expect_test "collapse: while true with no break is never" =
+let%expect_test "collapse: while true with no break is still ()" =
   run_src "f :: fn() -> i32 { while true { } };";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:20
+        f :: fn() -> i32 { while true { } };
+                           ^~~~~~~~~~~~~~ expected i32, found ()
+    |}]
 
-let%expect_test "collapse: never function may loop forever" =
+let%expect_test "collapse: never function can't loop forever with while" =
   run_src "spin :: fn() -> never { while true { } };";
-  [%expect {| ok |}]
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:25
+        spin :: fn() -> never { while true { } };
+                                ^~~~~~~~~~~~~~ expected never, found ()
+    |}]
 
 let%expect_test "collapse: break in a value arm inside a loop" =
   run_src
@@ -2836,7 +2899,7 @@ take :: fn(value: Feet) -> i32 { return value };
 let%expect_test "typecheck: inferred storage rejects never and unit" =
   run_src
     {|
-extern "C" fn stop() never;
+stop : () -> never : extern "C";
 noop :: fn() {};
 f :: fn() {
   never_array := [stop(), stop()];
@@ -2845,11 +2908,11 @@ f :: fn() {
 |};
   [%expect
     {|
-    error: array element cannot have this type
+    error: invalid element type
       at <test>:5:19
           never_array := [stop(), stop()];
                           ^~~~~~ on never
-    error: array element cannot have this type
+    error: invalid element type
       at <test>:6:18
           unit_array := [noop(), noop()];
                          ^~~~~~ on ()
@@ -2959,7 +3022,7 @@ let%expect_test "typecheck: compound write to a scalar parameter" =
 let%expect_test "typecheck: discarded if arms need not agree" =
   run_src
     {|
-extern "C" fn printf(fmt: *i8, ...) i32;
+printf : (*i8, ..) -> i32 : extern "C";
 f :: fn() { if true { printf("x") } else {} };
 |};
   [%expect {| ok |}]
@@ -2967,7 +3030,7 @@ f :: fn() { if true { printf("x") } else {} };
 let%expect_test "typecheck: if arms still agree where the value is used" =
   run_src
     {|
-extern "C" fn printf(fmt: *i8, ...) i32;
+printf : (*i8, ..) -> i32 : extern "C";
 f :: fn() -> i32 { x := if true { printf("x") } else {}; return x };
 |};
   [%expect
@@ -3010,7 +3073,7 @@ let%expect_test "typecheck: literal too Big for i64" =
   run_src "f :: fn() { _a : i64 = 9223372036854775808 };";
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:1:24
         f :: fn() { _a : i64 = 9223372036854775808 };
                                ^~~~~~~~~~~~~~~~~~~ does not fit in i64
@@ -3126,11 +3189,11 @@ let%expect_test "typecheck: break with a value needs a loop" =
   run_src "f :: fn() { while true { break 5 } };";
   [%expect
     {|
-    error: `break` with a value outside a `loop`
+    error: `break` value outside `loop`
       at <test>:1:32
         f :: fn() { while true { break 5 } };
                                        ^
-    help: use `loop` when the loop produces a value
+    help: use `loop` to break with a value
     |}]
 
 let%expect_test "typecheck: every valued break has to agree" =
@@ -3260,10 +3323,10 @@ let%expect_test "typecheck: a type is not a value" =
 f :: fn() { _p := Point.x };|};
   [%expect
     {|
-    error: expected a value
-      at <test>:2:19
+    error: no variant
+      at <test>:2:25
         f :: fn() { _p := Point.x };
-                          ^~~~~ this names a type
+                                ^ on struct Point
     |}]
 
 let%expect_test "typecheck: an enum match must name every variant" =
@@ -3276,7 +3339,7 @@ f :: fn(c: Color) -> i32 { match c { Color.Red => 1 } };|};
       at <test>:2:34
         f :: fn(c: Color) -> i32 { match c { Color.Red => 1 } };
                                          ^ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: an enum match naming every variant is ok" =
@@ -3335,7 +3398,7 @@ f :: fn(c: Color) { match c { Color.Red => { } } };|};
       at <test>:2:27
         f :: fn(c: Color) { match c { Color.Red => { } } };
                                   ^ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: a catch all still silences the check" =
@@ -3373,7 +3436,7 @@ f :: fn(s: Shade) -> i32 { return match s { Color.Red => 1 } };|};
       at <test>:3:41
         f :: fn(s: Shade) -> i32 { return match s { Color.Red => 1 } };
                                                 ^ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: an empty match names every case" =
@@ -3386,7 +3449,7 @@ f :: fn(c: Color) -> i32 { return match c { } };|};
       at <test>:2:41
         f :: fn(c: Color) -> i32 { return match c { } };
                                                 ^ Color.Red, Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: a one variant enum is covered by naming it" =
@@ -3414,7 +3477,7 @@ let%expect_test "typecheck: a bool match with no arms names both values" =
       at <test>:1:40
         f :: fn(b: bool) -> i32 { return match b { } };
                                                ^ false, true not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: an undefined scrutinee reports once" =
@@ -3452,7 +3515,7 @@ f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, Color.Red => 2 } };|
       at <test>:2:41
         f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, Color.Red => 2 } };
                                                 ^ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     error: duplicate pattern
       at <test>:2:61
         f :: fn(c: Color) -> i32 { return match c { Color.Red => 1, Color.Red => 2 } };
@@ -3487,7 +3550,7 @@ f :: fn(t: Tint) -> i32 { return match t { Color.Red => 1 } };|};
       at <test>:4:40
         f :: fn(t: Tint) -> i32 { return match t { Color.Red => 1 } };
                                                ^ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: a call result is checked like any scrutinee" =
@@ -3501,7 +3564,7 @@ f :: fn() -> i32 { return match pick() { Color.Red => 1 } };|};
       at <test>:3:33
         f :: fn() -> i32 { return match pick() { Color.Red => 1 } };
                                         ^~~~~~ Color.Green, Color.Blue not covered
-    help: add an arm for each, or `_ => { }`
+    help: add the arms or `_ => { }`
     |}]
 
 let%expect_test "typecheck: every variant named and every arm returns" =
@@ -3693,7 +3756,7 @@ f :: fn(small: u8) -> i64 {
   wide : i64 = small;
   wide = small;
   wide += small;
-  box : Box = Box.{ value: small };
+  box : Box = Box.{ value = small };
   values : [2]i64 = [small, wide];
   return take(small) + box.value + values[0];
 };
@@ -3816,7 +3879,7 @@ f :: fn(wide: u64) -> u64 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:34
           return loop { if false { break -1 }; break wide };
                                          ^~ does not fit in u64
@@ -3954,7 +4017,7 @@ let%expect_test "typecheck: shift count must be an integer" =
   run_src "f :: fn() -> i32 { a : i32 = 1;\n  return a << 1.0 };";
   [%expect
     {|
-    error: shift count must be an integer
+    error: invalid shift count
       at <test>:2:15
           return a << 1.0 };
                       ^~~ found f64
@@ -3964,7 +4027,7 @@ let%expect_test "typecheck: compound shift count must be an integer" =
   run_src "f :: fn() { a : i32 = 1;\n  a <<= 1.0 };";
   [%expect
     {|
-    error: shift count must be an integer
+    error: invalid shift count
       at <test>:2:9
           a <<= 1.0 };
                 ^~~ found f64
@@ -3995,7 +4058,7 @@ let%expect_test "typecheck: pattern is not a literal" =
       at <test>:1:46
         f :: fn(a: [2]i32) -> i32 { return match a { [1, 2] => 1, _ => 0 } };
                                                      ^~~~~~
-    help: an arm names a literal or an enum variant
+    help: use a literal or a variant
     |}]
 
 let%expect_test "typecheck: a compound assign to a value stops at the target" =
@@ -4018,17 +4081,16 @@ let%expect_test "typecheck: a type is not callable" =
       at <test>:1:32
         f :: fn(a: u8) -> i32 { return i32(a) };
                                        ^~~ this names a type
-    help: convert with `cast(i32, value)`
     |}]
 
 let%expect_test "typecheck: a value in the type slot of a cast" =
   run_src "f :: fn(a: u8) -> i32 { return cast(a, a) };";
   [%expect
     {|
-    error: expected a type
+    error: type mismatch
       at <test>:1:37
         f :: fn(a: u8) -> i32 { return cast(a, a) };
-                                            ^ this names a value
+                                            ^ expected type, found u8
     |}]
 
 let%expect_test "typecheck: a call on a repeated enum name" =

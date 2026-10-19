@@ -1,5 +1,4 @@
-error: expected parameter separator
+error: expected `,` between parameters
   at main.rp:1:17
     add :: fn(a: i32; b: i32) -> i32 { return a + b };
-                    ^
-help: separate parameters with `,`
+                    ^ found ;
