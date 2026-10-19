@@ -1987,7 +1987,7 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    error: integer literal out of range
+    error: literal out of range
       at <test>:3:14
           _x : u64 = 18446744073709551616
                      ^~~~~~~~~~~~~~~~~~~~

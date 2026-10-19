@@ -16,7 +16,7 @@ let lexbuf_span lexbuf =
 let int_token ?suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
-  | None -> ERROR "integer literal out of range"
+  | None -> ERROR "literal out of range"
 
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
@@ -48,9 +48,9 @@ let float_token text =
 let char_token inner =
   let d = String.get_utf_8_uchar inner 0 in
   if not (Uchar.utf_decode_is_valid d) then
-    ERROR "invalid character literal"
+    ERROR "invalid char literal"
   else if Uchar.utf_decode_length d <> String.length inner then
-    ERROR "character literal must be a single character"
+    ERROR "more than one char"
   else CHAR (Uchar.to_int (Uchar.utf_decode_uchar d))
 }
 
@@ -161,9 +161,9 @@ rule read_token = parse
       in
       char_token inner
     }
-  | "''" { ERROR "empty character literal" }
+  | "''" { ERROR "empty char literal" }
   | '\'' ('\\' [^ '\r' '\n']?)? [^ '\'' '\\' '\r' '\n' ' ' '\t' '(' ')' '[' ']' '{' '}' ',' ';']* {
-      ERROR "unterminated character literal"
+      ERROR "unterminated char literal"
     }
   | '"' {
       let start = lexbuf.Lexing.lex_start_pos in

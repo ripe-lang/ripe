@@ -279,7 +279,7 @@ let constant_of (expr : texpr) =
   | _ ->
       raise
         (Diagnostic.Errors
-           [ Diagnostic.error expr.span "global initializer must be a literal" ])
+           [ Diagnostic.error expr.span "global is not a literal" ])
 
 (* The surviving source operators keep their meaning *)
 let unop_of = function

@@ -146,8 +146,8 @@ let load filename =
   | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
   | Program.Source_too_large name ->
       die
-        (Printf.sprintf "more than %d bytes of source in one file: %s"
-           Span.max_offset name)
+        (Printf.sprintf "file too large: %s (over %d bytes)" name
+           Span.max_offset)
 
 let render_and_exit_if_failed program =
   let failed = Diagnostic.has_errors () in
@@ -193,7 +193,7 @@ let compile ~stage ~backend ~out ~libraries ~filename =
   let output = Output.make out in
   if not (Backend.has_stage backend stage) then
     die
-      (Printf.sprintf "the %s backend has no %s stage" (Backend.name backend)
+      (Printf.sprintf "%s has no %s stage" (Backend.name backend)
          (stage_name stage));
 
   if stage = Tokens then begin
