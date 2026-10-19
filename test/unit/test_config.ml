@@ -8,11 +8,6 @@ let with_env name value run =
   Unix.putenv name value;
   Fun.protect ~finally:(fun () -> Unix.putenv name saved) run
 
-let%expect_test "config: RIPE_RUNTIME names the object outright" =
-  with_env "RIPE_RUNTIME" "/dev/null" (fun () ->
-      print_endline (Ripe.Config.runtime_object ()));
-  [%expect {| /dev/null |}]
-
 let%expect_test "config: a tool set in the environment wins" =
   with_env "QBE" "/bin/sh" (fun () ->
       Printf.printf "%b\n" (Sys.file_exists (Ripe.Config.qbe ())));

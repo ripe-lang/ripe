@@ -76,13 +76,6 @@ type call = {
   call_variadic_start : int option;
 }
 
-type check =
-  | Bounds of operand * operand
-  | SliceBounds of operand * operand * operand
-  | Null of operand
-  | DivZero of operand
-  | NegativeShift of operand
-
 type stmt = { stmt_desc : stmt_desc; stmt_span : Ast.span }
 
 and stmt_desc =
@@ -95,7 +88,6 @@ type terminator = { term_desc : terminator_desc; term_span : Ast.span }
 and terminator_desc =
   | Jump of block_id
   | Branch of operand * block_id * block_id
-  | Check of check * block_id
   | ReturnValue of operand option
   | Unreachable
 
@@ -110,7 +102,6 @@ type block = { block_stmts : stmt list; block_term : terminator option }
 
 type func = {
   func_name : string;
-  func_source_name : string;
   func_export : bool;
   func_abi : func_abi;
   func_params : local_id list;
@@ -156,7 +147,7 @@ type loop_ctx = {
 type builder = {
   global_names : (Symbol.key, string) Hashtbl.t;
   layouts : Layout.t;
-  variant_funcs : (string, Keyname.t * int64 * func_ty) Hashtbl.t;
+  variant_funcs : (string, int64 * func_ty) Hashtbl.t;
   locals : local Dynarray.t;
   symbols : (Symbol.id, local_id) Hashtbl.t;
   blocks : block Dynarray.t;
@@ -274,7 +265,7 @@ let variant_func variant_funcs name tag func =
   let func_name =
     Printf.sprintf "_Rvariant%d_%Ld" (Keyname.key name :> int) tag
   in
-  Hashtbl.replace variant_funcs func_name (name, tag, func);
+  Hashtbl.replace variant_funcs func_name (tag, func);
   func_name
 
 let start_variant state destination span ty tag =
@@ -331,24 +322,6 @@ let binop_of = function
 
 let is_valued ty = not (is_unit ty || is_never ty)
 
-(* check_bounds copy %1 copy %2 block1 *)
-let lower_check state check span =
-  if is_live state then begin
-    let ok = new_block state in
-    terminate state (Check (check, ok)) span;
-    switch state ok
-  end
-
-(* The plain and compound arithmetic guard the same two operators the same way *)
-(* check_div_zero copy %1 block1, check_negative_shift copy %1 block1 *)
-let lower_arith_check state op left_ty right span =
-  match op with
-  | (Ast.Div | Ast.Mod) when not (is_float left_ty) ->
-      lower_check state (DivZero right) span
-  | (Ast.Lshift | Ast.Rshift) when not (is_unsigned right.op_ty) ->
-      lower_check state (NegativeShift right) span
-  | _ -> ()
-
 (* The minimum integer and negative one need no hardware divide *)
 (* %3 = copy %1 == -1
    branch copy %3 block1 block2
@@ -379,8 +352,10 @@ let lower_div state destination span ty op left right =
   switch state join_block
 
 (* A count past the width drains every bit *)
-(* %3 = copy %1 < 32
-   branch copy %3 block1 block2
+(* TODO(ca5f): Check on negative counts again since Go panics on them *)
+(* %3 = cast copy %1 to u64
+   %4 = copy %3 < 32
+   branch copy %4 block1 block2
    block1:
      %2 = copy %0 << copy %1
      jump block3
@@ -393,8 +368,9 @@ let lower_shift state destination span ty op left right =
     | TInt k -> 8 * int_kind_size k
     | _ -> Diagnostic.ice "shift on a non integer"
   in
-  let width = const span right.op_ty (Int (Int64.of_int bits)) in
-  let count_in_range = tmp_value state TBool span (BinOp (Lt, right, width)) in
+  let count = tmp_value state (TInt U64) span (Cast right) in
+  let width = const span (TInt U64) (Int (Int64.of_int bits)) in
+  let count_in_range = tmp_value state TBool span (BinOp (Lt, count, width)) in
   let shift_block = new_block state in
   let drained_block = new_block state in
   let join_block = new_block state in
@@ -746,7 +722,6 @@ and lower_into state destination expr =
   | TBinOp (op, left, right) ->
       let left = lower_expr state left in
       let right = lower_expr state right in
-      lower_arith_check state op left.op_ty right expr.tspan;
       Option.iter
         (fun d -> lower_binary state d expr.tspan expr.ty op left right)
         destination
@@ -818,11 +793,11 @@ and lower_place state expr =
   match expr.tdesc with
   | TIdent symbol when not (Symbol.is_func symbol.Symbol.kind) ->
       symbol_place state expr.tspan symbol
-  | TUnOp (Ast.Deref, inner) -> lower_deref state inner expr.tspan
+  | TUnOp (Ast.Deref, inner) -> lower_deref state inner
   | TFieldAccess (base, field) ->
       let source =
         match resolve_ty base.ty with
-        | TPointer _ -> lower_deref state base base.tspan
+        | TPointer _ -> lower_deref state base
         | _ -> lower_expr state base |> materialize state
       in
       add_projection source (Field (0, field))
@@ -831,21 +806,16 @@ and lower_place state expr =
       let source = materialize state base_value in
       let index = lower_expr state index in
       (match resolve_ty base.ty with
-      | TArray _ | TSlice _ ->
-          let len = tmp_value state (TInt Usize) base.tspan (Len source) in
-          lower_check state (Bounds (index, len)) expr.tspan
+      | TArray _ | TSlice _ -> ()
       | _ ->
           let message = "index on non indexed MIR place" in
           Diagnostic.ice ~span:base.tspan message);
       add_projection source (Index index)
   | _ -> lower_expr state expr |> materialize state
 
-(* check_null copy %0 block1
-   block1:
-     ... %0.deref *)
-and lower_deref state ptr span =
+(* %0.deref *)
+and lower_deref state ptr =
   let ptr = lower_expr state ptr in
-  lower_check state (Null ptr) span;
   add_projection (materialize state ptr) Deref
 
 (* %0 = undef
@@ -875,16 +845,11 @@ and lower_build state destination expr tag fields =
       lower_into state (Some part) value)
     fields
 
-(* %2 = len %1
-   check_slice_bounds 1 3 copy %2 block1
-   block1:
-     %0 = slice %1 1 3 *)
+(* %0 = slice %1 1 3 *)
 and lower_slice state destination expr base lo hi =
   let base = lower_expr state base |> materialize state in
   let lo = lower_expr state lo in
   let hi = lower_expr state hi in
-  let len = tmp_value state (TInt Usize) expr.tspan (Len base) in
-  lower_check state (SliceBounds (lo, hi, len)) expr.tspan;
   emit state (Slice (destination, base, lo, hi)) expr.tspan
 
 (* %0[0] = copy %0[0] + 5 *)
@@ -905,7 +870,6 @@ and lower_compound_assign state expr op left right =
       switch state join
   | _ ->
       let right = lower_expr state right in
-      lower_arith_check state op old.op_ty right expr.tspan;
       lower_binary state target expr.tspan left.ty op old right
 
 (* A later break can widen the loop type the earlier ones settled on *)
@@ -983,7 +947,7 @@ let build_global layouts variant_funcs global =
   }
 
 (* A variant fn is only built when a variant is passed around as a function *)
-let build_variant_func layouts (func_name, (name, tag, func)) =
+let build_variant_func layouts (func_name, (tag, func)) =
   let state = make_builder (Hashtbl.create 0) layouts (Hashtbl.create 0) in
   let span = Ast.dummy_span in
   let result = add_local state (Some "result") Result func.sig_ret span in
@@ -1002,7 +966,6 @@ let build_variant_func layouts (func_name, (name, tag, func)) =
   terminate state (ReturnValue None) span;
   {
     func_name;
-    func_source_name = Keyname.show name;
     func_export = false;
     func_abi = Ripe;
     func_params = List.map fst params;
@@ -1041,7 +1004,6 @@ let build_func global_names layouts variant_funcs func =
     else terminate state Unreachable span;
   {
     func_name = func.tfunc_name;
-    func_source_name = func.tfunc_source_name;
     func_export = func.tfunc_export;
     func_abi = func.tfunc_abi;
     func_params = params;
@@ -1120,7 +1082,6 @@ let with_entry program =
       {
         tfunc_key = Symbol.unresolved_key;
         tfunc_name = Resolve.decl_link_name "main";
-        tfunc_source_name = "main";
         tfunc_entry_point = true;
         tfunc_params = [];
         tfunc_ret = TUnit;
@@ -1233,26 +1194,12 @@ let show_stmt stmt =
       Printf.sprintf "%s = slice %s %s %s" (show_place destination)
         (show_place source) (show_operand lo) (show_operand hi)
 
-let show_check check =
-  match check with
-  | Bounds (index, len) ->
-      Printf.sprintf "bounds %s %s" (show_operand index) (show_operand len)
-  | SliceBounds (lo, hi, len) ->
-      Printf.sprintf "slice_bounds %s %s %s" (show_operand lo) (show_operand hi)
-        (show_operand len)
-  | Null ptr -> Printf.sprintf "null %s" (show_operand ptr)
-  | DivZero divisor -> Printf.sprintf "div_zero %s" (show_operand divisor)
-  | NegativeShift count ->
-      Printf.sprintf "negative_shift %s" (show_operand count)
-
 let show_terminator value =
   match value with
   | None -> "<missing terminator>"
   | Some { term_desc = Jump target; _ } -> Printf.sprintf "jump block%d" target
   | Some { term_desc = Branch (condition, yes, no); _ } ->
       Printf.sprintf "branch %s block%d block%d" (show_operand condition) yes no
-  | Some { term_desc = Check (check, ok); _ } ->
-      Printf.sprintf "check_%s block%d" (show_check check) ok
   | Some { term_desc = ReturnValue None; _ } -> "return"
   | Some { term_desc = ReturnValue (Some value); _ } ->
       "return " ^ show_operand value
@@ -1422,24 +1369,6 @@ let verify_value ctx span value =
       expect ctx span "data pointer" (TPointer inner) value.val_ty
   | SizeOf _ -> expect_int ctx span "size" value.val_ty
 
-(* bounds copy %0 copy %1, null copy %0 *)
-let verify_check ctx span = function
-  | Bounds (index, len) ->
-      expect_int ctx span "index" (verify_operand ctx index);
-      expect ctx span "length" (TInt Usize) (verify_operand ctx len)
-  | SliceBounds (lo, hi, len) ->
-      expect_int ctx span "slice start" (verify_operand ctx lo);
-      expect_int ctx span "slice end" (verify_operand ctx hi);
-      expect ctx span "length" (TInt Usize) (verify_operand ctx len)
-  | Null ptr -> (
-      match resolve_ty (verify_operand ctx ptr) with
-      | TPointer _ | TPtr | TCStr -> ()
-      | ty -> fail ctx span "null check on %s" (show_ty ty))
-  | DivZero divisor ->
-      expect_int ctx span "divisor" (verify_operand ctx divisor)
-  | NegativeShift count ->
-      expect_int ctx span "shift count" (verify_operand ctx count)
-
 (* An extern never reaches MIR so its call is taken at its word *)
 let signature_of ctx span call =
   match call.call_callee with
@@ -1513,9 +1442,6 @@ let verify_terminator ctx terminator =
       expect ctx span "condition" TBool (verify_operand ctx condition);
       verify_target ctx span yes;
       verify_target ctx span no
-  | Check (checked, ok) ->
-      verify_check ctx span checked;
-      verify_target ctx span ok
   | ReturnValue returned -> (
       match (returned, ctx.func.func_result) with
       | Some _, Some _ ->

@@ -78,7 +78,6 @@ let qbe_store layouts t = "store" ^ scalar_letter (qbe_scalar layouts t)
 type ctx = {
   layouts : Layout.t;
   struct_names : string Symbol.Table.t;
-  panics : Panictable.t;
   used_slots : (string, unit) Hashtbl.t;
   buf : Buffer.t;
   mutable strings : (string * string) list;
@@ -212,35 +211,6 @@ let widen_to_l ctx v ty =
     let ins = if is_unsigned ty then "extuw" else "extsw" in
     emit_op1 ctx t "l" ins v;
     t
-
-let bounds_condition ctx idx len =
-  let cond = fresh ctx in
-  emit_op2 ctx cond "w" "cugel" idx len;
-  cond
-
-let slice_bounds_condition ctx lo hi len =
-  let hi_bad = fresh ctx in
-  emit ctx "%s =w cugtl %s, %s\n" hi_bad hi len;
-  let lo_bad = fresh ctx in
-  emit ctx "%s =w cugtl %s, %s\n" lo_bad lo hi;
-  let bad = fresh ctx in
-  emit ctx "%s =w or %s, %s\n" bad hi_bad lo_bad;
-  bad
-
-let null_condition ctx ptr =
-  let isnull = fresh ctx in
-  emit ctx "%s =w ceql %s, 0\n" isnull ptr;
-  isnull
-
-let div_zero_condition ctx divisor op_qt =
-  let zero = fresh ctx in
-  emit ctx "%s =w ceq%s %s, 0\n" zero op_qt divisor;
-  zero
-
-let negative_shift_condition ctx count count_qt =
-  let neg = fresh ctx in
-  emit ctx "%s =w cslt%s %s, 0\n" neg count_qt count;
-  neg
 
 (* This writes a zero value of type t to dest *)
 let emit_zero_into ctx dest t =
@@ -665,42 +635,6 @@ let emit_mir_slice mctx destination source lo hi =
   emit ctx "storel %s, %s\n" ptr destination_addr;
   emit ctx "storel %s, %s\n" len (offset_addr ctx destination_addr 8)
 
-(* The condition is true when the check fails so it feeds the branch to the panic block *)
-let emit_mir_check_condition mctx = function
-  | Mir.Bounds (index, len) ->
-      bounds_condition mctx.qbe
-        (widened_operand mctx index)
-        (widened_operand mctx len)
-  | Mir.SliceBounds (lo, hi, len) ->
-      slice_bounds_condition mctx.qbe (widened_operand mctx lo)
-        (widened_operand mctx hi) (widened_operand mctx len)
-  | Mir.Null ptr -> null_condition mctx.qbe (emit_mir_operand mctx ptr)
-  | Mir.DivZero divisor ->
-      div_zero_condition mctx.qbe
-        (emit_mir_operand mctx divisor)
-        (qbe_ty mctx.qbe.layouts divisor.Mir.op_ty)
-  | Mir.NegativeShift count ->
-      negative_shift_condition mctx.qbe
-        (emit_mir_operand mctx count)
-        (qbe_ty mctx.qbe.layouts count.Mir.op_ty)
-
-let emit_mir_panic mctx span check =
-  let ctx = mctx.qbe in
-  let site = Panictable.record ctx.panics span in
-  (match check with
-  | Mir.Bounds (index, len) ->
-      emit ctx "call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
-        (widened_operand mctx index)
-        (widened_operand mctx len)
-  | Mir.SliceBounds (lo, hi, len) ->
-      emit ctx "call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n" site
-        (widened_operand mctx lo) (widened_operand mctx hi)
-        (widened_operand mctx len)
-  | Mir.Null _ -> emit ctx "call $ripe_panic_null(w %d)\n" site
-  | Mir.DivZero _ -> emit ctx "call $ripe_panic_divzero(w %d)\n" site
-  | Mir.NegativeShift _ -> emit ctx "call $ripe_panic_shift(w %d)\n" site);
-  emit ctx "hlt\n"
-
 let mir_callee mctx = function
   | Mir.Direct name -> "$" ^ name
   | Mir.Indirect operand -> emit_mir_operand mctx operand
@@ -796,13 +730,6 @@ let emit_mir_terminator mctx terminator =
       emit_jnz ctx
         (emit_mir_operand mctx condition)
         (mir_block_label ctx yes) (mir_block_label ctx no)
-  | Mir.Check (check, ok) ->
-      let fail = "@panic" ^ string_of_int ok in
-      emit_jnz ctx
-        (emit_mir_check_condition mctx check)
-        fail (mir_block_label ctx ok);
-      emit_label ctx fail;
-      emit_mir_panic mctx terminator.Mir.term_span check
   | Mir.ReturnValue None -> (
       match c_result_slot ctx mctx.func mctx.bindings with
       | Some slot -> emit ctx "ret %s\n" slot
@@ -874,7 +801,6 @@ let bind_mir_locals ctx func =
     func.Mir.func_locals
 
 let emit_mir_func ctx global_types func =
-  Panictable.enter_func ctx.panics func.Mir.func_source_name;
   ctx.tmp <- 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
@@ -1018,7 +944,7 @@ let emit_mir_global ctx global =
       emit ctx "data $%s = align %d { %s }\n" global.Mir.global_name align
         (emit_mir_global_fields ctx global.Mir.global_ty value)
 
-let emit filename source_map program =
+let emit program =
   let layouts = Layout.create () in
   let struct_names = Symbol.Table.create 8 in
   let register name local =
@@ -1043,7 +969,6 @@ let emit filename source_map program =
     {
       layouts;
       struct_names;
-      panics = Panictable.create filename source_map;
       used_slots = Hashtbl.create 16;
       buf = Buffer.create 1024;
       strings = [];
@@ -1087,26 +1012,6 @@ let emit filename source_map program =
   List.iter (emit_mir_func ctx global_types) program.Mir.prog_funcs;
   List.find_opt (fun func -> func.Mir.func_entry_point) program.Mir.prog_funcs
   |> Option.iter (emit_entry_wrapper ctx);
-  (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
-  (match Panictable.sites ctx.panics with
-  | [] -> ()
-  | sites ->
-      put ctx "export data $ripe_panic_strtab = { ";
-      List.iteri
-        (fun i s ->
-          if i > 0 then put ctx ", ";
-          put ctx "b \"";
-          put ctx (escape_data_string s);
-          put ctx "\", b 0")
-        (Panictable.strings ctx.panics);
-      put ctx " }\nexport data $ripe_panic_sites = align 4 { ";
-      List.iteri
-        (fun i site ->
-          if i > 0 then put ctx ", ";
-          emit ctx "w %d, w %d, w %d, w %d" site.Panictable.file site.line
-            site.col site.func)
-        sites;
-      put ctx " }\n");
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
     (List.rev ctx.strings);

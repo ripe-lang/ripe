@@ -58,17 +58,6 @@ def find_ripec(explicit):
     return built
 
 
-def find_runtime(explicit):
-    """The panic object a hand linked test needs, since it skips ripec's own link."""
-    if explicit:
-        return os.path.abspath(explicit)
-
-    built = os.path.join(
-        TEST_DIR, "..", "..", "_build", "default", "runtime", "panic.o"
-    )
-    return os.path.abspath(built)
-
-
 def tests(testname):
     root = os.path.join(TEST_DIR, testname) if testname else TEST_DIR
     found = []
@@ -155,13 +144,13 @@ def compare(actual, golden, label, promote):
     return "mismatch", diff(want, actual, label)
 
 
-def link(runtime, binary, object_file, sources):
+def link(binary, object_file, sources):
     """Put the ripe object and the test's C files through cc the way ripec would."""
-    command = [CC, "-o", binary, object_file] + sources + [runtime]
+    command = [CC, "-o", binary, object_file] + sources
     return subprocess.run(command, capture_output=True, text=True, timeout=TEST_TIMEOUT)
 
 
-def check_one(ripec, runtime, testdir, workdir, promote=False):
+def check_one(ripec, testdir, workdir, promote=False):
     """A short status and a detailed failure log for one test directory."""
     binary = os.path.join(workdir, "prog")
     object_file = os.path.join(workdir, "main.o")
@@ -204,7 +193,7 @@ def check_one(ripec, runtime, testdir, workdir, promote=False):
 
     if sources:
         try:
-            linked = link(runtime, binary, object_file, sources)
+            linked = link(binary, object_file, sources)
         except subprocess.TimeoutExpired:
             return "link timeout", "the linker didn't finish\n"
         if linked.returncode != 0:
@@ -250,7 +239,7 @@ def report(results, succeeded, failed, broken):
         print("Failed: %d" % len(failed))
 
 
-def check(ripec, runtime, testname, verbose, promote=False):
+def check(ripec, testname, verbose, promote=False):
     results = []
     succeeded = []
     failed = []
@@ -262,7 +251,7 @@ def check(ripec, runtime, testname, verbose, promote=False):
             reason = broken_reason(testdir)
             # A broken test would bake its wrong output into the golden
             status, log = check_one(
-                ripec, runtime, testdir, workdir, promote and reason is None
+                ripec, testdir, workdir, promote and reason is None
             )
             passing = status in ("ok", "promoted")
 
@@ -295,11 +284,6 @@ def main():
         help="ripe compiler to use (defaults to the build dir, then ripec on PATH)",
     )
     parser.add_argument(
-        "--runtime",
-        default=None,
-        help="panic object to link a C test against (defaults to the build dir)",
-    )
-    parser.add_argument(
         "testname",
         nargs="?",
         help="only run tests under the given subdirectory",
@@ -318,9 +302,8 @@ def main():
     args = parser.parse_args()
 
     ripec = find_ripec(args.ripec)
-    runtime = find_runtime(args.runtime)
 
-    return check(ripec, runtime, args.testname, args.verbose, args.promote)
+    return check(ripec, args.testname, args.verbose, args.promote)
 
 
 if __name__ == "__main__":

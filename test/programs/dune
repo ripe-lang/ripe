@@ -7,13 +7,6 @@
   (glob_files_rec *.c)
   (glob_files_rec out.txt)
   (glob_files_rec compilererr.txt)
-  (glob_files_rec flags.txt)
-  %{workspace_root}/runtime/panic.o)
+  (glob_files_rec flags.txt))
  (action
-  (run
-   python3
-   %{dep:run.py}
-   --ripec
-   %{bin:ripec}
-   --runtime
-   %{workspace_root}/runtime/panic.o)))
+  (run python3 %{dep:run.py} --ripec %{bin:ripec})))

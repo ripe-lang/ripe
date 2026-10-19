@@ -2,8 +2,6 @@
 
 (name ripe)
 
-(using dune_site 0.1)
-
 (generate_opam_files true)
 
 (source
@@ -19,8 +17,6 @@
 
 (package
  (name ripe)
- (sites
-  (lib runtime))
  (synopsis "Ripe compiler and language tooling")
  (description
   "Ripe is a systems programming language with an OCaml compiler and QBE backend.")
@@ -28,7 +24,6 @@
   (ocaml
    (>= 5.5.0))
   climate
-  dune-site
   ppx_deriving
   (ocamlformat :with-dev-setup)
   (ppx_expect :with-test)

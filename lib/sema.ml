@@ -2215,7 +2215,6 @@ and check_func env fd =
     tfunc_key = key;
     tfunc_name =
       link_name_at env fd.func_span (Interner.text fd.func_name.value);
-    tfunc_source_name = Interner.text fd.func_name.value;
     tfunc_entry_point = is_entry_point;
     tfunc_params = params;
     tfunc_ret = ret_ty;

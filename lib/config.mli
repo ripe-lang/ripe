@@ -6,4 +6,3 @@ val qbe : unit -> string
 val assembler : unit -> string
 val linker : unit -> string
 val toolchain : unit -> toolchain
-val runtime_object : unit -> string

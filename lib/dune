@@ -1,12 +1,8 @@
 (library
  (name ripe)
- (libraries unix dune-site)
+ (libraries unix)
  (preprocess
   (pps ppx_deriving.show)))
-
-(generate_sites_module
- (module ripesites)
- (sites ripe))
 
 (ocamllex
  (modules lexer))
