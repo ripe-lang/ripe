@@ -8,6 +8,6 @@
   "source": "lib/ast.ml",
   "status": "open",
   "tags": [],
-  "title": "a variant carries no explicit value and no payload",
-  "updated_at": "2026-08-24 02:40:23.205655"
+  "title": "a variant carries no explicit value",
+  "updated_at": "2026-10-19 17:28:26.080025"
 }

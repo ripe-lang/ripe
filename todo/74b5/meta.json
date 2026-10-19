@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-12 12:08:35.878364",
+  "depends": [],
+  "id": "74b5",
+  "priority": "low",
+  "source": "",
+  "status": "open",
+  "tags": [
+    "bug"
+  ],
+  "title": "A unit value passes into a C variadic",
+  "updated_at": "2026-10-12 12:08:35.878374"
+}
