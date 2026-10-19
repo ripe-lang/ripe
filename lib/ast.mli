@@ -65,6 +65,15 @@ type expr_desc =
   | Loop of loop_label option * loop_source * block
   | Match of expr * arm list
   | Unit
+  | Lambda of lambda
+  | StructType of field list
+  | EnumType of variant list
+  | PointerType of expr
+  | FuncType of abi * expr list * expr
+  | ArrayType of expr * expr
+  | SliceType of expr
+  | Hole
+  | Extern of string spanned
 
 and expr = { edesc : expr_desc; espan : span }
 and block = expr list
@@ -94,14 +103,12 @@ and binding = {
 and bind_form = Typed of typ * expr | Inferred of expr | Declared of typ
 and typ = expr
 
-and func_def = {
-  func_name : ident;
-  params : param list;
-  ret : typ option;
-  body : block;
-  variadic : bool;
-  extern_abi : abi;
-  func_span : span;
+and lambda = {
+  lambda_params : param list;
+  lambda_ret : typ option;
+  lambda_body : block;
+  lambda_abi : abi;
+  lambda_span : span;
 }
 
 type global_def = {
@@ -111,13 +118,7 @@ type global_def = {
   span : span;
 }
 
-type decl =
-  | Func of func_def
-  | Struct of struct_def
-  | Extern of func_def
-  | Global of global_def
-  | TypeAlias of type_alias_def
-  | Enum of enum_def
+type decl = Bind of binding
 
 val pp_span : Format.formatter -> span -> unit
 val pp_loop_label : Format.formatter -> loop_label -> unit

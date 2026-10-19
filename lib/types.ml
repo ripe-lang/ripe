@@ -85,6 +85,14 @@ type ty =
   | TAlias of Keyname.t * ty
   | TError
   | TUnit
+  | TType
+
+and func_ty = {
+  sig_params : ty list;
+  sig_ret : ty;
+  sig_abi : func_abi;
+  sig_arity : func_arity;
+}
 [@@deriving show { with_path = false }]
 
 let builtins =
@@ -132,8 +140,8 @@ let rec show_ty t =
       let abi =
         match f.sig_abi with
         | Ripe -> ""
-        | C -> "extern \"C\" "
-        | AbiError -> "extern "
+        | C -> tok EXTERN ^ " \"C\" "
+        | AbiError -> tok EXTERN ^ " "
       in
       abi ^ tok LPAREN
       ^ list (List.map show_ty f.sig_params @ rest)

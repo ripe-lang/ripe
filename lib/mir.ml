@@ -736,7 +736,7 @@ and lower_call state destination expr callee args variadic_start =
   let args = List.filter_map (lower_arg state) args in
   let kind =
     match resolve_ty callee.ty with
-    | TFunc (_, _, C) -> External
+    | TFunc { sig_abi = C; _ } -> External
     | _ -> Internal
   in
   let callee =

@@ -22,6 +22,14 @@ type ty =
   | TAlias of Keyname.t * ty
   | TError
   | TUnit
+  | TType
+
+and func_ty = {
+  sig_params : ty list;
+  sig_ret : ty;
+  sig_abi : func_abi;
+  sig_arity : func_arity;
+}
 
 val show_int_kind : int_kind -> string
 val int_kinds : int_kind list

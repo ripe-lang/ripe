@@ -160,33 +160,17 @@ let keyname_at ctx span fallback =
 let link_name_at env span fallback =
   symbol_at env.ctx span fallback (fun s -> s.Symbol.link_name)
 
-let is_entry env span =
-  symbol_at env.ctx span ~missing:false (fun s -> s.Symbol.entry_point)
+let poisoned_sig =
+  {
+    func =
+      { sig_params = []; sig_ret = TError; sig_abi = Ripe; sig_arity = Fixed };
+    param_hole = true;
+  }
 
-let lookup_func env span =
-  match Symbol.Table.find_opt env.ctx.func_sigs (key_at env.ctx span) with
-  | Some s -> s
-  | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined function");
-      {
-        param_tys = [];
-        ret_ty = TError;
-        variadic = false;
-        abi = Ripe;
-        param_hole = true;
-      }
-
-let struct_info ctx key =
-  match Symbol.Table.find_opt ctx.type_defs key with
-  | Some (Struct_type { contents = Completed info }) -> Some info
-  | _ -> None
-
-let lookup_struct env span key =
-  match struct_info env.ctx key with
-  | Some _ as found -> found
-  | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined struct");
-      None
+let fixed_count f =
+  match f.sig_arity with
+  | Fixed -> None
+  | Variadic -> Some (List.length f.sig_params)
 
 let find_field variant name =
   match variant.field_index with
@@ -515,10 +499,18 @@ and synth env e =
   | Char c -> mk e.espan TChar (TCharLit c)
   | Ident _ -> (
       let s = sym env e.espan in
-      if s.Symbol.kind = Symbol.Error then dummy_texpr
-      else
-        let t = lookup_var env e.espan in
-        mk t (TIdent s)
+      match s.Symbol.kind with
+      | Error -> error_expr e.espan
+      | Type | LocalType -> (
+          match type_item env.ctx (Symbol.key s) with
+          | Some item ->
+              if has_error (named_ty env e.espan s.Symbol.name item) then
+                error_expr e.espan
+              else mk e.espan TType TTypeExpr
+          | None -> mk e.espan TType TTypeExpr)
+      | Func | LocalFunc | Extern | Global | Local | Param | ForVar | MatchBind
+        ->
+          mk e.espan (find_var env e.espan) (TIdent s))
   | Call (callee, args) -> synth_call env e.espan callee args
   | BinOp (op, l, r) -> synth_binop env e.espan op l r
   | Assign (base, l, r) -> synth_assign env e.espan base l r
@@ -562,10 +554,18 @@ and synth env e =
   | Return init -> synth_return env e.espan init
   | Break (label, value) -> synth_break env e.espan label value
   | Continue label ->
-      ignore (find_loop_or_error env e.espan "`continue` outside a loop" label);
-      mk TNever (TContinue label)
-  | Loop (label, body) -> check_loop_expr env e.espan label body None
-  | Unit -> mk TUnit TUnitLit
+      let depth, _ =
+        find_loop_or_error env e.espan "`continue` outside a loop" label
+      in
+      mk e.espan TNever (TContinue depth)
+  | Loop (label, source, body) ->
+      check_loop_expr env e.espan label source body None
+  | Unit -> mk e.espan TUnit TUnitLit
+  | Hole ->
+      fail e.espan
+        (Diagnostic.error e.espan "expected expression"
+        |> Diagnostic.found (Tokens.show_found_token Tokens.UNDERSCORE))
+  | Extern _ -> fail e.espan (Diagnostic.error e.espan "misplaced extern")
 
 and synth_path_type env span p =
   let inner = owner_expr p in
@@ -1290,7 +1290,7 @@ and check_args env span fsig args =
     walk_unpaired_args env args;
     []
   end
-  else if fsig.variadic then
+  else if f.sig_arity = Variadic then
     if n_args < n_params then begin
       Diagnostic.emit
         (Diagnostic.error span "wrong number of arguments"
@@ -1777,27 +1777,27 @@ let resolve_type_bodies ctx =
         TError
     | _ -> ty_of_ast env p.param_typ
   in
-  Symbol.Table.replace env.ctx.globals key t
-
-(* Every type name lands first so a signature can name a type written later *)
-let reserve_type_names ctx =
-  let reserve = function
-    | Struct sd -> reserve_struct_name ctx sd
-    | TypeAlias td -> reserve_alias_name ctx td
-    | Enum ed -> reserve_enum_name ctx ed
-    | Func _ | Extern _ | Global _ -> ()
+  let param_tys = List.mapi param_ty l.lambda_params in
+  let ret_ty =
+    match (l.lambda_ret, given, declared) with
+    | (None | Some { edesc = Hole; _ }), Some f, _ -> f.sig_ret
+    | (None | Some { edesc = Hole; _ }), None, Some TError -> TError
+    | (None | Some { edesc = Hole; _ }), None, _ -> TUnit
+    | Some t, _, _ ->
+        let with_params =
+          List.fold_left2
+            (fun e p t -> extend_var e p.param_span t)
+            (push_scope env) l.lambda_params param_tys
+        in
+        ty_of_ast with_params t
   in
-  List.iter reserve ctx.declarations
-
-let collect_decls ctx =
-  let collect = function
-    | Func fd | Extern fd ->
-        let env = make_env ctx in
-        collect_func env fd
-    | Global gd ->
-        let env = make_env ctx in
-        collect_global env gd
-    | Struct _ | TypeAlias _ | Enum _ -> ()
+  let found =
+    {
+      sig_params = param_tys;
+      sig_ret = ret_ty;
+      sig_abi = abi;
+      sig_arity = Fixed;
+    }
   in
   List.iter collect ctx.declarations
 
@@ -1816,7 +1816,11 @@ let fill_struct_layouts ctx =
   end;
   mk e.espan (TFunc func) (TIdent (sym env e.espan))
 
-let check_func ?(is_extern = false) env fd =
+(* A local or inline export only reaches C as a pointer so it stays hidden *)
+(* The wrapper only knows how to turn nothing or an i32 into an exit code *)
+(* A repeated param name keeps the first one since params go in right to left *)
+and check_func env fd =
+  let l = fd.lambda in
   let key = key_at env.ctx fd.func_span in
   let is_entry_point =
     symbol_at env.ctx fd.func_span false (fun s -> s.Symbol.entry_point)
@@ -1857,7 +1861,7 @@ let check_func ?(is_extern = false) env fd =
       params_typed func_env
   in
 
-  let implicit_return = (not is_extern) && not (is_unit ret_ty) in
+  let implicit_return = not (is_unit ret_ty) in
   let body_use = if not implicit_return then Discard else Expect ret_ty in
   let body_span =
     match l.lambda_ret with Some t -> t.espan | None -> fd.func_name.span
@@ -1881,12 +1885,11 @@ let check_func ?(is_extern = false) env fd =
     tfunc_params = params;
     tfunc_ret = ret_ty;
     tfunc_body = tbody;
-    tfunc_export = fd.extern_abi <> NoAbi;
-    tfunc_variadic = fd.variadic;
-    tfunc_abi =
-      (match collected with
-      | Some s -> s.abi
-      | None -> resolve_abi fd.extern_abi);
+    tfunc_export =
+      l.lambda_abi <> NoAbi
+      && symbol_at env.ctx fd.func_span false (fun s ->
+          s.Symbol.kind = Symbol.Func);
+    tfunc_abi = func.sig_abi;
   }
 
 let check_global env (gd : global_def) =
@@ -1919,7 +1922,7 @@ let check_decls ctx =
         let env = make_env ctx in
         let tfd = check_func env def in
         TFuncDecl tfd
-    | Extern fd ->
+    | ExternItem { decl = b; _ } ->
         let env = make_env ctx in
         let tfd = check_func ~is_extern:true env fd in
         TExternDecl tfd

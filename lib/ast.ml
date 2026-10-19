@@ -115,6 +115,17 @@ type expr_desc =
   | Loop of loop_label option * loop_source * block
   | Match of expr * arm list
   | Unit
+  | Lambda of lambda
+  | StructType of field list
+  (* TODO(f1ac): every enum is an i32 and flags don't exist *)
+  (* TODO(d737): a variant carries no explicit value *)
+  | EnumType of variant list
+  | PointerType of expr
+  | FuncType of abi * expr list * expr
+  | ArrayType of expr * expr
+  | SliceType of expr
+  | Hole
+  | Extern of string spanned
 
 and expr = { edesc : expr_desc; espan : span }
 and block = expr list
@@ -165,16 +176,18 @@ and bind_form = Typed of typ * expr | Inferred of expr | Declared of typ
 and enum_def = { enum_name : ident; variants : ident list; enum_span : span }
 and param = { param_name : ident; param_typ : typ; param_span : span }
 
-and func_def = {
-  func_name : ident;
-  params : param list;
-  ret : typ option;
-  body : block;
-  variadic : bool;
-  extern_abi : abi;
-  func_span : span;
+(* fn(a: i32) -> i32 => a, fn { } *)
+and lambda = {
+  lambda_params : param list;
+  lambda_ret : typ option;
+  lambda_body : block;
+  lambda_abi : abi;
+  lambda_span : span;
 }
 [@@deriving show { with_path = false }]
+
+(* main :: fn { }, count := 0, puts : (CStr) -> i32 : extern "C" *)
+type decl = Bind of binding [@@deriving show { with_path = false }]
 
 let path_expr p =
   let first = (Nonempty.hd p.owner).span in
