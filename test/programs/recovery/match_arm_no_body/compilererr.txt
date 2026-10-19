@@ -1,5 +1,4 @@
-error: expected arm separator
+error: expected `,` between arms
   at main.rp:5:7
         2 => 2,
-          ^~
-help: separate arms with `,`
+          ^~ found =>

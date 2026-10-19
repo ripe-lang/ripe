@@ -1,4 +1,4 @@
-extern "C" fn write(fd: i32, buf: *u8, n: usize) i64;
+write : (i32, *u8, usize) -> i64 : extern "C";
 
 announce :: fn(s: str) {
   write(1, s.ptr, s.len);

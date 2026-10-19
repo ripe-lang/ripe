@@ -17,7 +17,7 @@ let all_kinds =
     LocalType;
   ]
 
-let symbol id = Fake.symbol ~kind:Symbol.Func id
+let symbol id = Fake.symbol Symbol.Func ("s" ^ string_of_int id) id
 
 let dump_kinds pred =
   List.iter

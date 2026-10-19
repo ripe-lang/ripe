@@ -2,7 +2,7 @@
 
 open Ripe
 open Types
-open! Fake
+open Fake
 
 let point = struct_ty 1 "Point"
 let other = struct_ty 2 "Other"
@@ -17,15 +17,17 @@ let show_binop op name =
 
 (* The typed nodes are built by hand so an lvalue check needs no front end *)
 let binding name ty =
-  let s = Fake.symbol ~kind:Symbol.Local ~name 10 in
-  Tast.mk ty (Tast.TIdent s)
+  let s = Fake.symbol Symbol.Local name 10 in
+  Tast.mk Span.dummy ty (Tast.TIdent s)
 
-let field base index ty = Tast.mk ty (Tast.TFieldAccess (base, index))
+let field base index ty =
+  Tast.mk Span.dummy ty (Tast.TFieldAccess (base, index))
 
 let index base ty =
-  Tast.mk ty (Tast.TIndex (base, Tast.mk (TInt Usize) (Tast.TIntLit 0L)))
+  let zero = Tast.mk Span.dummy (TInt Usize) (Tast.TIntLit 0L) in
+  Tast.mk Span.dummy ty (Tast.TIndex (base, zero))
 
-let deref base ty = Tast.mk ty (Tast.TUnOp (Ast.Deref, base))
+let deref base ty = Tast.mk Span.dummy ty (Tast.TUnOp (Ast.Deref, base))
 
 let place what te =
   Printf.printf "%s lvalue %b root %s (%s)\n" what (Typred.is_lvalue te)
@@ -123,11 +125,11 @@ let%expect_test "typred: a slice takes an array of the same element" =
     |}]
 
 let%expect_test "typred: a fn matches on abi, params and result" =
-  let f abi ps r = TFunc (ps, r, abi) in
+  let f abi ps r = func_ty ps r abi Fixed in
   let show a b =
     let spell t =
       match t with
-      | TFunc (_, _, abi) ->
+      | TFunc { sig_abi = abi; _ } ->
           Printf.sprintf "%s %s" (show_func_abi abi) (show_ty t)
       | t -> show_ty t
     in
@@ -360,7 +362,7 @@ let%expect_test "typred: equality reaches further than ordering" =
     eq char = true
     eq *i8 = true
     eq str = false
-    eq Point = false
+    eq Point = true
     eq () = false
 
     lt i32 = true
@@ -459,8 +461,8 @@ let%expect_test "typred: only integers and errors count as integer" =
 let%expect_test "typred: a signed literal is still a literal" =
   let show src =
     let wrapped = "_f :: fn() { return " ^ src ^ " };" in
-    match Pipeline.parse wrapped with
-    | [ Ast.Func { body = [ Expr { edesc = Return (Some e); _ } ]; _ } ] ->
+    match Pipeline.only_func_body wrapped with
+    | Some [ { edesc = Return (Some e); _ } ] ->
         Printf.printf "%s = %b\n" src (Typred.is_num_lit e)
     | _ -> print_endline "<unexpected shape>"
   in
@@ -489,7 +491,7 @@ let%expect_test "typred: a place is whatever can be written through" =
   place "a field" (field v 0 (TInt I32));
   place "an element" (index (binding "a" (TArray (TInt I32, 2))) (TInt I32));
   place "a deref" (deref p (TInt I32));
-  place "a literal" (Tast.mk (TInt I32) (Tast.TIntLit 1L));
+  place "a literal" (Tast.mk Span.dummy (TInt I32) (Tast.TIntLit 1L));
   [%expect
     {|
     a binding lvalue true root v (Point)

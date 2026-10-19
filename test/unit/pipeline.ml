@@ -63,21 +63,29 @@ let run_parse src =
     print_endline "ok"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
+let only_func_body src =
+  match parse src with
+  | [ Ripe.Ast.Bind b ] -> (
+      match Ripe.Ast.bind_value b with
+      | Some { edesc = Lambda l; _ } -> Some l.lambda_body
+      | _ -> None)
+  | _ -> None
+
 (* wrap src in `return ...` so callers can write bare expressions *)
 let parse_expr src =
   let wrapped = "_f :: fn() { return " ^ src ^ " };" in
   try
-    match parse wrapped with
-    | [ Ripe.Ast.Func { body = [ Expr { edesc = Return (Some e); _ } ]; _ } ] ->
+    match only_func_body wrapped with
+    | Some [ { edesc = Return (Some e); _ } ] ->
         print_endline (Dump.dump_expr e)
     | _ -> print_endline "<parse_expr: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render wrapped) diags
 
 let parse_body src =
   try
-    match parse src with
-    | [ Ripe.Ast.Func fd ] -> print_endline (Dump.dump_block fd.body)
-    | _ -> print_endline "<parse_body: unexpected shape>"
+    match only_func_body src with
+    | Some body -> print_endline (Dump.dump_block body)
+    | None -> print_endline "<parse_body: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render src) diags
 
 let run_src src =

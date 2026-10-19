@@ -1,0 +1,48 @@
+error: type mismatch
+  at main.rp:5:13
+      a : i32 = Point.{ 1 };
+                ^~~~~~~~~~~ expected i32, found Point
+error: expected a struct
+  at main.rp:6:13
+      b : i32 = .{ 1 };
+                ^~~~~~ found i32
+error: type mismatch
+  at main.rp:7:13
+      c : i32 = Shape.Dot;
+                ^~~~~~~~~ expected i32, found Shape
+error: no variant
+  at main.rp:8:14
+      d : i32 = .Dot;
+                 ^~~ on i32
+error: type mismatch
+  at main.rp:9:13
+      e : i32 = [1];
+                ^~~ expected i32, found [1]i32
+error: type mismatch
+  at main.rp:10:13
+      f : i32 = [];
+                ^~ expected i32, found [0]_
+error: type mismatch
+  at main.rp:11:16
+      g : *Point = Point.{ 1 };
+                   ^~~~~~~~~~~ expected *Point, found Point
+error: expected a struct
+  at main.rp:12:16
+      h : *Point = .{ 1 };
+                   ^~~~~~ found *Point
+error: expected a struct
+  at main.rp:14:15
+      j : Shape = .{ 3 };
+                  ^~~~~~ found Shape
+error: type mismatch
+  at main.rp:15:15
+      k : Point = Shape.Dot;
+                  ^~~~~~~~~ expected Point, found Shape
+error: no variant
+  at main.rp:16:16
+      l : Point = .Dot;
+                   ^~~ on struct Point
+error: no variant
+  at main.rp:17:14
+      m : i32 = .Circle(3);
+                 ^~~~~~ on i32

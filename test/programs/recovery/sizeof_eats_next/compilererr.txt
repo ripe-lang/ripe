@@ -1,4 +1,7 @@
-error: expected type
-  at main.rp:1:37
+error: expected `)`
+  at main.rp:1:38
     main :: fn() -> i32 { return sizeof(b: i32) };
-                                        ^ found b
+                                         ^ found :
+  at main.rp:1:36
+    main :: fn() -> i32 { return sizeof(b: i32) };
+                                       ^ to match this `(`

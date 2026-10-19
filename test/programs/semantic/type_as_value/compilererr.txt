@@ -1,16 +1,16 @@
 error: expected a value
   at main.rp:4:8
       q := Point;
-           ^~~~~ this names a type
-error: expected a value
+           ^~~~~ found type
+error: type mismatch
   at main.rp:5:13
       n := take(Point);
-                ^~~~~ this names a type
-error: expected a value
-  at main.rp:6:11
+                ^~~~~ expected Point, found type
+error: invalid operand
+  at main.rp:6:8
       if 1 == Point { return 1 }
-              ^~~~~ this names a type
-error: expected a value
-  at main.rp:7:8
+           ^~ cannot apply `==` to i32 and type
+error: no variant
+  at main.rp:7:14
       m := Point.x;
-           ^~~~~ this names a type
+                 ^ on struct Point

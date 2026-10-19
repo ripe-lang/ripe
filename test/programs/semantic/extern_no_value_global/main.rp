@@ -1,0 +1,2 @@
+// BROKEN: a lone `:` is the compile time set now (the Binding rule) and the compiler still zeroes
+puts : (cstr) -> i32;

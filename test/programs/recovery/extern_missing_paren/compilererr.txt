@@ -1,4 +1,7 @@
-error: unclosed delimiter
-  at main.rp:1:19
-    extern "C" fn puts(s: *i8 i32
-                      ^
+error: expected `)`
+  at main.rp:1:13
+    puts : (*i8 -> i32 : extern "C";
+                ^~ found ->
+  at main.rp:1:8
+    puts : (*i8 -> i32 : extern "C";
+           ^ to match this `(`

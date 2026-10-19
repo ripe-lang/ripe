@@ -1,0 +1,4 @@
+main :: fn() -> i32 {
+  double : (i32) -> i32 : fn(value) { value * 2 };
+  return double(12);
+};

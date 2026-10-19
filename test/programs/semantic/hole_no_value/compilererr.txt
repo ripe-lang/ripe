@@ -1,0 +1,20 @@
+error: expected type
+  at main.rp:2:21
+    Hole : type : () -> _;
+                        ^ found _
+error: expected type
+  at main.rp:3:7
+    gs : [_]i32 = _;
+          ^ found _
+error: expected type
+  at main.rp:6:9
+      xs : [_]i32 = _;
+            ^ found _
+error: expected type
+  at main.rp:7:9
+      ys : [_]i32 = 5;
+            ^ found _
+error: expected type
+  at main.rp:8:13
+      y := cast(_, 3);
+                ^ found _

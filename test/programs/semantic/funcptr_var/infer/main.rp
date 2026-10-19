@@ -1,0 +1,10 @@
+f : _ : fn() -> i32 { return 3 };
+
+g : _ : fn() -> i32 { return 4 };
+
+main : _ : fn() -> i32 {
+  h : _ = f;
+  r1 : _ = h();
+  h = g;
+  return r1 + h();
+};

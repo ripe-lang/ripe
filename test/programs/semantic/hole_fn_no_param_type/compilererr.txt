@@ -1,0 +1,12 @@
+error: cannot infer type
+  at main.rp:1:26
+    add : (_, _) -> i32 : fn(x, y) => x + y;
+                             ^
+error: cannot infer type
+  at main.rp:1:29
+    add : (_, _) -> i32 : fn(x, y) => x + y;
+                                ^
+error: cannot infer type
+  at main.rp:4:30
+      mul : (_, i32) -> i32 = fn(x, y) => x * y;
+                                 ^

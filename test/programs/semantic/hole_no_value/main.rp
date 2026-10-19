@@ -1,0 +1,9 @@
+// BROKEN: `= _` isn't built yet (the Underscore rule)
+Hole : type : () -> _;
+gs : [_]i32 = _;
+
+main :: fn {
+  xs : [_]i32 = _;
+  ys : [_]i32 = 5;
+  y := cast(_, 3);
+};

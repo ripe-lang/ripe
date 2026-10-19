@@ -1,0 +1,10 @@
+Shape :: enum { Circle(i32), Empty };
+
+make : (i32) -> Shape : fn(x) { Shape.Circle(x) };
+
+main :: fn -> i32 {
+  s : Shape = .Empty;
+  a := match s { Circle(r) => r, _ => 0 };
+  b := match s { make(r) => r, _ => 0 };
+  a + b
+};

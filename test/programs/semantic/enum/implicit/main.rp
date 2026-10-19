@@ -1,0 +1,5 @@
+Dir :: enum { Up, Down };
+main :: fn -> i32 {
+  d := Dir.Down;
+  if d == Dir.Down { 2 } else { 1 }
+};

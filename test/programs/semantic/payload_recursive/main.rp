@@ -1,0 +1,7 @@
+List : type : enum { Nil, Cons(i32, List) };
+Tree :: enum { Leaf, Node(Tree, Tree) };
+Chain :: enum { End, Link(i32, *Chain) };
+
+main :: fn -> i32 {
+  0
+};

@@ -1,0 +1,4 @@
+error: missing type
+  at main.rp:1:1
+    puts : _ : extern "C";
+    ^~~~

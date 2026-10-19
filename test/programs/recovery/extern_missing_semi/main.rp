@@ -1,2 +1,2 @@
-extern "C" fn abort()
+abort : () -> () : extern "C"
 main :: fn() -> i32 { return 0 };

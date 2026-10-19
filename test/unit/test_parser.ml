@@ -277,7 +277,7 @@ b : = 2;
 c : = 3;
 A :: +
 S :: struct { x: };
-extern "C" fn e(x:);
+e :: extern "C" fn(x:) {};
 f :: fn(x:) {};|};
   [%expect
     {|
@@ -302,9 +302,9 @@ f :: fn(x:) {};|};
         S :: struct { x: };
                       ^ found }
     error: expected type
-      at <test>:6:19
-        extern "C" fn e(x:);
-                          ^ found )
+      at <test>:6:22
+        e :: extern "C" fn(x:) {};
+                             ^ found )
     error: expected type
       at <test>:7:8
         f :: fn(x:) {};
@@ -414,7 +414,7 @@ let%expect_test
     {|Point :: struct { x: i32 };
 f :: fn() {
   if /
-  p := Point.{ x: 1 };
+  p := Point.{ x = 1 };
   return /
 };|};
   [%expect
@@ -514,14 +514,14 @@ let%expect_test "parse: comparison non-associative" =
   parse_expr "a < b < c";
   [%expect
     {|
-    error: comparison operators cannot be chained
+    error: chained comparison
       at <test>:1:27
         _f :: fn() { return a < b < c };
                                   ^ second comparison operator
       at <test>:1:23
         _f :: fn() { return a < b < c };
                               ^ first comparison operator
-    help: split the chain into separate comparisons joined with `&&`
+    help: join them with `&&`
     |}]
 
 let%expect_test "parse: unary minus and not" =
@@ -582,15 +582,9 @@ let%expect_test "parse: cast without a comma" =
                                      ^ found x
     |}]
 
-let%expect_test "parse: the old paren cast is an error" =
+let%expect_test "parse: the old paren cast is a call" =
   parse_expr "(*i32)(p)";
-  [%expect
-    {|
-    error: expected expression
-      at <test>:1:22
-        _f :: fn() { return (*i32)(p) };
-                             ^ found *
-    |}]
+  [%expect {| (call *i32 p) |}]
 
 let%expect_test "parse: range" =
   parse_expr "0..n";
@@ -604,56 +598,56 @@ let%expect_test "parse: range non-associative" =
   parse_expr "0..5..10";
   [%expect
     {|
-    error: range operators cannot be chained
+    error: chained range
       at <test>:1:25
         _f :: fn() { return 0..5..10 };
                                 ^~ second range operator
       at <test>:1:22
         _f :: fn() { return 0..5..10 };
                              ^~ first range operator
-    help: parenthesize a range if nesting is intended
+    help: parenthesize the inner range
     |}]
 
 let%expect_test "parse: mixed comparison operators cannot be chained" =
   parse_expr "a < b == c";
   [%expect
     {|
-    error: comparison operators cannot be chained
+    error: chained comparison
       at <test>:1:27
         _f :: fn() { return a < b == c };
                                   ^~ second comparison operator
       at <test>:1:23
         _f :: fn() { return a < b == c };
                               ^ first comparison operator
-    help: split the chain into separate comparisons joined with `&&`
+    help: join them with `&&`
     |}]
 
 let%expect_test "parse: mixed range operators cannot be chained" =
   parse_expr "0..5..=10";
   [%expect
     {|
-    error: range operators cannot be chained
+    error: chained range
       at <test>:1:25
         _f :: fn() { return 0..5..=10 };
                                 ^~~ second range operator
       at <test>:1:22
         _f :: fn() { return 0..5..=10 };
                              ^~ first range operator
-    help: parenthesize a range if nesting is intended
+    help: parenthesize the inner range
     |}]
 
 let%expect_test "parse: longer comparison chain" =
   parse_expr "a < b < c < d";
   [%expect
     {|
-    error: comparison operators cannot be chained
+    error: chained comparison
       at <test>:1:27
         _f :: fn() { return a < b < c < d };
                                   ^ second comparison operator
       at <test>:1:23
         _f :: fn() { return a < b < c < d };
                               ^ first comparison operator
-    help: split the chain into separate comparisons joined with `&&`
+    help: join them with `&&`
     |}]
 
 let%expect_test "parse: array literal" =
@@ -756,7 +750,7 @@ let%expect_test "parse: stray token at top level" =
     |}]
 
 let%expect_test "parse: struct literal" =
-  parse_expr "Pt.{ x: 3, y: 4 }";
+  parse_expr "Pt.{ x = 3, y = 4 }";
   [%expect {| (struct Pt (x 3) (y 4)) |}]
 
 let%expect_test "parse: empty struct literal" =
@@ -764,19 +758,19 @@ let%expect_test "parse: empty struct literal" =
   [%expect {| (struct Pt) |}]
 
 let%expect_test "parse: struct literal trailing comma" =
-  parse_expr "Pt.{ x: 3, }";
+  parse_expr "Pt.{ x = 3, }";
   [%expect {| (struct Pt (x 3)) |}]
 
 let%expect_test "parse: nested struct literal" =
-  parse_expr "Wrap.{ p: Pt.{ x: 1 } }";
+  parse_expr "Wrap.{ p = Pt.{ x = 1 } }";
   [%expect {| (struct Wrap (p (struct Pt (x 1)))) |}]
 
 let%expect_test "parse: struct literal as call argument" =
-  parse_expr "dist(Pt.{ x: 1, y: 2 })";
+  parse_expr "dist(Pt.{ x = 1, y = 2 })";
   [%expect {| (call dist (struct Pt (x 1) (y 2))) |}]
 
 let%expect_test "parse: field access on struct literal" =
-  parse_expr "Pt.{ x: 1 }.x";
+  parse_expr "Pt.{ x = 1 }.x";
   [%expect {| (. (struct Pt (x 1)) x) |}]
 
 let%expect_test "parse: multiline struct literal" =
@@ -784,8 +778,8 @@ let%expect_test "parse: multiline struct literal" =
     {|Pt :: struct { x: i32, y: i32 };
 f :: fn() -> i32 {
   p := Pt.{
-    x: 1,
-    y: 2,
+    x = 1,
+    y = 2,
   };
   return p.x;
 };|};
@@ -803,11 +797,11 @@ let%expect_test "parse: dangling else has no matching if" =
   run_src "f :: fn() -> i32 {\n  { if 1 > 0 { 1 } }\n  else { 2 };\n};";
   [%expect
     {|
-    error: `else` without a matching `if`
+    error: `else` without `if`
       at <test>:3:3
           else { 2 };
           ^~~~ found `else`
-    help: an `if` used as a value closes at its `}`
+    help: an `if` value ends at its `}`
     |}]
 
 let%expect_test "parse: while condition is not a struct literal" =
@@ -827,7 +821,7 @@ let%expect_test "parse: parenthesized struct literal in condition" =
   run_src
     {|Pt :: struct { x: i32 };
 f :: fn() -> i32 {
-  if (Pt.{ x: 1 }).x == 1 { return 1 }
+  if (Pt.{ x = 1 }).x == 1 { return 1 }
   return 0;
 };|};
   [%expect {| ok |}]
@@ -853,11 +847,11 @@ let%expect_test "parse: nested positional struct literal" =
   [%expect {| (struct Wrap (struct Pt 1 2)) |}]
 
 let%expect_test "parse: named struct literal inside a positional one" =
-  parse_expr "Wrap.{ Pt.{ x: 1 } }";
+  parse_expr "Wrap.{ Pt.{ x = 1 } }";
   [%expect {| (struct Wrap (struct Pt (x 1))) |}]
 
 let%expect_test "parse: positional struct literal inside a named one" =
-  parse_expr "Wrap.{ p: Pt.{ 1, 2 } }";
+  parse_expr "Wrap.{ p = Pt.{ 1, 2 } }";
   [%expect {| (struct Wrap (p (struct Pt 1 2))) |}]
 
 let%expect_test "parse: positional struct literal as call argument" =
@@ -881,23 +875,23 @@ f :: fn() -> i32 {
   [%expect {| ok |}]
 
 let%expect_test "parse: named field after a positional one" =
-  parse_expr "Pt.{ 1, y: 2 }";
+  parse_expr "Pt.{ 1, y = 2 }";
   [%expect
     {|
     error: mixed struct fields
       at <test>:1:29
-        _f :: fn() { return Pt.{ 1, y: 2 } };
+        _f :: fn() { return Pt.{ 1, y = 2 } };
                                     ^ expected a positional field
     |}]
 
 let%expect_test "parse: positional field after a named one" =
-  parse_expr "Pt.{ x: 1, 2 }";
+  parse_expr "Pt.{ x = 1, 2 }";
   [%expect
     {|
     error: mixed struct fields
-      at <test>:1:32
-        _f :: fn() { return Pt.{ x: 1, 2 } };
-                                       ^ expected a named field
+      at <test>:1:33
+        _f :: fn() { return Pt.{ x = 1, 2 } };
+                                        ^ expected a named field
     |}]
 
 let%expect_test "parse: positional struct literal missing comma" =
@@ -911,13 +905,13 @@ let%expect_test "parse: positional struct literal missing comma" =
     |}]
 
 let%expect_test "parse: named struct literal missing comma" =
-  parse_expr "Pt.{ x: 1 y: 2 }";
+  parse_expr "Pt.{ x = 1 y = 2 }";
   [%expect
     {|
     error: expected `,` between fields
-      at <test>:1:31
-        _f :: fn() { return Pt.{ x: 1 y: 2 } };
-                                      ^ found y
+      at <test>:1:32
+        _f :: fn() { return Pt.{ x = 1 y = 2 } };
+                                       ^ found y
     |}]
 
 let%expect_test "parse: positional struct literal double comma" =
@@ -931,13 +925,13 @@ let%expect_test "parse: positional struct literal double comma" =
     |}]
 
 let%expect_test "parse: named struct literal double comma" =
-  parse_expr "Pt.{ x: 1, y: 2,, }";
+  parse_expr "Pt.{ x = 1, y = 2,, }";
   [%expect
     {|
     error: expected identifier
-      at <test>:1:37
-        _f :: fn() { return Pt.{ x: 1, y: 2,, } };
-                                            ^ found ,
+      at <test>:1:39
+        _f :: fn() { return Pt.{ x = 1, y = 2,, } };
+                                              ^ found ,
     |}]
 
 let%expect_test "parse: struct literal leading comma" =
@@ -951,22 +945,22 @@ let%expect_test "parse: struct literal leading comma" =
     |}]
 
 let%expect_test "parse: struct literal leading comma before a named field" =
-  parse_expr "Pt.{ , x: 1 }";
+  parse_expr "Pt.{ , x = 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:26
-        _f :: fn() { return Pt.{ , x: 1 } };
+        _f :: fn() { return Pt.{ , x = 1 } };
                                  ^ found ,
     |}]
 
 let%expect_test "parse: struct literal leading double comma" =
-  parse_expr "Pt.{ ,, x: 1 }";
+  parse_expr "Pt.{ ,, x = 1 }";
   [%expect
     {|
     error: expected expression
       at <test>:1:26
-        _f :: fn() { return Pt.{ ,, x: 1 } };
+        _f :: fn() { return Pt.{ ,, x = 1 } };
                                  ^ found ,
     |}]
 
@@ -1143,15 +1137,9 @@ let%expect_test "parse: compound assign through a deref" =
   parse_expr "p.* += 1";
   [%expect {| (+= (* p) 1) |}]
 
-let%expect_test "parse: a prefix star is not an expression" =
+let%expect_test "parse: a prefix star is a pointer type" =
   parse_expr "*p";
-  [%expect
-    {|
-    error: expected expression
-      at <test>:1:21
-        _f :: fn() { return *p };
-                            ^ found *
-    |}]
+  [%expect {| *p |}]
 
 let%expect_test "parse: a star with no operand after a name" =
   parse_expr "p*";
@@ -1192,7 +1180,7 @@ let%expect_test "parse: struct literal nested inside array literal" =
     {|
 Pt :: struct { x: i32, y: i32 };
 f :: fn() {
-  a : [2]Pt = [Pt.{ x: 1, y: 2 }, Pt.{ x: 3, y: 4 }];
+  a : [2]Pt = [Pt.{ x = 1, y = 2 }, Pt.{ x = 3, y = 4 }];
 };
 |};
   [%expect {| ok |}]
@@ -1211,49 +1199,48 @@ apply :: fn(g: extern "C" (i32) -> i32, v: i32) -> i32 { return g(v) };
   [%expect {| ok |}]
 
 let%expect_test "parse: C extern function" =
-  run_src {|extern "C" fn exit(code: i32) never;|};
+  run_src {|exit : (i32) -> never : extern "C";|};
   [%expect {| ok |}]
 
 let%expect_test "parse: Ripe extern function" =
-  run_src {|extern "Ripe" fn exit(code: i32) never;|};
+  run_src {|exit : (i32) -> never : extern "Ripe";|};
   [%expect {| ok |}]
 
 let%expect_test "parse: extern requires ABI" =
-  run_src
-    {|extern fn exit(code: i32) never;
+  run_src {|exit : (i32) -> never : extern;
 main :: fn() -> i32 { return 0 };
 |};
   [%expect
     {|
     error: expected ABI name
-      at <test>:1:8
-        extern fn exit(code: i32) never;
-               ^~ found `fn`
+      at <test>:1:31
+        exit : (i32) -> never : extern;
+                                      ^ found ;
     |}]
 
 let%expect_test "parse: unsupported extern ABI" =
   run_src
-    {|extern "Rust" fn exit(code: i32) never;
+    {|exit : (i32) -> never : extern "Rust";
 main :: fn() -> i32 { return 0 };
 |};
   [%expect
     {|
     error: unsupported ABI
-      at <test>:1:8
-        extern "Rust" fn exit(code: i32) never;
-               ^~~~~~ this ABI is not supported here
+      at <test>:1:32
+        exit : (i32) -> never : extern "Rust";
+                                       ^~~~~~ not supported here
     |}]
 
 let%expect_test "parse: extern function with a body" =
-  run_src {|extern "C" fn add(a: i32, b: i32) i32 { return a + b }|};
+  run_src {|add :: extern "C" fn(a: i32, b: i32) -> i32 { return a + b };|};
   [%expect {| ok |}]
 
 let%expect_test "parse: Ripe extern function with a body" =
-  run_src {|extern "Ripe" fn add(a: i32, b: i32) i32 { return a + b }|};
+  run_src {|add :: extern "Ripe" fn(a: i32, b: i32) -> i32 { return a + b };|};
   [%expect {| ok |}]
 
 let%expect_test "parse: extern alone" =
-  run_src {|extern
+  run_src {|puts : (cstr) -> i32 : extern
 main :: fn() -> i32 { return 0 };
 |};
   [%expect
@@ -1266,96 +1253,102 @@ main :: fn() -> i32 { return 0 };
 
 let%expect_test "parse: extern at the end of the file" =
   run_src {|main :: fn() -> i32 { return 0 };
-extern|};
+puts : (cstr) -> i32 : extern|};
   [%expect
     {|
     error: expected ABI name
-      at <test>:2:7
-        extern
-              ^ found <eof>
+      at <test>:2:30
+        puts : (cstr) -> i32 : extern
+                                     ^ found <eof>
     |}]
 
 let%expect_test "parse: ABI on a struct" =
-  run_src {|extern "C" S :: struct { x: i32 };|};
+  run_src {|S :: extern "C" struct { x: i32 };|};
   [%expect
     {|
-    error: expected `fn`
-      at <test>:1:12
-        extern "C" S :: struct { x: i32 };
-                   ^ found S
+    error: expected `;`
+      at <test>:1:17
+        S :: extern "C" struct { x: i32 };
+                        ^~~~~~ found `struct`
     |}]
 
 let%expect_test "parse: ABI on a global" =
-  run_src {|extern "C" n : i32 = 0;|};
+  run_src {|n : i32 : extern "C";|};
   [%expect
     {|
-    error: expected `fn`
-      at <test>:1:12
-        extern "C" n : i32 = 0;
-                   ^ found n
+    error: type mismatch
+      at <test>:1:5
+        n : i32 : extern "C";
+            ^~~ expected function type, found i32
     |}]
 
 let%expect_test "parse: missing ABI before a struct" =
-  run_src {|extern S :: struct { x: i32 };|};
+  run_src {|S :: extern struct { x: i32 };|};
   [%expect
     {|
     error: expected ABI name
-      at <test>:1:8
-        extern S :: struct { x: i32 };
-               ^ found S
+      at <test>:1:13
+        S :: extern struct { x: i32 };
+                    ^~~~~~ found `struct`
     |}]
 
 let%expect_test "parse: extern inside a body" =
   run_src {|f :: fn() -> i32 {
-  extern "C" fn g(a: i32) i32;
+  g : (i32) -> i32 : extern "C";
   return 0;
 };|};
-  [%expect
-    {|
-    error: `extern` must be at the top level
-      at <test>:2:3
-          extern "C" fn g(a: i32) i32;
-          ^~~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: extern definition inside a body" =
   run_src
     {|f :: fn() -> i32 {
-  extern "C" fn g(a: i32) i32 { return a }
+  g :: extern "C" fn(a: i32) -> i32 { return a };
   return 0;
 };|};
-  [%expect
-    {|
-    error: `extern` must be at the top level
-      at <test>:2:3
-          extern "C" fn g(a: i32) i32 { return a }
-          ^~~~~~
-    |}]
+  [%expect {| ok |}]
 
 let%expect_test "parse: variadic declaration" =
-  run_src {|extern "C" fn printf(fmt: cstr, ...) i32;|};
+  run_src {|printf : (cstr, ..) -> i32 : extern "C";|};
   [%expect {| ok |}]
 
 let%expect_test "parse: variadic with a body" =
-  run_src {|extern "C" fn printf(fmt: cstr, ...) i32 { return 0 }|};
+  run_src {|printf :: extern "C" fn(fmt: cstr, ..) -> i32 { return 0 };|};
   [%expect
     {|
-    error: a function with a body cannot be variadic
-      at <test>:1:33
-        extern "C" fn printf(fmt: cstr, ...) i32 { return 0 }
-                                        ^~~
-    help: `...` only works on a declaration with no body
+    error: expected identifier
+      at <test>:1:36
+        printf :: extern "C" fn(fmt: cstr, ..) -> i32 { return 0 };
+                                           ^~ found ..
+    |}]
+
+let%expect_test "parse: variadic with a body against its written type" =
+  run_src {|printf : (cstr, ..) -> i32 : extern "C" fn(fmt) { return 0 };|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:41
+        printf : (cstr, ..) -> i32 : extern "C" fn(fmt) { return 0 };
+                                                ^~ expected extern "C" (cstr, ..) -> i32, found extern "C" (cstr) -> i32
     |}]
 
 let%expect_test "parse: plain function with a variadic body" =
-  run_src {|f :: fn(a: i32, ...) -> i32 { return a };|};
+  run_src {|f :: fn(a: i32, ..) -> i32 { return a };|};
   [%expect
     {|
-    error: a function with a body cannot be variadic
+    error: expected identifier
       at <test>:1:17
-        f :: fn(a: i32, ...) -> i32 { return a };
-                        ^~~
-    help: `...` only works on a declaration with no body
+        f :: fn(a: i32, ..) -> i32 { return a };
+                        ^~ found ..
+    |}]
+
+let%expect_test "parse: plain function with a variadic written type" =
+  run_src {|f : (i32, ..) -> i32 : fn(a) { return a };|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:24
+        f : (i32, ..) -> i32 : fn(a) { return a };
+                               ^~ expected (i32, ..) -> i32, found (i32) -> i32
     |}]
 
 let%expect_test "parse: multiple parameters" =
@@ -1392,7 +1385,8 @@ let%expect_test "parse: unknown string escape" =
     |}]
 
 let%expect_test "parse: an unknown escape keeps the rest of its statement" =
-  run_src {|extern "C" fn g(s: cstr, n: i32);
+  run_src
+    {|g : (cstr, i32) -> () : extern "C";
 f :: fn() { g("a\qb", nope); };|};
   [%expect
     {|
@@ -1452,21 +1446,20 @@ let%expect_test "parse: fn is not a type" =
   run_src "T :: *fn (i32) i32;";
   [%expect
     {|
-    error: expected type
-      at <test>:1:7
+    error: expected `{`
+      at <test>:1:16
         T :: *fn (i32) i32;
-              ^~ found `fn`
+                       ^~~ found i32
     |}]
 
 let%expect_test "parse: struct fields need a separator" =
   run_src "S :: struct { x: i32 y: i32 };";
   [%expect
     {|
-    error: expected field separator
+    error: expected `,` between fields
       at <test>:1:22
         S :: struct { x: i32 y: i32 };
-                             ^
-    help: separate fields with `,`
+                             ^ found y
     |}]
 
 (* A dropped field would show up as a later error on p.x or p.y *)
@@ -1474,16 +1467,15 @@ let%expect_test "parse: a semicolon between fields keeps the struct" =
   run_src
     {|P :: struct { x: i32; y: i32 };
 main :: fn() -> i32 {
-  p : P = P.{ x: 12, y: 30 };
+  p : P = P.{ x = 12, y = 30 };
   return p.x + p.y;
 };|};
   [%expect
     {|
-    error: expected field separator
+    error: expected `,` between fields
       at <test>:1:21
         P :: struct { x: i32; y: i32 };
-                            ^
-    help: separate fields with `,`
+                            ^ found ;
     |}]
 
 let%expect_test "parse: a semicolon between variants keeps the enum" =
@@ -1496,11 +1488,10 @@ main :: fn() -> i32 {
 };|};
   [%expect
     {|
-    error: expected variant separator
+    error: expected `,` between variants
       at <test>:1:16
         C :: enum { Red; Green };
-                       ^
-    help: separate variants with `,`
+                       ^ found ;
     |}]
 
 let%expect_test "parse: a bad field name drops only that field" =
@@ -1612,11 +1603,10 @@ let%expect_test "parse: a semicolon between parameters keeps the function" =
 main :: fn() -> i32 { return add(1, 2) };|};
   [%expect
     {|
-    error: expected parameter separator
+    error: expected `,` between parameters
       at <test>:1:17
         add :: fn(a: i32; b: i32) -> i32 { return a + b };
-                        ^
-    help: separate parameters with `,`
+                        ^ found ;
     |}]
 
 let%expect_test "parse: a missing parameter separator keeps the function" =
@@ -1625,11 +1615,10 @@ let%expect_test "parse: a missing parameter separator keeps the function" =
 main :: fn() -> i32 { return add(1, 2) };|};
   [%expect
     {|
-    error: expected parameter separator
+    error: expected `,` between parameters
       at <test>:1:18
         add :: fn(a: i32 b: i32) -> i32 { return a + b };
-                         ^
-    help: separate parameters with `,`
+                         ^ found b
     |}]
 
 let%expect_test
@@ -1700,25 +1689,24 @@ main :: fn() -> i32 {
 };|};
   [%expect
     {|
-    error: expected arm separator
+    error: expected `,` between arms
       at <test>:5:30
           return match c { C.Red => 0; C.Green => 1 };
-                                     ^
-    help: separate arms with `,`
+                                     ^ found ;
     |}]
 
 let%expect_test "parse: struct literal fields need a separator" =
-  run_src "f :: fn() { s := S.{ x: 1 y: 2 } };";
+  run_src "f :: fn() { s := S.{ x = 1 y = 2 } };";
   [%expect
     {|
     error: expected `,` between fields
-      at <test>:1:27
-        f :: fn() { s := S.{ x: 1 y: 2 } };
-                                  ^ found y
+      at <test>:1:28
+        f :: fn() { s := S.{ x = 1 y = 2 } };
+                                   ^ found y
     |}]
 
 let%expect_test "parse: never as a return type" =
-  run_src {|extern "C" fn exit(code: i32) never;|};
+  run_src {|exit : (i32) -> never : extern "C";|};
   [%expect {| ok |}]
 
 let%expect_test "parse: block expression needs a trailing value" =
@@ -1873,7 +1861,7 @@ let%expect_test "parse: an if is a value in a binary operand" =
   [%expect {| (+ 1 (if (c (block 1)) (block 2))) |}]
 
 let%expect_test "parse: a nested if body still reads a struct literal" =
-  parse_body "f :: fn() { if 1 == if c { P.{ x: 1 }.x } else { 0 } { } };";
+  parse_body "f :: fn() { if 1 == if c { P.{ x = 1 }.x } else { 0 } { } };";
   [%expect
     {| (block (if ((== 1 (if (c (block (. (struct P (x 1)) x))) (block 0))) (block )))) |}]
 
@@ -1894,7 +1882,7 @@ let%expect_test "parse: declarations may appear in a block" =
 };|};
   [%expect
     {|
-    (block (local type Coord) (local struct Point) (local fn read (block (. p x)))) |}]
+    (block (:: Coord i32) (:: Point (struct_type (x Coord))) (:: read (fn (block (. p x))))) |}]
 
 let%expect_test "parse: a bare loop takes a block" =
   parse_body "f :: fn() { loop { break } };";
@@ -1943,7 +1931,7 @@ let%expect_test "parse: a statement block is still a statement" =
   [%expect {| (block (block (call g))) |}]
 
 let%expect_test "parse: a struct literal still wins over a block" =
-  parse_expr "Point.{ x: 1 }";
+  parse_expr "Point.{ x = 1 }";
   [%expect {| (struct Point (x 1)) |}]
 
 let%expect_test "parse: a label in a header body is not a struct literal" =
@@ -1972,7 +1960,8 @@ let%expect_test "parse: a loop is a value in a binding" =
 
 let%expect_test "parse: a while is a value in a binding" =
   parse_body "f :: fn() { y := while c { g() } };";
-  [%expect {| (block (bind y (while c (block (call g))))) |}]
+  [%expect
+    {| (block (bind y (loop (block (if (c (block (call g))) (block (break))))))) |}]
 
 let%expect_test "parse: a for is a value in a binding" =
   parse_body "f :: fn() { y := for i := xs { g() } };";
@@ -1980,11 +1969,13 @@ let%expect_test "parse: a for is a value in a binding" =
 
 let%expect_test "parse: a labeled while is a value in a binding" =
   parse_body "f :: fn() { y := while @outer c { break @outer } };";
-  [%expect {| (block (bind y (while c (block (break))))) |}]
+  [%expect
+    {| (block (bind y (loop (block (if (c (block (break))) (block (break))))))) |}]
 
 let%expect_test "parse: a while statement needs no semicolon" =
   parse_body "f :: fn() { while c { g() } x := 1 };";
-  [%expect {| (block (while c (block (call g))) (bind x 1)) |}]
+  [%expect
+    {| (block (loop (block (if (c (block (call g))) (block (break))))) (bind x 1)) |}]
 
 let%expect_test "parse: an enum declares its variants" =
   (match parse {|Color :: enum {
@@ -1992,8 +1983,11 @@ let%expect_test "parse: an enum declares its variants" =
   Green,
   Blue,
 };|} with
-  | [ Ripe.Ast.Enum { variants; _ } ] ->
-      print_endline (String.concat " " (List.map dump_ident variants))
+  | [
+   Ripe.Ast.Bind { bind_form = Inferred { edesc = EnumType variants; _ }; _ };
+  ] ->
+      let name v = dump_ident v.Ripe.Ast.variant_name in
+      print_endline (String.concat " " (List.map name variants))
   | _ -> print_endline "<expected an enum>");
   [%expect {| Red Green Blue |}]
 
@@ -2001,7 +1995,7 @@ let%expect_test "parse: an enum may appear in a block" =
   parse_body {|f :: fn() {
   Step :: enum { First };
 };|};
-  [%expect {| (block (local enum Step)) |}]
+  [%expect {| (block (:: Step (enum_type First))) |}]
 
 let%expect_test "parse: an arm takes an expression or a block" =
   parse_body
@@ -2098,10 +2092,10 @@ let%expect_test "parse: a value as an alias type is said once" =
 main :: fn() -> i32 { return 0 };|};
   [%expect
     {|
-    error: expected type
+    error: type mismatch
       at <test>:1:6
         t :: 5;
-             ^ found 5
+             ^ expected type, found i32
     |}]
 
 let%expect_test
@@ -2171,26 +2165,24 @@ let%expect_test
                   ^
     |}]
 
-let%expect_test "parse: a struct bound with := asks for ::" =
+let%expect_test "parse: a struct bound with := is not a value" =
   run_src "Point := struct { x: i32 };";
   [%expect
     {|
-    error: expected expression
+    error: expected a value
       at <test>:1:10
         Point := struct { x: i32 };
-                 ^~~~~~ found `struct`
-    help: declare a type with `::`
+                 ^~~~~~ found type
     |}]
 
-let%expect_test "parse: a local enum bound with := asks for ::" =
+let%expect_test "parse: a local enum bound with := is not a value" =
   run_src "main :: fn { Dir := enum { Up }; };";
   [%expect
     {|
-    error: expected expression
+    error: expected a value
       at <test>:1:21
         main :: fn { Dir := enum { Up }; };
-                            ^~~~ found `enum`
-    help: declare a type with `::`
+                            ^~~~ found type
     |}]
 
 let%expect_test "parse: logical compound assign" =

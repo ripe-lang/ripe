@@ -1,0 +1,4 @@
+error: undefined variable
+  at main.rp:2:1
+    puts : (cstr) -> i32;
+    ^~~~ no puts to set

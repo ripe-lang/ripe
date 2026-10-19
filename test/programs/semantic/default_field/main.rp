@@ -1,0 +1,7 @@
+// BROKEN: fields can't have defaults yet (the Defaults rule)
+Config :: struct { verbose: bool, retries: i32 = 3, name := "ripe" };
+main :: fn() -> i32 {
+  c := Config.{ verbose = true };
+  d := Config.{ verbose = true, retries = 5 };
+  c.retries + d.retries + cast(i32, c.name.len)
+};

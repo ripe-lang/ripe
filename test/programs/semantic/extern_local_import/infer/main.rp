@@ -1,0 +1,4 @@
+main : _ : fn {
+  puts : _ : extern "C";
+  puts("local import");
+};

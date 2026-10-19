@@ -1,0 +1,19 @@
+Point :: struct { x: i32 };
+Shape :: enum { Circle(i32), Dot };
+
+main :: fn() -> i32 {
+  a : i32 = Point.{ 1 };
+  b : i32 = .{ 1 };
+  c : i32 = Shape.Dot;
+  d : i32 = .Dot;
+  e : i32 = [1];
+  f : i32 = [];
+  g : *Point = Point.{ 1 };
+  h : *Point = .{ 1 };
+  i : Shape = Shape.Circle(3);
+  j : Shape = .{ 3 };
+  k : Point = Shape.Dot;
+  l : Point = .Dot;
+  m : i32 = .Circle(3);
+  0
+};

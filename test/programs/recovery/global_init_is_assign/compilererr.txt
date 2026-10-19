@@ -1,4 +1,4 @@
-error: expected a value
+error: cannot assign to type
   at main.rp:1:10
     total := i32 = 3;
-             ^~~ this names a type
+             ^~~

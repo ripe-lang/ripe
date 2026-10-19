@@ -1,4 +1,4 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 sum :: fn(s: []i32) -> i32 {
   t : i32 = 0;

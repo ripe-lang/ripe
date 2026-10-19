@@ -1,6 +1,6 @@
 P :: struct { x: i32, y: i32 };
 
 main :: fn() -> i32 {
-  p : P = P.{ x: 12, y: 30 };
+  p : P = P.{ x = 12, y = 30 };
   return p.x + p.y;
 };

@@ -1,12 +1,12 @@
 error: undefined type
-  at main.rp:2:8
+  at main.rp:3:8
       p : *nosuch = null;
            ^~~~~~
 error: undefined type
-  at main.rp:3:10
-      a : [1]nosuch;
+  at main.rp:4:10
+      a : [1]nosuch = _;
              ^~~~~~
 error: undefined type
-  at main.rp:4:13
-      f : () -> nosuch;
+  at main.rp:5:13
+      f : () -> nosuch = _;
                 ^~~~~~

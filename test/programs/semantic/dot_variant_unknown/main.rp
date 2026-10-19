@@ -1,0 +1,5 @@
+Color :: enum { Red, Green, Blue };
+main :: fn -> i32 {
+  c : Color = .Purple;
+  0
+};

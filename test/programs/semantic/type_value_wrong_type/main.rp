@@ -1,0 +1,2 @@
+P : i32 : struct { x: i32 };
+T : type : 5;

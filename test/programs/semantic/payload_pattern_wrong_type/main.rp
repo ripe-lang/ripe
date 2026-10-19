@@ -1,0 +1,10 @@
+Shape :: enum { Circle(i32), Empty };
+Other :: enum { Dot(i32) };
+
+main :: fn -> i32 {
+  n : i32 = 3;
+  s := Shape.Empty;
+  a := match n { Shape.Circle(r) => r, _ => 0 };
+  b := match s { Other.Dot(r) => r, _ => 0 };
+  a + b
+};

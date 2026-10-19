@@ -1,2 +1,0 @@
-error: no `main` function found
-help: add a `main :: fn {}` entry point

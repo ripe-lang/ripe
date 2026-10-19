@@ -1,4 +1,4 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 // Naming both values covers a bool so no else arm is needed
 pick :: fn(flag: bool) -> i32 {

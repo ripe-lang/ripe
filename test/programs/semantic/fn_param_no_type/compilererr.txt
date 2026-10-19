@@ -1,0 +1,8 @@
+error: cannot infer type
+  at main.rp:1:12
+    same :: fn(a) => a;
+               ^
+error: cannot infer type
+  at main.rp:3:15
+      other := fn(b) => b;
+                  ^

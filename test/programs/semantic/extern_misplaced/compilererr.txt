@@ -1,0 +1,4 @@
+error: misplaced extern
+  at main.rp:2:11
+      puts := extern "C";
+              ^~~~~~~~~~

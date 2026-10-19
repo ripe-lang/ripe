@@ -1,0 +1,6 @@
+printf : (cstr, ..) -> i32 : extern "C";
+
+main :: fn {
+  pf := printf;
+  pf("%d %d\n", 1, 2);
+};

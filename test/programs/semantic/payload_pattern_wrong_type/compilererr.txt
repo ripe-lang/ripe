@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:7:18
+      a := match n { Shape.Circle(r) => r, _ => 0 };
+                     ^~~~~~~~~~~~ expected i32, found Shape
+error: type mismatch
+  at main.rp:8:18
+      b := match s { Other.Dot(r) => r, _ => 0 };
+                     ^~~~~~~~~ expected Shape, found Other

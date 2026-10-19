@@ -1,0 +1,12 @@
+printf : (cstr, ..) -> i32 : extern "C";
+
+State : _ : enum { Idle, Busy };
+
+start : _ = State.Idle;
+current : _ = State.Idle;
+
+main : _ : fn() -> i32 {
+  current = State.Busy;
+  printf("%d %d\n", start == State.Idle, current == State.Busy);
+  return 0;
+};

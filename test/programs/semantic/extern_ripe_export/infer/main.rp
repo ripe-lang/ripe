@@ -1,0 +1,13 @@
+Pair : _ : struct { a: i32, b: i32 };
+
+make_pair : _ : extern "Ripe" fn(x: i32) -> Pair {
+  return Pair.{ a = x, b = x * 2 };
+};
+
+total : _ : extern "Ripe" fn(p: Pair) -> i32 {
+  return p.a + p.b;
+};
+
+main : _ : fn() -> i32 {
+  return total(make_pair(7));
+};

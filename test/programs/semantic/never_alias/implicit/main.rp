@@ -1,0 +1,15 @@
+exit : (i32) -> never : extern "C";
+
+Never :: never;
+
+die :: fn() -> Never {
+  exit(7)
+};
+
+pick :: fn(b: bool) -> i32 {
+  if b { 1 } else { die() }
+};
+
+main :: fn() -> i32 {
+  return pick(false);
+};

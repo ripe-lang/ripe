@@ -1,0 +1,11 @@
+main :: fn -> i32 {
+  Pair : type : enum { Both(i32, i32), One(i32) };
+  Flag :: enum { On(u8), Off };
+  p : Pair = Pair.Both(3, 4);
+  o := Pair.One(5);
+  f : Flag = .On(2);
+  n := match p { .Both(a, b) => a * b, .One(a) => a };
+  m := match o { Pair.Both(a, _) => a, Pair.One(a) => a };
+  k := match f { .On(x) => cast(i32, x), .Off => 0 };
+  n + m + k
+};

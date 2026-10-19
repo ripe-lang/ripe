@@ -1,3 +1,2 @@
-// BROKEN: waiting on the new parser recovery
-extern "C" fn puts(s: *i8 i32
+puts : (*i8 -> i32 : extern "C";
 main :: fn() -> i32 { return 0 };

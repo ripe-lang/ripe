@@ -1,0 +1,3 @@
+// BROKEN: params can't have defaults yet (the Defaults rule)
+add :: fn(x: i32, y ::= 10) -> i32 => x + y;
+main :: fn() -> i32 { add(1) + add(1, _) + add(1, 2) };

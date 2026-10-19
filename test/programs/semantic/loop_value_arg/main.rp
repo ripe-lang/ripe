@@ -1,4 +1,4 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 twice :: fn(x: i32) -> i32 { return x * 2 };
 

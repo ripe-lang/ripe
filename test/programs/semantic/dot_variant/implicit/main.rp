@@ -1,0 +1,16 @@
+Color :: enum { Red, Green, Blue };
+
+paint :: fn(c: Color) -> i32 => if c == .Blue { 4 } else { 1 };
+pick :: fn() -> Color { return .Green };
+
+main :: fn -> i32 {
+  c : Color = .Green;
+  cs : [2]Color = [.Red, .Blue];
+  n := match c {
+    .Red => 1,
+    .Green => 10,
+    .Blue => 100,
+  };
+  same := if .Green == c { 1 } else { 0 };
+  n + paint(.Blue) + paint(cs[1]) + same + (if pick() == .Green { 1 } else { 0 })
+};

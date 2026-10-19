@@ -1,0 +1,6 @@
+Point :: struct { x: i32 };
+main :: fn() -> i32 {
+  Point := 3;
+  p := Point.{ x = 1 };
+  return 0;
+};

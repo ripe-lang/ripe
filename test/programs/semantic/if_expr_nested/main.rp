@@ -1,4 +1,4 @@
-extern "C" fn printf(fmt: cstr, ...) i32;
+printf : (cstr, ..) -> i32 : extern "C";
 
 tier :: fn(n: i32) -> i32 {
   t := if n >= 100 {

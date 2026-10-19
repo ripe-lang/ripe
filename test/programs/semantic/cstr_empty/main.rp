@@ -1,4 +1,4 @@
-extern "C" fn strlen(s: cstr) i32;
+strlen : (cstr) -> i32 : extern "C";
 
 main :: fn() -> i32 {
   empty : cstr = "";

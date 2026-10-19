@@ -1,0 +1,4 @@
+Op : type : (i32) -> i32;
+double : Op : fn(a) => a * 2;
+triple : Op : fn(a) => a * 3;
+main :: fn -> i32 { double(3) + triple(1) };

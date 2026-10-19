@@ -1,0 +1,2 @@
+add : (i32, i32) -> i32 : fn(x, y) => x + y;
+main :: fn -> i32 { add(3, 4) };

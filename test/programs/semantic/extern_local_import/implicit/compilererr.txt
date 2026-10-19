@@ -1,0 +1,4 @@
+error: missing type
+  at main.rp:2:3
+      puts :: extern "C";
+      ^~~~

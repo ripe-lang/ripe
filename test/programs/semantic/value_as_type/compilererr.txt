@@ -1,8 +1,8 @@
-error: expected a type
+error: type mismatch
   at main.rp:4:7
       a : p = 1;
-          ^ this names a value
-error: expected a type
+          ^ expected type, found i32
+error: type mismatch
   at main.rp:5:7
       b : f = 1;
-          ^ this names a function
+          ^ expected type, found () -> i32

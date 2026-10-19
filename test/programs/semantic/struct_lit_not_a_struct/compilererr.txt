@@ -5,11 +5,11 @@ error: expected a struct
 error: expected a struct
   at main.rp:6:8
       b := i32.{ 1 };
-           ^~~ this names a type
+           ^~~ found i32
 error: expected a struct
   at main.rp:7:8
       c := Color.{ };
-           ^~~~~ this names a type
+           ^~~~~ found Color
 error: undefined struct
   at main.rp:8:8
       d := nope.{ 1 };

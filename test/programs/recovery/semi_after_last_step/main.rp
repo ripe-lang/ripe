@@ -1,0 +1,5 @@
+// BROKEN: a `;` after the last step is still skipped (the Semicolons rule)
+main :: fn() -> i32 {
+  n := { 5; };
+  n
+};

@@ -1,0 +1,8 @@
+Shape :: enum { Circle(i32), Empty };
+
+main :: fn -> i32 {
+  s : Shape = Shape.Circle(1, 2);
+  t := Shape.Circle("a");
+  u : Shape = .Circle();
+  0
+};

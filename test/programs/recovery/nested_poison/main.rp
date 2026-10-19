@@ -1,7 +1,8 @@
+// BROKEN: `= _` isn't built yet (the Underscore rule)
 main :: fn() -> i32 {
   p : *nosuch = null;
-  a : [1]nosuch;
-  f : () -> nosuch;
+  a : [1]nosuch = _;
+  f : () -> nosuch = _;
   _x := p.field;
   _y := p.*;
   _z := f();

@@ -1,0 +1,9 @@
+Point :: struct { x: i32, y: i32 };
+
+PtPtr :: *Point;
+
+main :: fn() -> i32 {
+  p : Point = Point.{ x = 10, y = 20 };
+  pp : PtPtr = &p;
+  return pp.x + pp.y;
+};

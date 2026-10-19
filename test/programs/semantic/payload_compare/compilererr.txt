@@ -1,0 +1,8 @@
+error: invalid operand
+  at main.rp:7:16
+      x : bool = a == Shape.Empty;
+                   ^~ cannot apply `==` to Shape
+error: invalid operand
+  at main.rp:8:10
+      y := b != b;
+             ^~ cannot apply `!=` to Other

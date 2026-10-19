@@ -11,7 +11,7 @@ block_value :: fn() -> i32 { { x := 5; x; } };
 explicit_return :: fn() -> () { return () };
 
 assign :: fn() {
-  value : ();
+  value : () = ();
   value = ();
   pass(value);
 };

@@ -1,0 +1,9 @@
+Point :: struct { x: i32, y: i32 };
+
+Pt : type : Point;
+
+g : Pt = Point.{ x = 2, y = 3 };
+
+main :: fn() -> i32 {
+  return g.x + g.y;
+};

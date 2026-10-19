@@ -1,39 +1,53 @@
-(Func
-   { func_name = { value = add; span = (0,3) };
-     params =
-     [{ param_name = { value = a; span = (10,11) };
-        param_typ = { tdesc = (Named i32); tspan = (13,16) };
-        param_span = (10,16) };
-       { param_name = { value = b; span = (18,19) };
-         param_typ = { tdesc = (Named i32); tspan = (21,24) };
-         param_span = (18,24) }
-       ];
-     ret = (Some { tdesc = (Named i32); tspan = (29,32) });
-     body =
-     [(Expr
-         { edesc =
-           (Return
-              (Some { edesc =
-                      (BinOp ({ value = Add; span = (46,47) },
-                         { edesc = (Ident a); espan = (44,45) },
-                         { edesc = (Ident b); espan = (48,49) }));
-                      espan = (44,49) }));
-           espan = (37,49) })
-       ];
-     variadic = false; extern_abi = NoAbi; func_span = (0,52) })
-(Func
-   { func_name = { value = main; span = (55,59) }; params = [];
-     ret = (Some { tdesc = (Named i32); tspan = (71,74) });
-     body =
-     [(Expr
-         { edesc =
-           (Return
-              (Some { edesc =
-                      (Call ({ edesc = (Ident add); espan = (86,89) },
-                         [{ edesc = (Int (1L, None)); espan = (90,91) };
-                           { edesc = (Int (2L, None)); espan = (93,94) }]
-                         ));
-                      espan = (86,95) }));
-           espan = (79,95) })
-       ];
-     variadic = false; extern_abi = NoAbi; func_span = (55,98) })
+(Bind
+   { bind_name = { value = add; span = (0,3) }; binder = CompileTime;
+     bind_form =
+     (Inferred
+        { edesc =
+          (Lambda
+             { lambda_params =
+               [{ param_name = { value = a; span = (10,11) };
+                  param_typ = { edesc = (Ident i32); espan = (13,16) };
+                  param_span = (10,16) };
+                 { param_name = { value = b; span = (18,19) };
+                   param_typ = { edesc = (Ident i32); espan = (21,24) };
+                   param_span = (18,24) }
+                 ];
+               lambda_ret = (Some { edesc = (Ident i32); espan = (29,32) });
+               lambda_body =
+               [{ edesc =
+                  (Return
+                     (Some { edesc =
+                             (BinOp ({ value = Add; span = (46,47) },
+                                { edesc = (Ident a); espan = (44,45) },
+                                { edesc = (Ident b); espan = (48,49) }));
+                             espan = (44,49) }));
+                  espan = (37,49) }
+                 ];
+               lambda_abi = NoAbi; lambda_span = (7,52) });
+          espan = (7,52) });
+     bind_span = (0,52) })
+(Bind
+   { bind_name = { value = main; span = (55,59) }; binder = CompileTime;
+     bind_form =
+     (Inferred
+        { edesc =
+          (Lambda
+             { lambda_params = [];
+               lambda_ret = (Some { edesc = (Ident i32); espan = (71,74) });
+               lambda_body =
+               [{ edesc =
+                  (Return
+                     (Some { edesc =
+                             (Call ({ edesc = (Ident add); espan = (86,89) },
+                                [{ edesc = (Int (1L, None)); espan = (90,91)
+                                   };
+                                  { edesc = (Int (2L, None)); espan = (93,94)
+                                    }
+                                  ]
+                                ));
+                             espan = (86,95) }));
+                  espan = (79,95) }
+                 ];
+               lambda_abi = NoAbi; lambda_span = (63,98) });
+          espan = (63,98) });
+     bind_span = (55,98) })

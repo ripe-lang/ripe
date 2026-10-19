@@ -1,0 +1,8 @@
+error: not callable
+  at main.rp:4:15
+      s : Shape = Shape.Empty(1);
+                  ^~~~~~~~~~~ found Shape
+error: not callable
+  at main.rp:5:8
+      t := Shape.Empty(1);
+           ^~~~~~~~~~~ found Shape

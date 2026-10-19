@@ -1,0 +1,12 @@
+error: wrong number of arguments
+  at main.rp:4:15
+      s : Shape = Shape.Circle(1, 2);
+                  ^~~~~~~~~~~~~~~~~~ expected 1 argument, found 2
+error: type mismatch
+  at main.rp:5:21
+      t := Shape.Circle("a");
+                        ^~~ expected i32, found *i8
+error: wrong number of arguments
+  at main.rp:6:15
+      u : Shape = .Circle();
+                  ^~~~~~~~~ expected 1 argument, found 0

@@ -1,4 +1,4 @@
-error: expected type
-  at main.rp:2:5
+error: undefined type
+  at main.rp:2:7
       x : y: i32 = 1;
-        ^
+          ^

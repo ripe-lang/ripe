@@ -1,0 +1,4 @@
+error: type mismatch
+  at main.rp:1:41
+    printf : (cstr, ..) -> i32 : extern "C" fn(fmt) { 0 };
+                                            ^~ expected extern "C" (cstr, ..) -> i32, found extern "C" (cstr) -> i32

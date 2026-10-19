@@ -1,4 +1,4 @@
-error: expected type
-  at main.rp:1:15
+error: expected `,` between parameters
+  at main.rp:1:16
     f :: fn(a: [2]b: i32) -> i32 { return 0 };
-                  ^ found b
+                   ^ found :
