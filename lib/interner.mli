@@ -1,6 +1,6 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* Names become ints so a syntax node holds no pointer and two names compare
+(* A name becomes an int so a syntax node holds no pointer and two names compare
    without touching the bytes *)
 type id = int
 

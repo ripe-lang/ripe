@@ -65,7 +65,7 @@ type expr_desc =
   | Match of expr * arm list
   | Unit
 
-and expr = { desc : expr_desc; span : span }
+and expr = { edesc : expr_desc; espan : span }
 and path = { owner : name spanned Nonempty.t; member : name spanned }
 and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }

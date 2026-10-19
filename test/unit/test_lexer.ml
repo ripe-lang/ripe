@@ -191,7 +191,7 @@ let%expect_test "lexer: literal above u64 is an error" =
   [%expect {|
     ERROR
     EOF
-    error integer literal out of range
+    error literal out of range
     |}]
 
 let%expect_test "lexer: float literal" =
@@ -270,7 +270,7 @@ let%expect_test "lexer: hex above u64 is an error" =
   [%expect {|
     ERROR
     EOF
-    error integer literal out of range
+    error literal out of range
     |}]
 
 let%expect_test "lexer: CRLF newline is whitespace" =
@@ -363,25 +363,23 @@ let%expect_test "lexer: empty char literal is an error" =
   [%expect {|
     ERROR
     EOF
-    error empty character literal
+    error empty char literal
     |}]
 
 let%expect_test "lexer: two chars in a literal is an error" =
   dump_tokens "'ab'\n";
-  [%expect
-    {|
+  [%expect {|
     ERROR
     EOF
-    error character literal must be a single character
+    error more than one char
     |}]
 
 let%expect_test "lexer: two scalars in a literal is an error" =
   dump_tokens "'\xf0\x9f\x98\x80\xf0\x9f\x98\x80'\n";
-  [%expect
-    {|
+  [%expect {|
     ERROR
     EOF
-    error character literal must be a single character
+    error more than one char
     |}]
 
 let%expect_test "lexer: unknown char escape is an error" =
@@ -397,7 +395,7 @@ let%expect_test "lexer: unterminated char literal is an error" =
   [%expect {|
     ERROR
     EOF
-    error unterminated character literal
+    error unterminated char literal
     |}]
 
 let%expect_test "lexer: an unterminated char literal stops before a closer" =
@@ -408,7 +406,7 @@ let%expect_test "lexer: an unterminated char literal stops before a closer" =
     ERROR
     )
     EOF
-    error unterminated character literal
+    error unterminated char literal
     |}]
 
 let%expect_test "lexer: leading UTF 8 BOM is ignored" =

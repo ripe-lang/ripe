@@ -31,7 +31,7 @@ val int_kind_is_unsigned : int_kind -> bool
 val int_kind_size : int_kind -> int
 val int_kind_pos_limit : int_kind -> int64
 val int_kind_neg_limit : int_kind -> int64
-val int_kind_fits : int_kind -> neg:bool -> int64 -> bool
+val int_kind_fits : int_kind -> bool -> int64 -> bool
 val show_float_kind : float_kind -> string
 val float_kinds : float_kind list
 val float_kind_of_string : string -> float_kind option

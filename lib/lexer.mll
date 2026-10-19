@@ -6,17 +6,17 @@ open Tokens
 let max_intsuf_len = String.length "isize"
 let max_floatsuf_len = String.length "f32"
 
-(* Spans are plain offsets so the lexbuf needs no positions *)
+(* A span is a plain offset so the lexbuf needs no positions *)
 let lexbuf_of_string src =
   Lexing.from_string ~with_positions:false src
 
 let lexbuf_span lexbuf =
   Span.make lexbuf.Lexing.lex_start_pos lexbuf.Lexing.lex_curr_pos
 
-let int_token ?suf text =
+let int_token suf text =
   match Int64.of_string_opt text with
   | Some v -> INT (v, suf)
-  | None -> ERROR "integer literal out of range"
+  | None -> ERROR "literal out of range"
 
 (* The suffix parser stays OUT of the lexer rule *)
 let split_int_suffix text =
@@ -30,12 +30,12 @@ let split_int_suffix text =
 
 let radix_int_token text =
   let body, suf = split_int_suffix text in
-  int_token ?suf body
+  int_token suf body
 
 (* The unsigned prefix lets literals past the signed max still parse *)
 let decimal_int_token text =
   let body, suf = split_int_suffix text in
-  int_token ?suf ("0u" ^ body)
+  int_token suf ("0u" ^ body)
 
 let float_token text =
   let len = String.length text in
@@ -48,9 +48,9 @@ let float_token text =
 let char_token inner =
   let d = String.get_utf_8_uchar inner 0 in
   if not (Uchar.utf_decode_is_valid d) then
-    ERROR "invalid character literal"
+    ERROR "invalid char literal"
   else if Uchar.utf_decode_length d <> String.length inner then
-    ERROR "character literal must be a single character"
+    ERROR "more than one char"
   else CHAR (Uchar.to_int (Uchar.utf_decode_uchar d))
 }
 
@@ -90,7 +90,7 @@ rule read_token = parse
   | (decdigs intsuf?) as n { decimal_int_token n }
   | '_' { UNDERSCORE }
   | alpha alnum* as n {
-      match lookup_keyword n with
+      match find_keyword n with
       | Some t -> t
       | None -> IDENT n
     }
@@ -161,9 +161,9 @@ rule read_token = parse
       in
       char_token inner
     }
-  | "''" { ERROR "empty character literal" }
+  | "''" { ERROR "empty char literal" }
   | '\'' ('\\' [^ '\r' '\n']?)? [^ '\'' '\\' '\r' '\n' ' ' '\t' '(' ')' '[' ']' '{' '}' ',' ';']* {
-      ERROR "unterminated character literal"
+      ERROR "unterminated char literal"
     }
   | '"' {
       let start = lexbuf.Lexing.lex_start_pos in

@@ -332,17 +332,17 @@ let resolve_value_root st p =
 let rec resolve_path st p =
   if not (resolve_value_root st p) then
     let prefix = owner_expr p in
-    match prefix.desc with
-    | Ident name when use_type_name st name prefix.span -> ()
+    match prefix.edesc with
+    | Ident name when use_type_name st name prefix.espan -> ()
     | _ -> resolve_expr st prefix
 
 and resolve_expr st e =
-  match e.desc with
-  | Ident name -> use st ~what:"variable" name e.span
-  | Call ({ desc = Ident name; span }, args) ->
+  match e.edesc with
+  | Ident name -> use st ~what:"variable" name e.espan
+  | Call ({ edesc = Ident name; espan = span }, args) ->
       use_callee st name span;
       List.iter (resolve_expr st) args
-  | Call ({ desc = Path segs; _ }, args) ->
+  | Call ({ edesc = Path segs; _ }, args) ->
       resolve_path st segs;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->

@@ -111,7 +111,7 @@ type expr_desc =
   | Match of expr * arm list
   | Unit
 
-and expr = { desc : expr_desc; span : span }
+and expr = { edesc : expr_desc; espan : span }
 
 (* math.Vec, value.field *)
 and path = { owner : name spanned Nonempty.t; member : name spanned }
@@ -172,11 +172,11 @@ and func_def = {
 let path_expr p =
   let first = (Nonempty.hd p.owner).span in
   let last = p.member.span in
-  { desc = Path p; span = Span.make (Span.lo first) (Span.hi last) }
+  { edesc = Path p; espan = Span.make (Span.lo first) (Span.hi last) }
 
 let owner_expr p =
   match Nonempty.destruct_last p.owner with
-  | [], { value; span } -> { desc = Ident value; span }
+  | [], { value; span } -> { edesc = Ident value; espan = span }
   | first :: rest, last ->
       path_expr { owner = Nonempty.make first rest; member = last }
 

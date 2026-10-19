@@ -21,8 +21,8 @@ type reg =
 type width = W32 | W64
 
 type instr =
-  | Mov_imm of width * reg * int64
-  | Mov_reg of width * reg * reg
+  | MovImm of width * reg * int64
+  | MovReg of width * reg * reg
   | Call of string
   | Ret
   | Syscall
@@ -31,7 +31,7 @@ type t
 
 exception Unsupported of string
 
-val create : ?size:int -> unit -> t
+val create : unit -> t
 val instr : t -> instr -> unit
-val finish : t -> labels:(string * int) list -> string
+val finish : t -> (string * int) list -> string
 val emit : Mir.program -> string

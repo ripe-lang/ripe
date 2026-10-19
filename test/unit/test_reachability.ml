@@ -7,7 +7,7 @@ let rec find_loop block = List.find_map find_in_item block
 and find_in_item = function Ast.Expr e -> find_in_expr e | Ast.Decl _ -> None
 
 and find_in_expr e =
-  match e.Ast.desc with
+  match e.Ast.edesc with
   | Ast.While (label, _, body) | Ast.Loop (label, body) -> Some (label, body)
   | Ast.For (label, _, _, body) -> Some (label, body)
   | Ast.Block body -> find_loop body

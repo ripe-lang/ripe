@@ -22,7 +22,7 @@ let%expect_test "config: a tool pointing at nothing says so" =
   with_env "QBE" "/nonexistent/qbe" (fun () ->
       try print_endline (Ripe.Config.qbe ())
       with Failure msg -> print_endline msg);
-  [%expect {| QBE points to a missing tool: /nonexistent/qbe |}]
+  [%expect {| QBE not found: /nonexistent/qbe |}]
 
 let%expect_test "config: each tool reads its own environment variable" =
   let show name value tool =
@@ -36,8 +36,8 @@ let%expect_test "config: each tool reads its own environment variable" =
   show "RIPE_CC" "/bin/sh" Ripe.Config.linker;
   [%expect
     {|
-    RIPE_AS points to a missing tool: /nonexistent/as
-    RIPE_CC points to a missing tool: /nonexistent/cc
+    RIPE_AS not found: /nonexistent/as
+    RIPE_CC not found: /nonexistent/cc
     RIPE_AS -> true
     RIPE_CC -> true
     |}]

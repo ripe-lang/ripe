@@ -27,9 +27,7 @@ let mir_src src =
   program
 
 let emit_src src =
-  Ripe.Codegenqbe.emit ~filename:"<test>"
-    ~source_map:(Ripe.Sourcemap.create src)
-    (mir_src src)
+  Ripe.Codegenqbe.emit "<test>" (Ripe.Sourcemap.create src) (mir_src src)
 
 (* feed the il through qbe so malformed output fails the test *)
 let check_qbe il =
@@ -70,7 +68,7 @@ let parse_expr src =
   let wrapped = "_f :: fn() { return " ^ src ^ " };" in
   try
     match parse wrapped with
-    | [ Ripe.Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->
+    | [ Ripe.Ast.Func { body = [ Expr { edesc = Return (Some e); _ } ]; _ } ] ->
         print_endline (Dump.dump_expr e)
     | _ -> print_endline "<parse_expr: unexpected shape>"
   with Ripe.Diagnostic.Errors diags -> List.iter (Diag.render wrapped) diags

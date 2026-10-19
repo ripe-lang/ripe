@@ -94,7 +94,7 @@ let dump_symbols obj =
   List.iter show (symbols obj)
 
 let%expect_test "elf64: the header describes a relocatable x86-64 object" =
-  dump_header (Elf64.object_file ~text:"\x90" ~globals:[ ("main", 0, 1) ]);
+  dump_header (Elf64.object_file "\x90" [ ("main", 0, 1) ]);
   [%expect
     {|
     magic 7f ELF class 2 data 1 version 1 abi 0
@@ -104,7 +104,7 @@ let%expect_test "elf64: the header describes a relocatable x86-64 object" =
     |}]
 
 let%expect_test "elf64: an object carries five sections" =
-  dump_sections (Elf64.object_file ~text:"\x90\x90" ~globals:[ ("main", 0, 2) ]);
+  dump_sections (Elf64.object_file "\x90\x90" [ ("main", 0, 2) ]);
   [%expect
     {|
     <null>     kind 0 flags 0 size 0 link 0 info 0 align 0 entsize 0
@@ -115,28 +115,26 @@ let%expect_test "elf64: an object carries five sections" =
     |}]
 
 let%expect_test "elf64: the null section header stays all zero" =
-  let obj = Elf64.object_file ~text:"\x90" ~globals:[ ("main", 0, 1) ] in
+  let obj = Elf64.object_file "\x90" [ ("main", 0, 1) ] in
   let shoff = u64 obj 40 in
   let zero = String.for_all (fun c -> c = '\000') (String.sub obj shoff 64) in
   Printf.printf "%b\n" zero;
   [%expect {| true |}]
 
 let%expect_test "elf64: the text lands where its header says" =
-  let obj =
-    Elf64.object_file ~text:"\x48\x31\xc0\xc3" ~globals:[ ("f", 0, 4) ]
-  in
+  let obj = Elf64.object_file "\x48\x31\xc0\xc3" [ ("f", 0, 4) ] in
   let text = find obj ".text" in
   print_endline (Fake.hex (data obj text));
   [%expect {| 48 31 c0 c3 |}]
 
 let%expect_test "elf64: a blank symbol leads the table" =
-  dump_symbols (Elf64.object_file ~text:"\x90" ~globals:[]);
+  dump_symbols (Elf64.object_file "\x90" []);
   [%expect {| <null>   info 0 shndx 0 value 0 size 0 |}]
 
 let%expect_test "elf64: every global becomes a func symbol in the text" =
   dump_symbols
-    (Elf64.object_file ~text:"\x90\x90\x90\x90"
-       ~globals:[ ("main", 0, 2); ("helper", 2, 1); ("last", 3, 1) ]);
+    (Elf64.object_file "\x90\x90\x90\x90"
+       [ ("main", 0, 2); ("helper", 2, 1); ("last", 3, 1) ]);
   [%expect
     {|
     <null>   info 0 shndx 0 value 0 size 0
@@ -146,7 +144,7 @@ let%expect_test "elf64: every global becomes a func symbol in the text" =
     |}]
 
 let%expect_test "elf64: the symtab points at the string table it uses" =
-  let obj = Elf64.object_file ~text:"\x90" ~globals:[ ("main", 0, 1) ] in
+  let obj = Elf64.object_file "\x90" [ ("main", 0, 1) ] in
   let symtab = find obj ".symtab" in
   let all = named obj in
   let index name = Option.get (List.find_index (fun (n, _) -> n = name) all) in
@@ -155,10 +153,7 @@ let%expect_test "elf64: the symtab points at the string table it uses" =
   [%expect {| link 3 strtab 3 locals 1 |}]
 
 let%expect_test "elf64: a repeated name is pooled once" =
-  let obj =
-    Elf64.object_file ~text:"\x90\x90"
-      ~globals:[ ("same", 0, 1); ("same", 1, 1) ]
-  in
+  let obj = Elf64.object_file "\x90\x90" [ ("same", 0, 1); ("same", 1, 1) ] in
   let names = data obj (find obj ".strtab") in
   Printf.printf "%S\n" names;
   dump_symbols obj;
@@ -172,7 +167,7 @@ let%expect_test "elf64: a repeated name is pooled once" =
 
 let%expect_test "elf64: the symbol table stays eight byte aligned" =
   let show n =
-    let obj = Elf64.object_file ~text:(String.make n '\x90') ~globals:[] in
+    let obj = Elf64.object_file (String.make n '\x90') [] in
     let symtab = find obj ".symtab" in
     Printf.printf "text %d symtab at %d aligned %b\n" n symtab.offset
       (symtab.offset mod 8 = 0)
@@ -188,7 +183,7 @@ let%expect_test "elf64: the symbol table stays eight byte aligned" =
     |}]
 
 let%expect_test "elf64: an empty text still makes a valid object" =
-  let obj = Elf64.object_file ~text:"" ~globals:[] in
+  let obj = Elf64.object_file "" [] in
   dump_sections obj;
   dump_symbols obj;
   [%expect
@@ -202,9 +197,7 @@ let%expect_test "elf64: an empty text still makes a valid object" =
     |}]
 
 let%expect_test "elf64: the section headers sit past every section body" =
-  let obj =
-    Elf64.object_file ~text:"\x90\x90\x90" ~globals:[ ("a", 0, 1); ("b", 1, 2) ]
-  in
+  let obj = Elf64.object_file "\x90\x90\x90" [ ("a", 0, 1); ("b", 1, 2) ] in
   let shoff = u64 obj 40 in
   let ends (_, s) = if s.kind = 0 then ehdr_size else s.offset + s.size in
   let last = List.fold_left (fun m s -> max m (ends s)) 0 (named obj) in
@@ -214,7 +207,7 @@ let%expect_test "elf64: the section headers sit past every section body" =
 
 let%expect_test "elf64: the section header table stays eight byte aligned" =
   let show n =
-    let obj = Elf64.object_file ~text:(String.make n '\x90') ~globals:[] in
+    let obj = Elf64.object_file (String.make n '\x90') [] in
     let shoff = u64 obj 40 in
     Printf.printf "text %d shoff %d aligned %b\n" n shoff (shoff mod 8 = 0)
   in

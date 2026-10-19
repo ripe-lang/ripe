@@ -18,13 +18,13 @@ type constant =
   | Str of string
 
 type place = {
-  base : place_base;
-  projections : projection list;
+  place_base : place_base;
+  place_projs : projection list;
   place_span : Ast.span;
 }
 
 and projection = Deref | Field of int | Index of operand
-and operand = { desc : operand_desc; ty : Types.ty; span : Ast.span }
+and operand = { op_desc : operand_desc; op_ty : Types.ty; op_span : Ast.span }
 and operand_desc = Copy of place | Const of constant
 
 type unop = Neg | Not | BitNot
@@ -47,12 +47,12 @@ type binop =
   | Lshift
   | Rshift
 
-type value = { desc : value_desc; ty : Types.ty }
+type value = { val_desc : value_desc; val_ty : Types.ty }
 
 and value_desc =
   | Use of operand
-  | Unary of unop * operand
-  | Binary of binop * operand * operand
+  | UnOp of unop * operand
+  | BinOp of binop * operand * operand
   | Cast of operand
   | AddressOf of place
   | Len of place
@@ -63,12 +63,12 @@ type call_kind = Internal | External
 type callee = Direct of string | Indirect of operand
 
 type call = {
-  destination : place option;
-  callee : callee;
-  kind : call_kind;
-  args : operand list;
-  return_ty : Types.ty;
-  variadic_start : int option;
+  call_dest : place option;
+  call_callee : callee;
+  call_kind : call_kind;
+  call_args : operand list;
+  call_ret : Types.ty;
+  call_variadic_start : int option;
 }
 
 type check =
@@ -78,14 +78,14 @@ type check =
   | DivZero of operand
   | NegativeShift of operand
 
-type statement = { desc : statement_desc; span : Ast.span }
+type stmt = { stmt_desc : stmt_desc; stmt_span : Ast.span }
 
-and statement_desc =
+and stmt_desc =
   | Assign of place * value
   | Call of call
   | Slice of place * place * operand * operand
 
-type terminator = { desc : terminator_desc; span : Ast.span }
+type terminator = { term_desc : terminator_desc; term_span : Ast.span }
 
 and terminator_desc =
   | Jump of block_id
@@ -95,29 +95,33 @@ and terminator_desc =
   | Unreachable
 
 type local = {
-  name : string option;
-  ty : Types.ty;
-  storage : storage_kind;
-  span : Ast.span;
+  local_name : string option;
+  local_ty : Types.ty;
+  local_storage : storage_kind;
+  local_span : Ast.span;
 }
 
-type block = { statements : statement list; terminator : terminator option }
+type block = { block_stmts : stmt list; block_term : terminator option }
 
 type func = {
-  name : string;
-  source_name : string;
-  export : bool;
-  abi : Types.func_abi;
-  params : local_id list;
-  result : local_id option;
-  locals : local array;
-  blocks : block array;
-  return_ty : Types.ty;
-  entry_point : bool;
-  span : Ast.span;
+  func_name : string;
+  func_source_name : string;
+  func_export : bool;
+  func_abi : Types.func_abi;
+  func_params : local_id list;
+  func_result : local_id option;
+  func_locals : local array;
+  func_blocks : block array;
+  func_ret : Types.ty;
+  func_entry_point : bool;
+  func_span : Ast.span;
 }
 
-type struct_decl = { name : Keyname.t; fields : Types.ty list; local : bool }
+type struct_decl = {
+  struct_name : Keyname.t;
+  struct_fields : Types.ty list;
+  struct_local : bool;
+}
 
 type global_value =
   | GlobalConst of constant * Types.ty
@@ -125,12 +129,16 @@ type global_value =
   | GlobalArray of global_value list
   | GlobalStruct of (int * global_value) list
 
-type global = { name : string; ty : Types.ty; init : global_value option }
+type global = {
+  global_name : string;
+  global_ty : Types.ty;
+  global_init : global_value option;
+}
 
 type program = {
-  structs : struct_decl list;
-  globals : global list;
-  functions : func list;
+  prog_structs : struct_decl list;
+  prog_globals : global list;
+  prog_funcs : func list;
 }
 
 val build : Tast.tdecl list -> program

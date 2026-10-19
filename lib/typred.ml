@@ -3,7 +3,7 @@
 open Ast
 open Types
 
-(* Types need exact equality but NULL works with any pointer *)
+(* A type needs exact equality but NULL works with any pointer *)
 (* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 let rec compatible want got =
   match (resolve_ty want, resolve_ty got) with
@@ -11,7 +11,7 @@ let rec compatible want got =
   | _, TNever -> true
   | (TPointer _ | TPtr), TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
+  | TPointer a, TPointer b -> compatible_under_ptr a b
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc (p1, r1, abi1), TFunc (p2, r2, abi2) ->
@@ -23,22 +23,22 @@ let rec compatible want got =
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
   | _, _ -> ty_equal want got
 
-and compatible_under_pointer want got =
+and compatible_under_ptr want got =
   match (resolve_ty want, resolve_ty got) with
   | TPointer _, TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_pointer a b
+  | TPointer a, TPointer b -> compatible_under_ptr a b
   | _, _ -> ty_equal want got
 
 let is_lvalue te =
-  match te.Tast.desc with
+  match te.Tast.tdesc with
   | Tast.TIdent _ | Tast.TFieldAccess _ | Tast.TIndex _ -> true
   | Tast.TUnOp (Deref, _) -> true
   | _ -> false
 
 (* A deref stops the walk since the pointee isn't owned by this binding *)
 let rec root_lvalue te =
-  match te.Tast.desc with
+  match te.Tast.tdesc with
   | Tast.TIdent _ -> Some te
   | Tast.TFieldAccess (base, _) -> root_through base
   | Tast.TIndex (base, _) -> root_through base
@@ -52,7 +52,7 @@ and root_through base =
 
 let root_binding te =
   match root_lvalue te with
-  | Some { Tast.desc = Tast.TIdent s; _ } -> Some s
+  | Some { Tast.tdesc = Tast.TIdent s; _ } -> Some s
   | Some _ | None -> None
 
 let is_numeric t =
@@ -95,10 +95,10 @@ let unop_accepts = function
   | BitNot -> is_integer
   | Not | Deref | AddressOf -> fun _ -> true
 
-let rec is_num_literal e =
-  match e.desc with
+let rec is_num_lit e =
+  match e.edesc with
   | Int _ | Float _ -> true
-  | UnOp (Neg, operand) -> is_num_literal operand
+  | UnOp (Neg, operand) -> is_num_lit operand
   | _ -> false
 
 let widens_to src tgt =

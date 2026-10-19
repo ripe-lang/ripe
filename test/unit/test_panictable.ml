@@ -6,9 +6,7 @@ let src = "one\ntwo\nthree\nfour\n"
 let line_starts = [| 0; 4; 8; 14 |]
 let offset line col = line_starts.(line - 1) + col - 1
 let at line col = Span.make (offset line col) (offset line col + 1)
-
-let create () =
-  Panictable.create ~filename:"main.rp" ~source_map:(Sourcemap.create src)
+let create () = Panictable.create "main.rp" (Sourcemap.create src)
 
 let fires t func span =
   Panictable.enter_func t func;
@@ -18,9 +16,9 @@ let dump t =
   let strings = Panictable.strings t in
   List.iteri (fun i s -> Printf.printf "string %d %S\n" i s) strings;
   List.iteri
-    (fun i (s : Panictable.site) ->
-      Printf.printf "site %d file %d line %d col %d func %d\n" i s.file s.line
-        s.col s.func)
+    (fun i s ->
+      Printf.printf "site %d file %d line %d col %d func %d\n" i
+        s.Panictable.file s.line s.col s.func)
     (Panictable.sites t)
 
 let%expect_test "panictable: one site per place a check fires" =

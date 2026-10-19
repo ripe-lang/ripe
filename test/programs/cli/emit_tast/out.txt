@@ -1,6 +1,7 @@
 (TFuncDecl
-   { key = 0; name = "_R3add"; source_name = "add"; entry_point = false;
-     params =
+   { tfunc_key = 0; tfunc_name = "_R3add"; tfunc_source_name = "add";
+     tfunc_entry_point = false;
+     tfunc_params =
      [({ id = 2; name = "a"; link_name = "a"; kind = Param;
          entry_point = false; span = (10,16); name_span = (10,16) },
        (TInt I32));
@@ -8,52 +9,52 @@
           entry_point = false; span = (18,24); name_span = (18,24) },
         (TInt I32))
        ];
-     ret_ty = (TInt I32);
-     body =
-     [{ desc =
+     tfunc_ret = (TInt I32);
+     tfunc_body =
+     [{ tdesc =
         (TReturn
-           (Some { desc =
+           (Some { tdesc =
                    (TBinOp (Add,
-                      { desc =
+                      { tdesc =
                         (TIdent
                            { id = 2; name = "a"; link_name = "a";
                              kind = Param; entry_point = false;
                              span = (10,16); name_span = (10,16) });
-                        ty = (TInt I32); span = (44,45) },
-                      { desc =
+                        ty = (TInt I32); tspan = (44,45) },
+                      { tdesc =
                         (TIdent
                            { id = 3; name = "b"; link_name = "b";
                              kind = Param; entry_point = false;
                              span = (18,24); name_span = (18,24) });
-                        ty = (TInt I32); span = (48,49) }
+                        ty = (TInt I32); tspan = (48,49) }
                       ));
-                   ty = (TInt I32); span = (44,49) }));
-        ty = TNever; span = (37,49) }
+                   ty = (TInt I32); tspan = (44,49) }));
+        ty = TNever; tspan = (37,49) }
        ];
-     export = false; variadic = false; abi = Ripe })
+     tfunc_export = false; tfunc_variadic = false; tfunc_abi = Ripe })
 (TFuncDecl
-   { key = 1; name = "_R4main"; source_name = "main"; entry_point = true;
-     params = []; ret_ty = (TInt I32);
-     body =
-     [{ desc =
+   { tfunc_key = 1; tfunc_name = "_R4main"; tfunc_source_name = "main";
+     tfunc_entry_point = true; tfunc_params = []; tfunc_ret = (TInt I32);
+     tfunc_body =
+     [{ tdesc =
         (TReturn
-           (Some { desc =
+           (Some { tdesc =
                    (TCall (
-                      { desc =
+                      { tdesc =
                         (TIdent
                            { id = 0; name = "add"; link_name = "_R3add";
                              kind = Func; entry_point = false; span = (0,52);
                              name_span = (0,3) });
                         ty =
                         (TFunc ([(TInt I32); (TInt I32)], (TInt I32), Ripe));
-                        span = (-1,-1) },
-                      [{ desc = (TIntLit 1L); ty = (TInt I32); span = (90,91)
-                         };
-                        { desc = (TIntLit 2L); ty = (TInt I32);
-                          span = (93,94) }
+                        tspan = (-1,-1) },
+                      [{ tdesc = (TIntLit 1L); ty = (TInt I32);
+                         tspan = (90,91) };
+                        { tdesc = (TIntLit 2L); ty = (TInt I32);
+                          tspan = (93,94) }
                         ],
                       None));
-                   ty = (TInt I32); span = (86,95) }));
-        ty = TNever; span = (79,95) }
+                   ty = (TInt I32); tspan = (86,95) }));
+        ty = TNever; tspan = (79,95) }
        ];
-     export = false; variadic = false; abi = Ripe })
+     tfunc_export = false; tfunc_variadic = false; tfunc_abi = Ripe })

@@ -4,21 +4,20 @@
 
 type site = { file : int; line : int; col : int; func : int }
 
+(* The lists stay reversed until they're emitted and two checks on one expression share an id *)
 type t = {
   filename : string;
   source_map : Sourcemap.t;
   mutable cur_func : string;
-  (* Both lists stay reversed until they're emitted *)
   mutable strings : string list;
   mutable strings_len : int;
   offsets : (string, int) Hashtbl.t;
   mutable sites : site list;
   mutable count : int;
-  (* Two checks on one expression report the same thing so they share an entry *)
   ids : (site, int) Hashtbl.t;
 }
 
-let create ~filename ~source_map =
+let create filename source_map =
   {
     filename;
     source_map;
@@ -49,7 +48,7 @@ let record t span =
   if Span.lo span < 0 then Diagnostic.ice "runtime check has no source location";
   if String.is_empty t.cur_func then
     Diagnostic.ice "runtime check outside a function";
-  let line, col = Sourcemap.lookup t.source_map (Span.lo span) in
+  let line, col = Sourcemap.find t.source_map (Span.lo span) in
   let site =
     { file = intern t t.filename; line; col; func = intern t t.cur_func }
   in
@@ -62,6 +61,6 @@ let record t span =
       Hashtbl.replace t.ids site id;
       id
 
-(* Each backend spells a table its own way so the shape of one stays out of here *)
+(* A backend spells a table its own way so the shape of one stays out of here *)
 let strings t = List.rev t.strings
 let sites t = List.rev t.sites
