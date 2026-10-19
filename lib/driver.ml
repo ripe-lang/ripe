@@ -8,7 +8,6 @@ type stage =
   | Check
   | Mir
   | Qbe
-  | Llvm
   | Asm
   | Obj
   | Bin
@@ -21,23 +20,18 @@ let stage_name : stage -> string = function
   | Check -> "check"
   | Mir -> "mir"
   | Qbe -> "qbe"
-  | Llvm -> "llvm"
   | Asm -> "asm"
   | Obj -> "obj"
   | Bin -> "bin"
 
 module Backend = struct
-  type t = Qbe | X86 | Llvm
+  type t = Qbe | X86
 
-  let name : t -> string = function
-    | Qbe -> "qbe"
-    | X86 -> "x86"
-    | Llvm -> "llvm"
+  let name : t -> string = function Qbe -> "qbe" | X86 -> "x86"
 
   let has_stage backend (stage : stage) =
     match stage with
-    | Qbe | Asm -> ( match backend with Qbe -> true | X86 | Llvm -> false)
-    | Llvm -> ( match backend with Qbe | Llvm -> true | X86 -> false)
+    | Qbe | Asm -> ( match backend with Qbe -> true | X86 -> false)
     | Tokens | Ast | Resolve | Tast | Check | Mir | Obj | Bin -> true
 end
 
@@ -208,8 +202,6 @@ let compile stage backend ~out libraries filename =
     let mir = if stage = Bin then Mir.with_entry mir else mir in
     Mir.verify mir;
     stop_at Mir (fun () -> Output.text output (Mir.dump mir));
-    stop_at Llvm (fun () ->
-        Output.text output (Llvm.string_of_llmodule (Codegenllvm.emit mir)));
 
     let link_bytes object_bytes =
       stop_at Obj (fun () -> Output.bytes output object_bytes);
@@ -221,8 +213,6 @@ let compile stage backend ~out libraries filename =
     in
     match backend with
     | Backend.X86 -> link_bytes (Codegenx86.emit mir)
-    | Backend.Llvm ->
-        link_bytes (Codegenllvm.object_file (Codegenllvm.emit mir))
     | Backend.Qbe ->
         let il =
           Codegenqbe.emit program.Program.filename program.Program.source_map
