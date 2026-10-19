@@ -73,44 +73,25 @@ let run_qbe qbe il =
   Sys.remove tmp_qbe;
   tmp_asm
 
-let run_linker target ~output ~object_file ~libraries =
+let assemble qbe toolchain il =
+  let tmp_asm = run_qbe qbe il in
+  let tmp_obj = Filename.temp_file "ripe" ".o" in
+  run (shell_command (toolchain.Config.assembler @ [ "-o"; tmp_obj; tmp_asm ]));
+  Sys.remove tmp_asm;
+  tmp_obj
+
+let link toolchain ~output object_file libraries =
   let args =
-    Target.linker_args target ~output ~object_file
-      ~runtime:(Config.runtime_object ()) ~libraries
+    [ "-o"; output; object_file; Config.runtime_object () ]
+    @ List.map (fun library -> "-l" ^ library) libraries
   in
-  run (shell_command args)
+  run (shell_command (toolchain.Config.linker @ args));
+  Sys.remove object_file
 
-let link_object target base object_bytes libraries =
-  let tmp_obj = Filename.temp_file "ripe" ".o" in
-  Out_channel.with_open_bin tmp_obj (fun oc -> output_string oc object_bytes);
-  run_linker target ~output:base ~object_file:tmp_obj ~libraries;
-  Sys.remove tmp_obj
-
-let compile_binary ~qbe target base il libraries =
-  let tmp_asm = run_qbe qbe il in
-  let tmp_obj = Filename.temp_file "ripe" ".o" in
-  let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
-  run (shell_command args);
-  run_linker target ~output:base ~object_file:tmp_obj ~libraries;
-  Sys.remove tmp_asm;
-  Sys.remove tmp_obj
-
-let emit_asm qbe il =
-  let tmp_asm = run_qbe qbe il in
-  let asm = read_file tmp_asm in
-  Sys.remove tmp_asm;
-  asm
-
-(* The same object the linker would have consumed, handed back instead *)
-let emit_obj ~qbe target il =
-  let tmp_asm = run_qbe qbe il in
-  let tmp_obj = Filename.temp_file "ripe" ".o" in
-  let args = Target.assembler_args target ~output:tmp_obj ~input:tmp_asm in
-  run (shell_command args);
-  let obj = read_file tmp_obj in
-  Sys.remove tmp_asm;
-  Sys.remove tmp_obj;
-  obj
+let read_and_remove path =
+  let contents = read_file path in
+  Sys.remove path;
+  contents
 
 let dump_tokens read lexbuf =
   let buf = Buffer.create 256 in
@@ -247,15 +228,18 @@ let compile ~stage ~backend ~out ~libraries ~filename =
     stop_at Llvm (fun () ->
         Output.text output (Llvm.string_of_llmodule (Codegenllvm.emit mir)));
 
-    let link object_bytes =
+    let link_bytes object_bytes =
       stop_at Obj (fun () -> Output.bytes output object_bytes);
-      link_object (Target.host ())
-        (Output.base output filename)
-        object_bytes libraries
+      let toolchain = Config.toolchain () in
+      let tmp_obj = Filename.temp_file "ripe" ".o" in
+      Out_channel.with_open_bin tmp_obj (fun oc ->
+          output_string oc object_bytes);
+      link toolchain ~output:(Output.base output filename) tmp_obj libraries
     in
     match backend with
-    | Backend.X86 -> link (Codegenx86.emit mir)
-    | Backend.Llvm -> link (Codegenllvm.object_file (Codegenllvm.emit mir))
+    | Backend.X86 -> link_bytes (Codegenx86.emit mir)
+    | Backend.Llvm ->
+        link_bytes (Codegenllvm.object_file (Codegenllvm.emit mir))
     | Backend.Qbe ->
         let il =
           Codegenqbe.emit ~filename:program.Program.filename
@@ -264,16 +248,19 @@ let compile ~stage ~backend ~out ~libraries ~filename =
 
         stop_at Qbe (fun () -> Output.text output il);
         let qbe = Config.qbe () in
-        stop_at Asm (fun () -> Output.text output (emit_asm qbe il));
+        stop_at Asm (fun () ->
+            Output.text output (read_and_remove (run_qbe qbe il)));
+        let toolchain = Config.toolchain () in
         stop_at Obj (fun () ->
-            Output.bytes output (emit_obj ~qbe (Target.host ()) il));
+            Output.bytes output (read_and_remove (assemble qbe toolchain il)));
 
-        compile_binary ~qbe (Target.host ())
-          (Output.base output filename)
-          il libraries
+        link toolchain
+          ~output:(Output.base output filename)
+          (assemble qbe toolchain il)
+          libraries
   with
   | Exit -> ()
-  | Codegenx86.Unsupported msg -> die msg
+  | Codegenx86.Unsupported msg | Failure msg -> die msg
   | Diagnostic.Errors ds ->
       render_program program ds;
       exit 1
