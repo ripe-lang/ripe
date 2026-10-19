@@ -116,6 +116,7 @@ let mint st kind name span link_name name_span =
 let enter_scope st = { st with scope = new_scope (Some st.scope) }
 
 (* The innermost scope holds params and top level body binders *)
+(* A param or arm name can't repeat and a :: keeps its name for the whole block *)
 let declare_local st kind name span =
   match Names.find_opt st.scope.names name with
   | Some prev

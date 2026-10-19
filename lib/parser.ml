@@ -258,11 +258,9 @@ and parse_binding st ctx =
   let name = binding_name st ctx in
   expect st COLON;
   let typ =
-    if peek_token st == ASSIGN then begin
-      expect st COLON;
-      None
-    end
-    else Some (typ_after st COLON)
+    match cur_token st with
+    | COLON | ASSIGN -> { edesc = Hole; espan = name.span }
+    | _ -> parse_typ st
   in
   let init = if at st ASSIGN then Some (binding_initializer st) else None in
   (name, typ, init)
@@ -324,7 +322,10 @@ and parse_variants st =
 and parse_param st =
   let lo = cur_pos st in
   let name = expect_ident_span st in
-  let typ = typ_after st COLON in
+  let typ =
+    if at st COLON then typ_after st COLON
+    else { edesc = Hole; espan = name.span }
+  in
   { param_name = name; param_typ = typ; param_span = span_from lo st }
 
 (* (a: i32, b: i32) *)

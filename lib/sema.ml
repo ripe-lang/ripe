@@ -6,13 +6,7 @@ open Typred
 open Tast
 open Option.Syntax
 
-type func_sig = {
-  param_tys : ty list;
-  ret_ty : ty;
-  variadic : bool;
-  abi : func_abi;
-  param_hole : bool;
-}
+type func_sig = { func : func_ty; param_hole : bool }
 
 type variant_info = {
   tag : int64;
@@ -964,8 +958,8 @@ and check_if_discarded env span branches else_body =
   let ty = if_result_ty tbranches telse TUnit in
   mk span ty (TIf (tbranches, telse))
 
-(* A missing expected type asks the whole if to synthesize *)
-and check_if env span (branches : (expr * block spanned) list) else_body want =
+(* A probe only wants the type so we don't build the tree twice *)
+and check_if env span branches else_body want =
   match (want, else_body) with
   | None, None -> check_if_discarded env span branches None
   | None, Some { value = else_b; _ } ->
@@ -1091,7 +1085,8 @@ and report_coverage ts = function
         |> Diagnostic.label "on %s" (show_ty ts.ty)
         |> Diagnostic.help "add `_ => { }`")
 
-and check_match_arms env ts arms want =
+(* An arm lost to an earlier error looks like a hole so we skip coverage *)
+and check_match_arms env span ts arms want =
   let arm_use = match want with Some w -> Expect w | None -> Discard in
   let seen = Hashtbl.create 8 in
   let caught_all = ref false in
@@ -1120,7 +1115,6 @@ and check_match_arms env ts arms want =
     Option.map (fun tpat -> { tpat; tbody }) tpat
   in
   let tarms = List.filter_map check_arm arms in
-  (* An arm lost to an earlier error looks like a hole it never left *)
   let arms_all_arrived =
     List.compare_lengths tarms arms = 0 && not env.ctx.initial_errors
   in
@@ -1219,8 +1213,13 @@ and check env e want =
       mk e.espan ty (TBlock tb)
   | If (branches, else_body) ->
       check_if env e.espan branches else_body (Some want)
-  | Match (scrutinee, arms) -> check_match env scrutinee arms (Expect want)
-  | Loop (label, body) -> check_loop_expr env e.espan label body (Some want)
+  | Match (scrutinee, arms) ->
+      check_match env e.espan scrutinee arms (Expect want)
+  | Loop (label, PlainLoop, body) ->
+      check_loop_expr env e.espan label PlainLoop body (Some want)
+  | Lambda l -> check_lambda env e l (Some want)
+  | Cast (t, inner) when has_hole t ->
+      synth_conversion e.espan (synth env inner) (fill_ty env t want)
   | _ -> check_by_synth env e want
 
 and coerce_expr e want te =
@@ -1470,11 +1469,13 @@ and synth_index env span base idx =
   let tbase = synth env base in
   match resolve_ty tbase.ty with
   | TArray (elem, _) | TSlice elem -> (
-      (* A missing bound spans the rest of the value *)
-      let zero = mk (TInt Usize) (TIntLit 0L) in
-      let whole_length = mk (TInt Usize) (TLen tbase) in
-      let one_past (te : texpr) =
-        mk te.ty (TBinOp (Add, te, mk te.ty (TIntLit 1L)))
+      let zero = mk idx.espan (TInt Usize) (TIntLit 0L) in
+      let whole_len = mk idx.espan (TInt Usize) (TLen tbase) in
+      let one_past te =
+        mk te.tspan te.ty (TBinOp (Add, te, mk te.tspan te.ty (TIntLit 1L)))
+      in
+      let slice tlo thi =
+        mk span (TSlice elem) (TSliceExpr (tbase, tlo, thi))
       in
       let bound e = check env e (TInt Usize) in
       match idx.edesc with
@@ -1484,10 +1485,10 @@ and synth_index env span base idx =
       | RangeInclusive (lo, hi) ->
           let tlo, thi, _ = check_range_bounds env lo hi in
           slice tlo (one_past thi)
-      | RangeFrom lo -> slice (bound lo) whole_length
+      | RangeFrom lo -> slice (bound lo) whole_len
       | RangeTo hi -> slice zero (bound hi)
       | RangeToInclusive hi -> slice zero (one_past (bound hi))
-      | RangeFull -> slice zero whole_length
+      | RangeFull -> slice zero whole_len
       | _ ->
           let tidx = synth env idx in
           if not (is_integer tidx.ty || is_never tidx.ty) then
@@ -1742,14 +1743,15 @@ let resolve_type_bodies ctx =
     | TypeAlias td -> resolve_alias (key_at ctx td.alias_span)
     | Func _ | Extern _ | Global _ | Struct _ | Enum _ -> ()
   in
-  List.iter resolve ctx.declarations
-
-let collect_global env (gd : global_def) =
-  let key = key_at env.ctx gd.span in
-  let t =
-    match Symbol.Table.find_opt env.ctx.global_facts key with
-    | Some fact -> pending_global_ty env gd.span key fact
-    | None -> global_ty env gd
+  let param_ty i p =
+    match (p.param_typ.edesc, given, declared) with
+    | Hole, Some f, _ ->
+        Option.value (List.nth_opt f.sig_params i) ~default:TError
+    | Hole, None, Some TError -> TError
+    | Hole, None, _ ->
+        Diagnostic.emit (Diagnostic.error p.param_name.span "cannot infer type");
+        TError
+    | _ -> ty_of_ast env p.param_typ
   in
   Symbol.Table.replace env.ctx.globals key t
 
@@ -1782,7 +1784,13 @@ let fill_struct_layouts ctx =
         fill_struct_fields env sd
     | Func _ | Extern _ | Global _ | TypeAlias _ | Enum _ -> ()
   in
-  List.iter fill ctx.declarations
+  let fsig = ref (Completed { func; param_hole = false }) in
+  Symbol.Table.replace env.ctx.items key
+    (FuncItem { def = fd; annot = None; fsig });
+  if not (is_probing env) then begin
+    Symbol.Table.replace env.ctx.lambdas key (check_func (make_env env.ctx) fd)
+  end;
+  mk e.espan (TFunc func) (TIdent (sym env e.espan))
 
 let check_func ?(is_extern = false) env fd =
   let key = key_at env.ctx fd.func_span in
