@@ -268,15 +268,29 @@ and resolve_expr st e =
       let st = enter_scope st in
       declare_local st Symbol.ForVar name nspan;
       resolve_block_contents st body
-  | Binding ({ value = name; span = nspan }, ann, e) ->
-      Option.iter (resolve_typ st) ann;
-      Option.iter (resolve_expr st) e;
-      declare_local st Symbol.Local name nspan
-  | Return e -> Option.iter (resolve_expr st) e
-  | Break (_, value) -> Option.iter (resolve_expr st) value
-  | Continue _ -> ()
-  | Int _ | Float _ | Bool _ | Null | Char _ | String _ -> ()
-  | Unit -> ()
+  | Binding ({ binder = RunTime; _ } as b) ->
+      resolve_binding st b;
+      declare_local st Symbol.Local b.bind_name.value b.bind_name.span
+  | Binding ({ binder = CompileTime; _ } as b) -> resolve_binding st b
+  | Return e | Break (_, e) -> Option.iter (resolve_expr st) e
+  | Lambda l ->
+      let name = Interner.intern "fn" in
+      let link_name = Printf.sprintf "_Rlambda%d" !(st.next_id) in
+      ignore (mint st Symbol.LocalFunc name e.espan link_name e.espan);
+      resolve_lambda st l
+  | PointerType t | SliceType t -> resolve_typ st t
+  | ArrayType (n, t) ->
+      resolve_expr st n;
+      resolve_typ st t
+  | FuncType (_, ps, ret) ->
+      List.iter (resolve_typ st) ps;
+      resolve_typ st ret
+  | StructType fields -> List.iter (fun f -> resolve_typ st f.field_typ) fields
+  | EnumType variants ->
+      List.iter (fun v -> List.iter (resolve_typ st) v.variant_payload) variants
+  | Int _ | Float _ | Bool _ | Null | Char _ | String _ | Unit | Hole | Extern _
+  | RangeFull | DotVariant _ | Continue _ ->
+      ()
 
 (* A binding belongs to the arm it was written in so the scope opens first *)
 and resolve_arm st a =

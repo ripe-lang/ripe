@@ -887,14 +887,12 @@ and synth env e =
       | ty -> mk e.espan (TInt Usize) (TSizeOf ty))
   | Range _ | RangeInclusive _ | RangeFrom _ | RangeTo _ | RangeToInclusive _
   | RangeFull ->
-      Diagnostic.emit
-        (Diagnostic.error e.espan "range is only valid in a for loop or slice");
-      dummy_texpr
-  | ArrayLit [] ->
-      Diagnostic.emit
-        (Diagnostic.error e.espan "cannot infer type of empty array literal");
-      dummy_texpr
-  | ArrayLit (first :: rest) -> synth_array_lit env first rest
+      fail e.espan
+        (Diagnostic.error e.espan "misplaced range"
+        |> Diagnostic.label "only in a `for` or slice")
+  | ArrayLit [] | StructLit (None, _) | DotVariant _ ->
+      fail e.espan (Diagnostic.error e.espan "missing type")
+  | ArrayLit (first :: rest) -> synth_array_lit env e.espan first rest
   | Index (base, idx) -> synth_index env e.espan base idx
   | StructLit (Some { value = name; span = name_span }, inits) ->
       synth_struct_lit env e.espan name name_span inits
@@ -934,12 +932,11 @@ and synth_path_type env span p =
   match type_item env.ctx (key_at env.ctx inner.espan) with
   | Some item -> (
       let sym = Resolve.sym_at env.ctx.symbols inner.espan in
-      Diagnostic.emit
-        (Diagnostic.error inner.espan "expected a value"
-        |> Diagnostic.label "this names %s"
-             (Symbol.describe_kind sym.Symbol.kind));
-      dummy_texpr
-  | None -> synth_field env span inner name name_span
+      let ty = named_ty env inner.espan sym.Symbol.name item in
+      match dot_target env name_span ty (Some name) with
+      | Some (keyname, info) -> build_variant span keyname info name name_span
+      | None -> error_expr span)
+  | None -> synth_field env span (synth env inner) name name_span
 
 and synth_path env span p =
   match Resolve.sym_at_opt env.ctx.symbols span with
@@ -954,19 +951,11 @@ and synth_path env span p =
       | None -> synth_path_type env span p)
 
 and synth_struct_lit env span name name_span inits =
-  match Symbol.Table.find_opt env.ctx.type_defs (key_at env.ctx name_span) with
-  | Some (Struct_type { contents = Completed info }) ->
-      let fields =
-        match inits with
-        | ({ value = None; _ }, _) :: _ -> positional_fields env span info inits
-        | _ -> named_fields env span info inits
-      in
-      let keyname = keyname_at env.ctx name_span (Interner.text name) in
-      mk (TStruct (keyname, [])) (TStructLit (keyname, fields))
-  | Some (Struct_type { contents = Unstarted | Running }) ->
-      Diagnostic.emit (Diagnostic.error name_span "undefined struct");
-      dummy_texpr
-  | Some (Enum_type _ | Builtin_type _ | Alias_type _) | None ->
+  match type_item env.ctx (key_at env.ctx name_span) with
+  | Some item ->
+      let ty = named_ty env name_span (Interner.text name) item in
+      dot_struct_lit env span name_span ty inits
+  | None ->
       let d =
         match Resolve.sym_at_opt env.ctx.symbols name_span with
         | Some sym ->
@@ -975,8 +964,22 @@ and synth_struct_lit env span name name_span inits =
                  (Symbol.describe_kind sym.Symbol.kind)
         | None -> Diagnostic.error name_span "undefined struct"
       in
-      Diagnostic.emit d;
-      dummy_texpr
+      fail span d
+
+and dot_struct_lit env span target_span ty inits =
+  match dot_target env target_span ty None with
+  | Some (keyname, info) -> (
+      match struct_variant info with
+      | Some variant ->
+          let fields =
+            match inits with
+            | ({ value = None; _ }, _) :: _ ->
+                positional_fields env span variant inits
+            | _ -> named_fields env span variant inits
+          in
+          mk span (TAdt (keyname, [])) (TBuild (keyname, variant.tag, fields))
+      | None -> error_expr span)
+  | None -> error_expr span
 
 (* A quiet probe lets a sibling anchor the block type *)
 and block_result_ty env body =
@@ -1394,7 +1397,54 @@ and check_pattern env sty pat =
       | TCharLit c -> (env, Some (TPatConst (Int64.of_int c)))
       | TErrorExpr -> (env, None)
       | TFloatLit _ | TStrLit _ | TCStrLit _ -> not_comparable ()
-      | _ -> not_a_literal ())
+      | _ -> not_a_lit ())
+  | PatVariant (callee, subs) -> (
+      let variant =
+        match (callee.edesc, enum_of env sty) with
+        | DotVariant { value; span }, Some (keyname, info) ->
+            build_variant callee.espan keyname info value span
+        | DotVariant _, None when has_error sty -> error_expr callee.espan
+        | _ -> synth env callee
+      in
+      let check_subs env tys =
+        let check_sub (env, i) sub =
+          let ty = Option.value ~default:TError (List.nth_opt tys i) in
+          let env, tsub = check_pattern env ty sub in
+          ((env, i + 1), tsub)
+        in
+        let (env, _), tsubs = List.fold_left_map check_sub (env, 0) subs in
+        (env, tsubs)
+      in
+      let fields tag tys =
+        let expected = List.length tys in
+        if List.compare_length_with subs expected <> 0 then
+          Diagnostic.emit
+            (Diagnostic.error pat.pspan "wrong number of fields"
+            |> Diagnostic.label "expected %d, found %d" expected
+                 (List.length subs));
+        let env, tsubs = check_subs env tys in
+        if
+          List.compare_length_with subs expected = 0
+          && List.for_all Option.is_some tsubs
+        then (env, Some (TPatVariant (tag, List.filter_map Fun.id tsubs)))
+        else (env, None)
+      in
+      match (variant.tdesc, resolve_ty variant.ty) with
+      | TErrorExpr, _ -> (fst (check_subs env []), None)
+      | TVariant (_, tag), TFunc f when ty_equal f.sig_ret sty ->
+          fields tag f.sig_params
+      | TBuild (_, tag, []), _ when ty_equal variant.ty sty -> fields tag []
+      | TVariant _, TFunc { sig_ret = t; _ } | (TVariant _ | TBuild _), t ->
+          Diagnostic.emit
+            (Diagnostic.error callee.espan "type mismatch"
+            |> Diagnostic.label "expected %s, found %s" (show_ty sty)
+                 (show_ty t));
+          (fst (check_subs env []), None)
+      | _ ->
+          Diagnostic.emit
+            (Diagnostic.error callee.espan "not a variant"
+            |> Diagnostic.found (show_ty variant.ty));
+          (fst (check_subs env []), None))
 
 (* An arm body can name its binder so the probe needs it in scope *)
 and check_match env span scrutinee arms use =
@@ -1523,7 +1573,40 @@ and check_by_synth env e want =
   let typed = synth env e in
   coerce_expr e want typed
 
-and check_size_literal env (e : expr) want target typ =
+(* A dot form builds the wanted type so a mismatch names that type *)
+and dot_target env span want variant =
+  let info =
+    match resolve_ty want with
+    | TAdt (keyname, _) ->
+        Option.map
+          (fun info -> (keyname, info))
+          (adt_info env.ctx (Keyname.key keyname))
+    | _ -> None
+  in
+  let refuse d =
+    Diagnostic.emit d;
+    None
+  in
+  match (resolve_ty want, variant, info) with
+  | TError, _, _ | TAdt _, _, None -> None
+  | _, None, Some (_, { kind = Struct; _ })
+  | _, Some _, Some (_, { kind = Enum; _ }) ->
+      info
+  | _, None, (Some (_, { kind = Enum; _ }) | None) ->
+      refuse
+        (Diagnostic.error span "expected a struct"
+        |> Diagnostic.found (show_ty want))
+  | _, Some _, Some (_, { kind = Struct; _ }) ->
+      refuse
+        (Diagnostic.error span "no variant"
+        |> Diagnostic.label "on struct %s" (show_ty want))
+  | _, Some _, None ->
+      refuse
+        (Diagnostic.error span "no variant"
+        |> Diagnostic.label "on %s" (show_ty want))
+
+(* An error type counts as an integer so it has no kind to ask for *)
+and check_size_lit env e want target typ =
   match ty_of_ast env typ with
   | TError -> error_expr e.espan
   | ty ->
@@ -1578,8 +1661,23 @@ and check env e want =
       check env { e with edesc = Float (-.f, suf) } want
   | UnOp (Neg, { edesc = Int (_, Some _); _ }) -> check_by_synth env e want
   | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
-      mk want (TUnOp (op, check env operand want))
-  | ArrayLit elements -> check_array_literal env e want elements
+      mk e.espan want (TUnOp (op, check env operand want))
+  | ArrayLit elems -> check_array_lit env e want elems
+  | StructLit (None, inits) -> dot_struct_lit env e.espan e.espan want inits
+  | DotVariant { value = name; span } -> (
+      match dot_target env span want (Some name) with
+      | Some (keyname, info) ->
+          coerce_expr e want (build_variant e.espan keyname info name span)
+      | None -> error_expr e.espan)
+  | Call (({ edesc = DotVariant { value = name; span }; _ } as callee), args)
+    -> (
+      match dot_target env span want (Some name) with
+      | Some (keyname, info) ->
+          let variant = build_variant callee.espan keyname info name span in
+          apply_callee env e.espan callee variant args
+      | None ->
+          walk_unpaired_args env args;
+          error_expr e.espan)
   | BinOp (op, l, r) -> (
       match op.value with
       | (Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor)
@@ -1631,8 +1729,12 @@ and coerce_expr e want te =
   end
 
 and check_comparison_operands env accepts l r =
-  let is_contextual_literal e =
-    is_num_lit e || match e.edesc with String _ -> true | _ -> false
+  let is_contextual_lit e =
+    is_num_lit e
+    ||
+    match e.edesc with
+    | String _ | StructLit (None, _) | DotVariant _ -> true
+    | _ -> false
   in
   coerce_common_pair env is_contextual_literal accepts l r
 

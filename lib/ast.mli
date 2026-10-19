@@ -54,7 +54,8 @@ type expr_desc =
   | SizeOf of typ
   | ArrayLit of expr list
   | Index of expr * expr
-  | StructLit of name spanned * (name option spanned * expr) list
+  | StructLit of name spanned option * (name option spanned * expr) list
+  | DotVariant of name spanned
   | Block of block
   | If of (expr * block spanned) list * block spanned option
   | For of loop_label option * name spanned * expr * block

@@ -375,7 +375,7 @@ and parse_infix st ctx min_prec =
   in
   infix (parse_prefix st ctx)
 
-(* Point.{ x: 1 } *)
+(* Point.{ x = 1 }, .{ 1, 2 } *)
 and parse_struct_lit st lo name =
   expect st LBRACE;
   let fields = parse_struct_lit_fields st in
@@ -407,7 +407,7 @@ and parse_prefix st ctx =
       in
       parse_postfix st lhs
 
-(* point, Color.Red, Point.{ x: 1 } *)
+(* point, Color.Red, Point.{ x = 1 } *)
 and parse_path st lhs head =
   let lo = Span.lo lhs.espan in
   if at st DOT && peek_token st == LBRACE then begin
@@ -475,7 +475,7 @@ and parse_paren st lo abi =
   | NoAbi, [ e ], _ -> e
   | _ -> Diagnostic.error (cur_span st) "expected `->`" |> found st |> fail
 
-(* 1, x, "str", foo(a, b) *)
+(* 1, x, "str", foo(a, b), [1, 2, 3], [3]i32, []i32, _, .Green, .{ 1, 2 } *)
 and parse_primary st ctx =
   let lo = cur_pos st in
   match cur_token st with
@@ -497,9 +497,26 @@ and parse_primary st ctx =
   | NULL ->
       advance st;
       mk lo st Null
-  | LPAREN -> parse_paren st
-  (* [1, 2, 3] array literal *)
-  | LBRACKET ->
+  | UNDERSCORE ->
+      advance st;
+      mk lo st Hole
+  | DOT -> (
+      advance st;
+      match cur_token st with
+      | LBRACE -> parse_struct_lit st lo None
+      | _ -> mk lo st (DotVariant (expect_ident_span st)))
+  | LPAREN -> parse_paren st lo NoAbi
+  | EXTERN -> (
+      advance st;
+      let name = parse_abi st in
+      match cur_token st with
+      | LPAREN -> parse_paren st lo (NamedAbi name)
+      | FUNC ->
+          let func_lo = cur_pos st in
+          advance st;
+          mk lo st (Lambda (parse_lambda st (NamedAbi name) func_lo))
+      | _ -> mk lo st (Extern name))
+  | LBRACKET -> (
       advance st;
       let elems = parse_comma_list st RBRACKET in
       expect st RBRACKET;
