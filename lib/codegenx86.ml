@@ -79,10 +79,6 @@ let rex encoder ~w ~r ~b =
   in
   if bits <> 0 then byte encoder (0x40 lor bits)
 
-(* ModRM packs the addressing mode and two register fields into one byte *)
-let modrm encoder ~md ~reg ~rm =
-  byte encoder ((md lsl 6) lor ((reg land 7) lsl 3) lor (rm land 7))
-
 let mod_register_direct = 3
 
 (* Encodings follow the SDM pages and mov register uses 89 so the source sits in ModRM reg *)
@@ -101,8 +97,10 @@ let instr encoder instruction =
   | Mov_reg (width, dst, src) ->
       rex encoder ~w:(width = W64) ~r:(is_extended src) ~b:(is_extended dst);
       byte encoder 0x89;
-      modrm encoder ~md:mod_register_direct ~reg:(reg_index src)
-        ~rm:(reg_index dst)
+      byte encoder
+        ((mod_register_direct lsl 6)
+        lor ((reg_index src land 7) lsl 3)
+        lor (reg_index dst land 7))
   | Call target ->
       byte encoder 0xe8;
       encoder.fixups <- { patch_at = offset encoder; target } :: encoder.fixups;
