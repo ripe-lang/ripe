@@ -595,14 +595,14 @@ and pending_global_ty env span fact =
     List.iter Diagnostic.emit ds;
     TError
 
-and lookup_var env span =
+and find_var env span =
   let key = Symbol.key (sym env span) in
   match List.find_map (List.assoc_opt key) env.scopes with
   | Some t -> t
-  | None -> lookup_non_local env span
+  | None -> find_non_local env span
 
 (* A name outside the scopes is a global or hasn't been collected yet *)
-and lookup_non_local env span =
+and find_non_local env span =
   let key = key_at env.ctx span in
   match Symbol.Table.find_opt env.ctx.items key with
   | Some (GlobalItem fact) -> pending_global_ty env span fact
@@ -847,10 +847,10 @@ and synth env e =
   match e.edesc with
   | Int (n, suf) ->
       let kind = match suf with Some s -> suffix_kind s | None -> I32 in
-      check_int_literal e (TInt kind) (TInt kind) n
+      check_int_lit e (TInt kind) (TInt kind) n
   | UnOp (Neg, { edesc = Int (n, Some s); _ }) ->
       let kind = suffix_kind s in
-      check_neg_int_literal env e (TInt kind) (TInt kind) n
+      check_neg_int_lit env e (TInt kind) (TInt kind) n
   | Float (f, suf) ->
       let kind = match suf with Some s -> float_suffix_kind s | None -> F64 in
       mk e.espan (TFloat kind) (TFloatLit f)
@@ -1654,9 +1654,9 @@ and check env e want =
   | Float (value, None) -> check_float_lit e want target value
   | String value when target = TStr -> mk e.espan want (TStrLit value)
   | String _ -> check_by_synth env e want
-  | SizeOf typ when is_integer want -> check_size_literal env e want target typ
+  | SizeOf typ when is_integer want -> check_size_lit env e want target typ
   | UnOp (Neg, { edesc = Int (value, None); _ }) ->
-      check_neg_int_literal env e want target value
+      check_neg_int_lit env e want target value
   | UnOp (Neg, { edesc = Float (f, suf); _ }) ->
       check env { e with edesc = Float (-.f, suf) } want
   | UnOp (Neg, { edesc = Int (_, Some _); _ }) -> check_by_synth env e want
@@ -1736,7 +1736,7 @@ and check_comparison_operands env accepts l r =
     | String _ | StructLit (None, _) | DotVariant _ -> true
     | _ -> false
   in
-  coerce_common_pair env is_contextual_literal accepts l r
+  coerce_common_pair env is_contextual_lit accepts l r
 
 and check_range_bounds env lo hi =
   let tlo, thi, t = coerce_common_pair env is_num_lit is_integer lo hi in
