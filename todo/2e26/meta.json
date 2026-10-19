@@ -5,9 +5,9 @@
   "depends": [],
   "id": "2e26",
   "priority": "low",
-  "source": "lib/types.ml",
+  "source": "lib/layout.ml",
   "status": "open",
   "tags": [],
-  "title": "every enum is an i32 until a backing type can be written down",
-  "updated_at": "2026-08-24 02:40:23.206720"
+  "title": "every enum tag is an i32 until a backing type can be written down",
+  "updated_at": "2026-10-19 17:28:26.081818"
 }
