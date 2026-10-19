@@ -8,7 +8,6 @@ type stage =
   | Check
   | Mir
   | Qbe
-  | Llvm
   | Asm
   | Obj
   | Bin
@@ -16,7 +15,7 @@ type stage =
 val stage_name : stage -> string
 
 module Backend : sig
-  type t = Qbe | X86 | Llvm
+  type t = Qbe | X86
 
   val name : t -> string
 end

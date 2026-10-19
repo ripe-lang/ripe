@@ -1,4 +1,4 @@
-Error: Failed to parse the argument to "-b": invalid value: "bogus" (valid values are: qbe, x86, llvm)
+Error: Failed to parse the argument to "-b": invalid value: "bogus" (valid values are: qbe, x86)
 
 Usage: ripec [OPTION]… <FILE>
 

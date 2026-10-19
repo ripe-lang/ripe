@@ -1,6 +1,6 @@
 (library
  (name ripe)
- (libraries unix dune-site llvm llvm.target llvm.all_backends)
+ (libraries unix dune-site)
  (preprocess
   (pps ppx_deriving.show)))
 

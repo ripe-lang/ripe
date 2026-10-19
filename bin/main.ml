@@ -12,7 +12,6 @@ let emit_stages =
     (Driver.Check, "the typecheck result");
     (Driver.Mir, "the middle intermediate representation");
     (Driver.Qbe, "the QBE intermediate representation");
-    (Driver.Llvm, "the LLVM intermediate representation");
     (Driver.Asm, "the target assembly");
     (Driver.Obj, "the relocatable object file");
   ]
@@ -25,7 +24,7 @@ let stage_help =
            (Driver.stage_name stage) desc)
        emit_stages)
 
-let backends = [ Driver.Backend.Qbe; Driver.Backend.X86; Driver.Backend.Llvm ]
+let backends = [ Driver.Backend.Qbe; Driver.Backend.X86 ]
 let backend_names = String.concat ", " (List.map Driver.Backend.name backends)
 
 let usage_msg =
