@@ -16,7 +16,7 @@ and block_item_has_break ~own target = function
   | Decl _ -> false
 
 and expr_has_break ~own target e =
-  match e.desc with
+  match e.edesc with
   | Break (None, _) -> own
   | Break (Some l, _) -> target <> None && target = Some l.value
   | Block body -> block_has_break ~own target body

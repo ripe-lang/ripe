@@ -15,7 +15,7 @@ val has_errors : unit -> bool
 val headline : t -> string
 val help : string -> t -> t
 val ice : ?span:Ast.span -> string -> 'a
-val internal : ?span:Ast.span -> string -> t
+val internal : Ast.span option -> string -> t
 val label : ('a, unit, string, t -> t) format4 -> 'a
 val primary : t -> Ast.span option
 val quietly : (unit -> 'a) -> 'a

@@ -7,7 +7,7 @@ open Diag
 let%expect_test "error: internal compiler error" =
   let src = "main :: fn() {};\n" in
   render src
-    (Diagnostic.internal ~span:(span src "main") "test invariant failed");
+    (Diagnostic.internal (Some (span src "main")) "test invariant failed");
   [%expect
     {|
     error: internal compiler error

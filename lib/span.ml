@@ -10,8 +10,8 @@ let offset_mask = (1 lsl offset_bits) - 1
 (* The dummy span starts at -1 so the stored offset is biased by one *)
 let max_offset = offset_mask - 1
 
-(* Packing the start above the length keeps a span out of the heap and makes
-   two of them compare on where they start *)
+(* The start packs above the length so a span stays out of the heap and two of
+   them compare on where they start *)
 let make lo hi = ((lo + 1) lsl offset_bits) lor (hi - lo)
 let lo t = (t lsr offset_bits) - 1
 let hi t = lo t + (t land offset_mask)

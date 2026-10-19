@@ -21,8 +21,8 @@ type reg =
 type width = W32 | W64
 
 type instr =
-  | Mov_imm of width * reg * int64
-  | Mov_reg of width * reg * reg
+  | MovImm of width * reg * int64
+  | MovReg of width * reg * reg
   | Call of string
   | Ret
   | Syscall
@@ -45,7 +45,7 @@ let reg_index = function
   | R14 -> 14
   | R15 -> 15
 
-(* Extended registers carry their fourth index bit in REX *)
+(* An extended register carries its fourth index bit in REX *)
 let is_extended register = reg_index register > 7
 
 module Labels = Hashtbl.Make (String)
@@ -57,7 +57,7 @@ let min_rel32 = -0x8000_0000
 let max_rel32 = 0x7fff_ffff
 let min_signed_imm32 = -0x8000_0000L
 let max_unsigned_imm32 = 0xffff_ffffL
-let create ?(size = 64) () = { bytes = Buffer.create size; fixups = [] }
+let create () = { bytes = Buffer.create 64; fixups = [] }
 let offset encoder = Buffer.length encoder.bytes
 
 let byte encoder value =
@@ -81,10 +81,10 @@ let rex encoder ~w ~r ~b =
 
 let mod_register_direct = 3
 
-(* Encodings follow the SDM pages and mov register uses 89 so the source sits in ModRM reg *)
+(* The encodings follow the SDM pages and mov register uses 89 so the source sits in ModRM reg and ModRM packs the addressing mode and two register fields into one byte *)
 let instr encoder instruction =
   match instruction with
-  | Mov_imm (width, dst, value) ->
+  | MovImm (width, dst, value) ->
       if
         width = W32
         && (Int64.compare value min_signed_imm32 < 0
@@ -94,7 +94,7 @@ let instr encoder instruction =
       byte encoder (0xb8 lor (reg_index dst land 7));
       if width = W64 then le64 encoder value
       else le32 encoder (Int64.to_int value)
-  | Mov_reg (width, dst, src) ->
+  | MovReg (width, dst, src) ->
       rex encoder ~w:(width = W64) ~r:(is_extended src) ~b:(is_extended dst);
       byte encoder 0x89;
       byte encoder
@@ -110,7 +110,7 @@ let instr encoder instruction =
       byte encoder 0x0f;
       byte encoder 0x05
 
-let finish encoder ~labels =
+let finish encoder labels =
   let image = Buffer.to_bytes encoder.bytes in
   let table = Labels.create (List.length labels) in
   List.iter (fun (name, at) -> Labels.replace table name at) labels;
@@ -138,23 +138,24 @@ let fits_in_int32 value =
 
 let return_constant func =
   let open Mir in
-  if Array.length func.blocks <> 1 then
-    unsupported "the x86 backend cannot compile more than one block yet";
+  if Array.length func.func_blocks <> 1 then
+    unsupported "x86 cannot compile more than one block yet";
 
-  let block = func.blocks.(0) in
-  if not (List.is_empty block.statements) then
-    unsupported "the x86 backend cannot compile statements yet";
+  let block = func.func_blocks.(0) in
+  if not (List.is_empty block.block_stmts) then
+    unsupported "x86 cannot compile statements yet";
 
-  match block.terminator with
-  | Some { desc = ReturnValue (Some { desc = Const (Int value); _ }); _ } ->
+  match block.block_term with
+  | Some
+      { term_desc = ReturnValue (Some { op_desc = Const (Int value); _ }); _ }
+    ->
       if not (fits_in_int32 value) then
-        unsupported
-          "the x86 backend cannot compile a literal outside 32 bit range yet";
+        unsupported "x86 cannot compile a literal over 32 bits yet";
       value
-  | Some { desc = ReturnValue None; _ } -> 0L
-  | _ -> unsupported "the x86 backend only compiles a returned integer literal"
+  | Some { term_desc = ReturnValue None; _ } -> 0L
+  | _ -> unsupported "x86 only compiles a returned integer literal"
 
-let lower_main func = [ Mov_imm (W32, Rax, return_constant func); Ret ]
+let lower_main func = [ MovImm (W32, Rax, return_constant func); Ret ]
 
 let assemble blocks =
   let encoder = create () in
@@ -167,24 +168,24 @@ let assemble blocks =
 
   let symbols = List.rev (List.fold_left place [] blocks) in
   let labels = List.map (fun (name, at, _) -> (name, at)) symbols in
-  (finish encoder ~labels, symbols)
-
-let find_main program =
-  let open Mir in
-  match List.find_opt (fun func -> func.entry_point) program.functions with
-  | Some func -> func
-  | None -> unsupported "the x86 backend needs a main function"
+  (finish encoder labels, symbols)
 
 let emit program =
   let open Mir in
-  if not (List.is_empty program.globals) then
-    unsupported "the x86 backend cannot compile globals yet";
-  if List.compare_length_with program.functions 1 <> 0 then
-    unsupported "the x86 backend cannot compile more than one function yet";
+  if not (List.is_empty program.prog_globals) then
+    unsupported "x86 cannot compile globals yet";
+  if List.compare_length_with program.prog_funcs 1 > 0 then
+    unsupported "x86 cannot compile more than one function yet";
 
-  let main = find_main program in
-  if main.return_ty <> Types.TInt Types.I32 && main.return_ty <> Types.TUnit
-  then unsupported "the x86 backend needs main to return i32 or nothing";
-
-  let text, globals = assemble [ ("main", lower_main main) ] in
-  Elf64.object_file ~text ~globals
+  let blocks =
+    match
+      List.find_opt (fun func -> func.func_entry_point) program.prog_funcs
+    with
+    | Some main ->
+        if main.func_ret <> Types.TInt Types.I32 && main.func_ret <> Types.TUnit
+        then unsupported "x86 needs main to return i32 or nothing";
+        [ ("main", lower_main main) ]
+    | None -> []
+  in
+  let text, globals = assemble blocks in
+  Elf64.object_file text globals

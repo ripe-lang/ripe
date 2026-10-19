@@ -460,8 +460,8 @@ let%expect_test "typred: a signed literal is still a literal" =
   let show src =
     let wrapped = "_f :: fn() { return " ^ src ^ " };" in
     match Pipeline.parse wrapped with
-    | [ Ast.Func { body = [ Expr { desc = Return (Some e); _ } ]; _ } ] ->
-        Printf.printf "%s = %b\n" src (Typred.is_num_literal e)
+    | [ Ast.Func { body = [ Expr { edesc = Return (Some e); _ } ]; _ } ] ->
+        Printf.printf "%s = %b\n" src (Typred.is_num_lit e)
     | _ -> print_endline "<unexpected shape>"
   in
   show "1";

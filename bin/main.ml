@@ -65,7 +65,7 @@ let command =
   and+ libraries = named_multi [ "l"; "library" ] string ~value_name:"NAME"
   and+ filename = pos_req 0 file ~value_name:"FILE" in
   let stage = Option.value stage ~default:Driver.Bin in
-  Driver.compile ~stage ~backend ~out ~libraries ~filename
+  Driver.compile stage backend ~out libraries filename
 
 let is_help arg = arg = "-h" || arg = "--help"
 

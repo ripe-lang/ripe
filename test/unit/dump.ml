@@ -31,7 +31,7 @@ let rec dump_typ (t : Ripe.Ast.typ) =
   | UnitType -> "()"
 
 and dump_expr (e : Ripe.Ast.expr) =
-  match e.desc with
+  match e.edesc with
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf
   | Float (f, suf) -> string_of_float f ^ Option.value ~default:"" suf
   | Bool b -> string_of_bool b

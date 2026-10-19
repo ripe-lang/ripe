@@ -34,7 +34,7 @@ module Backend = struct
     | X86 -> "x86"
     | Llvm -> "llvm"
 
-  let has_stage (backend : t) (stage : stage) : bool =
+  let has_stage backend (stage : stage) =
     match stage with
     | Qbe | Asm -> ( match backend with Qbe -> true | X86 | Llvm -> false)
     | Llvm -> ( match backend with Qbe | Llvm -> true | X86 -> false)
@@ -64,7 +64,7 @@ let shell_command = function
   | [] -> invalid_arg "shell_command"
   | command :: args -> Filename.quote_command command args
 
-(* Lower IL through qbe and return the emitted asm path *)
+(* This lowers IL through qbe and returns the emitted asm path *)
 let run_qbe qbe il =
   let tmp_qbe = Filename.temp_file "ripe" ".ssa" in
   let tmp_asm = Filename.temp_file "ripe" ".s" in
@@ -104,12 +104,6 @@ let dump_tokens read lexbuf =
   loop ();
   Buffer.contents buf
 
-let show_program program =
-  String.concat "\n" (List.map Ast.show_decl program.Program.decls) ^ "\n"
-
-let show_tdecls tdecls =
-  String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"
-
 let render_program program diags =
   let ctx =
     {
@@ -123,7 +117,7 @@ let render_program program diags =
 (* The C runtime we link calls main, so refuse before the linker leaks its own error *)
 let check_has_main tdecls =
   let is_main = function
-    | Tast.TFuncDecl fd -> fd.Tast.entry_point
+    | Tast.TFuncDecl fd -> fd.Tast.tfunc_entry_point
     | _ -> false
   in
   if not (List.exists is_main tdecls) then
@@ -141,10 +135,10 @@ let file_tokens filename =
   dump_tokens Lexer.read lexbuf
 
 let load filename =
-  try Program.load ~read_file filename with
+  try Program.load filename with
   | Sys_error _ -> die (Printf.sprintf "no such file: %s" filename)
-  | Program.Invalid_utf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
-  | Program.Source_too_large name ->
+  | Program.InvalidUtf8 name -> die (Printf.sprintf "not valid UTF-8: %s" name)
+  | Program.SourceTooLarge name ->
       die
         (Printf.sprintf "file too large: %s (over %d bytes)" name
            Span.max_offset)
@@ -159,7 +153,7 @@ module Output = struct
 
   let make = function "" -> Stdout | filename -> File filename
 
-  (* Write to -o if set or stdout *)
+  (* This writes to -o if set or else stdout *)
   let text output s =
     match output with
     | Stdout -> print_string s
@@ -181,15 +175,8 @@ module Output = struct
     | File filename -> filename
 end
 
-(* Each stage is a possible stopping point so bail once we hit the target *)
-let stop_at ~stage ~program target emit =
-  if stage = target then begin
-    emit ();
-    render_and_exit_if_failed program;
-    raise Exit
-  end
-
-let compile ~stage ~backend ~out ~libraries ~filename =
+(* Every stage is a possible stopping point so we bail once we hit the target *)
+let compile stage backend ~out libraries filename =
   let output = Output.make out in
   if not (Backend.has_stage backend stage) then
     die
@@ -206,9 +193,18 @@ let compile ~stage ~backend ~out ~libraries ~filename =
   (* A missing main is noise once the program failed to load *)
   let load_had_errors = Diagnostic.has_errors () in
 
-  let stop_at target emit = stop_at ~stage ~program target emit in
+  let stop_at target emit =
+    if stage = target then begin
+      emit ();
+      render_and_exit_if_failed program;
+      raise Exit
+    end
+  in
   try
-    stop_at Ast (fun () -> Output.text output (show_program program));
+    stop_at Ast (fun () ->
+        Output.text output
+          (String.concat "\n" (List.map Ast.show_decl program.Program.decls)
+          ^ "\n"));
     let decls = program.Program.decls in
     let uses = Resolve.resolve decls in
     stop_at Resolve (fun () -> Output.text output (Resolve.dump uses));
@@ -218,7 +214,9 @@ let compile ~stage ~backend ~out ~libraries ~filename =
         Output.text output "typecheck: ok\n"
     in
     stop_at Check emit_check_result;
-    stop_at Tast (fun () -> Output.text output (show_tdecls tdecls));
+    stop_at Tast (fun () ->
+        Output.text output
+          (String.concat "\n" (List.map Tast.show_tdecl tdecls) ^ "\n"));
     if stage = Bin && not load_had_errors then check_has_main tdecls;
     render_and_exit_if_failed program;
 
@@ -242,8 +240,8 @@ let compile ~stage ~backend ~out ~libraries ~filename =
         link_bytes (Codegenllvm.object_file (Codegenllvm.emit mir))
     | Backend.Qbe ->
         let il =
-          Codegenqbe.emit ~filename:program.Program.filename
-            ~source_map:program.Program.source_map mir
+          Codegenqbe.emit program.Program.filename program.Program.source_map
+            mir
         in
 
         stop_at Qbe (fun () -> Output.text output il);

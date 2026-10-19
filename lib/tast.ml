@@ -17,7 +17,7 @@ type texpr_desc =
   | TAssign of Ast.binop option * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * int
-  (* Target type is the node type *)
+  (* The target type is the node type *)
   | TCast of texpr
   | TSizeOf of ty
   | TRange of texpr * texpr
@@ -44,7 +44,7 @@ type texpr_desc =
   | TMatch of texpr * tarm list
   | TUnitLit
 
-and texpr = { desc : texpr_desc; ty : ty; span : Ast.span }
+and texpr = { tdesc : texpr_desc; ty : ty; tspan : Ast.span }
 [@@deriving show { with_path = false }]
 
 and tblock = texpr list [@@deriving show { with_path = false }]
@@ -56,27 +56,27 @@ and tarm = { tpat : tpattern; tbody : tblock }
 and tpattern = TPatWild | TPatBind of Symbol.t * ty | TPatConst of int64
 [@@deriving show { with_path = false }]
 
-let mk ?(span = Ast.dummy_span) ty desc = { desc; ty; span }
+let mk ?(span = Ast.dummy_span) ty desc = { tdesc = desc; ty; tspan = span }
 
 type tfunc_def = {
-  key : Symbol.key;
-  name : string;
-  source_name : string;
-  entry_point : bool;
-  params : (Symbol.t * ty) list;
-  ret_ty : ty;
-  body : tblock;
-  export : bool;
-  variadic : bool;
-  abi : func_abi;
+  tfunc_key : Symbol.key;
+  tfunc_name : string;
+  tfunc_source_name : string;
+  tfunc_entry_point : bool;
+  tfunc_params : (Symbol.t * ty) list;
+  tfunc_ret : ty;
+  tfunc_body : tblock;
+  tfunc_export : bool;
+  tfunc_variadic : bool;
+  tfunc_abi : func_abi;
 }
 [@@deriving show { with_path = false }]
 
 type tglobal_def = {
-  key : Symbol.key;
-  name : string;
-  ty : ty;
-  init : texpr option;
+  tglobal_key : Symbol.key;
+  tglobal_name : string;
+  tglobal_ty : ty;
+  tglobal_init : texpr option;
 }
 [@@deriving show { with_path = false }]
 

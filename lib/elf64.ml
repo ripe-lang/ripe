@@ -68,7 +68,7 @@ module Strtab = struct
           Buffer.add_char table.buffer '\000';
           at
 
-  (* Lookup stays read only after the table has been copied out *)
+  (* The lookup stays read only after the table has been copied out *)
   let find table name =
     if String.is_empty name then 0
     else
@@ -163,7 +163,7 @@ let symbol_table strtab globals =
   List.iter emit globals;
   (Buffer.contents buffer, locals)
 
-(* Section types and flags follow the special section table *)
+(* The section types and flags follow the special section table *)
 let object_sections ~text ~symbols ~locals ~names ~section_names =
   [
     empty_section;
@@ -201,11 +201,11 @@ let object_sections ~text ~symbols ~locals ~names ~section_names =
     };
   ]
 
-(* Sections land before the header table here so headers can record each section's offset *)
+(* The sections land before the header table here so headers can record each section's offset *)
 let place sections =
   let step (placed, at) section =
     let at =
-      (* Alignment zero or one needs no padding *)
+      (* An alignment of zero or one needs no padding *)
       if section.align > 1 then Layout.align_to at section.align else at
     in
     ((section, at) :: placed, at + String.length section.data)
@@ -213,7 +213,7 @@ let place sections =
   let placed, ending = List.fold_left step ([], elf_header_size) sections in
   (List.rev placed, ending)
 
-let object_file ~text ~globals =
+let object_file text globals =
   let strtab = Strtab.create () in
   let symbols, locals = symbol_table strtab globals in
 

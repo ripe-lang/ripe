@@ -81,7 +81,7 @@ main :: fn() -> i32 { return value() };
 let%expect_test "an internal error prints its detail and reporting URL" =
   let src = "main :: fn() -> i32 { return 0 };" in
   render src
-    (Diagnostic.internal ~span:(span src "main") "test invariant failed");
+    (Diagnostic.internal (Some (span src "main")) "test invariant failed");
   [%expect
     {|
     error: internal compiler error
@@ -107,7 +107,7 @@ let%expect_test "the headline drops the severity and keeps the message" =
 
 let%expect_test "the primary span and detail come back out" =
   let src = "abc\n" in
-  let d = Diagnostic.internal ~span:(span src "abc") "the reason" in
+  let d = Diagnostic.internal (Some (span src "abc")) "the reason" in
   let show d =
     Printf.printf "%s %S\n"
       (match Diagnostic.primary d with

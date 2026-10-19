@@ -8,18 +8,18 @@ let bounds sm pos =
 (* "hello" offset 0 = (1,1) *)
 let%expect_test "single line" =
   let sm = Ripe.Sourcemap.create "hello" in
-  let l, c = Ripe.Sourcemap.lookup sm 0 in
+  let l, c = Ripe.Sourcemap.find sm 0 in
   Printf.printf "(%d,%d)" l c;
   [%expect {| (1,1) |}]
 
 (* "aaa\nbbb\nccc" offset 0=(1,1) 4=(2,1) 9=(3,2) *)
 let%expect_test "multi line" =
   let sm = Ripe.Sourcemap.create "aaa\nbbb\nccc" in
-  let l, c = Ripe.Sourcemap.lookup sm 0 in
+  let l, c = Ripe.Sourcemap.find sm 0 in
   Printf.printf "(%d,%d)" l c;
-  let l, c = Ripe.Sourcemap.lookup sm 4 in
+  let l, c = Ripe.Sourcemap.find sm 4 in
   Printf.printf " (%d,%d)" l c;
-  let l, c = Ripe.Sourcemap.lookup sm 9 in
+  let l, c = Ripe.Sourcemap.find sm 9 in
   Printf.printf " (%d,%d)" l c;
   [%expect {| (1,1) (2,1) (3,2) |}]
 

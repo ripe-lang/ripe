@@ -38,7 +38,7 @@ let int_kind_neg_limit = function
   | I64 | Isize -> Int64.min_int
   | U8 | U16 | U32 | U64 | Usize -> 0L
 
-let int_kind_fits kind ~neg magnitude =
+let int_kind_fits kind neg magnitude =
   let limit =
     if neg then int_kind_neg_limit kind else int_kind_pos_limit kind
   in

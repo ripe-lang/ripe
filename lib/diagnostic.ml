@@ -6,11 +6,11 @@ type span_label = { span : Ast.span; message : string }
 type t = {
   severity : severity;
   headline : string;
-  primary : Ast.span option; (* Caret snippet target *)
-  primary_label : string option; (* Inline text after the caret *)
-  labels : span_label list; (* Secondary snippets *)
-  detail : string option; (* Verbatim block after the snippet *)
-  suggestion : string option; (* Closing "help:" line *)
+  primary : Ast.span option;
+  primary_label : string option;
+  labels : span_label list;
+  detail : string option;
+  suggestion : string option;
 }
 
 exception Errors of t list
@@ -56,7 +56,7 @@ let secondary span message d = { d with labels = { span; message } :: d.labels }
 let help s d = { d with suggestion = Some s }
 
 (* error: internal compiler error *)
-let internal ?span msg =
+let internal span msg =
   let d =
     {
       (error_no_span "internal compiler error") with
@@ -68,9 +68,9 @@ let internal ?span msg =
   in
   match span with Some sp -> { d with primary = Some sp } | None -> d
 
-let ice ?span msg = raise (Errors [ internal ?span msg ])
+let ice ?span msg = raise (Errors [ internal span msg ])
 
-(* Where a pass dumps diagnostics and the edge drains it to render *)
+(* This is where a pass dumps diagnostics and the edge drains it to render *)
 type sink = { mutable pending : t list; mutable errors : bool }
 
 let reported = { pending = []; errors = false }
@@ -81,7 +81,7 @@ let emit d =
 
 let has_errors () = reported.errors
 
-(* Sorted into source order and ties keep emission order *)
+(* The list comes out in source order and ties keep emission order *)
 let drain () =
   let pos d = match d.primary with Some sp -> Span.lo sp | None -> -1 in
   List.stable_sort
@@ -104,18 +104,16 @@ let quietly f =
       reported.pending <- pending;
       reported.errors <- errors)
 
-(* Rendering *)
-
 type ctx = { sm : Sourcemap.t; filename : string; color : bool }
 
-let severity_word (severity : severity) =
+let severity_word severity =
   match severity with
   | Error -> "error"
   | Warning -> "warning"
   | Note -> "note"
   | Help -> "help"
 
-let severity_ansi (severity : severity) text =
+let severity_ansi severity text =
   let color =
     match severity with
     | Error -> "\027[1;31m" (* red *)
@@ -135,7 +133,7 @@ let snippet_width = 100
 let snippet_indent = 4
 let ellipsis = "..."
 
-(* UTF8 continuation bytes don't advance a column *)
+(* A UTF 8 continuation byte doesn't advance a column *)
 let is_cont c = Char.code c land 0xc0 = 0x80
 
 (* The cache must not keep old source files alive *)
@@ -221,7 +219,7 @@ let render_snippet ctx buf span label severity =
   let cols, cells = cached_line ctx.sm line_start line_end in
   let col pos = cols.(pos - line_start) in
   let caret_lo = col lo in
-  let line, _ = Sourcemap.lookup ctx.sm (Span.lo span) in
+  let line, _ = Sourcemap.find ctx.sm (Span.lo span) in
   Printf.bprintf buf "  at %s:%d:%d\n" ctx.filename line (caret_lo + 1);
 
   let stop = ref (min line_end (lo + (4 * snippet_width) + 4)) in

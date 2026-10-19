@@ -26,14 +26,14 @@ type infix = {
 }
 
 type field_form = NamedField | PositionalField
-type binding_context = LocalBinding | GlobalBinding
-type expression_context = NormalExpression | HeaderExpression
+type binding_ctx = LocalBinding | GlobalBinding
+type expr_ctx = NormalExpression | HeaderExpression
 
 let cur_token st = st.current.token
 let cur_span st = st.current.span
 let cur_pos st = Span.lo (cur_span st)
 let span_from lo st = Span.make lo st.prev_end
-let mk lo st desc = { desc; span = span_from lo st }
+let mk lo st desc = { edesc = desc; espan = span_from lo st }
 let mkt lo st tdesc = { tdesc; tspan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 
@@ -49,7 +49,7 @@ let is_type_start = function
   | _ -> false
 
 let ends_in_block = function
-  | Expr { desc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ } ->
+  | Expr { edesc = If _ | Match _ | While _ | For _ | Loop _ | Block _; _ } ->
       true
   | Expr _ | Decl _ -> false
 
@@ -139,7 +139,7 @@ let expect_decl_sep st ~what =
       |> Diagnostic.help ("separate " ^ what ^ "s with `,`")
       |> fail
 
-let expect_literal_field_sep st =
+let expect_lit_field_sep st =
   match cur_token st with
   | COMMA -> advance st
   | RBRACE -> ()
@@ -221,9 +221,9 @@ let rec typ_after st tok =
   if starts_member st then Diagnostic.error span "expected type" |> fail;
   parse_typ st
 
-and binding_name st context =
+and binding_name st ctx =
   match cur_token st with
-  | UNDERSCORE when context = LocalBinding ->
+  | UNDERSCORE when ctx = LocalBinding ->
       let span = cur_span st in
       advance st;
       spanned (Interner.intern "_") span
@@ -271,8 +271,8 @@ and parse_typ st =
   | _ -> Diagnostic.error (cur_span st) "expected type" |> found st |> fail
 
 (* x : i32, x : i32 = 42, x := 42 *)
-and parse_binding st context =
-  let name = binding_name st context in
+and parse_binding st ctx =
+  let name = binding_name st ctx in
   let typ =
     if peek_token st == ASSIGN then begin
       expect st COLON;
@@ -435,9 +435,12 @@ and parse_func_def st abi lo name =
     imported )
 
 (* a + b * c *)
-and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
+and parse_expr st = parse_infix st NormalExpression 1
+
+(* The b * c of a + b * c *)
+and parse_infix st ctx min_prec =
   let lo = cur_pos st in
-  (* Precedence climbing for infix ops *)
+  (* This is precedence climbing for infix ops *)
   let rec infix lhs =
     match infix_of (cur_token st) with
     | Some op when op.prec >= min_prec -> (
@@ -447,7 +450,7 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
         let next_min_prec =
           match op.assoc with Right -> op.prec | Left | Chain _ -> op.prec + 1
         in
-        let rhs = parse_expr ~context ~min_prec:next_min_prec st in
+        let rhs = parse_infix st ctx next_min_prec in
         let lhs = mk lo st (op.build op_span lhs rhs) in
         match (op.assoc, infix_of (cur_token st)) with
         | Chain chain, Some { assoc = Chain next; _ } when chain = next ->
@@ -467,7 +470,7 @@ and parse_expr ?(context = NormalExpression) ?(min_prec = 1) st =
         | _ -> infix lhs)
     | _ -> lhs
   in
-  infix (parse_prefix st context)
+  infix (parse_prefix st ctx)
 
 (* Point.{ x: 1 } *)
 and parse_struct_lit st lo name =
@@ -478,32 +481,32 @@ and parse_struct_lit st lo name =
   mk lo st (StructLit (name, fields))
 
 (* -x *)
-and parse_prefix st context =
+and parse_prefix st ctx =
   let lo = cur_pos st in
-  let unary desc =
+  let unop desc =
     let span = cur_span st in
     advance st;
     require_expr_start st span;
-    let operand = parse_prefix st context in
+    let operand = parse_prefix st ctx in
     mk lo st (UnOp (desc, operand))
   in
   match cur_token st with
-  | BANG -> unary Not
-  | MINUS -> unary Neg
-  | TILDE -> unary BitNot
-  | AMP -> unary AddressOf
+  | BANG -> unop Not
+  | MINUS -> unop Neg
+  | TILDE -> unop BitNot
+  | AMP -> unop AddressOf
   | _ ->
-      let lhs = parse_primary st context in
+      let lhs = parse_primary st ctx in
       let lhs =
-        match lhs.desc with Ident head -> parse_path st lhs head | _ -> lhs
+        match lhs.edesc with Ident head -> parse_path st lhs head | _ -> lhs
       in
       parse_postfix st lhs
 
 (* point, Color.Red, Point.{ x: 1 } *)
 and parse_path st lhs head =
-  let lo = Span.lo lhs.span in
+  let lo = Span.lo lhs.espan in
   if at st DOT && peek_token st == LBRACE then
-    parse_struct_lit st lo (spanned head lhs.span)
+    parse_struct_lit st lo (spanned head lhs.espan)
   else if at st DOT && peek_token st != STAR then begin
     advance st;
     let rec segments owners member =
@@ -515,13 +518,13 @@ and parse_path st lhs head =
     in
     (* The last name is the member *)
     let owners, member = segments [] (expect_ident_span st) in
-    path_expr { owner = Nonempty.make (spanned head lhs.span) owners; member }
+    path_expr { owner = Nonempty.make (spanned head lhs.espan) owners; member }
   end
   else lhs
 
 (* x.field, p.*, arr[i], f(args) *)
-and parse_postfix st (lhs : expr) =
-  let lo = Span.lo lhs.span in
+and parse_postfix st lhs =
+  let lo = Span.lo lhs.espan in
   match cur_token st with
   | DOT when peek_token st == STAR ->
       advance st;
@@ -557,7 +560,7 @@ and parse_paren st =
     e
 
 (* 1, x, "str", foo(a, b) *)
-and parse_primary st context =
+and parse_primary st ctx =
   let lo = cur_pos st in
   match cur_token st with
   | INT (n, suf) ->
@@ -605,13 +608,13 @@ and parse_primary st context =
       let name = Interner.intern name in
       let nspan = cur_span st in
       advance st;
-      { desc = Ident name; span = nspan }
+      { edesc = Ident name; espan = nspan }
   | STRING s ->
       advance st;
       mk lo st (String s)
   | IF -> parse_if st
   | MATCH -> parse_match st
-  | LBRACE when context = HeaderExpression ->
+  | LBRACE when ctx = HeaderExpression ->
       Diagnostic.error (cur_span st) "expected expression" |> fail
   | LBRACE ->
       let body = (parse_block st).value in
@@ -630,8 +633,8 @@ and parse_primary st context =
 (* i, 1..3, 1.., ..3, .. *)
 and parse_index_arg st =
   let lo = cur_pos st in
-  (* Endpoints parse above `..` so a missing one leaves the loop alone *)
-  let endpoint () = parse_expr ~min_prec:3 st in
+  (* The endpoints parse above `..` so a missing one leaves the loop alone *)
+  let endpoint () = parse_infix st NormalExpression 3 in
   match cur_token st with
   | DOTDOT ->
       advance st;
@@ -680,19 +683,19 @@ and parse_struct_lit_fields st =
         (spanned (Some name.value) name.span, parse_expr st)
     | PositionalField ->
         let e = parse_expr st in
-        (spanned None e.span, e)
+        (spanned None e.espan, e)
   in
   let[@tail_mod_cons] rec go () =
     if at st RBRACE then []
     else
       let field = parse_field () in
-      expect_literal_field_sep st;
+      expect_lit_field_sep st;
       field :: go ()
   in
   go ()
 
 (* The x < len of if x < len { } *)
-and parse_header_expr st = parse_expr ~context:HeaderExpression st
+and parse_header_expr st = parse_infix st HeaderExpression 1
 
 (* { return a + b }  *)
 and parse_block st =
@@ -838,8 +841,8 @@ and parse_pattern st =
       advance st;
       pattern (PatBind (Interner.intern name))
   | _ ->
-      let e = parse_expr ~context:HeaderExpression st in
-      { pdesc = PatValue e; pspan = e.span }
+      let e = parse_header_expr st in
+      { pdesc = PatValue e; pspan = e.espan }
 
 (* while i < len { }, while @outer c { } *)
 and parse_while st =
@@ -921,7 +924,7 @@ let parse_file st =
   List.rev !decls
 
 (* The lexer already reported a bad token so we just stop *)
-let parse (lex : Lexing.lexbuf -> Tokens.token * span) lexbuf =
+let parse lex lexbuf =
   let read () =
     match lex lexbuf with
     | ERROR _, _ -> raise Failed

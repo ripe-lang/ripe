@@ -11,14 +11,14 @@
      ret = (Some { tdesc = (Named i32); tspan = (29,32) });
      body =
      [(Expr
-         { desc =
+         { edesc =
            (Return
-              (Some { desc =
+              (Some { edesc =
                       (BinOp ({ value = Add; span = (46,47) },
-                         { desc = (Ident a); span = (44,45) },
-                         { desc = (Ident b); span = (48,49) }));
-                      span = (44,49) }));
-           span = (37,49) })
+                         { edesc = (Ident a); espan = (44,45) },
+                         { edesc = (Ident b); espan = (48,49) }));
+                      espan = (44,49) }));
+           espan = (37,49) })
        ];
      variadic = false; extern_abi = NoAbi; func_span = (0,52) })
 (Func
@@ -26,14 +26,14 @@
      ret = (Some { tdesc = (Named i32); tspan = (71,74) });
      body =
      [(Expr
-         { desc =
+         { edesc =
            (Return
-              (Some { desc =
-                      (Call ({ desc = (Ident add); span = (86,89) },
-                         [{ desc = (Int (1L, None)); span = (90,91) };
-                           { desc = (Int (2L, None)); span = (93,94) }]
+              (Some { edesc =
+                      (Call ({ edesc = (Ident add); espan = (86,89) },
+                         [{ edesc = (Int (1L, None)); espan = (90,91) };
+                           { edesc = (Int (2L, None)); espan = (93,94) }]
                          ));
-                      span = (86,95) }));
-           span = (79,95) })
+                      espan = (86,95) }));
+           espan = (79,95) })
        ];
      variadic = false; extern_abi = NoAbi; func_span = (55,98) })

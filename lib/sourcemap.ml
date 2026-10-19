@@ -1,13 +1,10 @@
 (* SPDX-License-Identifier: Apache-2.0 *)
 
-(* Converts byte offsets to line/col positions *)
+(* This turns byte offsets into line and col positions *)
 
-type t = {
-  src : string;
-  line_starts : int array; (* Sorted byte offsets where each line begins *)
-}
+type t = { src : string; line_starts : int array }
 
-(* Only scan source text once to save the line start *)
+(* The source gets scanned once to save the line starts *)
 let create src =
   let len = String.length src in
   let starts = ref [ 0 ] in
@@ -16,7 +13,7 @@ let create src =
   done;
   { src; line_starts = Array.of_list (List.rev !starts) }
 
-(* Binary search for the right most entry (the equal case not needed) *)
+(* This binary search finds the right most entry and needs no equal case *)
 let rec search starts pos lo hi =
   if lo >= hi then lo
   else
@@ -26,11 +23,11 @@ let rec search starts pos lo hi =
 
 let src t = t.src
 
-let lookup t pos =
+let find t pos =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   (i + 1, pos - t.line_starts.(i) + 1)
 
-(* Byte offsets of the line containing pos with newline excluded *)
+(* The byte offsets of the line holding pos without its newline *)
 let line_bounds t pos =
   let i = search t.line_starts pos 0 (Array.length t.line_starts - 1) in
   let start = t.line_starts.(i) in

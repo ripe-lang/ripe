@@ -78,6 +78,6 @@ type token =
   | ARROW
 
 val keywords : (string * token) list
-val lookup_keyword : string -> token option
+val find_keyword : string -> token option
 val show_token : token -> string
 val show_found_token : token -> string

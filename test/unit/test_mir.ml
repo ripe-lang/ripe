@@ -2,46 +2,44 @@
 
 module M = Ripe.Mir
 
-let span : Ripe.Ast.span = Ripe.Ast.dummy_span
+let span = Ripe.Ast.dummy_span
 
-let local (ty : Ripe.Types.ty) : M.local =
-  { M.name = None; ty; storage = M.Temp; span }
-
-let place (base : M.local_id) (projections : M.projection list) : M.place =
-  { M.base = M.Local base; projections; place_span = span }
-
-let copy (ty : Ripe.Types.ty) (base : M.local_id) : M.operand =
-  { M.desc = M.Copy (place base []); ty; span }
-
-let term (desc : M.terminator_desc) : M.terminator option =
-  Some { M.desc; span }
-
-let block ?(statements = []) (terminator : M.terminator option) : M.block =
-  { M.statements; terminator }
-
-let func ?(locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |])
-    ?(blocks = [||]) ?(return_ty = Ripe.Types.TInt Ripe.Types.I32) () : M.func =
+let local ty =
   {
-    M.name = "f";
-    source_name = "f";
-    export = false;
-    abi = Ripe.Types.Ripe;
-    params = [];
-    result = None;
-    locals;
-    blocks;
-    return_ty;
-    entry_point = false;
-    span;
+    M.local_name = None;
+    local_ty = ty;
+    local_storage = M.Temp;
+    local_span = span;
   }
 
-let func_with_block ?locals ?return_ty ?(statements = []) terminator =
-  func ?locals ?return_ty ~blocks:[| block ~statements terminator |] ()
+let place base projections =
+  { M.place_base = M.Local base; place_projs = projections; place_span = span }
 
-let program ?(structs = []) (function_ : M.func) : M.program =
-  { M.structs; globals = []; functions = [ function_ ] }
+let copy ty base =
+  { M.op_desc = M.Copy (place base []); op_ty = ty; op_span = span }
 
-let verify (program : M.program) : unit =
+let term desc = Some { M.term_desc = desc; term_span = span }
+let i32_locals = [| local (Ripe.Types.TInt Ripe.Types.I32) |]
+
+let func locals stmts terminator =
+  {
+    M.func_name = "f";
+    func_source_name = "f";
+    func_export = false;
+    func_abi = Ripe.Types.Ripe;
+    func_params = [];
+    func_result = None;
+    func_locals = locals;
+    func_blocks = [| { M.block_stmts = stmts; block_term = terminator } |];
+    func_ret = Ripe.Types.TInt Ripe.Types.I32;
+    func_entry_point = false;
+    func_span = span;
+  }
+
+let verify structs function_ =
+  let program =
+    { M.prog_structs = structs; prog_globals = []; prog_funcs = [ function_ ] }
+  in
   match Ripe.Mir.verify program with
   | () -> print_endline "ok"
   | exception Ripe.Diagnostic.Errors ds ->
@@ -49,8 +47,6 @@ let verify (program : M.program) : unit =
         (fun d ->
           print_string (Option.value (Ripe.Diagnostic.detail_of d) ~default:""))
         ds
-
-let verify_func ?structs function_ = verify (program ?structs function_)
 
 let%expect_test "mir: straight line scalar function" =
   Pipeline.run_mir "add :: fn(a: i32, b: i32) -> i32 { return a + b };";
@@ -68,91 +64,91 @@ let%expect_test "mir: straight line scalar function" =
     |}]
 
 let%expect_test "mir verifier: every block has a terminator" =
-  verify_func (func_with_block None);
+  verify [] (func i32_locals [] None);
   [%expect {| f: block 0 has no terminator |}]
 
 let%expect_test "mir verifier: every referenced block exists" =
-  verify_func (func_with_block (term (M.Jump 1)));
+  verify [] (func i32_locals [] (term (M.Jump 1)));
   [%expect {| f: block 1 does not exist |}]
 
 let%expect_test "mir verifier: every local has a type" =
-  verify_func
-    (func_with_block ~locals:[| local Ripe.Types.TError |] (term M.Unreachable));
+  verify [] (func [| local Ripe.Types.TError |] [] (term M.Unreachable));
   [%expect {| f: local has no type |}]
 
 let%expect_test "mir verifier: a local is broken by an error inside it" =
-  verify_func
-    (func_with_block
-       ~locals:[| local (Ripe.Types.TPointer Ripe.Types.TError) |]
-       (term M.Unreachable));
+  verify []
+    (func
+       [| local (Ripe.Types.TPointer Ripe.Types.TError) |]
+       [] (term M.Unreachable));
   [%expect {| f: local has no type |}]
 
 let%expect_test "mir verifier: every place projection is valid" =
   let bad_place = place 0 [ M.Deref ] in
-  let value : M.value =
+  let value =
     {
-      M.desc = M.Use (copy (Ripe.Types.TInt Ripe.Types.I32) 0);
-      ty = Ripe.Types.TInt Ripe.Types.I32;
+      M.val_desc = M.Use (copy (Ripe.Types.TInt Ripe.Types.I32) 0);
+      val_ty = Ripe.Types.TInt Ripe.Types.I32;
     }
   in
-  let statement : M.statement =
-    { M.desc = M.Assign (bad_place, value); span }
-  in
-  verify_func (func_with_block ~statements:[ statement ] (term M.Unreachable));
+  let stmt = { M.stmt_desc = M.Assign (bad_place, value); stmt_span = span } in
+  verify [] (func i32_locals [ stmt ] (term M.Unreachable));
   [%expect {| f: deref projection requires a pointer |}]
 
 let%expect_test "mir verifier: returns match the function type" =
-  let returned : M.operand =
-    { M.desc = M.Const (M.Bool true); ty = Ripe.Types.TBool; span }
+  let returned =
+    {
+      M.op_desc = M.Const (M.Bool true);
+      op_ty = Ripe.Types.TBool;
+      op_span = span;
+    }
   in
-  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
+  verify [] (func i32_locals [] (term (M.ReturnValue (Some returned))));
   [%expect {| f: return is bool but should be i32 |}]
 
 let%expect_test "mir verifier: every referenced local exists" =
   let returned = copy (Ripe.Types.TInt Ripe.Types.I32) 4 in
-  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
+  verify [] (func i32_locals [] (term (M.ReturnValue (Some returned))));
   [%expect {| f: local 4 does not exist |}]
 
 let%expect_test "mir verifier: aggregate call storage has the result type" =
   let struct_name = Ripe.Keyname.unresolved "pair" in
   let pair = Ripe.Types.TStruct (struct_name, []) in
-  let call : M.call =
+  let call =
     {
-      M.destination = Some (place 0 []);
-      callee = M.Direct "make_pair";
-      kind = M.Internal;
-      args = [];
-      return_ty = pair;
-      variadic_start = None;
+      M.call_dest = Some (place 0 []);
+      call_callee = M.Direct "make_pair";
+      call_kind = M.Internal;
+      call_args = [];
+      call_ret = pair;
+      call_variadic_start = None;
     }
   in
-  let statement : M.statement = { M.desc = M.Call call; span } in
-  let struct_decl : M.struct_decl =
+  let stmt = { M.stmt_desc = M.Call call; stmt_span = span } in
+  let struct_decl =
     {
-      M.name = struct_name;
-      fields =
+      M.struct_name;
+      struct_fields =
         [ Ripe.Types.TInt Ripe.Types.I32; Ripe.Types.TInt Ripe.Types.I32 ];
-      local = false;
+      struct_local = false;
     }
   in
-  verify_func ~structs:[ struct_decl ]
-    (func_with_block ~statements:[ statement ] (term M.Unreachable));
+  verify [ struct_decl ] (func i32_locals [ stmt ] (term M.Unreachable));
   [%expect {| f: call storage is i32 but should be pair |}]
 
 let%expect_test "mir verifier: a branch condition is a bool" =
   let condition = copy (Ripe.Types.TInt Ripe.Types.I32) 0 in
-  verify_func (func_with_block (term (M.Branch (condition, 0, 0))));
+  verify [] (func i32_locals [] (term (M.Branch (condition, 0, 0))));
   [%expect {| f: condition is i32 but should be bool |}]
 
 let%expect_test "mir verifier: a constant fits its type" =
-  let returned : M.operand =
+  let returned =
     {
-      M.desc = M.Const (M.Bool true);
-      ty = Ripe.Types.TInt Ripe.Types.I32;
-      span;
+      M.op_desc = M.Const (M.Bool true);
+      op_ty = Ripe.Types.TInt Ripe.Types.I32;
+      op_span = span;
     }
   in
-  verify_func (func_with_block (term (M.ReturnValue (Some returned))));
+  verify [] (func i32_locals [] (term (M.ReturnValue (Some returned))));
   [%expect {| f: constant true can't be i32 |}]
 
 let%expect_test "mir: continue uses one shared step block" =

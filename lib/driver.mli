@@ -21,10 +21,4 @@ module Backend : sig
   val name : t -> string
 end
 
-val compile :
-  stage:stage ->
-  backend:Backend.t ->
-  out:string ->
-  libraries:string list ->
-  filename:string ->
-  unit
+val compile : stage -> Backend.t -> out:string -> string list -> string -> unit

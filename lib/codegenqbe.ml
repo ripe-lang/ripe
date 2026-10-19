@@ -84,7 +84,7 @@ type ctx = {
   abi_defs : Buffer.t;
   mutable next_abi_type : int;
   mutable tmp : int;
-  temp_names : string Dynarray.t;
+  tmp_names : string Dynarray.t;
   block_labels : string Dynarray.t;
   mutable str_ctr : int;
 }
@@ -99,18 +99,18 @@ type mir_ctx = {
   global_types : (string, ty) Hashtbl.t;
 }
 
-(* Every function counts temps/blocks from 0 so I'll rather keep them *)
+(* A function counts its temps and blocks from zero so we'd rather keep the names *)
 let cached_name names spell n =
   while Dynarray.length names <= n do
     Dynarray.add_last names (spell (Dynarray.length names))
   done;
   Dynarray.get names n
 
-(* Fresh temps use names like %t0 and %t1 *)
+(* A fresh temp gets a name like %t0 *)
 let fresh ctx =
   let n = ctx.tmp in
   ctx.tmp <- n + 1;
-  cached_name ctx.temp_names (fun i -> "%t" ^ string_of_int i) n
+  cached_name ctx.tmp_names (fun i -> "%t" ^ string_of_int i) n
 
 let mir_block_label ctx id =
   cached_name ctx.block_labels
@@ -118,14 +118,14 @@ let mir_block_label ctx id =
     id
 
 (* This is to handle collisions because t0 or t1 would collide with the temps *)
-let spelled_like_temp name =
+let spelled_like_tmp name =
   String.length name > 1
   && name.[0] = 't'
   && String.for_all Char.Ascii.is_digit (String.drop_first 1 name)
 
 let emit ctx fmt = Printf.bprintf ctx.buf fmt
 
-(* Three shapes basically cover everything so they skip the format interpreter *)
+(* These three shapes cover almost everything so they skip the format interpreter *)
 let put ctx s = Buffer.add_string ctx.buf s
 let put_char ctx c = Buffer.add_char ctx.buf c
 
@@ -202,7 +202,7 @@ let offset_addr ctx base off =
     emit_op2 ctx a "l" "add" base (string_of_int off);
     a
 
-(* Pointer math is 64-bit so widen a word-sized value to a long *)
+(* The pointer math is 64 bit so a word sized value widens to a long *)
 let widen_to_l ctx v ty =
   if qbe_base ty = L then v
   else
@@ -240,7 +240,7 @@ let negative_shift_condition ctx count count_qt =
   emit ctx "%s =w cslt%s %s, 0\n" neg count_qt count;
   neg
 
-(* Write a zero value of type t to dest *)
+(* This writes a zero value of type t to dest *)
 let emit_zero_into ctx dest t =
   if is_aggregate t then begin
     let size = Layout.ty_size ctx.structs t in
@@ -284,7 +284,7 @@ let rec emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~count_ty lv rv =
   let unsigned = is_unsigned lty in
 
   let tmp = fresh ctx in
-  (* Floats: clts, cltd (no sign prefix) / ints: csltw, csltl, cultw, etc *)
+  (* The float ones are clts and cltd with no sign prefix and the int ones are csltw, csltl, cultw and so on *)
   let compare name =
     let prefix = if is_float lty then "c" else "c" ^ sign in
     emit_op2 ctx tmp "w" (prefix ^ name ^ op_qt) lv rv
@@ -296,7 +296,7 @@ let rec emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~count_ty lv rv =
   | Mir.Mul -> emit_op2 ctx tmp qt "mul" lv rv
   | Mir.Div -> emit_op2 ctx tmp qt (if unsigned then "udiv" else "div") lv rv
   | Mir.Mod -> emit_op2 ctx tmp qt (if unsigned then "urem" else "rem") lv rv
-  (* Floats: ceqs, ceqd / ints: ceqw, ceql *)
+  (* The float ones are ceqs and ceqd and the int ones are ceqw and ceql *)
   | Mir.Eq -> emit_op2 ctx tmp "w" ("ceq" ^ op_qt) lv rv
   | Mir.Neq -> emit_op2 ctx tmp "w" ("cne" ^ op_qt) lv rv
   | Mir.Lt -> compare "lt"
@@ -347,42 +347,28 @@ and narrow_int_to ctx v target_ty =
 and emit_cast ctx v src_ty target_ty =
   let tmp = fresh ctx in
   let tgt = qbe_ty target_ty in
+  let src_base = qbe_base src_ty in
   (* The extend already truncates so the copy would be redundant *)
-  match (narrow_int_instr target_ty, qbe_base src_ty) with
+  match (narrow_int_instr target_ty, src_base) with
   | Some instr, (W | L) ->
       emit_op1 ctx tmp "w" instr v;
       tmp
   | _ ->
-      (match (qbe_base src_ty, qbe_base target_ty) with
-      | W, W | L, L | S, S | D, D -> emit_op1 ctx tmp tgt "copy" v
-      | W, L ->
-          let instr = if is_unsigned src_ty then "extuw" else "extsw" in
-          emit_op1 ctx tmp "l" instr v
-      | L, W -> emit_op1 ctx tmp "w" "copy" v
-      | S, D -> emit ctx "%s =d exts %s\n" tmp v
-      | D, S -> emit ctx "%s =s truncd %s\n" tmp v
-      | (W | L), (S | D) ->
-          let instr =
-            match (qbe_base src_ty, is_unsigned src_ty) with
-            | W, true -> "uwtof"
-            | W, false -> "swtof"
-            | L, true -> "ultof"
-            | L, false -> "sltof"
-            | (S | D), _ ->
-                Diagnostic.ice "float to float conversion in integer path"
-          in
-          emit ctx "%s =%s %s %s\n" tmp tgt instr v
-      | (S | D), (W | L) ->
-          let instr =
-            match (qbe_base src_ty, is_unsigned target_ty) with
-            | S, true -> "stoui"
-            | S, false -> "stosi"
-            | D, true -> "dtoui"
-            | D, false -> "dtosi"
-            | (W | L), _ ->
-                Diagnostic.ice "integer to integer conversion in float path"
-          in
-          emit ctx "%s =%s %s %s\n" tmp tgt instr v);
+      let src_unsigned = is_unsigned src_ty in
+      let target_unsigned = is_unsigned target_ty in
+      let ty, instr =
+        match (src_base, qbe_base target_ty) with
+        | W, W | L, L | S, S | D, D -> (tgt, "copy")
+        | W, L -> ("l", if src_unsigned then "extuw" else "extsw")
+        | L, W -> ("w", "copy")
+        | S, D -> ("d", "exts")
+        | D, S -> ("s", "truncd")
+        | W, (S | D) -> (tgt, if src_unsigned then "uwtof" else "swtof")
+        | L, (S | D) -> (tgt, if src_unsigned then "ultof" else "sltof")
+        | S, (W | L) -> (tgt, if target_unsigned then "stoui" else "stosi")
+        | D, (W | L) -> (tgt, if target_unsigned then "dtoui" else "dtosi")
+      in
+      emit_op1 ctx tmp ty instr v;
       narrow_int_to ctx tmp target_ty
 
 let qbe_struct_name ctx name =
@@ -439,20 +425,20 @@ let emit_string_into ctx destination content =
   emit ctx "storel %d, %s\n" (String.length content)
     (offset_addr ctx destination 8)
 
-let direct_value_binding (mctx : mir_ctx) (place : Mir.place) =
+let direct_value_binding mctx place =
   let value_name = function Value name -> Some name | Memory _ -> None in
-  match (place.Mir.base, place.Mir.projections) with
+  match (place.Mir.place_base, place.Mir.place_projs) with
   | Mir.Local id, [] -> value_name mctx.bindings.(id)
   | Mir.Local _, _ | Mir.Global _, _ -> None
 
-let mir_base_ty mctx (base : Mir.place_base) =
+let mir_base_ty mctx base =
   match base with
-  | Mir.Local id -> mctx.func.Mir.locals.(id).Mir.ty
+  | Mir.Local id -> mctx.func.Mir.func_locals.(id).Mir.local_ty
   | Mir.Global name -> Hashtbl.find mctx.global_types name
 
-let rec emit_mir_operand mctx (operand : Mir.operand) =
-  match operand.Mir.desc with
-  | Mir.Const constant -> emit_mir_constant mctx.qbe operand.Mir.ty constant
+let rec emit_mir_operand mctx operand =
+  match operand.Mir.op_desc with
+  | Mir.Const constant -> emit_mir_constant mctx.qbe operand.Mir.op_ty constant
   | Mir.Copy place -> emit_mir_copy mctx place
 
 and emit_mir_copy mctx place =
@@ -476,20 +462,19 @@ and emit_mir_constant ctx ty = function
   | Mir.Function name -> "$" ^ name
   | Mir.Str _ -> Diagnostic.ice "str constant requires a destination"
 
-and widened_operand (mctx : mir_ctx) (operand : Mir.operand) =
-  match operand.Mir.desc with
+and widened_operand mctx operand =
+  match operand.Mir.op_desc with
   | Mir.Const (Mir.Int value) -> Int64.to_string value
   | Mir.Const (Mir.Bool value) -> if value then "1" else "0"
   | Mir.Const (Mir.Char value) -> string_of_int value
-  | _ -> widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.ty
+  | _ -> widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.op_ty
 
-and emit_mir_index_addr (mctx : mir_ctx) storage element
-    (index_operand : Mir.operand) =
+and emit_mir_index_addr mctx storage elem index_operand =
   let ctx = mctx.qbe in
-  let element_stride = Layout.stride ctx.structs element in
-  match index_operand.Mir.desc with
+  let elem_stride = Layout.stride ctx.structs elem in
+  match index_operand.Mir.op_desc with
   | Mir.Const (Mir.Int value) ->
-      let offset = Int64.mul value (Int64.of_int element_stride) in
+      let offset = Int64.mul value (Int64.of_int elem_stride) in
       if offset = 0L then storage
       else begin
         let addr = fresh ctx in
@@ -499,7 +484,7 @@ and emit_mir_index_addr (mctx : mir_ctx) storage element
   | _ ->
       let index = widened_operand mctx index_operand in
       let offset = fresh ctx in
-      emit_op2 ctx offset "l" "mul" index (string_of_int element_stride);
+      emit_op2 ctx offset "l" "mul" index (string_of_int elem_stride);
       let addr = fresh ctx in
       emit_op2 ctx addr "l" "add" storage offset;
       addr
@@ -509,14 +494,14 @@ and emit_mir_place mctx place =
   let rec project addr ty = function
     | [] -> (addr, ty)
     | Mir.Deref :: rest ->
-        let pointer = fresh ctx in
-        emit_op1 ctx pointer "l" "loadl" addr;
+        let ptr = fresh ctx in
+        emit_op1 ctx ptr "l" "loadl" addr;
         let inner =
           match resolve_ty ty with
           | TPointer inner -> inner
           | _ -> Diagnostic.ice "MIR deref on non pointer"
         in
-        project pointer inner rest
+        project ptr inner rest
     | Mir.Field field :: rest ->
         let struct_name =
           match resolve_ty ty with
@@ -530,44 +515,43 @@ and emit_mir_place mctx place =
         in
         project addr field_ty rest
     | Mir.Index index_operand :: rest ->
-        let element, storage =
+        let elem, storage =
           match resolve_ty ty with
-          | TArray (element, _) -> (element, addr)
-          | TSlice element -> (element, load_slice_ptr ctx addr)
-          | TPointer element ->
-              let pointer = fresh ctx in
-              emit_op1 ctx pointer "l" "loadl" addr;
-              (element, pointer)
+          | TArray (elem, _) -> (elem, addr)
+          | TSlice elem -> (elem, load_slice_ptr ctx addr)
+          | TPointer elem ->
+              let ptr = fresh ctx in
+              emit_op1 ctx ptr "l" "loadl" addr;
+              (elem, ptr)
           | _ -> Diagnostic.ice "MIR index on non indexed place"
         in
-        let addr = emit_mir_index_addr mctx storage element index_operand in
-        project addr element rest
+        let addr = emit_mir_index_addr mctx storage elem index_operand in
+        project addr elem rest
   in
-  let base_ty = mir_base_ty mctx place.Mir.base in
-  let projections = List.rev place.Mir.projections in
-  let project_pointer pointer projection rest =
+  let base_ty = mir_base_ty mctx place.Mir.place_base in
+  let projections = List.rev place.Mir.place_projs in
+  let project_ptr ptr projection rest =
     match (resolve_ty base_ty, projection) with
-    | TPointer element, Mir.Deref -> project pointer element rest
-    | TPointer element, Mir.Index index ->
-        let addr = emit_mir_index_addr mctx pointer element index in
-        project addr element rest
+    | TPointer elem, Mir.Deref -> project ptr elem rest
+    | TPointer elem, Mir.Index index ->
+        let addr = emit_mir_index_addr mctx ptr elem index in
+        project addr elem rest
     | _, _ -> Diagnostic.ice "MIR pointer projection on non pointer"
   in
-  match place.Mir.base with
+  match place.Mir.place_base with
   | Mir.Global name -> project ("$" ^ name) base_ty projections
   | Mir.Local id ->
       begin match (mctx.bindings.(id), projections) with
       | Memory addr, projections -> project addr base_ty projections
-      | Value pointer, Mir.Deref :: rest ->
-          project_pointer pointer Mir.Deref rest
-      | Value pointer, Mir.Index index :: rest ->
-          project_pointer pointer (Mir.Index index) rest
+      | Value ptr, Mir.Deref :: rest -> project_ptr ptr Mir.Deref rest
+      | Value ptr, Mir.Index index :: rest ->
+          project_ptr ptr (Mir.Index index) rest
       | Value _, [] -> Diagnostic.ice "value local used as an address"
       | Value _, Mir.Field _ :: _ ->
           Diagnostic.ice "MIR projection on scalar local"
       end
 
-let emit_mir_unary ctx (op : Mir.unop) operand ty =
+let emit_mir_unop ctx op operand ty =
   let qt = qbe_ty ty in
   let result = fresh ctx in
   match op with
@@ -581,19 +565,22 @@ let emit_mir_unary ctx (op : Mir.unop) operand ty =
       emit_op2 ctx result "w" "ceqw" operand "0";
       result
 
-let emit_mir_value mctx (value : Mir.value) =
+let emit_mir_value mctx value =
   let ctx = mctx.qbe in
-  match value.Mir.desc with
+  match value.Mir.val_desc with
   | Mir.Use operand -> emit_mir_operand mctx operand
-  | Mir.Unary (op, operand) ->
-      emit_mir_unary ctx op (emit_mir_operand mctx operand) value.Mir.ty
-  | Mir.Binary (op, left, right) ->
+  | Mir.UnOp (op, operand) ->
+      emit_mir_unop ctx op (emit_mir_operand mctx operand) value.Mir.val_ty
+  | Mir.BinOp (op, left, right) ->
       let left_value = emit_mir_operand mctx left in
       let right_value = emit_mir_operand mctx right in
-      emit_arith_binop ctx op ~result_ty:value.Mir.ty ~operand_ty:left.Mir.ty
-        ~count_ty:right.Mir.ty left_value right_value
+      emit_arith_binop ctx op ~result_ty:value.Mir.val_ty
+        ~operand_ty:left.Mir.op_ty ~count_ty:right.Mir.op_ty left_value
+        right_value
   | Mir.Cast operand ->
-      emit_cast ctx (emit_mir_operand mctx operand) operand.Mir.ty value.Mir.ty
+      emit_cast ctx
+        (emit_mir_operand mctx operand)
+        operand.Mir.op_ty value.Mir.val_ty
   | Mir.AddressOf place -> fst (emit_mir_place mctx place)
   | Mir.Len place -> (
       let addr, ty = emit_mir_place mctx place in
@@ -609,8 +596,7 @@ let emit_mir_value mctx (value : Mir.value) =
       | _ -> Diagnostic.ice "MIR data pointer on invalid place")
   | Mir.SizeOf ty -> string_of_int (Layout.ty_size ctx.structs ty)
 
-let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
-    (destination_ty : ty) (value : string) =
+let emit_value_into mctx destination destination_ty value =
   match direct_value_binding mctx destination with
   | Some binding ->
       emit_op1 mctx.qbe binding (qbe_ty destination_ty) "copy" value
@@ -621,15 +607,15 @@ let emit_value_into (mctx : mir_ctx) (destination : Mir.place)
           (Layout.ty_size mctx.qbe.structs destination_ty)
       else emit_store mctx.qbe (qbe_store destination_ty) value destination_addr
 
-let emit_mir_assign mctx destination (value : Mir.value) =
+let emit_mir_assign mctx destination value =
   let ctx = mctx.qbe in
-  match value.Mir.desc with
-  | Mir.Use { Mir.desc = Mir.Const Mir.Undef; _ } -> ()
-  | Mir.Use { Mir.desc = Mir.Const (Mir.Str content); _ } ->
+  match value.Mir.val_desc with
+  | Mir.Use { Mir.op_desc = Mir.Const Mir.Undef; _ } -> ()
+  | Mir.Use { Mir.op_desc = Mir.Const (Mir.Str content); _ } ->
       let destination_addr, _ = emit_mir_place mctx destination in
       emit_string_into ctx destination_addr content
-  | Mir.Use { Mir.desc = Mir.Const Mir.Zero; _ } ->
-      let destination_ty = value.Mir.ty in
+  | Mir.Use { Mir.op_desc = Mir.Const Mir.Zero; _ } ->
+      let destination_ty = value.Mir.val_ty in
       if is_aggregate destination_ty then begin
         let destination_addr, _ = emit_mir_place mctx destination in
         emit_zero_into ctx destination_addr destination_ty
@@ -637,7 +623,7 @@ let emit_mir_assign mctx destination (value : Mir.value) =
       else emit_value_into mctx destination destination_ty "0"
   | _ ->
       let result = emit_mir_value mctx value in
-      emit_value_into mctx destination value.Mir.ty result
+      emit_value_into mctx destination value.Mir.val_ty result
 
 let emit_mir_slice mctx destination source lo hi =
   let ctx = mctx.qbe in
@@ -649,51 +635,50 @@ let emit_mir_slice mctx destination source lo hi =
     | TSlice _ -> load_slice_ptr ctx source_addr
     | _ -> Diagnostic.ice "MIR slice requires array or slice"
   in
-  let element =
+  let elem =
     match resolve_ty destination_ty with
-    | TSlice element -> element
+    | TSlice elem -> elem
     | _ -> Diagnostic.ice "MIR slice result has invalid type"
   in
   let lo_value = widened_operand mctx lo in
   let hi_value = widened_operand mctx hi in
-  let pointer = emit_mir_index_addr mctx storage element lo in
-  let length = fresh ctx in
-  emit ctx "%s =l sub %s, %s\n" length hi_value lo_value;
-  emit ctx "storel %s, %s\n" pointer destination_addr;
-  emit ctx "storel %s, %s\n" length (offset_addr ctx destination_addr 8)
+  let ptr = emit_mir_index_addr mctx storage elem lo in
+  let len = fresh ctx in
+  emit ctx "%s =l sub %s, %s\n" len hi_value lo_value;
+  emit ctx "storel %s, %s\n" ptr destination_addr;
+  emit ctx "storel %s, %s\n" len (offset_addr ctx destination_addr 8)
 
 (* The condition is true when the check fails so it feeds the branch to the panic block *)
 let emit_mir_check_condition mctx = function
-  | Mir.Bounds (index, length) ->
+  | Mir.Bounds (index, len) ->
       bounds_condition mctx.qbe
         (widened_operand mctx index)
-        (widened_operand mctx length)
-  | Mir.SliceBounds (lo, hi, length) ->
+        (widened_operand mctx len)
+  | Mir.SliceBounds (lo, hi, len) ->
       slice_bounds_condition mctx.qbe (widened_operand mctx lo)
-        (widened_operand mctx hi)
-        (widened_operand mctx length)
-  | Mir.Null pointer -> null_condition mctx.qbe (emit_mir_operand mctx pointer)
+        (widened_operand mctx hi) (widened_operand mctx len)
+  | Mir.Null ptr -> null_condition mctx.qbe (emit_mir_operand mctx ptr)
   | Mir.DivZero divisor ->
       div_zero_condition mctx.qbe
         (emit_mir_operand mctx divisor)
-        (qbe_ty divisor.Mir.ty)
+        (qbe_ty divisor.Mir.op_ty)
   | Mir.NegativeShift count ->
       negative_shift_condition mctx.qbe
         (emit_mir_operand mctx count)
-        (qbe_ty count.Mir.ty)
+        (qbe_ty count.Mir.op_ty)
 
 let emit_mir_panic mctx span check =
   let ctx = mctx.qbe in
   let site = Panictable.record ctx.panics span in
   (match check with
-  | Mir.Bounds (index, length) ->
+  | Mir.Bounds (index, len) ->
       emit ctx "call $ripe_panic_bounds(w %d, l %s, l %s)\n" site
         (widened_operand mctx index)
-        (widened_operand mctx length)
-  | Mir.SliceBounds (lo, hi, length) ->
+        (widened_operand mctx len)
+  | Mir.SliceBounds (lo, hi, len) ->
       emit ctx "call $ripe_panic_slice_bounds(w %d, l %s, l %s, l %s)\n" site
         (widened_operand mctx lo) (widened_operand mctx hi)
-        (widened_operand mctx length)
+        (widened_operand mctx len)
   | Mir.Null _ -> emit ctx "call $ripe_panic_null(w %d)\n" site
   | Mir.DivZero _ -> emit ctx "call $ripe_panic_divzero(w %d)\n" site
   | Mir.NegativeShift _ -> emit ctx "call $ripe_panic_shift(w %d)\n" site);
@@ -731,27 +716,27 @@ let qbe_call_ty ctx kind ty =
 let qbe_param_ty ctx abi ty =
   if abi = C && is_aggregate ty then qbe_abi_ty ctx ty else qbe_ty ty
 
-let c_result_slot (func : Mir.func) bindings =
-  match func.Mir.result with
-  | Some id when func.Mir.abi = C && is_aggregate func.Mir.return_ty -> (
+let c_result_slot func bindings =
+  match func.Mir.func_result with
+  | Some id when func.Mir.func_abi = C && is_aggregate func.Mir.func_ret -> (
       match bindings.(id) with Value name | Memory name -> Some name)
   | _ -> None
 
-let emit_mir_call mctx (call : Mir.call) =
+let emit_mir_call mctx call =
   let ctx = mctx.qbe in
   let hidden_result =
-    match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
-    | Some destination, return_ty, Mir.Internal when is_aggregate return_ty ->
+    match (call.Mir.call_dest, call.Mir.call_ret, call.Mir.call_kind) with
+    | Some destination, ret_ty, Mir.Internal when is_aggregate ret_ty ->
         Some (emit_mir_place mctx destination |> fst)
     | _ -> None
   in
   let args =
     List.map
-      (fun (operand : Mir.operand) ->
+      (fun operand ->
         Printf.sprintf "%s %s"
-          (qbe_call_ty ctx call.Mir.kind operand.Mir.ty)
+          (qbe_call_ty ctx call.Mir.call_kind operand.Mir.op_ty)
           (emit_mir_operand mctx operand))
-      call.Mir.args
+      call.Mir.call_args
   in
   let args =
     match hidden_result with
@@ -759,32 +744,32 @@ let emit_mir_call mctx (call : Mir.call) =
     | None -> args
   in
   let args =
-    match call.Mir.variadic_start with
+    match call.Mir.call_variadic_start with
     | None -> args
     | Some count -> List.take count args @ ("..." :: List.drop count args)
   in
-  let callee = mir_callee mctx call.Mir.callee in
-  match (call.Mir.destination, call.Mir.return_ty, call.Mir.kind) with
+  let callee = mir_callee mctx call.Mir.call_callee in
+  match (call.Mir.call_dest, call.Mir.call_ret, call.Mir.call_kind) with
   | None, _, _ -> emit ctx "call %s(%s)\n" callee (String.concat ", " args)
-  | Some _, return_ty, Mir.Internal when is_aggregate return_ty ->
+  | Some _, ret_ty, Mir.Internal when is_aggregate ret_ty ->
       emit ctx "call %s(%s)\n" callee (String.concat ", " args)
-  | Some destination, return_ty, _ ->
+  | Some destination, ret_ty, _ ->
       let result = fresh ctx in
       emit ctx "%s =%s call %s(%s)\n" result
-        (qbe_call_ty ctx call.Mir.kind return_ty)
+        (qbe_call_ty ctx call.Mir.call_kind ret_ty)
         callee (String.concat ", " args);
-      emit_value_into mctx destination return_ty result
+      emit_value_into mctx destination ret_ty result
 
-let emit_mir_statement mctx (statement : Mir.statement) =
-  match statement.Mir.desc with
+let emit_mir_stmt mctx stmt =
+  match stmt.Mir.stmt_desc with
   | Mir.Assign (destination, value) -> emit_mir_assign mctx destination value
   | Mir.Call call -> emit_mir_call mctx call
   | Mir.Slice (destination, source, lo, hi) ->
       emit_mir_slice mctx destination source lo hi
 
-let emit_mir_terminator mctx (terminator : Mir.terminator) =
+let emit_mir_terminator mctx terminator =
   let ctx = mctx.qbe in
-  match terminator.Mir.desc with
+  match terminator.Mir.term_desc with
   | Mir.Jump target -> emit_jmp ctx (mir_block_label ctx target)
   | Mir.Branch (condition, yes, no) ->
       emit_jnz ctx
@@ -796,7 +781,7 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
         (emit_mir_check_condition mctx check)
         fail (mir_block_label ctx ok);
       emit_label ctx fail;
-      emit_mir_panic mctx terminator.Mir.span check
+      emit_mir_panic mctx terminator.Mir.term_span check
   | Mir.ReturnValue None -> (
       match c_result_slot mctx.func mctx.bindings with
       | Some slot -> emit ctx "ret %s\n" slot
@@ -809,47 +794,50 @@ let emit_mir_terminator mctx (terminator : Mir.terminator) =
   | Mir.Unreachable -> put ctx "hlt\n"
 
 let analyze_local_usage func =
-  let address_taken = Array.make (Array.length func.Mir.locals) false in
-  let defined = Array.make (Array.length func.Mir.locals) false in
-  let mark_defined (place : Mir.place) =
-    match (place.Mir.base, place.Mir.projections) with
+  let address_taken = Array.make (Array.length func.Mir.func_locals) false in
+  let defined = Array.make (Array.length func.Mir.func_locals) false in
+  let mark_defined place =
+    match (place.Mir.place_base, place.Mir.place_projs) with
     | Mir.Local id, [] -> defined.(id) <- true
     | Mir.Local _, _ | Mir.Global _, _ -> ()
   in
-  let mark_statement (statement : Mir.statement) =
-    match statement.Mir.desc with
+  let mark_stmt stmt =
+    match stmt.Mir.stmt_desc with
     | Mir.Assign (destination, value) ->
-        begin match value.Mir.desc with
-        | Mir.Use { Mir.desc = Mir.Const Mir.Undef; _ } -> ()
-        | Mir.AddressOf { Mir.base = Mir.Local id; projections = []; _ } ->
+        begin match value.Mir.val_desc with
+        | Mir.Use { Mir.op_desc = Mir.Const Mir.Undef; _ } -> ()
+        | Mir.AddressOf { Mir.place_base = Mir.Local id; place_projs = []; _ }
+          ->
             mark_defined destination;
             address_taken.(id) <- true
         | _ -> mark_defined destination
         end
-    | Mir.Call call -> Option.iter mark_defined call.Mir.destination
+    | Mir.Call call -> Option.iter mark_defined call.Mir.call_dest
     | Mir.Slice (destination, _, _, _) -> mark_defined destination
   in
-  let mark_block block = List.iter mark_statement block.Mir.statements in
-  Array.iter mark_block func.Mir.blocks;
-  List.iter (fun id -> defined.(id) <- true) func.Mir.params;
+  let mark_block block = List.iter mark_stmt block.Mir.block_stmts in
+  Array.iter mark_block func.Mir.func_blocks;
+  List.iter (fun id -> defined.(id) <- true) func.Mir.func_params;
   { address_taken; defined }
 
-let can_bind_value (local : Mir.local) =
-  match resolve_ty local.Mir.ty with
+let can_bind_value local =
+  match resolve_ty local.Mir.local_ty with
   | TInt _ | TFloat _ | TBool | TChar | TEnum _ -> true
   | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> true
   | _ -> false
 
-(* Keeps names readable in the generated IL and adds suffixes when needed *)
+(* This keeps names readable in the generated IL and adds suffixes when needed *)
 let bind_mir_locals ctx func =
   let usage = analyze_local_usage func in
   Array.mapi
-    (fun id (local : Mir.local) ->
+    (fun id local ->
       let base =
-        match local.Mir.name with Some n -> n | None -> "m" ^ string_of_int id
+        match local.Mir.local_name with
+        | Some n -> n
+        | None -> "m" ^ string_of_int id
       in
       let slot =
-        if Hashtbl.mem ctx.used_slots base || spelled_like_temp base then
+        if Hashtbl.mem ctx.used_slots base || spelled_like_tmp base then
           base ^ "." ^ string_of_int id
         else base
       in
@@ -860,17 +848,17 @@ let bind_mir_locals ctx func =
         && not usage.address_taken.(id)
       then Value name
       else Memory name)
-    func.Mir.locals
+    func.Mir.func_locals
 
-let emit_mir_func ctx global_types (func : Mir.func) =
-  Panictable.enter_func ctx.panics func.Mir.source_name;
+let emit_mir_func ctx global_types func =
+  Panictable.enter_func ctx.panics func.Mir.func_source_name;
   ctx.tmp <- 0;
   Hashtbl.clear ctx.used_slots;
   let bindings = bind_mir_locals ctx func in
   let returns_itself = c_result_slot func bindings <> None in
   (* The result local lives in the caller's storage so it borrows the hidden pointer *)
   let result_tmp =
-    match func.Mir.result with
+    match func.Mir.func_result with
     | Some id when not returns_itself ->
         let tmp = fresh ctx in
         bindings.(id) <- Memory tmp;
@@ -880,40 +868,39 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   let params =
     List.map
       (fun id ->
-        let local = func.Mir.locals.(id) in
+        let local = func.Mir.func_locals.(id) in
         let tmp = fresh ctx in
-        (id, local.Mir.ty, tmp))
-      func.Mir.params
+        (id, local.Mir.local_ty, tmp))
+      func.Mir.func_params
   in
   let params_text =
     (match result_tmp with None -> [] | Some tmp -> [ "l " ^ tmp ])
     @ List.map
-        (fun (_, ty, tmp) -> qbe_param_ty ctx func.Mir.abi ty ^ " " ^ tmp)
+        (fun (_, ty, tmp) -> qbe_param_ty ctx func.Mir.func_abi ty ^ " " ^ tmp)
         params
   in
   let return_text =
     if
-      is_unit func.Mir.return_ty
-      || is_never func.Mir.return_ty
+      is_unit func.Mir.func_ret || is_never func.Mir.func_ret
       || Option.is_some result_tmp
     then ""
-    else qbe_abi_ty ctx func.Mir.return_ty ^ " "
+    else qbe_abi_ty ctx func.Mir.func_ret ^ " "
   in
   emit ctx "%sfunction %s$%s(%s) {\n"
-    (if func.Mir.export then "export " else "")
-    return_text func.Mir.name
+    (if func.Mir.func_export then "export " else "")
+    return_text func.Mir.func_name
     (String.concat ", " params_text);
   emit_label ctx "@start";
   Array.iteri
-    (fun id (local : Mir.local) ->
+    (fun id local ->
       match bindings.(id) with
       | Value _ -> ()
       | Memory slot ->
-          if returns_itself || Some id <> func.Mir.result then
+          if returns_itself || Some id <> func.Mir.func_result then
             emit_op1 ctx slot "l"
-              (alloc_instr ctx.structs local.Mir.ty)
-              (string_of_int (Layout.ty_size ctx.structs local.Mir.ty)))
-    func.Mir.locals;
+              (alloc_instr ctx.structs local.Mir.local_ty)
+              (string_of_int (Layout.ty_size ctx.structs local.Mir.local_ty)))
+    func.Mir.func_locals;
   List.iter
     (fun (id, ty, tmp) ->
       match bindings.(id) with
@@ -928,24 +915,24 @@ let emit_mir_func ctx global_types (func : Mir.func) =
   Array.iteri
     (fun id block ->
       if id > 0 then emit_label ctx (mir_block_label ctx id);
-      List.iter (emit_mir_statement mctx) block.Mir.statements;
-      match block.Mir.terminator with
+      List.iter (emit_mir_stmt mctx) block.Mir.block_stmts;
+      match block.Mir.block_term with
       | Some terminator -> emit_mir_terminator mctx terminator
       | None -> Diagnostic.ice "unterminated verified MIR block")
-    func.Mir.blocks;
+    func.Mir.func_blocks;
   emit ctx "}\n\n"
 
 (* The C runtime wants an int from main even if ripe's main gives nothing *)
-let emit_entry_wrapper ctx (func : Mir.func) =
+let emit_entry_wrapper ctx func =
   emit ctx "export function w $main() {\n";
   emit_label ctx "@start";
-  if resolve_ty func.Mir.return_ty = TInt I32 then begin
+  if resolve_ty func.Mir.func_ret = TInt I32 then begin
     let code = fresh ctx in
-    emit ctx "%s =w call $%s()\n" code func.Mir.name;
+    emit ctx "%s =w call $%s()\n" code func.Mir.func_name;
     emit ctx "ret %s\n" code
   end
   else begin
-    emit ctx "call $%s()\n" func.Mir.name;
+    emit ctx "call $%s()\n" func.Mir.func_name;
     emit ctx "ret 0\n"
   end;
   emit ctx "}\n\n"
@@ -964,12 +951,12 @@ let rec emit_mir_global_fields ctx expected = function
         (emit_mir_constant ctx ty constant)
   | Mir.GlobalAddress name -> "l $" ^ name
   | Mir.GlobalArray values ->
-      let element =
+      let elem =
         match resolve_ty expected with
-        | TArray (element, _) -> element
+        | TArray (elem, _) -> elem
         | _ -> Diagnostic.ice "MIR global array has invalid type"
       in
-      String.concat ", " (List.map (emit_mir_global_fields ctx element) values)
+      String.concat ", " (List.map (emit_mir_global_fields ctx elem) values)
   | Mir.GlobalStruct values ->
       let name =
         match resolve_ty expected with
@@ -993,39 +980,39 @@ let rec emit_mir_global_fields ctx expected = function
       pad_to (Layout.ty_size ctx.structs expected);
       String.concat ", " (List.rev !parts)
 
-let emit_mir_global ctx (global : Mir.global) =
-  let align = Layout.ty_align ctx.structs global.Mir.ty in
-  match global.Mir.init with
+let emit_mir_global ctx global =
+  let align = Layout.ty_align ctx.structs global.Mir.global_ty in
+  match global.Mir.global_init with
   | None ->
-      emit ctx "data $%s = align %d { z %d }\n" global.Mir.name align
-        (Layout.ty_size ctx.structs global.Mir.ty)
+      emit ctx "data $%s = align %d { z %d }\n" global.Mir.global_name align
+        (Layout.ty_size ctx.structs global.Mir.global_ty)
   | Some value ->
-      emit ctx "data $%s = align %d { %s }\n" global.Mir.name align
-        (emit_mir_global_fields ctx global.Mir.ty value)
+      emit ctx "data $%s = align %d { %s }\n" global.Mir.global_name align
+        (emit_mir_global_fields ctx global.Mir.global_ty value)
 
-let emit ~filename ~source_map program =
+let emit filename source_map program =
   let structs = Layout.create () in
   let struct_names = Symbol.Table.create 8 in
   List.iter
-    (fun (decl : Mir.struct_decl) ->
-      let key = Keyname.key decl.Mir.name in
-      Layout.set_struct_fields structs key decl.Mir.fields;
+    (fun decl ->
+      let key = Keyname.key decl.Mir.struct_name in
+      Layout.set_struct_fields structs key decl.Mir.struct_fields;
       let name =
-        if decl.Mir.local then Printf.sprintf "_Rlocal%d" (key :> int)
-        else Keyname.show decl.Mir.name
+        if decl.Mir.struct_local then Printf.sprintf "_Rlocal%d" (key :> int)
+        else Keyname.show decl.Mir.struct_name
       in
       Symbol.Table.add struct_names key name)
-    program.Mir.structs;
-  let global_types = Hashtbl.create 16 in
-  List.iter
-    (fun (global : Mir.global) ->
-      Hashtbl.add global_types global.Mir.name global.Mir.ty)
-    program.Mir.globals;
+    program.Mir.prog_structs;
+  let global_types =
+    List.to_seq program.Mir.prog_globals
+    |> Seq.map (fun g -> (g.Mir.global_name, g.Mir.global_ty))
+    |> Hashtbl.of_seq
+  in
   let ctx =
     {
       structs;
       struct_names;
-      panics = Panictable.create ~filename ~source_map;
+      panics = Panictable.create filename source_map;
       used_slots = Hashtbl.create 16;
       buf = Buffer.create 1024;
       strings = [];
@@ -1033,13 +1020,13 @@ let emit ~filename ~source_map program =
       abi_defs = Buffer.create 128;
       next_abi_type = 0;
       tmp = 0;
-      temp_names = Dynarray.create ();
+      tmp_names = Dynarray.create ();
       block_labels = Dynarray.create ();
       str_ctr = 0;
     }
   in
   (* The QBE format requires member structs before containing structs *)
-  let emitted = Symbol.Table.create (List.length program.Mir.structs) in
+  let emitted = Symbol.Table.create (List.length program.Mir.prog_structs) in
   let rec emit_struct name =
     let key = Keyname.key name in
     if not (Symbol.Table.mem emitted key) then begin
@@ -1051,18 +1038,18 @@ let emit ~filename ~source_map program =
   and emit_dependencies field_ty =
     match resolve_ty field_ty with
     | TStruct (name, _) -> emit_struct name
-    | TArray (element, _) -> emit_dependencies element
+    | TArray (elem, _) -> emit_dependencies elem
     | _ -> ()
   in
   List.iter
-    (fun (decl : Mir.struct_decl) -> emit_struct decl.Mir.name)
-    program.Mir.structs;
-  if not (List.is_empty program.Mir.structs) then emit ctx "\n";
+    (fun decl -> emit_struct decl.Mir.struct_name)
+    program.Mir.prog_structs;
+  if not (List.is_empty program.Mir.prog_structs) then emit ctx "\n";
   let types_end = Buffer.length ctx.buf in
-  List.iter (emit_mir_global ctx) program.Mir.globals;
-  if not (List.is_empty program.Mir.globals) then emit ctx "\n";
-  List.iter (emit_mir_func ctx global_types) program.Mir.functions;
-  List.find_opt (fun func -> func.Mir.entry_point) program.Mir.functions
+  List.iter (emit_mir_global ctx) program.Mir.prog_globals;
+  if not (List.is_empty program.Mir.prog_globals) then emit ctx "\n";
+  List.iter (emit_mir_func ctx global_types) program.Mir.prog_funcs;
+  List.find_opt (fun func -> func.Mir.func_entry_point) program.Mir.prog_funcs
   |> Option.iter (emit_entry_wrapper ctx);
   (* A program with no checks emits neither table and the runtime declares both weak so it still links *)
   (match Panictable.sites ctx.panics with
@@ -1078,10 +1065,10 @@ let emit ~filename ~source_map program =
         (Panictable.strings ctx.panics);
       put ctx " }\nexport data $ripe_panic_sites = align 4 { ";
       List.iteri
-        (fun i (site : Panictable.site) ->
+        (fun i site ->
           if i > 0 then put ctx ", ";
-          emit ctx "w %d, w %d, w %d, w %d" site.file site.line site.col
-            site.func)
+          emit ctx "w %d, w %d, w %d, w %d" site.Panictable.file site.line
+            site.col site.func)
         sites;
       put ctx " }\n");
   List.iter
