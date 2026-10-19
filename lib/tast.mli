@@ -40,6 +40,7 @@ type texpr_desc =
   | TLoop of tblock
   | TMatch of texpr * tarm list
   | TUnitLit
+  | TTypeExpr
 
 and texpr = { tdesc : texpr_desc; ty : ty; tspan : Ast.span }
 and tblock = texpr list

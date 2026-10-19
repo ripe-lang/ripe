@@ -728,7 +728,7 @@ and lower_into state destination expr =
       lower_match state destination expr scrutinee arms
   | TBinding _ | TReturn _ | TBreak _ | TContinue _ | TFor _ ->
       lower_stmt state expr
-  | TLocalDecl | TUnitLit -> ());
+  | TLocalDecl | TUnitLit | TTypeExpr -> ());
   if is_never expr.ty then terminate state Unreachable expr.tspan
 
 (* %0 = call @g(), call @puts(copy %1) *)

@@ -101,6 +101,7 @@ let builtins =
       ("str", TStr);
       ("never", TNever);
       ("ptr", TPtr);
+      ("type", TType);
     ]
 
 let rec show_ty t =

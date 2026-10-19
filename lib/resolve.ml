@@ -357,34 +357,24 @@ and resolve_pattern st p =
 
 (* A bare name is the one thing a type position reads differently *)
 and resolve_typ st t =
-  match t.tdesc with
-  | Named name -> use_type st name t.tspan
-  | Pointer t | Slice t -> resolve_typ st t
-  | Array (e, t) ->
-      resolve_expr st e;
-      resolve_typ st t
-  | FuncPtr (_, ps, ret) ->
-      List.iter (resolve_typ st) ps;
-      resolve_typ st ret
-  | UnitType -> ()
+  match t.edesc with
+  | Ident name -> use st "type" name t.espan
+  | _ -> resolve_expr st t
 
-and declare_block_item st d =
-  (match d with
-  | LocalStruct sd -> declare_local_type st sd.struct_name sd.struct_span
-  | LocalTypeAlias td -> declare_local_type st td.alias_name td.alias_span
-  | LocalFunc fd -> declare_local_func st fd.func_name fd.func_span
-  | LocalEnum ed -> declare_local_type st ed.enum_name ed.enum_span);
-  st.out.local_decls <- decl_of_local d :: st.out.local_decls
-
-and resolve_local_decl st d =
-  match d with
-  | LocalFunc fd -> resolve_local_func st fd
-  | LocalStruct _ | LocalTypeAlias _ | LocalEnum _ ->
-      resolve_decl st (decl_of_local d)
-
-and resolve_block_item st = function
-  | Expr e -> resolve_expr st e
-  | Decl d -> resolve_local_decl st d
+(* A :: of a fn is a function and any other :: is a type *)
+and resolve_binding st b =
+  let resolve_value e =
+    match (b.binder, e.edesc) with
+    | CompileTime, Lambda l -> resolve_lambda st l
+    | CompileTime, _ -> resolve_typ st e
+    | RunTime, _ -> resolve_expr st e
+  in
+  match b.bind_form with
+  | Typed (t, e) ->
+      resolve_typ st t;
+      resolve_value e
+  | Inferred e -> resolve_value e
+  | Declared t -> resolve_typ st t
 
 and resolve_block_contents st body =
   List.iter

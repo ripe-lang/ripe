@@ -552,8 +552,13 @@ and synth env e =
   | Match (scrutinee, arms) -> check_match env e.espan scrutinee arms Infer
   | For (label, { span = nspan; _ }, iter, body) ->
       synth_for env e.espan label nspan iter body
-  | Binding ({ span = nspan; _ }, ann, init) ->
-      snd (check_binding env nspan ann init)
+  | Binding ({ binder = RunTime; _ } as b) -> snd (check_binding env b)
+  | Binding { binder = CompileTime; _ } -> mk e.espan TUnit TLocalDecl
+  | Lambda l -> check_lambda env e l None
+  | StructType _ | EnumType _ -> mk e.espan TType TTypeExpr
+  | PointerType _ | FuncType _ | ArrayType _ | SliceType _ ->
+      if has_error (ty_of_ast env e) then error_expr e.espan
+      else mk e.espan TType TTypeExpr
   | Return init -> synth_return env e.espan init
   | Break (label, value) -> synth_break env e.espan label value
   | Continue label ->
@@ -791,18 +796,22 @@ and check_scoped_block env span body use =
 and check_binding env b =
   let nspan = b.bind_name.span in
   let t, te =
-    match (ann, init) with
-    | Some a, Some e ->
-        let want = ty_of_ast env a in
-        let te = check env e want in
-        (want, te)
-    | None, Some e ->
+    match b.bind_form with
+    | Typed (a, e) ->
+        let want = written_want env a e in
+        if want = TType then (TError, type_as_value e)
+        else (want, check env e want)
+    | Inferred e ->
         let te = synth env e in
+        let te = if te.ty = TType then type_as_value e else te in
         (te.ty, te)
-    | Some a, None ->
-        let want = zero_init_ty env a.tspan (ty_of_ast env a) in
-        (want, mk want TZero)
-    | None, None -> Diagnostic.ice ~span:nspan "binding has no type or value"
+    | Declared a ->
+        let want = ty_of_ast env a in
+        let want =
+          if want = TType then (type_as_value a).ty
+          else zero_init_ty env a.espan want
+        in
+        (want, mk a.espan want TZero)
   in
   let node_ty = if is_never te.ty then TNever else TUnit in
   ( extend_var env nspan t,
@@ -1132,8 +1141,11 @@ and check_match_arms env span ts arms want =
   in
   mk span ty (TMatch (ts, tarms))
 
-(* This has to be this type *)
-and check env e want = stamp e.espan (check_desc env e want)
+(* A type value that isn't written out needs compile time eval to read it *)
+and value_as_type env t =
+  if (check env t TType).ty = TType then
+    Diagnostic.emit (Diagnostic.error t.espan "invalid type");
+  TError
 
 and check_by_synth env e want =
   let typed = synth env e in
@@ -1340,8 +1352,10 @@ and check_assign_operands env base op_span l r =
   let no_place = tl.ty <> TError && not (is_lvalue tl) in
   if no_place then
     Diagnostic.emit
-      (Diagnostic.error l.espan "cannot assign to expression"
-      |> Diagnostic.label "on %s" (show_ty tl.ty));
+      (if tl.ty = TType then Diagnostic.error l.espan "cannot assign to type"
+       else
+         Diagnostic.error l.espan "cannot assign to expression"
+         |> Diagnostic.label "on %s" (show_ty tl.ty));
   (match tl.tdesc with
   | TIdent s when Symbol.is_func s.Symbol.kind ->
       Diagnostic.emit (Diagnostic.error l.espan "cannot assign to function")
@@ -1398,6 +1412,7 @@ and synth_unop env span op e =
             |> Diagnostic.label "on %s" (show_ty t)))
   | AddressOf ->
       let te = synth env e in
+      let te = if te.ty = TType then type_as_value e else te in
       if te.ty <> TError && not (is_lvalue te) then
         Diagnostic.emit (Diagnostic.error e.espan "cannot take address");
       mk span (lift_ty (fun ty -> TPointer ty) te.ty) (TUnOp (op, te))
@@ -1508,10 +1523,15 @@ and synth_index env span base idx =
         |> Diagnostic.label "on %s" (show_ty t))
 
 (* The init is what an unannotated global gets its type from *)
-and global_ty env (gd : global_def) =
-  match (gd.typ, gd.init) with
-  | Some t, _ -> ty_of_ast env t
-  | None, Some e ->
+and global_ty env fact =
+  match fact.decl.bind_form with
+  | Declared t ->
+      let ty = ty_of_ast env t in
+      if ty = TType then (type_as_value t).ty else zero_init_ty env t.espan ty
+  | Typed (t, e) when not (has_hole t) ->
+      let ty = ty_of_ast env t in
+      if ty = TType then (type_as_value e).ty else ty
+  | Typed (_, e) | Inferred e ->
       let te =
         try global_typed_init env e.espan fact
         with Diagnostic.Errors ds ->
@@ -1521,15 +1541,19 @@ and global_ty env (gd : global_def) =
       te.ty
 
 (* The running initializer state catches recursive demand *)
-and global_typed_init env span key =
-  let fact = find_global_fact env span key in
-  force_deferred span fact.typed ~on_error:dummy_texpr (fun () ->
-      type_global_init (make_env env.ctx) span fact.declaration)
+and global_typed_init env span fact =
+  force_deferred span fact.typed (error_expr span) (fun () ->
+      type_global_init (make_env env.ctx) span fact.decl)
 
-and type_global_init env span = function
-  | { init = Some e; typ = Some t; _ } -> check env e (ty_of_ast env t)
-  | { init = Some e; typ = None; _ } -> synth env e
-  | { init = None; _ } -> Diagnostic.ice ~span "global has no initializer"
+and type_global_init env span b =
+  match b.bind_form with
+  | Typed (t, e) ->
+      let want = written_want env t e in
+      if want = TType then error_expr e.espan else check env e want
+  | Inferred e ->
+      let te = synth env e in
+      if te.ty = TType then type_as_value e else te
+  | Declared _ -> Diagnostic.ice ~span "global has no initializer"
 
 and eval_array_size env e =
   let te = synth env e in

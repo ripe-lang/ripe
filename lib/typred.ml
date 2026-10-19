@@ -79,8 +79,7 @@ let rec is_comparable t =
     | TEnum _ ->
         true
     | TAlias (_, base) -> is_comparable base
-    | TError | TStr | TNever | TStruct _ | TFunc _ | TArray _ | TSlice _ | TUnit
-      ->
+    | TError | TStr | TNever | TFunc _ | TArray _ | TSlice _ | TUnit | TType ->
         false
 
 let binop_accepts = function

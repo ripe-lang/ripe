@@ -17,6 +17,7 @@ let qbe_scalar t =
   | TNever -> Diagnostic.ice "TNever has no QBE type"
   | TError -> Diagnostic.ice "TError has no QBE type"
   | TUnit -> Diagnostic.ice "TUnit has no QBE type"
+  | TType -> Diagnostic.ice "TType has no QBE type"
   | TAlias _ -> Diagnostic.ice "resolve_ty left an alias"
 
 let scalar_letter = function
