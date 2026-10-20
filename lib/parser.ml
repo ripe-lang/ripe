@@ -47,11 +47,6 @@ let is_type_start = function
   | IDENT _ | STAR | LBRACKET | EXTERN | LPAREN | UNDERSCORE -> true
   | _ -> false
 
-let ends_in_block e =
-  match e.edesc with
-  | If _ | Match _ | For _ | Loop _ | Block _ -> true
-  | _ -> false
-
 let next_token st last = match last.token with EOF -> last | _ -> st.read ()
 
 let advance st =
@@ -732,11 +727,7 @@ and parse_arms st lo scrutinee =
     let arm = parse_arm st in
     arms := arm :: !arms;
     if at st COMMA then advance st
-    else if
-      not
-        (at st RBRACE || at st EOF
-        || List.for_all ends_in_block arm.arm_body.value)
-    then
+    else if not (at st RBRACE || at st EOF) then
       Diagnostic.error (cur_span st) "expected `,` between arms"
       |> found st |> fail
   done;

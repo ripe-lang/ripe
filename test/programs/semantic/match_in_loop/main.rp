@@ -7,7 +7,7 @@ main :: fn() -> i32 {
     i += 1;
     match i % 3 {
       0 => continue,
-      1 => { total += 10 }
+      1 => { total += 10 },
       _ => { total += 1 }
     };
     total += 100

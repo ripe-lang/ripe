@@ -2015,7 +2015,7 @@ let%expect_test "parse: an arm takes an expression or a block" =
     {|f :: fn() {
   match c {
     0 => 1,
-    1 => { g() }
+    1 => { g() },
     _ => 2,
   }
 };|};

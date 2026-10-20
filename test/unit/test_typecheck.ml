@@ -3576,8 +3576,8 @@ let%expect_test "typecheck: every variant named and every arm returns" =
     {|Color :: enum { Red, Green, Blue };
 f :: fn(c: Color) -> i32 {
   match c {
-    Color.Red => { return 1 }
-    Color.Green => { return 2 }
+    Color.Red => { return 1 },
+    Color.Green => { return 2 },
     Color.Blue => { return 3 }
   }
 };|};

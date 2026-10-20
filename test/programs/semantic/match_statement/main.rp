@@ -4,8 +4,8 @@ Level :: enum { Low, Mid, High };
 
 announce :: fn(level: Level) {
   match level {
-    Level.Low => { printf("low\n") }
-    Level.Mid => { printf("mid\n") }
+    Level.Low => { printf("low\n") },
+    Level.Mid => { printf("mid\n") },
     Level.High => { printf("high\n") }
   };
   return
