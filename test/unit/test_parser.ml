@@ -2052,6 +2052,10 @@ let%expect_test "parse: a bare name binds and a dotted one is a constant" =
 };|};
   [%expect {| (block (match c ((. Color Red) (block 1)) (other (block 2)))) |}]
 
+let%expect_test "parse: fn match matches on its only param" =
+  parse_body "f : (i32) -> i32 : fn match { 0 => 1, _ => 2 };";
+  [%expect {| (block (match match (0 (block 1)) (_ (block 2)))) |}]
+
 let%expect_test "parse: a binding may be named with an underscore" =
   parse_body {|f :: fn() {
   _ := 1;

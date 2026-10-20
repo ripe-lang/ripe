@@ -1,0 +1,4 @@
+error: wrong number of parameters
+  at main.rp:1:25
+    g : (i32, i32) -> i32 : fn match { _ => 1 };
+                            ^~ expected 2 parameters, found 1

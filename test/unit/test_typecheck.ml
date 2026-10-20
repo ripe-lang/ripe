@@ -3677,6 +3677,86 @@ let%expect_test "typecheck: a float cannot be matched" =
                                                   ^~~ cannot test f32
     |}]
 
+let%expect_test "typecheck: a fn match pattern has the param type" =
+  run_src "f : (i32) -> i32 : fn match { true => 1, _ => 2 };";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:31
+        f : (i32) -> i32 : fn match { true => 1, _ => 2 };
+                                      ^~~~ expected i32, found bool
+    |}]
+
+let%expect_test "typecheck: a fn match variant needs an enum param" =
+  run_src "f : (i32) -> i32 : fn match { .Red => 1, _ => 2 };";
+  [%expect
+    {|
+    error: no variant
+      at <test>:1:32
+        f : (i32) -> i32 : fn match { .Red => 1, _ => 2 };
+                                       ^~~ on i32
+    |}]
+
+let%expect_test "typecheck: a fn match binder has the param type" =
+  run_src "f : (i32) -> bool : fn match { n => n };";
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:37
+        f : (i32) -> bool : fn match { n => n };
+                                            ^ expected bool, found i32
+    |}]
+
+let%expect_test "typecheck: a fn match names every variant" =
+  run_src
+    {|Color :: enum { Red, Blue };
+f : (Color) -> i32 : fn match { .Red => 1 };|};
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:2:25
+        f : (Color) -> i32 : fn match { .Red => 1 };
+                                ^~~~~ Color.Blue not covered
+    help: add `Color.Blue => { }` or `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a fn match on an enum takes no int" =
+  run_src
+    {|Color :: enum { Red, Blue };
+f : (Color) -> i32 : fn match { 0 => 1, _ => 2 };|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:2:33
+        f : (Color) -> i32 : fn match { 0 => 1, _ => 2 };
+                                        ^ expected Color, found i32
+    |}]
+
+let%expect_test "typecheck: a fn match on a bool is covered by both values" =
+  run_src "f : (bool) -> i32 : fn match { true => 1, false => 0 };";
+  [%expect {| ok |}]
+
+let%expect_test "typecheck: a fn match with no arms is not exhaustive" =
+  run_src "f : (i32) -> i32 : fn match { };";
+  [%expect
+    {|
+    error: match is not exhaustive
+      at <test>:1:23
+        f : (i32) -> i32 : fn match { };
+                              ^~~~~ on i32
+    help: add `_ => { }`
+    |}]
+
+let%expect_test "typecheck: a fn match needs a param to match on" =
+  run_src "f : () -> i32 : fn match { _ => 1 };";
+  [%expect
+    {|
+    error: wrong number of parameters
+      at <test>:1:17
+        f : () -> i32 : fn match { _ => 1 };
+                        ^~ expected 0 parameters, found 1
+    |}]
+
 let%expect_test "typecheck: unit type and value" =
   run_src
     {|pass :: fn(value: ()) -> () { value };

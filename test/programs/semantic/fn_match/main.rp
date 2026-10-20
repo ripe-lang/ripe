@@ -1,0 +1,17 @@
+printf : (cstr, ..) -> i32 : extern "C";
+Shape :: enum { Circle(i32), Rect(i32, i32), Empty };
+area : (Shape) -> i32 : fn match {
+  .Circle(r) => 3 * r * r,
+  .Rect(w, h) => w * h,
+  .Empty => 0,
+};
+f : (i32) -> i32 : fn match { 0 => 10, _ => 20 };
+c : extern "C" (i32) -> i32 : extern "C" fn match { 0 => 30, _ => 40 };
+apply :: fn(g: (i32) -> i32, x: i32) -> i32 { g(x) };
+make :: fn -> (i32) -> i32 { fn match { 0 => 50, _ => 60 } };
+main :: fn -> i32 {
+  local : (i32) -> i32 = fn match { 0 => 70, n => n };
+  _ := printf("%d %d %d %d %d\n", f(0), f(5), area(.Circle(2)), area(.Rect(3, 4)), area(.Empty));
+  _ := printf("%d %d %d %d %d\n", c(0), apply(fn match { 0 => 1, _ => 2 }, 5), make()(0), local(0), local(9));
+  0
+};
