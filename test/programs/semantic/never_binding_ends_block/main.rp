@@ -1,7 +1,7 @@
 printf : (cstr, ..) -> i32 : extern "C";
 exit : (i32) -> never : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("before\n");
   _x : never = exit(4);
   printf("after\n");

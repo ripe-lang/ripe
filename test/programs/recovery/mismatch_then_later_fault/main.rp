@@ -3,4 +3,4 @@ scale :: fn(n: i32 -> i32 {
   return n * 2
 };
 
-bad :: fn() -> i32 { z : i32 = ; return z };
+bad :: fn -> i32 { z : i32 = ; return z };

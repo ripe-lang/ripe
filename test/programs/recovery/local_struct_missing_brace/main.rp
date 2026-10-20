@@ -5,7 +5,7 @@ outer :: fn(n: i32) {
 
 later :: fn(n: i32) -> i32 { return n };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   outer(1);
   return later(2)
 };

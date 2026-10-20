@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : i32 = 12;
   a ^= 6;
   return a

@@ -1,6 +1,6 @@
 Small :: i32;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : Small = 5;
   if sizeof(Small) == 4 {
     return cast(i32, a)

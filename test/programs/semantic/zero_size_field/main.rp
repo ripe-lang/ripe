@@ -10,7 +10,7 @@ DivRes :: struct { quot: i32, u: (), e: Empty, rem: i32 };
 
 div : (i32, i32) -> DivRes : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   s : Sep = Sep.{ x = 1, u = (), e = Empty.{}, y = 2 };
   s.y = s.y + 40;
 

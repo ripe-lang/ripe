@@ -18,4 +18,4 @@ helper :: fn(n: i32) -> i32
   a16 : i32 = a15 + n;
   return a16
 };
-main :: fn() -> i32 { return helper(2) };
+main :: fn -> i32 { return helper(2) };

@@ -1,6 +1,6 @@
 // BROKEN: two fn pointers don't compare yet (the Comparing functions rule)
 add :: fn(x: i32, y: i32) -> i32 => x + y;
-main :: fn() -> i32 {
+main :: fn -> i32 {
   op := fn(x: i32, y: i32) -> i32 => x + y;
   same := op;
   if op == add { return 1 };

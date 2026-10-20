@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   i : i32 = 0;
   while i < 100 {
     if i == 6 { break };

@@ -17,7 +17,7 @@ sum_to :: fn(n: i32) -> i32 {
   return total
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : i32 = abs(-7);
   s : i32 = sign(3);
   t : i32 = sum_to(10);

@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   outer :: fn(value: i32) -> i32 {
     inner :: fn(value: i32) -> i32 {
       if value == 0 { 16 } else { outer(value - 1) }

@@ -4,8 +4,8 @@ Empty :: struct { };
 Pt :: Point;
 g : Point = .{ 4, 2 };
 take :: fn(p: Point) -> i32 { return p.x };
-make :: fn() -> Point { return .{ 7, 8 } };
-main :: fn() -> i32 {
+make :: fn -> Point { return .{ 7, 8 } };
+main :: fn -> i32 {
   p : Point = .{ y = 2, x = 1 };
   l := Line.{ .{ 1, 2 }, .{ 3, 4 } };
   l.a = .{ 5, 6 };

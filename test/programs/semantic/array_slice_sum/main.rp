@@ -6,7 +6,7 @@ sum :: fn(xs: []i32) -> i32 {
   return total
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   a[0] = 10;
   doubled : i32 = 0;

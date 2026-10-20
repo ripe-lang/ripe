@@ -2,6 +2,6 @@ Holder :: struct {
   bad -1 i32,
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return cast(i32, sizeof(Holder))
 };

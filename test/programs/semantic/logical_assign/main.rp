@@ -5,7 +5,7 @@ bump :: fn(v: bool) -> bool {
   return v
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a := true;
   a &&= bump(false);
   b := false;

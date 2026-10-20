@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n := 7;
   scaled := if n > 5 {
     factor := 4;

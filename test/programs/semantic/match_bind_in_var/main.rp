@@ -3,6 +3,6 @@ f :: fn(n: i64) -> i64 {
   return o
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return cast(i32, f(0) + f(4))
 };

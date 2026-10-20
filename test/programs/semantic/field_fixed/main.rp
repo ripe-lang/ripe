@@ -1,6 +1,6 @@
 // BROKEN: a fixed field isn't built yet (the Defaults rule)
 Config :: struct { id ::= 0, n: i32 };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   c := Config.{ n = 1 };
   c.id = 5;
   0

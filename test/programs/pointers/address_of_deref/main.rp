@@ -1,6 +1,6 @@
 Point :: struct { x: i32, y: i32 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : Point = Point.{ x = 3, y = 0 };
   pt : *Point = &p;
   pt2 : *Point = &(pt.*);

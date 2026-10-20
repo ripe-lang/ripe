@@ -8,7 +8,7 @@ clobber_struct :: fn(p: Point) {
   p.x = 99
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : [3]i32 = [1, 2, 3];
   clobber_array(a);
   clobber_struct(Point.{ x = 1, y = 2 });

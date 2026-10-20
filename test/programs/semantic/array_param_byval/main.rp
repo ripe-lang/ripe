@@ -4,7 +4,7 @@ clobber :: fn(a: [3]i32) -> i32 {
   return local[0]
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : [3]i32 = [1, 2, 3];
   seen : i32 = clobber(a);
   return a[0] + seen

@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   for @outer _i := 0..2 { };
   for _j := 0..2 {
     continue @outer

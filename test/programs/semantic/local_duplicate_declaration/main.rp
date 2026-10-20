@@ -1,5 +1,5 @@
-main :: fn() -> i32 {
-  value :: fn() -> i32 { 1 };
-  value :: fn() -> i32 { 2 };
+main :: fn -> i32 {
+  value :: fn -> i32 { 1 };
+  value :: fn -> i32 { 2 };
   return value()
 };

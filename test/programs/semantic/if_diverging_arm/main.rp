@@ -3,6 +3,6 @@ clamp_low :: fn(x: i32) -> i32 {
   return y + 1
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return clamp_low(-4) + clamp_low(5)
 };

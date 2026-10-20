@@ -12,7 +12,7 @@ flip :: fn(level: Level) -> Level {
   return Level.Low
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d\n", pick(Level.Low, 1, 2), pick(flip(Level.Low), 1, 2));
   return 0
 };

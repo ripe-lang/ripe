@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   bytes : []u8 = [1, 2, 3];
   none : []i32 = [];
   return cast(i32, bytes[2]) + cast(i32, none.len)

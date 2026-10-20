@@ -1,5 +1,5 @@
 Color :: enum { 88, Green };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   c := Color.Green;
   return match c { Color.Green => 2 }
 };

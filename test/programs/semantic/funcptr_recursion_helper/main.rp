@@ -5,4 +5,4 @@ fib :: fn(n: i32) -> i32 {
 
 apply :: fn(g: (i32) -> i32, v: i32) -> i32 { return g(v) };
 
-main :: fn() -> i32 { return apply(fib, 9) };
+main :: fn -> i32 { return apply(fib, 9) };

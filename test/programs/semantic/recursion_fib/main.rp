@@ -3,4 +3,4 @@ fib :: fn(n: i32) -> i32 {
   return fib(n - 1) + fib(n - 2)
 };
 
-main :: fn() -> i32 { return fib(10) };
+main :: fn -> i32 { return fib(10) };

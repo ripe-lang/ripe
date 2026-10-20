@@ -1,5 +1,5 @@
 // BROKEN: a value thrown away before `;` doesn't warn yet (the Semicolons rule)
-g :: fn() -> i32 { 5 };
+g :: fn -> i32 { 5 };
 main :: fn {
   g();
   _ := g()

@@ -2,7 +2,7 @@
 
 A : i64 = 1 + 2;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : i64 = 1 + 2;
   if a != 3 { return 1 };
   if A != 3 { return 2 };

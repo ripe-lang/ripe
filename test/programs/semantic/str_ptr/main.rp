@@ -4,7 +4,7 @@ emit :: fn(s: str) -> i64 {
   return write(1, s.ptr, s.len)
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   emit("param\n");
   annotated : str = "annotated\n";
   write(1, annotated.ptr, annotated.len);

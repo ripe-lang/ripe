@@ -9,7 +9,7 @@ classify :: fn(n: i32) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d %d\n", classify(0), classify(1), classify(2), classify(7));
   return 0
 };

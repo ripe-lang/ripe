@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   i := 0;
   steps := 0;
   while @outer i < 5 {

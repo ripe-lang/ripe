@@ -5,4 +5,4 @@ pick :: fn(x: i32) -> i32 {
     return 0
   }
 };
-main :: fn() -> i32 { return pick(50) + pick(150) + pick(-1) };
+main :: fn -> i32 { return pick(50) + pick(150) + pick(-1) };

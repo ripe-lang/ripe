@@ -1,6 +1,6 @@
 Value :: i32;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   Value :: bool;
   value : Value = true;
   return if value { 20 } else { 0 }

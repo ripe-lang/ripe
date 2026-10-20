@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n := 0;
   loop @outer {
     loop {

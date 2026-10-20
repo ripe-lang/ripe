@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n := 4;
   if n > 3 { n = 1 } n
 };

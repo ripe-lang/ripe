@@ -14,4 +14,4 @@ deep :: fn(x: i32) -> i32 {
     }
   }
 };
-main :: fn() -> i32 { return deep(3) + deep(8) + deep(-4) };
+main :: fn -> i32 { return deep(3) + deep(8) + deep(-4) };

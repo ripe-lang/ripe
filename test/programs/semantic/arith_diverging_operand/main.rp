@@ -7,6 +7,6 @@ compound :: fn(n: i32) -> i32 {
   return x
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return div(9) + cast(i32, rem(9)) + shift(1) + compound(9)
 };

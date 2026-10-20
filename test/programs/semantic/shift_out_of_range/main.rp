@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   one : u8 = 1;
   over : u8 = 33;
   if one << over != 0 { return 10 };

@@ -5,7 +5,7 @@ classify :: fn(n: i32) -> i32 {
   return c
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d\n", classify(0 - 5), classify(7), classify(0));
   return 0
 };

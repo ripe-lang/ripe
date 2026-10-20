@@ -8,7 +8,7 @@ pick :: fn(n: i32) -> i32 {
   return r
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d\n", pick(0), pick(3));
   return 0
 };

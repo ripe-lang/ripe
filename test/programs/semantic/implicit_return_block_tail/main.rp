@@ -4,4 +4,4 @@ f :: fn(x: i32) -> i32 {
     a + 1
   }
 };
-main :: fn() -> i32 { return f(10) };
+main :: fn -> i32 { return f(10) };

@@ -11,7 +11,7 @@ announce :: fn(level: Level) {
   return
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   announce(Level.Mid);
   announce(Level.High);
   announce(Level.Low);

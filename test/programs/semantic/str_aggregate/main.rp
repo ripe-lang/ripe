@@ -1,10 +1,10 @@
 Named :: struct { s: str, n: i32 };
 
-give :: fn() -> str {
+give :: fn -> str {
   return "returned"
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   box : Named = Named.{ s = "field", n = 1 };
   arr : [2]str = ["one", "three"];
   r : str = give();

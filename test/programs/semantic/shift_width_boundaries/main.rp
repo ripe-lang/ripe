@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   seven : u64 = 7;
   eight : u64 = 8;
   thirtyone : u64 = 31;

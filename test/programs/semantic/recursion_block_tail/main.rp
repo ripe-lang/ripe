@@ -6,4 +6,4 @@ sum_to :: fn(n: i32) -> i32 {
     n + rest
   }
 };
-main :: fn() -> i32 { return sum_to(10) };
+main :: fn -> i32 { return sum_to(10) };

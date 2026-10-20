@@ -2,7 +2,7 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 Pt :: struct { x: i32, y: i32 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := {
     scale := 3;
     Pt.{ x = 2 * scale, y = 5 * scale }

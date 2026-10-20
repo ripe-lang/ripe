@@ -1,4 +1,4 @@
 // BROKEN: waiting on the new parser recovery
 helper :: fn(else -> i32 { return 0 };
-a :: fn() -> i32 { return 1 };
-main :: fn() -> i32 { return a() };
+a :: fn -> i32 { return 1 };
+main :: fn -> i32 { return a() };

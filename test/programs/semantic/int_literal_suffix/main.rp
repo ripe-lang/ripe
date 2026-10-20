@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : u8 = 255u8;
   b : i64 = 9000000000i64;
   c : i8 = -128i8;

@@ -1,4 +1,4 @@
 error: expected `;`
   at main.rp:2:1
-    main :: fn() -> i32 { return 0 };
+    main :: fn -> i32 { return 0 };
     ^~~~ found main

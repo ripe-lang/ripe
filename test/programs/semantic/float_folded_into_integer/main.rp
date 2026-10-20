@@ -1,6 +1,6 @@
 N := 3;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   x := 0;
   x += !N * 2.5;
   return x

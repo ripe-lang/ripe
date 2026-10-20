@@ -7,6 +7,6 @@ describe :: fn(c: Color) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return describe(Color.Blue)
 };

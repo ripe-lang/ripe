@@ -2,6 +2,6 @@ g :: fn(a: i32) -> i32 {
   return a
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return g(1, cast(bool, 1.5))
 };

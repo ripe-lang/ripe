@@ -4,7 +4,7 @@ take :: fn(a: i64, b: f64) -> i64 {
   return a + (cast(i64, b))
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : Pair = Pair.{ n = 4, f = 2.5 };
   sizes : i32 = sizeof(i64) + sizeof(f64);
   same := cast(i32, sizeof(i64) == sizeof(i64) && sizeof(f64) == sizeof(f64));

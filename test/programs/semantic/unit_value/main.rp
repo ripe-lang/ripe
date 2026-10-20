@@ -2,15 +2,15 @@ global : () = ();
 
 pass :: fn(value: ()) -> () { value };
 
-make :: fn() -> () { () };
+make :: fn -> () { () };
 
-number :: fn() -> (i32) { 4 };
+number :: fn -> (i32) { 4 };
 
-block_value :: fn() -> i32 { { x := 5; x } };
+block_value :: fn -> i32 { { x := 5; x } };
 
-explicit_return :: fn() -> () { return () };
+explicit_return :: fn -> () { return () };
 
-assign :: fn() {
+assign :: fn {
   value : () = ();
   value = ();
   pass(value)
@@ -18,7 +18,7 @@ assign :: fn() {
 
 indirect :: fn(g: (()) -> ()) { g(global) };
 
-addressable :: fn() -> i32 {
+addressable :: fn -> i32 {
   value : () = ();
   p : *() = &value;
   q : *() = &value;
@@ -27,7 +27,7 @@ addressable :: fn() -> i32 {
   return 1
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   value := make();
   pass(value);
   explicit_return();

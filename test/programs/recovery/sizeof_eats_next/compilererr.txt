@@ -1,7 +1,7 @@
 error: expected `)`
-  at main.rp:1:38
-    main :: fn() -> i32 { return sizeof(b: i32) };
-                                         ^ found :
   at main.rp:1:36
-    main :: fn() -> i32 { return sizeof(b: i32) };
-                                       ^ to match this `(`
+    main :: fn -> i32 { return sizeof(b: i32) };
+                                       ^ found :
+  at main.rp:1:34
+    main :: fn -> i32 { return sizeof(b: i32) };
+                                     ^ to match this `(`

@@ -2,7 +2,7 @@ take :: fn(s: str) -> usize {
   return s.len
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : str = "hello";
   b : str = a;
   empty : str = "";

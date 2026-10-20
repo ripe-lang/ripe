@@ -9,7 +9,7 @@ digit :: fn(c: char) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d %d\n", digit('0'), digit('1'), digit('z'), digit('q'));
   return 0
 };

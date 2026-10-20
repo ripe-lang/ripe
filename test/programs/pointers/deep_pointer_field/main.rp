@@ -2,7 +2,7 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 Point :: struct { x: i32, y: i32 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : Point = Point.{ x = 42, y = 7 };
   q : *Point = &p;
   qq : **Point = &q;

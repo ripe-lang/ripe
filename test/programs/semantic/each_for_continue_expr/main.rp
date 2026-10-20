@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   total := 0;
   for v := a {

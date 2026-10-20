@@ -17,7 +17,7 @@ area :: fn(shape: Shape, size: Size) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d %d\n", area(Shape.Dot, Size.Small), area(Shape.Line, Size.Large), area(Shape.Box, Size.Small), area(Shape.Box, Size.Large));
   return 0
 };

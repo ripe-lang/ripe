@@ -4,6 +4,6 @@ flag :: fn(b: bool) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return flag(5 > 10)
 };

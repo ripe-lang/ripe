@@ -1,6 +1,6 @@
 // BROKEN: a `::` in a struct isn't built yet (the Defaults rule)
 Buffer :: struct { MAX :: 64, len: i32 };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   buf : [Buffer.MAX]u8 = _;
   b := Buffer.{ len = 0 };
   cast(i32, buf.len) + b.len

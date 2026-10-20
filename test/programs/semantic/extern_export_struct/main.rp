@@ -10,7 +10,7 @@ total :: extern "C" fn(p: Pair) -> i32 {
 
 step :: extern "C" fn(x: i32) -> i32 { return x + 1 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := make_pair(7);
   return step(total(p))
 };

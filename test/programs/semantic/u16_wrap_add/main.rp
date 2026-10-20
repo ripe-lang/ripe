@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : u16 = 60000;
   b : u16 = 10000;
   if a + b == 4464 { return 1 };

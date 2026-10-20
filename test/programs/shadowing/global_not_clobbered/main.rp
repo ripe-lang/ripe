@@ -5,7 +5,7 @@ bump :: fn(c: bool) {
   g = 10
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   bump(true);
   return g
 };

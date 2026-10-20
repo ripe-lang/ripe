@@ -1,6 +1,6 @@
 same :: fn(p: *i32) -> *i32 { return p };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n : i32 = 7;
   same(&n).* += 1;
   return same(&n).*

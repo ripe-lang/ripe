@@ -1,6 +1,6 @@
 // BROKEN: a field left out still zeroes (the Struct literals rule)
 Point :: struct { x: i32, y: i32 };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := Point.{ x = 7 };
   return 0
 };

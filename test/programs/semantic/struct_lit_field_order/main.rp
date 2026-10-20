@@ -21,7 +21,7 @@ mark :: fn(v: i32) -> i32 {
   return v
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   written := Pair.{ y = mark(1), x = mark(2) };
   printf("order %d\n", log);
   printf("written %d %d\n", written.x, written.y);
