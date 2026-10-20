@@ -5,7 +5,7 @@ State :: enum { Idle, Busy };
 start := State.Idle;
 current := State.Idle;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   current = State.Busy;
   printf("%d %d\n", start == State.Idle, current == State.Busy);
   return 0

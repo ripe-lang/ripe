@@ -1,7 +1,7 @@
 IntPtr :: *i32;
 
-main :: fn() -> i32 {
-  x : i32 = 7;
+main :: fn -> i32 {
+  x := 7;
   p : IntPtr = &x;
   return p.*
 };

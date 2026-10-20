@@ -2,14 +2,14 @@ exit : (i32) -> never : extern "C";
 
 Never : type : never;
 
-die :: fn() -> Never {
+die : () -> Never : fn() => {
   exit(7)
 };
 
-pick :: fn(b: bool) -> i32 {
+pick : (bool) -> i32 : fn(b) => {
   if b { 1 } else { die() }
 };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   return pick(false)
 };

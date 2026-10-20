@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main : _ : fn {
+main : _ : fn() => {
   pf : _ = printf;
-  _ := pf("%d %d\n", 1, 2)
+  _ : _ = pf("%d %d\n", 1, 2)
 };

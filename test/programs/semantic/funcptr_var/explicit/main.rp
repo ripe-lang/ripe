@@ -1,8 +1,8 @@
-f :: fn() -> i32 { return 3 };
+f : () -> i32 : fn() => { return 3 };
 
-g :: fn() -> i32 { return 4 };
+g : () -> i32 : fn() => { return 4 };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   h : () -> i32 = f;
   r1 : i32 = h();
   h = g;

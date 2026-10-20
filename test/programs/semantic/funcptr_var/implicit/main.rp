@@ -1,10 +1,10 @@
-f :: fn() -> i32 { return 3 };
+f :: fn -> i32 { return 3 };
 
-g :: fn() -> i32 { return 4 };
+g :: fn -> i32 { return 4 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   h := f;
-  r1 : i32 = h();
+  r1 := h();
   h = g;
   return r1 + h()
 };

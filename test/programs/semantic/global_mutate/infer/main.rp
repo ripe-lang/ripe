@@ -1,8 +1,8 @@
 counter : _ = 5;
 
-bump : _ : fn() { counter += 3 };
+bump : _ : fn() => { counter += 3 };
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   bump();
   bump();
   return counter

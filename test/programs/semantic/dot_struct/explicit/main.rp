@@ -1,13 +1,13 @@
 Point : type : struct { x: i32, y: i32 };
 Line : type : struct { a: Point, b: Point };
 
-shift :: fn(p: Point) -> i32 => p.x + p.y;
-origin :: fn() -> Point { return Point.{ 0, 0 } };
+shift : (Point) -> i32 : fn(p) => p.x + p.y;
+origin : () -> Point : fn() => { return Point.{ 0, 0 } };
 
-main :: fn -> i32 {
+main : () -> i32 : fn() => {
   p : Point = Point.{ 1, 2 };
-  q := Point.{ x = 3, y = 4 };
-  l := Line.{ Point.{ 5, 6 }, Point.{ 7, 8 } };
+  q : Point = Point.{ x = 3, y = 4 };
+  l : Line = Line.{ Point.{ 5, 6 }, Point.{ 7, 8 } };
   ps : [2]Point = [Point.{ 1, 1 }, Point.{ 2, 2 }];
   p.y + q.x + l.b.x + ps[1].y + shift(Point.{ 5, 6 }) + origin().x
 };

@@ -1,4 +1,4 @@
 Op : _ : (i32) -> i32;
 double : Op : fn(a) => a * 2;
 triple : Op : fn(a) => a * 3;
-main : _ : fn -> i32 { double(3) + triple(1) };
+main : _ : fn() -> i32 => { double(3) + triple(1) };

@@ -1,8 +1,8 @@
 BinOp : type : (i32, i32) -> i32;
 
-add :: fn(a: i32, b: i32) -> i32 { return a + b };
+add : (i32, i32) -> i32 : fn(a, b) => { return a + b };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   op : BinOp = add;
   return op(2, 3)
 };

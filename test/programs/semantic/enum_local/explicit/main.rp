@@ -1,8 +1,8 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   Step : type : enum { First, Second };
-  s := Step.Second;
+  s : Step = Step.Second;
   printf("%d\n", s == Step.Second);
   return 0
 };

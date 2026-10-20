@@ -2,6 +2,6 @@ Row : type : [3]i32;
 
 g : Row = [1, 2, 3];
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   return g[0] + g[1] + g[2]
 };

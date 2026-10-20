@@ -4,7 +4,7 @@ Holder : type : struct { s: Shape, n: i32 };
 
 g : Shape = Shape.Rect(Point.{1, 2}, 3);
 
-area : (Shape) -> i32 : fn(s) {
+area : (Shape) -> i32 : fn(s) => {
   match s {
     Shape.Circle(r) => r * r,
     Shape.Rect(p, w) => p.x + p.y + w,
@@ -12,12 +12,12 @@ area : (Shape) -> i32 : fn(s) {
   }
 };
 
-pick : (bool) -> Shape : fn(big) {
+pick : (bool) -> Shape : fn(big) => {
   if big { return Shape.Rect(Point.{4, 5}, 6) };
   Shape.Circle(2)
 };
 
-main : () -> i32 : fn {
+main : () -> i32 : fn() => {
   a : Shape = Shape.Circle(3);
   e : Shape = Shape.Empty;
   shapes : [2]Shape = [Shape.Circle(1), Shape.Empty];

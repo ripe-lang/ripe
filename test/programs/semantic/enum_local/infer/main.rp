@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   Step : _ : enum { First, Second };
   s : _ = Step.Second;
   printf("%d\n", s == Step.Second);

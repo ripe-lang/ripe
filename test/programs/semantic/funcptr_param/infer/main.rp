@@ -1,5 +1,5 @@
-f : _ : fn(x: i32) -> i32 { return x + 1 };
+f : _ : fn(x: i32) -> i32 => { return x + 1 };
 
-apply : _ : fn(g: (i32) -> i32, v: i32) -> i32 { return g(v) };
+apply : _ : fn(g: (i32) -> i32, v: i32) -> i32 => { return g(v) };
 
-main : _ : fn() -> i32 { return apply(f, 4) };
+main : _ : fn() -> i32 => { return apply(f, 4) };

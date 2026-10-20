@@ -1,2 +1,2 @@
 Code : _ : i32;
-main : _ : fn -> Code { 3 };
+main : _ : fn() -> Code => { 3 };

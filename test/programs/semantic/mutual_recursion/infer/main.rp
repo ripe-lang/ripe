@@ -1,10 +1,10 @@
-is_even : _ : fn(n: i32) -> bool {
+is_even : _ : fn(n: i32) -> bool => {
   if n == 0 { true } else { is_odd(n - 1) }
 };
-is_odd : _ : fn(n: i32) -> bool {
+is_odd : _ : fn(n: i32) -> bool => {
   if n == 0 { false } else { is_even(n - 1) }
 };
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   count : _ = 0;
   for i := 0..10 {
     if is_even(i) { count = count + 1 }

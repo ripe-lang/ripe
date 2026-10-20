@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   Coord : type : i32;
   x : Coord = 6;
   return x

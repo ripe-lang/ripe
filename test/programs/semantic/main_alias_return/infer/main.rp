@@ -1,6 +1,6 @@
 Code : _ : i32;
 
-main : _ : fn() -> Code {
+main : _ : fn() -> Code => {
   5
 };
 

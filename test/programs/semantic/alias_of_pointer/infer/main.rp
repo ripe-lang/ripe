@@ -1,6 +1,6 @@
 IntPtr : _ : *i32;
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   x : _ = 7;
   p : IntPtr = &x;
   return p.*

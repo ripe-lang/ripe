@@ -1,4 +1,4 @@
-main :: fn -> i32 {
+main : () -> i32 : fn() => {
   add : (i32, i32) -> i32 : fn(x, y) => x + y;
   add(3, 4)
 };

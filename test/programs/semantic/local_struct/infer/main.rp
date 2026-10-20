@@ -1,4 +1,4 @@
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   Point : _ : struct { x: i32, y: i32 };
   point : _ = Point.{ x = 3, y = 4 };
   return point.x + point.y

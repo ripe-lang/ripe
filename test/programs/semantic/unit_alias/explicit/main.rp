@@ -1,9 +1,9 @@
 Nothing : type : ();
 
-hello :: fn() -> Nothing {
+hello : () -> Nothing : fn() => {
 };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   hello();
   return 3
 };
