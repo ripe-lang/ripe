@@ -1,7 +1,7 @@
 Color :: enum { Red, Green, Blue };
 
 paint :: fn(c: Color) -> i32 => if c == .Blue { 4 } else { 1 };
-pick :: fn() -> Color { return .Green };
+pick :: fn -> Color { return .Green };
 
 main :: fn -> i32 {
   c : Color = .Green;

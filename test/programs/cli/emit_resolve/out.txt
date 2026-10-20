@@ -14,6 +14,6 @@ Each line maps a source byte range to its definition.
 (29,32) -> #-4 Type i32
 (44,45) -> #2 Param a
 (48,49) -> #3 Param b
-(54,96) -> #1 Func main
-(70,73) -> #-4 Type i32
-(85,88) -> #0 Func add
+(54,94) -> #1 Func main
+(68,71) -> #-4 Type i32
+(83,86) -> #0 Func add

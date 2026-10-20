@@ -2,7 +2,7 @@ malloc : (usize) -> ptr : extern "C";
 
 Point :: struct { x: i32, y: i32 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : *Point = cast(*Point, malloc(sizeof(Point)));
   p.x = 40;
   p.y = 2;

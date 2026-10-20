@@ -5,7 +5,7 @@ M : str = "mutable";
 B : Box = Box.{ text = "boxed", value = 7 };
 E : str = "";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   total : usize = G.len + M.len + B.text.len + E.len;
   M = "changed";
   total = total + M.len;

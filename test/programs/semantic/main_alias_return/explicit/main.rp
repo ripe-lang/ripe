@@ -1,6 +1,6 @@
 Code : type : i32;
 
-main :: fn() -> Code {
+main : () -> Code : fn() => {
   5
 };
 

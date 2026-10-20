@@ -15,6 +15,6 @@ sum_pair :: fn(left: Pair, right: Pair) -> i32 {
   return left.x + left.y + right.x + right.y
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return sum_pair(wrapper(1, 2), wrapper(3, 4))
 };

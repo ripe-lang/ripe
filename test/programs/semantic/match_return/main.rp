@@ -11,7 +11,7 @@ code :: fn(c: Color) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue));
   return 0
 };

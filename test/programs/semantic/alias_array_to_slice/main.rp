@@ -6,7 +6,7 @@ sum :: fn(s: []i32) -> i32 {
   return total
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   r : Row = [1, 2, 3];
   return sum(r)
 };

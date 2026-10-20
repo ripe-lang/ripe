@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : u32 = 4294967294;
   return cast(i32, a / 2147483647)
 };

@@ -1,4 +1,4 @@
-search :: fn() -> i32 {
+search :: fn -> i32 {
   found : i32 = -1;
   for i := 0..5 {
     for j := 0..5 {
@@ -9,4 +9,4 @@ search :: fn() -> i32 {
   };
   return found
 };
-main :: fn() -> i32 { return search() };
+main :: fn -> i32 { return search() };

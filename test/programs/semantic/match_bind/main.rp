@@ -8,7 +8,7 @@ describe :: fn(n: i32) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d\n", describe(0), describe(3), describe(-4));
   return 0
 };

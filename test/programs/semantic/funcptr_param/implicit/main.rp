@@ -2,4 +2,4 @@ f :: fn(x: i32) -> i32 { return x + 1 };
 
 apply :: fn(g: (i32) -> i32, v: i32) -> i32 { return g(v) };
 
-main :: fn() -> i32 { return apply(f, 4) };
+main :: fn -> i32 { return apply(f, 4) };

@@ -1,5 +1,5 @@
 // BROKEN: a lone `:` is the compile time set now (the Binding rule) and the compiler still zeroes
-main :: fn() -> i32 {
+main :: fn -> i32 {
   counter : i32;
   return 0
 };

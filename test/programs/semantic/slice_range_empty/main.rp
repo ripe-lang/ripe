@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : [3]i32 = [1, 2, 3];
 
   // Every form can produce an empty slice at either end

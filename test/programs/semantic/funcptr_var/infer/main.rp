@@ -1,8 +1,8 @@
-f : _ : fn() -> i32 { return 3 };
+f : _ : fn() -> i32 => { return 3 };
 
-g : _ : fn() -> i32 { return 4 };
+g : _ : fn() -> i32 => { return 4 };
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   h : _ = f;
   r1 : _ = h();
   h = g;

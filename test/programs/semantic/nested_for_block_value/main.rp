@@ -1,4 +1,4 @@
-compute :: fn() -> i32 {
+compute :: fn -> i32 {
   total : i32 = 0;
   for i := 0..3 {
     sub : i32 = {
@@ -14,4 +14,4 @@ compute :: fn() -> i32 {
   };
   return total
 };
-main :: fn() -> i32 { return compute() };
+main :: fn -> i32 { return compute() };

@@ -11,7 +11,7 @@ choose :: fn(flag: bool) -> Pair {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   left := choose(true);
   right := choose(false);
   return left.x + left.y + right.x + right.y

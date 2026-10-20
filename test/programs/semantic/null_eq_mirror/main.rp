@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : *i32 = null;
   n : i32 = 5;
   q : *i32 = &n;

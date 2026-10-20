@@ -12,7 +12,7 @@ bump :: fn(p: *Point) {
   p.x += 1
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   x : i32 = 10;
   y : i32 = 32;
   sum := deref_sum(&x, &y);

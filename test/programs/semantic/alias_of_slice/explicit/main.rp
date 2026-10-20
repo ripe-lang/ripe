@@ -1,12 +1,12 @@
 Ints : type : []i32;
 
-sum :: fn(xs: Ints) -> i32 {
+sum : (Ints) -> i32 : fn(xs) => {
   total : i32 = 0;
   for v := xs { total = total + v };
   return total
 };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   a : [3]i32 = [4, 5, 6];
   return sum(a)
 };

@@ -1,6 +1,6 @@
 strlen : (cstr) -> i64 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   s : cstr = "hello";
   return cast(i32, strlen(s))
 };

@@ -1,5 +1,5 @@
 puts : (cstr) -> i32 : extern "C";
 
-main :: fn {
-  _ := puts("import")
+main : () -> () : fn() => {
+  _ : i32 = puts("import")
 };

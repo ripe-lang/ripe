@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : i32 = 20;
   b : i32 = 0;
   return a / b

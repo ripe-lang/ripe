@@ -1,3 +1,3 @@
 // BROKEN: constants aren't decided yet
 LIMIT : i32 : 4;
-main :: fn -> i32 { LIMIT };
+main : () -> i32 : fn() => { LIMIT };

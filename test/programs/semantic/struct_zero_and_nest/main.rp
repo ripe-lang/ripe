@@ -6,7 +6,7 @@ area :: fn(r: Rect) -> i32 {
   return r.w * r.h
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := Point.{ x = 3, y = 4 };
   q := Point.{ x = 1 };
   r := Rect.{ origin = p, w = 2, h = 5 };

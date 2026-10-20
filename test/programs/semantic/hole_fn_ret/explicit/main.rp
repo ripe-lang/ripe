@@ -1,8 +1,8 @@
 add : (i32, i32) -> i32 : fn(x, y) -> i32 => x + y;
-bump :: fn(p: *i32) -> () { p.* = p.* + 1 };
+bump : (*i32) -> () : fn(p) => { p.* = p.* + 1 };
 
-main :: fn -> i32 {
-  x := add(3, 4);
+main : () -> i32 : fn() => {
+  x : i32 = add(3, 4);
   bump(&x);
   x
 };

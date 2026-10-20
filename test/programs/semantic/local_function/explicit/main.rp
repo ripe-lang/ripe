@@ -1,5 +1,5 @@
-main :: fn() -> i32 {
-  double : (i32) -> i32 : fn(value) {
+main : () -> i32 : fn() => {
+  double : (i32) -> i32 : fn(value) => {
     value * 2
   };
 

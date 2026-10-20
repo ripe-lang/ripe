@@ -4,14 +4,14 @@ Pair :: struct {
   y: i32,
 };
 
-named_after_positional :: fn() -> Pair {
+named_after_positional :: fn -> Pair {
   return Pair.{ 1, y = 2 }
 };
 
-positional_after_named :: fn() -> Pair {
+positional_after_named :: fn -> Pair {
   return Pair.{ x = 1, 2 }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return named_after_positional().x + positional_after_named().x
 };

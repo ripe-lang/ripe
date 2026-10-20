@@ -1,6 +1,6 @@
 Row : _ : [3]i32;
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   r : Row = [1, 2, 3];
   total : _ = 0;
   for v := r { total = total + v };

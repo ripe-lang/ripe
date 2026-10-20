@@ -1,5 +1,5 @@
 Point : _ : struct { x: i32, y: i32 };
-main : _ : fn -> i32 {
+main : _ : fn() -> i32 => {
   p : _ = Point.{ 4, 5 };
   p.x + p.y
 };

@@ -1,6 +1,6 @@
 Node :: struct { val: i32, next: *Node };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   tail : Node = Node.{ val = 2, next = null };
   head : Node = Node.{ val = 1, next = &tail };
   return head.val + head.next.val

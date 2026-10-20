@@ -1,13 +1,13 @@
-Pair :: struct { a: i32, b: i32 };
+Pair : type : struct { a: i32, b: i32 };
 
-make_pair : (i32) -> Pair : extern "Ripe" fn(x) {
+make_pair : (i32) -> Pair : extern "Ripe" fn(x) => {
   return Pair.{ a = x, b = x * 2 }
 };
 
-total : (Pair) -> i32 : extern "Ripe" fn(p) {
+total : (Pair) -> i32 : extern "Ripe" fn(p) => {
   return p.a + p.b
 };
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   return total(make_pair(7))
 };

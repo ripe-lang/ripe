@@ -1,1 +1,1 @@
-main :: fn() -> i32 { return sizeof(b: i32) };
+main :: fn -> i32 { return sizeof(b: i32) };

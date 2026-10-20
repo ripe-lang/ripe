@@ -18,7 +18,7 @@ tier :: fn(n: i32) -> i32 {
   return t
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   printf("%d %d %d %d\n", tier(50), tier(150), tier(250), tier(350));
   return 0
 };

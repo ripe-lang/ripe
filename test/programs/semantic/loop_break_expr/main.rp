@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n := 0;
   for i := 0..10 {
     printf("%d", if i == 3 { break } else { i });

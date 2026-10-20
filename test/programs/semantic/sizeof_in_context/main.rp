@@ -8,7 +8,7 @@ Pt :: struct { x: i32, y: i32 };
 
 take :: fn(n: u8) -> i32 { return n };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a : u64 = sizeof(Pt);
   b : i32 = sizeof(i32);
   c : u8 = sizeof(Pt);

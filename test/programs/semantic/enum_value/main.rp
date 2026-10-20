@@ -2,7 +2,7 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 Color :: enum { Red, Green, Blue };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   red := Color.Red;
   green := Color.Green;
   blue := Color.Blue;

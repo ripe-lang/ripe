@@ -1,6 +1,6 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   hits := 0;
   for @outer i := 0..4 {
     for j := 0..4 {

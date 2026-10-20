@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   sh : u32 = 40;
   a : u32 = 1;
   if (a << sh) != 0 { return 1 };

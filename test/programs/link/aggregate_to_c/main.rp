@@ -13,7 +13,7 @@ c_scale : (Pair, f64) -> Pair : extern "C";
 c_blend : (Mixed) -> Mixed : extern "C";
 c_bump : (*Wide) -> () : extern "C";
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : Point = c_shift(Point.{x = 10, y = 20}, 5);
   printf("point %ld %ld\n", cast(i64, p.x), cast(i64, p.y));
 

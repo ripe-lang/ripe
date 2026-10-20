@@ -8,4 +8,4 @@ gcd :: fn(a: i32, b: i32) -> i32 {
   };
   x
 };
-main :: fn() -> i32 { return gcd(48, 36) };
+main :: fn -> i32 { return gcd(48, 36) };

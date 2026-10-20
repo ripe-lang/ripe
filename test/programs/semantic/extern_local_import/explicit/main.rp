@@ -1,4 +1,4 @@
-main :: fn {
+main : () -> () : fn() => {
   puts : (cstr) -> i32 : extern "C";
-  _ := puts("local import")
+  _ : i32 = puts("local import")
 };

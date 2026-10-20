@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   s : i32 = 0;
   for x := 0..=4 { s += x };
   return s

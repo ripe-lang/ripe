@@ -4,7 +4,7 @@ SMALL : u8 = 200;
 WIDE : u32 = SMALL;
 GLOBAL : i64 = SMALL;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   signed : i8 = -5;
   unsigned : u8 = 255;
   single : f32 = 2.5;

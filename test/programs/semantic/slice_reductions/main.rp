@@ -16,7 +16,7 @@ max :: fn(xs: []i32) -> i32 {
   return best
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   scores : [5]i32 = [30, 10, 50, 20, 40];
   for i := 0..scores.len {
     scores[i] += 1

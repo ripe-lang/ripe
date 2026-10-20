@@ -1,4 +1,4 @@
 error: expected declaration
   at main.rp:1:1
-    struct :: fn() -> i32 {
+    struct :: fn -> i32 {
     ^~~~~~ found `struct`

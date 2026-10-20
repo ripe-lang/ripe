@@ -1,6 +1,6 @@
 // BROKEN: waiting on the new parser recovery
 Point :: struct x: i32; y: i32 };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := Point.{ 5, 4 };
   return p.x
 };

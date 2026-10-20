@@ -1,12 +1,12 @@
 printf : (cstr, ..) -> i32 : extern "C";
 
-spin :: fn() -> never { loop {} };
+spin :: fn -> never { loop {} };
 
 Hole :: struct { a: never };
 
 absent : never = spin();
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   _p : *never = null;
   n := if false { spin() } else { 7 };
   printf("%d %d\n", n, sizeof(never));

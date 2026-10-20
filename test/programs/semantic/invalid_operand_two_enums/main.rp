@@ -1,6 +1,6 @@
 Color :: enum { Red, Green };
 Shape :: enum { Circle, Square };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   c := Color.Red;
   s := Shape.Circle;
   n := c + s;

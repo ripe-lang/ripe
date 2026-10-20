@@ -17,11 +17,11 @@ take :: fn(p: Pair) -> i32 {
   return p.x * 10 + p.y
 };
 
-make :: fn() -> Pair {
+make :: fn -> Pair {
   return Pair.{ 1, 2 }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := Pair.{ 4, 5 };
   named := Pair.{ y = 5, x = 4 };
   n := Nest.{ Pair.{ 3, 4 }, [5, 6, 7], 9 };

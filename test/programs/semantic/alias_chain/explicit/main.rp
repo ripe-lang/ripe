@@ -1,7 +1,7 @@
 A : type : i32;
 B : type : A;
 
-main :: fn() -> i32 {
+main : () -> i32 : fn() => {
   x : B = 4;
   y : A = x;
   return y + 1

@@ -1,5 +1,5 @@
 // BROKEN: a local `::` value doesn't parse yet (the Lambdas don't capture rule)
-main :: fn() -> i32 {
+main :: fn -> i32 {
   K :: 3;
   scale :: fn(v: i32) -> i32 => v * K;
   scale(2)

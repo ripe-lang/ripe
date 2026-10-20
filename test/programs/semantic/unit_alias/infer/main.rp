@@ -1,9 +1,9 @@
 Nothing : _ : ();
 
-hello : _ : fn() -> Nothing {
+hello : _ : fn() -> Nothing => {
 };
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   hello();
   return 3
 };

@@ -2,7 +2,7 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 Size :: enum { Small, Large };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   width := match Size.Large {
     Size.Small => 10,
     Size.Large => 20,

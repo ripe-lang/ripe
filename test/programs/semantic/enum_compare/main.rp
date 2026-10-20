@@ -2,7 +2,7 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 Suit :: enum { Clubs, Diamonds, Hearts, Spades };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   a := Suit.Diamonds;
   b := Suit.Diamonds;
   printf("%d %d\n", a == b, a != Suit.Spades);

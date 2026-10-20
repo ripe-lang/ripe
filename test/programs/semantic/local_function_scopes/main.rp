@@ -1,11 +1,11 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   first := {
-    value :: fn() -> i32 { 8 };
+    value :: fn -> i32 { 8 };
     value()
   };
 
   second := {
-    value :: fn() -> i32 { 10 };
+    value :: fn -> i32 { 10 };
     value()
   };
 

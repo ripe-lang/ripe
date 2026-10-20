@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   first := {
     Value :: struct { number: i32 };
     value := Value.{ number = 5 };

@@ -1,3 +1,3 @@
 // BROKEN: a `::` param isn't built yet (the Defaults rule)
-make : (i32) -> i32 : fn(N : i32 :: 4) { buf : [N]u8 = _; cast(i32, buf.len) };
-main :: fn() -> i32 { make() + make(8) };
+make : (i32) -> i32 : fn(N : i32 :: 4) => { buf : [N]u8 = _; cast(i32, buf.len) };
+main : () -> i32 : fn() => { make() + make(8) };

@@ -3,7 +3,7 @@ maybe :: fn(c: bool) {
   return
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   maybe(true);
   maybe(false);
   return 7

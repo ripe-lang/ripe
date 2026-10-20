@@ -1,5 +1,5 @@
 Point :: struct {  x: y: i32 };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p := Point.{ 5, 4 };
   return p.y
 };

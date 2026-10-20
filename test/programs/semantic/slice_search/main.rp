@@ -7,7 +7,7 @@ index_of :: fn(xs: []i32, target: i32) -> i32 {
   return -1
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   data : [6]i32 = [4, 8, 15, 16, 23, 42];
   at : i32 = index_of(data, 16);
   missing : i32 = index_of(data, 99);

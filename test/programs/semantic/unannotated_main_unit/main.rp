@@ -4,6 +4,6 @@ announce :: fn(s: str) {
   _ := write(1, s.ptr, s.len)
 };
 
-main :: fn() {
+main :: fn {
   announce("done\n")
 };

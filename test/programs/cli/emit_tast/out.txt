@@ -49,14 +49,14 @@
                            { sig_params = [(TInt I32); (TInt I32)];
                              sig_ret = (TInt I32); sig_abi = Ripe;
                              sig_arity = Fixed });
-                        tspan = (85,88) },
+                        tspan = (83,86) },
                       [{ tdesc = (TIntLit 1L); ty = (TInt I32);
-                         tspan = (89,90) };
+                         tspan = (87,88) };
                         { tdesc = (TIntLit 2L); ty = (TInt I32);
-                          tspan = (92,93) }
+                          tspan = (90,91) }
                         ],
                       None));
-                   ty = (TInt I32); tspan = (85,94) }));
-        ty = TNever; tspan = (78,94) }
+                   ty = (TInt I32); tspan = (83,92) }));
+        ty = TNever; tspan = (76,92) }
        ];
      tfunc_export = false; tfunc_abi = Ripe })

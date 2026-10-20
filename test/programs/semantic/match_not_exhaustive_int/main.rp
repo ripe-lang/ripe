@@ -5,6 +5,6 @@ classify :: fn(n: i32) -> i32 {
   }
 };
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   return classify(7)
 };

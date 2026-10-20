@@ -2,7 +2,7 @@ g := 41;
 
 p := &g;
 
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p.* += 1;
   return g
 };

@@ -2,7 +2,7 @@ Point :: struct { x: i32, y: i32 };
 Line :: struct { a: Point, b: Point };
 
 shift :: fn(p: Point) -> i32 => p.x + p.y;
-origin :: fn() -> Point { return .{ 0, 0 } };
+origin :: fn -> Point { return .{ 0, 0 } };
 
 main :: fn -> i32 {
   p : Point = .{ 1, 2 };

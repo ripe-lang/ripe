@@ -2,7 +2,7 @@ Point : _ : struct { x: i32, y: i32 };
 
 Pt : _ : Point;
 
-main : _ : fn() -> i32 {
+main : _ : fn() -> i32 => {
   p : Pt = Point.{ x = 2, y = 3 };
   return p.x + p.y
 };

@@ -1,5 +1,5 @@
 // BROKEN: waiting on the new parser recovery
-main :: fn() -> i32 {
+main :: fn -> i32 {
   Pair :: struct { a: i32, b: i32 return
   Small :: i32;
   helper :: fn(n: Small) -> i32 { return n + 1 };

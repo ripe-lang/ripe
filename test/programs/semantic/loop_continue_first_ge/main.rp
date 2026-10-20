@@ -6,4 +6,4 @@ first_ge :: fn(threshold: i32) -> i32 {
   };
   return -1
 };
-main :: fn() -> i32 { return first_ge(7) };
+main :: fn -> i32 { return first_ge(7) };

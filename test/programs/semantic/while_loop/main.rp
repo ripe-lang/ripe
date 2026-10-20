@@ -1,4 +1,4 @@
-main :: fn() -> i32 {
+main :: fn -> i32 {
   i : i32 = 0;
   while i < 7 { i += 1 };
   return i

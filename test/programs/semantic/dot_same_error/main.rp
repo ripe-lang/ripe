@@ -1,7 +1,7 @@
 Point :: struct { x: i32 };
 Shape :: enum { Circle(i32), Dot };
 P :: Point;
-main :: fn() -> i32 {
+main :: fn -> i32 {
     a : i32 = .{ 1 };
     b := i32.{ 1 };
     c : Shape = .{ 3 };

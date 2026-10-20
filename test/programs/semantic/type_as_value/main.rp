@@ -1,6 +1,6 @@
 Point :: struct { x: i32, y: i32 };
 take :: fn(p: Point) -> i32 { return p.x };
-main :: fn() -> i32 {
+main :: fn -> i32 {
   q := Point;
   n := take(Point);
   if 1 == Point { return 1 };

@@ -1,5 +1,5 @@
 // BROKEN: `= _` isn't built yet (the Underscore rule)
-main :: fn() -> i32 {
+main :: fn -> i32 {
   p : *nosuch = null;
   a : [1]nosuch = _;
   f : () -> nosuch = _;

@@ -1,7 +1,7 @@
 h :: fn(a: i32) -> i32 { return a };
 Pt :: struct { x: i32, y: i32 };
 Word :: i32;
-main :: fn() -> i32 {
+main :: fn -> i32 {
   n : i32 = cast(i32, cast(u32, 3));
   m : u32 = 3;
   w : i32 = cast(i32, m);

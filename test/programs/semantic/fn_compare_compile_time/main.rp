@@ -1,7 +1,7 @@
 // BROKEN: two fns don't compare yet (the Comparing functions rule)
 add :: fn(x: i32, y: i32) -> i32 => x + y;
 sub :: fn(x: i32, y: i32) -> i32 => x - y;
-main :: fn() -> i32 {
+main :: fn -> i32 {
   if add == sub { return 1 };
   if add != add { return 2 };
   0

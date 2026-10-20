@@ -33,21 +33,21 @@
         { edesc =
           (Lambda
              { lambda_params = [];
-               lambda_ret = (Some { edesc = (Ident i32); espan = (70,73) });
+               lambda_ret = (Some { edesc = (Ident i32); espan = (68,71) });
                lambda_body =
                [{ edesc =
                   (Return
                      (Some { edesc =
-                             (Call ({ edesc = (Ident add); espan = (85,88) },
-                                [{ edesc = (Int (1L, None)); espan = (89,90)
+                             (Call ({ edesc = (Ident add); espan = (83,86) },
+                                [{ edesc = (Int (1L, None)); espan = (87,88)
                                    };
-                                  { edesc = (Int (2L, None)); espan = (92,93)
+                                  { edesc = (Int (2L, None)); espan = (90,91)
                                     }
                                   ]
                                 ));
-                             espan = (85,94) }));
-                  espan = (78,94) }
+                             espan = (83,92) }));
+                  espan = (76,92) }
                  ];
-               lambda_abi = NoAbi; lambda_span = (62,96) });
-          espan = (62,96) });
-     bind_span = (54,96) })
+               lambda_abi = NoAbi; lambda_span = (62,94) });
+          espan = (62,94) });
+     bind_span = (54,94) })
