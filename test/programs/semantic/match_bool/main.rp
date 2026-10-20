@@ -5,7 +5,6 @@ pick :: fn(flag: bool) -> i32 {
   return match flag {
     true => 1,
     false => 0,
-
   };
 };
 
