@@ -5,12 +5,12 @@ main :: fn() -> i32 {
   rows := 0;
   for @outer i := 0..4 {
     for j := 0..4 {
-      if j == 2 { continue @outer }
+      if j == 2 { continue @outer };
       printf("%d%d ", i, j);
-      pairs += 1;
-    }
-    rows += 1;
-  }
+      pairs += 1
+    };
+    rows += 1
+  };
   printf("pairs=%d rows=%d\n", pairs, rows);
-  return pairs;
+  return pairs
 };

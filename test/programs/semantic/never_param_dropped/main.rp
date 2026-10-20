@@ -6,7 +6,7 @@ spin :: fn() -> never { loop {} };
 unreachable_arg :: fn(_a: never) -> i32 { return 1 };
 
 main :: fn() -> i32 {
-  if false { _r := unreachable_arg(spin()) }
+  if false { _r := unreachable_arg(spin()) };
   printf("alive\n");
-  return 0;
+  return 0
 };

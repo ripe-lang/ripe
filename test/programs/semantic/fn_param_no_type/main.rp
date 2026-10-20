@@ -1,4 +1,4 @@
 same :: fn(a) => a;
 main :: fn {
-  other := fn(b) => b;
+  other := fn(b) => b
 };

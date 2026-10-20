@@ -4,5 +4,5 @@ B : type : A;
 main :: fn() -> i32 {
   x : B = 4;
   y : A = x;
-  return y + 1;
+  return y + 1
 };

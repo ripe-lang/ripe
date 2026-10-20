@@ -4,7 +4,7 @@ main :: fn() -> i32 {
   diff : i64 = max_i - 9223372036854775800;
   wrapped : u64 = max_u + 1;
   if wrapped == 0 {
-    return cast(i32, diff);
-  }
-  return 0;
+    return cast(i32, diff)
+  };
+  return 0
 };

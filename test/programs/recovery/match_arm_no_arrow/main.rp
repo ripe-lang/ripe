@@ -3,5 +3,5 @@ main :: fn() -> i32 {
   return match x {
     1 1,
     _ => 0,
-  };
+  }
 };

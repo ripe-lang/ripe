@@ -1,16 +1,16 @@
 Pair :: struct { a: i32, b: i32 };
 
 make_pair :: extern "C" fn(x: i32) -> Pair {
-  return Pair.{ a = x, b = x * 2 };
+  return Pair.{ a = x, b = x * 2 }
 };
 
 total :: extern "C" fn(p: Pair) -> i32 {
-  return p.a + p.b;
+  return p.a + p.b
 };
 
 step :: extern "C" fn(x: i32) -> i32 { return x + 1 };
 
 main :: fn() -> i32 {
   p := make_pair(7);
-  return step(total(p));
+  return step(total(p))
 };

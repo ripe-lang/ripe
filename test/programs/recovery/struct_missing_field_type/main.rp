@@ -4,5 +4,5 @@ Point :: struct {
 };
 main :: fn() -> i32 {
   p := Point.{ 5, 4 };
-  return p.y;
+  return p.y
 };

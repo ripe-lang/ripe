@@ -8,5 +8,5 @@ main :: fn() -> i32 {
     Pt.{ x = 2 * scale, y = 5 * scale }
   };
   printf("%d %d\n", p.x, p.y);
-  return 0;
+  return 0
 };

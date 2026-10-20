@@ -5,5 +5,5 @@ Pt : _ : Point;
 g : Pt = Point.{ x = 2, y = 3 };
 
 main : _ : fn() -> i32 {
-  return g.x + g.y;
+  return g.x + g.y
 };

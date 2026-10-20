@@ -2,13 +2,13 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 pick :: fn(n: i32) -> i32 {
   r := {
-    if n == 0 { return 0 - 1 }
+    if n == 0 { return 0 - 1 };
     n * 10
   };
-  return r;
+  return r
 };
 
 main :: fn() -> i32 {
   printf("%d %d\n", pick(0), pick(3));
-  return 0;
+  return 0
 };

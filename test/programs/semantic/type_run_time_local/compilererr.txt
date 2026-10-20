@@ -8,5 +8,5 @@ error: expected a value
            ^~~ found type
 error: expected a value
   at main.rp:4:8
-      C := struct { x: i32 };
+      C := struct { x: i32 }
            ^~~~~~ found type

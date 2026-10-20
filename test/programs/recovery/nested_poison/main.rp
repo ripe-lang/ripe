@@ -13,5 +13,5 @@ main :: fn() -> i32 {
   _s := a[0..1];
   _r := [p, p];
   _q := &p;
-  return 0;
+  return 0
 };

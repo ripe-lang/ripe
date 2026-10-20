@@ -2,7 +2,7 @@ hits := 0;
 
 bump :: fn(v: bool) -> bool {
   hits += 1;
-  return v;
+  return v
 };
 
 main :: fn() -> i32 {
@@ -15,9 +15,9 @@ main :: fn() -> i32 {
   d := true;
   d ||= bump(false);
   n := hits * 10;
-  if a { n += 1000; }
-  if b { n += 1000; }
-  if c { n += 1; }
-  if d { n += 2; }
-  return n;
+  if a { n += 1000 };
+  if b { n += 1000 };
+  if c { n += 1 };
+  if d { n += 2 };
+  return n
 };

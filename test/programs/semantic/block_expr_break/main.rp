@@ -3,11 +3,11 @@ main :: fn() -> i32 {
   i := 0;
   while i < 10 {
     v := {
-      if i == 4 { break }
+      if i == 4 { break };
       i * i
     };
     last = v;
-    i += 1;
-  }
-  return last;
+    i += 1
+  };
+  return last
 };

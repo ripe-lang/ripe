@@ -3,5 +3,5 @@ main :: fn() -> i32 {
     a := 20;
     a + 1
   };
-  return x;
+  return x
 };

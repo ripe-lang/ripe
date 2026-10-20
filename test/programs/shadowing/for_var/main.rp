@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
   i : i32 = 99;
-  for i := 0..3 { }
-  return i;
+  for i := 0..3 { };
+  return i
 };

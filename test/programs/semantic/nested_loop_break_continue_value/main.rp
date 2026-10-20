@@ -4,9 +4,9 @@ search :: fn() -> i32 {
     for j := 0..5 {
       prod : i32 = if i * j == 6 { i * 10 + j } else { continue };
       found = prod;
-      return found;
+      return found
     }
-  }
-  return found;
+  };
+  return found
 };
 main :: fn() -> i32 { return search() };

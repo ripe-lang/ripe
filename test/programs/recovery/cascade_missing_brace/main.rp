@@ -2,6 +2,6 @@
 helper :: fn(n: i32) -> i32
   a1 : i32 = n;
   a2 : i32 = a1 + n;
-  return a2;
+  return a2
 };
 main :: fn() -> i32 { return helper(2) };

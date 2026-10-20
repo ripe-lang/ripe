@@ -1,5 +1,5 @@
 Count :: i32;
 main :: fn() -> i32 {
   n : Count = 7;
-  return n;
+  return n
 };

@@ -3,6 +3,6 @@ Row :: [3]i32;
 main :: fn() -> i32 {
   r : Row = [1, 2, 3];
   total : i32 = 0;
-  for v := r { total = total + v }
-  return total + r[0];
+  for v := r { total = total + v };
+  return total + r[0]
 };

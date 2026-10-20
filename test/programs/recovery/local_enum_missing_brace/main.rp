@@ -4,5 +4,5 @@ main :: fn() -> i32 {
   Side :: enum  Left, Right };
   helper :: fn(n: Small) -> i32 { return n + 1 };
   s := Side.Right;
-  return helper(1) + match s { Side.Left => 0, _ => 1 };
+  return helper(1) + match s { Side.Left => 0, _ => 1 }
 }

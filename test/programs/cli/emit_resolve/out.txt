@@ -6,7 +6,7 @@ Each line maps a source byte range to its definition.
 * #-id: built in declaration
 * kind name: resolved definition
 
-(0,52) -> #0 Func add
+(0,51) -> #0 Func add
 (10,16) -> #2 Param a
 (13,16) -> #-4 Type i32
 (18,24) -> #3 Param b
@@ -14,6 +14,6 @@ Each line maps a source byte range to its definition.
 (29,32) -> #-4 Type i32
 (44,45) -> #2 Param a
 (48,49) -> #3 Param b
-(55,98) -> #1 Func main
-(71,74) -> #-4 Type i32
-(86,89) -> #0 Func add
+(54,96) -> #1 Func main
+(70,73) -> #-4 Type i32
+(85,88) -> #0 Func add

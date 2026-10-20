@@ -5,14 +5,14 @@ Pair :: struct {
 
 choose :: fn(flag: bool) -> Pair {
   if flag {
-    return Pair.{ x = 1, y = 2 };
+    return Pair.{ x = 1, y = 2 }
   } else {
-    return Pair.{ x = 3, y = 4 };
+    return Pair.{ x = 3, y = 4 }
   }
 };
 
 main :: fn() -> i32 {
   left := choose(true);
   right := choose(false);
-  return left.x + left.y + right.x + right.y;
+  return left.x + left.y + right.x + right.y
 };

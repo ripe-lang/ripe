@@ -1,4 +1,4 @@
 error: missing return value
   at main.rp:2:13
-      if true { return }
+      if true { return };
                 ^~~~~~

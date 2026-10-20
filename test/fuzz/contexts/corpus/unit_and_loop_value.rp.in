@@ -8,5 +8,5 @@ main :: fn() -> i32 {
   g : [2][2]i32 = [[1, 2], [3, 4]];
   n : i32;
   n = loop { break 5 };
-  return a + g[1][0] + n;
+  return a + g[1][0] + n
 };

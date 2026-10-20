@@ -8,5 +8,5 @@ main :: fn() -> i32 {
   e : f32 = -4.5f32;
   f : f64 = 1_000.5f64;
   printf("%f %f %f %f %f %f\n", cast(f64, a), b, cast(f64, c), d, cast(f64, e), f);
-  return 0;
+  return 0
 };

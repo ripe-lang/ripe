@@ -6,18 +6,15 @@ main :: fn() -> i32 {
   width := match Size.Large {
     Size.Small => 10,
     Size.Large => 20,
-
   };
   height := match Size.Small {
     Size.Small => 1,
     Size.Large => 2,
-
   };
   height += match Size.Large {
     Size.Small => 0,
     Size.Large => 5,
-
   };
   printf("%d %d\n", width, height);
-  return 0;
+  return 0
 };

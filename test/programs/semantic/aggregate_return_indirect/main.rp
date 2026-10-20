@@ -4,14 +4,14 @@ Pair :: struct {
 };
 
 make_pair :: fn(x: i32, y: i32) -> Pair {
-  return Pair.{ x = x, y = y };
+  return Pair.{ x = x, y = y }
 };
 
 sum_pair :: fn(value: Pair) -> i32 {
-  return value.x + value.y;
+  return value.x + value.y
 };
 
 main :: fn() -> i32 {
   make : (i32, i32) -> Pair = make_pair;
-  return sum_pair(make(8, 13));
+  return sum_pair(make(8, 13))
 };

@@ -4,5 +4,5 @@ main :: fn() -> i32 {
   h : *(i32) -> i32 = &f;
   g : extern "C" (i32) -> i32 = cast(extern "C" (i32) -> i32, f);
   n : i32 = cast(i32, cast(u32, 3));
-  return f(n) + (f)(1) + h.*(1) + g(1);
+  return f(n) + (f)(1) + h.*(1) + g(1)
 };

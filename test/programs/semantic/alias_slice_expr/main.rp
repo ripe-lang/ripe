@@ -4,6 +4,6 @@ main :: fn() -> i32 {
   a : [5]i32 = [1, 2, 3, 4, 5];
   s : Ints = a[1..4];
   total : i32 = 0;
-  for v := s { total = total + v }
-  return total;
+  for v := s { total = total + v };
+  return total
 };

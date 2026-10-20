@@ -1,9 +1,9 @@
 // BROKEN: `= _` isn't built yet (the Underscore rule)
 main :: fn() -> i32 {
   a : [1024]i32 = _;
-  for i := 0..a.len { a[i] = 0 }
+  for i := 0..a.len { a[i] = 0 };
   a[7] = 42;
   b : [1024]i32 = a;
   a[7] = 0;
-  return b[7];
+  return b[7]
 };

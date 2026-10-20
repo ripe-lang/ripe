@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
-  if true { return }
-  return 1;
+  if true { return };
+  return 1
 };

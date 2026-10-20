@@ -14,11 +14,11 @@ Nest :: struct {
 origin : Pair = Pair.{ 7, 8 };
 
 take :: fn(p: Pair) -> i32 {
-  return p.x * 10 + p.y;
+  return p.x * 10 + p.y
 };
 
 make :: fn() -> Pair {
-  return Pair.{ 1, 2 };
+  return Pair.{ 1, 2 }
 };
 
 main :: fn() -> i32 {
@@ -38,5 +38,5 @@ main :: fn() -> i32 {
   printf("vars %d %d\n", from_vars.x, from_vars.y);
   p = Pair.{ p.y, p.x };
   printf("reassigned %d %d\n", p.x, p.y);
-  return 0;
+  return 0
 };

@@ -2,5 +2,5 @@ main :: fn() -> i32 {
   x : i32 = 10;
   q : *i32 = &x;
   q.* = 42;
-  return x;
+  return x
 };

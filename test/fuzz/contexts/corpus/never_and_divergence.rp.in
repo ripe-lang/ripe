@@ -4,5 +4,5 @@ Hole :: struct { a: never };
 main :: fn() -> i32 {
   p : *never = null;
   n := if false { spin() } else { 1 };
-  return n;
+  return n
 };

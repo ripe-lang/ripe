@@ -1,5 +1,5 @@
 puts : (*i8) -> i32 : extern "C";
 main :: fn() -> i32 {
   msg := "hi";
-  return 0;
+  return 0
 };

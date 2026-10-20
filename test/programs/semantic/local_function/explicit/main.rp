@@ -3,5 +3,5 @@ main :: fn() -> i32 {
     value * 2
   };
 
-  return double(5);
+  return double(5)
 };

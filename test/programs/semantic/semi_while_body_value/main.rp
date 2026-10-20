@@ -1,0 +1,3 @@
+main :: fn {
+  while true { 1 }
+};

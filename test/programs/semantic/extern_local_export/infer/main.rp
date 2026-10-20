@@ -2,5 +2,5 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 main : _ : fn {
   total : _ : extern "C" fn(a: i32, b: i32) -> i32 { a + b };
-  printf("%d\n", total(2, 3));
+  _ := printf("%d\n", total(2, 3))
 };

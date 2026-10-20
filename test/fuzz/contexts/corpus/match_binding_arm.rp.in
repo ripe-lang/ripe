@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
   n : i32 = 7;
-  return match n { 0 => 100, other => other - 7 };
+  return match n { 0 => 100, other => other - 7 }
 };

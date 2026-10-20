@@ -23,31 +23,31 @@
                              espan = (44,49) }));
                   espan = (37,49) }
                  ];
-               lambda_abi = NoAbi; lambda_span = (7,52) });
-          espan = (7,52) });
-     bind_span = (0,52) })
+               lambda_abi = NoAbi; lambda_span = (7,51) });
+          espan = (7,51) });
+     bind_span = (0,51) })
 (Bind
-   { bind_name = { value = main; span = (55,59) }; binder = CompileTime;
+   { bind_name = { value = main; span = (54,58) }; binder = CompileTime;
      bind_form =
      (Inferred
         { edesc =
           (Lambda
              { lambda_params = [];
-               lambda_ret = (Some { edesc = (Ident i32); espan = (71,74) });
+               lambda_ret = (Some { edesc = (Ident i32); espan = (70,73) });
                lambda_body =
                [{ edesc =
                   (Return
                      (Some { edesc =
-                             (Call ({ edesc = (Ident add); espan = (86,89) },
-                                [{ edesc = (Int (1L, None)); espan = (90,91)
+                             (Call ({ edesc = (Ident add); espan = (85,88) },
+                                [{ edesc = (Int (1L, None)); espan = (89,90)
                                    };
-                                  { edesc = (Int (2L, None)); espan = (93,94)
+                                  { edesc = (Int (2L, None)); espan = (92,93)
                                     }
                                   ]
                                 ));
-                             espan = (86,95) }));
-                  espan = (79,95) }
+                             espan = (85,94) }));
+                  espan = (78,94) }
                  ];
-               lambda_abi = NoAbi; lambda_span = (63,98) });
-          espan = (63,98) });
-     bind_span = (55,98) })
+               lambda_abi = NoAbi; lambda_span = (62,96) });
+          espan = (62,96) });
+     bind_span = (54,96) })

@@ -8,11 +8,10 @@ code :: fn(c: Color) -> i32 {
     Color.Red => return 1,
     Color.Green => return 2,
     Color.Blue => return 3,
-
   }
 };
 
 main :: fn() -> i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue));
-  return 0;
+  return 0
 };

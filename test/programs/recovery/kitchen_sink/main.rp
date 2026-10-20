@@ -16,5 +16,5 @@ main :: fn() -> i32 {
   c := Color.Green;
   s := scale(2);
   b := bad();
-  return p.y + s + b + LIMIT;
+  return p.y + s + b + LIMIT
 };

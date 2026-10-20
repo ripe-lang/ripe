@@ -5,5 +5,5 @@ twice :: fn(x: i32) -> i32 { return x * 2 };
 main :: fn() -> i32 {
   n := 0;
   printf("%d\n", twice(loop { n += 1; if n == 5 { break n } }));
-  return twice(loop { break 3 });
+  return twice(loop { break 3 })
 };

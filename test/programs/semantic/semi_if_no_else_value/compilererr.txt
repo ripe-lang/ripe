@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:3:10
+      if c { 1 }
+             ^ expected (), found i32
+  at main.rp:3:3
+      if c { 1 }
+      ^~ an `if` with no `else` gives ()
+help: ignore the value with `_ :=`

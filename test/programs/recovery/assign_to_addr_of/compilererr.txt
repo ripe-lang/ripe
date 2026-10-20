@@ -4,5 +4,5 @@ error: undefined variable
         ^
 error: undefined variable
   at main.rp:5:10
-      return p.x + q.y;
+      return p.x + q.y
              ^

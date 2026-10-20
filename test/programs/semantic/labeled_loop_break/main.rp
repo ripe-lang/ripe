@@ -4,11 +4,11 @@ main :: fn() -> i32 {
   hits := 0;
   for @outer i := 0..4 {
     for j := 0..4 {
-      if i * 4 + j == 6 { break @outer }
-      hits += 1;
-    }
-    printf("|");
-  }
+      if i * 4 + j == 6 { break @outer };
+      hits += 1
+    };
+    _ := printf("|")
+  };
   printf(" hits=%d\n", hits);
-  return hits;
+  return hits
 };

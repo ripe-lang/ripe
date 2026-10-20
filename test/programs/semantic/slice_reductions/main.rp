@@ -1,27 +1,27 @@
 sum :: fn(xs: []i32) -> i32 {
   total : i32 = 0;
   for x := xs {
-    total += x;
-  }
-  return total;
+    total += x
+  };
+  return total
 };
 
 max :: fn(xs: []i32) -> i32 {
   best : i32 = xs[0];
   for x := xs {
     if x > best {
-      best = x;
+      best = x
     }
-  }
-  return best;
+  };
+  return best
 };
 
 main :: fn() -> i32 {
   scores : [5]i32 = [30, 10, 50, 20, 40];
   for i := 0..scores.len {
-    scores[i] += 1;
-  }
+    scores[i] += 1
+  };
   total : i32 = sum(scores);
   top : i32 = max(scores);
-  return total - top - 100;
+  return total - top - 100
 };

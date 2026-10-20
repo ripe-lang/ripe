@@ -2,5 +2,5 @@
 Pair :: (i32, i32
 main :: fn() -> i32 {
   q : Pair = (1, 2);
-  return 0;
+  return 0
 };

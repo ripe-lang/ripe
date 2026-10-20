@@ -9,5 +9,5 @@ main :: fn() -> i32 {
     value()
   };
 
-  return first + second;
+  return first + second
 };

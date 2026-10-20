@@ -4,5 +4,5 @@ main :: fn() -> i32 {
   Small :: i32;
   helper :: fn(n: Small) -> i32 { return n + 1 };
   v := Pair.{ 1, 2 };
-  return helper(v.a) + v.b;
+  return helper(v.a) + v.b
 };

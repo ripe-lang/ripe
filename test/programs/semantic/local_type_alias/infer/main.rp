@@ -1,5 +1,5 @@
 main : _ : fn() -> i32 {
   Coord : _ : i32;
   x : Coord = 6;
-  return x;
+  return x
 };

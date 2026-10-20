@@ -9,17 +9,15 @@ area :: fn(shape: Shape, size: Size) -> i32 {
     Shape.Line => match size {
       Size.Small => 1,
       Size.Large => 2,
-
-    }
+    },
     Shape.Box => match size {
       Size.Small => 10,
       Size.Large => 20,
-
     }
-  };
+  }
 };
 
 main :: fn() -> i32 {
   printf("%d %d %d %d\n", area(Shape.Dot, Size.Small), area(Shape.Line, Size.Large), area(Shape.Box, Size.Small), area(Shape.Box, Size.Large));
-  return 0;
+  return 0
 };

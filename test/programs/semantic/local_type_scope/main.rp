@@ -11,5 +11,5 @@ main :: fn() -> i32 {
     value.extra
   };
 
-  return first + second;
+  return first + second
 };

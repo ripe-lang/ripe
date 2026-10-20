@@ -17,5 +17,5 @@ main :: fn() -> i32 {
   qqq.*.*.x = 3;
   qqq.*.*.y = 9;
   printf("%d %d\n", p.x, p.y);
-  return 0;
+  return 0
 };

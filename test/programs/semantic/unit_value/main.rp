@@ -6,14 +6,14 @@ make :: fn() -> () { () };
 
 number :: fn() -> (i32) { 4 };
 
-block_value :: fn() -> i32 { { x := 5; x; } };
+block_value :: fn() -> i32 { { x := 5; x } };
 
 explicit_return :: fn() -> () { return () };
 
 assign :: fn() {
   value : () = ();
   value = ();
-  pass(value);
+  pass(value)
 };
 
 indirect :: fn(g: (()) -> ()) { g(global) };
@@ -22,9 +22,9 @@ addressable :: fn() -> i32 {
   value : () = ();
   p : *() = &value;
   q : *() = &value;
-  if p == null { return 0 }
-  if p != q { return 0 }
-  return 1;
+  if p == null { return 0 };
+  if p != q { return 0 };
+  return 1
 };
 
 main :: fn() -> i32 {
@@ -34,5 +34,5 @@ main :: fn() -> i32 {
   assign();
   indirect(pass);
   return cast(i32, sizeof(())) + cast(i32, sizeof((()))) + cast(i32, sizeof(((((())))))) +
-    cast(i32, sizeof((i32))) + number() + block_value() + addressable();
+    cast(i32, sizeof((i32))) + number() + block_value() + addressable()
 };

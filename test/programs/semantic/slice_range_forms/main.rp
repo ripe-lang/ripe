@@ -2,8 +2,8 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 sum :: fn(s: []i32) -> i32 {
   t : i32 = 0;
-  for i := 0..s.len { t += s[i] }
-  return t;
+  for i := 0..s.len { t += s[i] };
+  return t
 };
 
 main :: fn() -> i32 {
@@ -23,5 +23,5 @@ main :: fn() -> i32 {
   s : []i32 = a[..];
   printf("%d %d %d\n", sum(s[..]), sum(s[2..]), sum(s[..=1]));
 
-  return sum(a[..]);
+  return sum(a[..])
 };

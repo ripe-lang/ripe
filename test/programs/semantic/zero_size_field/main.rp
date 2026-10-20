@@ -24,5 +24,5 @@ main :: fn() -> i32 {
 
   r : DivRes = div(17, 5);
   printf("%d %d %d\n", r.quot, r.rem, cast(i32, sizeof(DivRes)));
-  return 0;
+  return 0
 };

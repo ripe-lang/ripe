@@ -10,5 +10,5 @@ main :: fn() -> i32 {
     }
   };
   printf("found=%d\n", found);
-  return found;
+  return found
 };

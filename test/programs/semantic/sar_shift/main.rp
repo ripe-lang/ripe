@@ -1,4 +1,4 @@
 main :: fn() -> i32 {
   a : i32 = -8;
-  return a >> 1;
+  return a >> 1
 };

@@ -1,3 +1,2 @@
-// BROKEN: a fn that wants () still throws its last value away (the Semicolons rule)
 g :: fn() -> i32 { 5 };
 main :: fn { g() };

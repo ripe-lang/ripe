@@ -14,5 +14,5 @@ main :: fn() -> i32 {
   printf("%f %f %f %f %f %f %f\n", cast(f64, a), b, cast(f64, takef(7)), cast(f64, d),
     cast(f64, e), f, cast(f64, g));
   printf("%f\n", h);
-  return 0;
+  return 0
 };

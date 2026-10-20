@@ -7,11 +7,10 @@ code :: fn(c: Color) -> i32 {
     Color.Red => 10,
     Color.Green => 20,
     Color.Blue => 30,
-
-  };
+  }
 };
 
 main :: fn() -> i32 {
   printf("%d %d %d\n", code(Color.Red), code(Color.Green), code(Color.Blue));
-  return 0;
+  return 0
 };

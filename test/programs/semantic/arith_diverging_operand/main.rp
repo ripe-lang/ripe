@@ -4,9 +4,9 @@ shift :: fn(n: i32) -> i32 { return { return 3 } >> n };
 compound :: fn(n: i32) -> i32 {
   x := n;
   x /= { return 4 };
-  return x;
+  return x
 };
 
 main :: fn() -> i32 {
-  return div(9) + cast(i32, rem(9)) + shift(1) + compound(9);
+  return div(9) + cast(i32, rem(9)) + shift(1) + compound(9)
 };

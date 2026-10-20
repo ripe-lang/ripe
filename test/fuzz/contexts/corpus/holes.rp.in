@@ -5,5 +5,5 @@ main :: fn() -> i32 {
   p : *_ = &xs;
   f : (i32, _) -> i32 = add;
   small : u8 = cast(_, gs[0]);
-  return f(xs[1], cast(_, small));
+  return f(xs[1], cast(_, small))
 };

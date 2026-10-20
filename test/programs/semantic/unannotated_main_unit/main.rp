@@ -1,9 +1,9 @@
 write : (i32, *u8, usize) -> i64 : extern "C";
 
 announce :: fn(s: str) {
-  write(1, s.ptr, s.len);
+  _ := write(1, s.ptr, s.len)
 };
 
 main :: fn() {
-  announce("done\n");
+  announce("done\n")
 };

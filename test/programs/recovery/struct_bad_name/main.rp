@@ -2,5 +2,5 @@
 struct 3point { x: i32 }
 main :: fn() -> i32 {
   p := point.{ 5 };
-  return p.x;
+  return p.x
 };

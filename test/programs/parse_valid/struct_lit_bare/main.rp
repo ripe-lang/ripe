@@ -13,5 +13,5 @@ main :: fn() -> i32 {
   q : Point = if p.x > 0 { .{ 1, 1 } } else { .{ 0, 0 } };
   r : Pt = .{ 3, 3 };
   _e : Empty = .{ };
-  return take(.{ 9, 0 }) + make().y + g.x + l.a.x + a[1].y + q.y + p.y + r.x;
+  return take(.{ 9, 0 }) + make().y + g.x + l.a.x + a[1].y + q.y + p.y + r.x
 };

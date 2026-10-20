@@ -25,5 +25,5 @@ main :: fn() -> i32 {
 
   Coord :: i32;
   offset : Coord = 4;
-  return add(first + second, offset) + count(3);
+  return add(first + second, offset) + count(3)
 };

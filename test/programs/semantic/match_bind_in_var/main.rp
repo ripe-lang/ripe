@@ -1,8 +1,8 @@
 f :: fn(n: i64) -> i64 {
   o := match n { 0 => 2, x => x * 3, };
-  return o;
+  return o
 };
 
 main :: fn() -> i32 {
-  return cast(i32, f(0) + f(4));
+  return cast(i32, f(0) + f(4))
 };

@@ -4,6 +4,6 @@ main :: fn() -> i32 {
   p : *i32 = &n;
   q : *u32 = cast(*u32, p);
   a : usize = cast(usize, q);
-  if a == 0 { return 1 }
-  return cast(i32, sizeof(i32)) + cast(i32, u) + p.*;
+  if a == 0 { return 1 };
+  return cast(i32, sizeof(i32)) + cast(i32, u) + p.*
 };

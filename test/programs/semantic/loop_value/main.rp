@@ -4,5 +4,5 @@ main :: fn() -> i32 {
     n += 1;
     if n == 7 { break n * 6 }
   };
-  return answer;
+  return answer
 };

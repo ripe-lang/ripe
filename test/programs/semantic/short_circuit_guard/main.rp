@@ -1,5 +1,5 @@
 main :: fn() -> i32 {
   p : *i32 = null;
-  if p != null && p.* > 0 { return 1 }
-  return 2;
+  if p != null && p.* > 0 { return 1 };
+  return 2
 };

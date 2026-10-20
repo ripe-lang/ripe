@@ -4,5 +4,5 @@ get :: fn() -> Slot { return 5 };
 f :: fn() -> i64 { get() };
 
 main :: fn() -> i32 {
-  return cast(i32, f());
+  return cast(i32, f())
 };

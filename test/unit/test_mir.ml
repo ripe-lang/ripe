@@ -157,10 +157,10 @@ let%expect_test "mir: continue uses one shared step block" =
 f :: fn() -> i32 {
   sum : i32 = 0;
   for i := 0..5 {
-    if i == 2 { continue }
-    sum += i;
-  }
-  return sum;
+    if i == 2 { continue };
+    sum += i
+  };
+  return sum
 };
 |};
   [%expect
@@ -219,9 +219,9 @@ main :: fn() -> i32 {
       n += 1;
       if n == 4 { break @outer }
     }
-  }
+  };
   printf("n=%d\n", n);
-  return n;
+  return n
 };
 |};
   [%expect
@@ -276,7 +276,7 @@ main :: fn() -> i32 {
     }
   };
   printf("found=%d\n", found);
-  return found;
+  return found
 };
 |};
   [%expect
@@ -383,7 +383,7 @@ Pair :: struct { x: i32, y: i32 };
 f :: fn(a: i32, b: i32) -> i32 {
   positional := Pair.{ a, b };
   named := Pair.{ y = b, x = a };
-  return positional.x + named.y;
+  return positional.x + named.y
 };
 |};
   [%expect
@@ -415,7 +415,7 @@ Pair :: struct { x: i32, y: i32 };
 side :: fn(v: i32) -> i32 { return v };
 
 f :: fn() -> Pair {
-  return Pair.{ y = side(1), x = side(2) };
+  return Pair.{ y = side(1), x = side(2) }
 };
 |};
   [%expect
@@ -519,7 +519,7 @@ let%expect_test "mir: a match lowers to a chain of tests" =
     1 => 10,
     2 => 20,
     _ => 0,
-  };
+  }
 };|};
   [%expect
     {|
@@ -558,8 +558,8 @@ let%expect_test "mir: a range for counts without a bounds check" =
   Pipeline.run_mir
     {|f :: fn() -> i32 {
   t : i32 = 0;
-  for i := 0..3 { t += i }
-  return t;
+  for i := 0..3 { t += i };
+  return t
 };|};
   [%expect
     {|
@@ -598,8 +598,8 @@ let%expect_test "mir: an inclusive range stops one step later" =
   Pipeline.run_mir
     {|f :: fn() -> i32 {
   t : i32 = 0;
-  for i := 0..=3 { t += i }
-  return t;
+  for i := 0..=3 { t += i };
+  return t
 };|};
   [%expect
     {|
@@ -643,8 +643,8 @@ let%expect_test "mir: a for over an array walks it by index" =
   Pipeline.run_mir
     {|f :: fn(a: [3]i32) -> i32 {
   t : i32 = 0;
-  for v := a { t += v }
-  return t;
+  for v := a { t += v };
+  return t
 };|};
   [%expect
     {|
@@ -707,7 +707,7 @@ let%expect_test "mir: a compound assign reuses the place it writes" =
     {|f :: fn() -> i32 {
   a : [2]i32 = [1, 2];
   a[0] += 5;
-  return a[0];
+  return a[0]
 };|};
   [%expect
     {|
@@ -771,7 +771,7 @@ let%expect_test "mir: an array literal writes each element in order" =
   Pipeline.run_mir
     {|f :: fn() -> i32 {
   a : [3]i32 = [7, 8, 9];
-  return a[1];
+  return a[1]
 };|};
   [%expect
     {|
@@ -794,7 +794,7 @@ let%expect_test "mir: a loop yields the value its break carries" =
   return loop {
     n += 1;
     if n == 3 { break n }
-  };
+  }
 };|};
   [%expect
     {|
@@ -845,7 +845,7 @@ f :: fn(o: Outer) -> i32 { return o.i.v };|};
 let%expect_test "mir: a deref through a pointer is a place projection" =
   Pipeline.run_mir {|f :: fn(p: *i32) -> i32 {
   p.* = 4;
-  return p.*;
+  return p.*
 };|};
   [%expect
     {|
@@ -863,7 +863,7 @@ let%expect_test "mir: a logical compound assign skips the right side" =
     {|f :: fn(b: bool) -> bool {
   a := true;
   a &&= b;
-  return a;
+  return a
 };|};
   [%expect
     {|

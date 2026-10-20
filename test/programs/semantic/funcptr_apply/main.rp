@@ -4,10 +4,10 @@ add :: fn(a: i32, b: i32) -> i32 { return a + b };
 mul :: fn(a: i32, b: i32) -> i32 { return a * b };
 
 apply :: fn(f: BinOp, a: i32, b: i32) -> i32 {
-  return f(a, b);
+  return f(a, b)
 };
 
 main :: fn() -> i32 {
   op : BinOp = mul;
-  return apply(op, 6, 7);
+  return apply(op, 6, 7)
 };

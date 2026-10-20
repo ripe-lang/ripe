@@ -3,16 +3,16 @@ printf : (cstr, ..) -> i32 : extern "C";
 Level :: enum { Low, High };
 
 pick :: fn(level: Level, lo: i32, hi: i32) -> i32 {
-  if level == Level.Low { return lo }
-  return hi;
+  if level == Level.Low { return lo };
+  return hi
 };
 
 flip :: fn(level: Level) -> Level {
-  if level == Level.Low { return Level.High }
-  return Level.Low;
+  if level == Level.Low { return Level.High };
+  return Level.Low
 };
 
 main :: fn() -> i32 {
   printf("%d %d\n", pick(Level.Low, 1, 2), pick(flip(Level.Low), 1, 2));
-  return 0;
+  return 0
 };

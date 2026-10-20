@@ -15,5 +15,5 @@ main :: fn() -> i32 {
     value + 1
   };
 
-  return first(13);
+  return first(13)
 };

@@ -4,5 +4,5 @@ main :: fn() -> i32 {
     increment
   };
 
-  return handler(21);
+  return handler(21)
 };
