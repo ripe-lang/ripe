@@ -1,0 +1,4 @@
+error: expected `{`
+  at main.rp:1:30
+    g : (i32) -> i32 : fn -> i32 match { _ => 1 };
+                                 ^~~~~ found `match`

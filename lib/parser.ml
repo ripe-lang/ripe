@@ -304,9 +304,17 @@ and parse_params st =
   expect st RPAREN;
   List.rev !params
 
-(* fn(a: i32) -> i32 => a, fn { }, extern "C" fn(p: Pair) -> i32 { p.a } *)
+(* fn(a: i32) -> i32 => a, fn { }, extern "C" fn(p: Pair) -> i32 { p.a }, fn match { 0 => 1, _ => 2 } *)
 and parse_lambda st abi lo =
-  let params = if at st LPAREN then parse_params st else [] in
+  let hidden = spanned (Interner.intern (show_token MATCH)) (cur_span st) in
+  let params =
+    match cur_token st with
+    | LPAREN -> parse_params st
+    | MATCH ->
+        let hole = { edesc = Hole; espan = hidden.span } in
+        [ { param_name = hidden; param_typ = hole; param_span = hidden.span } ]
+    | _ -> []
+  in
   let ret =
     if at st ARROW then begin
       advance st;
@@ -318,6 +326,14 @@ and parse_lambda st abi lo =
     if at st FATARROW then begin
       advance st;
       [ parse_expr st ]
+    end
+    else if List.exists (fun p -> p.param_name == hidden) params then begin
+      let arms_lo = cur_pos st in
+      advance st;
+      [
+        parse_arms st arms_lo
+          { edesc = Ident hidden.value; espan = hidden.span };
+      ]
     end
     else (parse_block st).value
   in
