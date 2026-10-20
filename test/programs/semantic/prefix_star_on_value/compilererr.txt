@@ -1,4 +1,4 @@
 error: type mismatch
   at main.rp:4:11
-      return *p;
+      return *p
               ^ expected type, found *i32

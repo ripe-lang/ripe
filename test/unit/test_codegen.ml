@@ -28,7 +28,7 @@ make :: fn() -> str { return "hello" };
 main :: fn() -> i32 {
   box : Box = Box.{ text = "field", value = 1 };
   copy : str = make();
-  return (box.text.len + copy.len) as i32;
+  return (box.text.len + copy.len) as i32
 };
 |};
   [%expect
@@ -52,7 +52,7 @@ let%expect_test "qbe accepts checked operations" =
     {|
 main :: fn() -> i32 {
   values : [2]i32 = [10, 20];
-  return values[1];
+  return values[1]
 };
 |};
   [%expect {| ok |}]
@@ -63,7 +63,7 @@ let%expect_test "qbe accepts main allocation" =
 Pair :: struct { left: i32, right: i32 };
 main :: fn() -> i32 {
   pair := Pair.{ left = 1, right = 2 };
-  return pair.left + pair.right;
+  return pair.left + pair.right
 };
 |};
   [%expect {| ok |}]
@@ -74,7 +74,7 @@ let%expect_test "qbe accepts local structs" =
 main :: fn() -> i32 {
 Pair :: struct { left: i32, right: i32 };
   pair := Pair.{ left = 1, right = 2 };
-  return pair.left + pair.right;
+  return pair.left + pair.right
 };
 |};
   [%expect {| ok |}]
@@ -86,7 +86,7 @@ Pair :: struct { left: i32, right: i32 };
 consume : (Pair) -> i32 : extern "C";
 main :: fn() -> i32 {
   pair := Pair.{ left = 1, right = 2 };
-  return consume(pair);
+  return consume(pair)
 };
 |};
   [%expect {| ok |}]
@@ -98,7 +98,7 @@ Pair :: struct { left: i32, right: i32 };
 produce : () -> Pair : extern "C";
 main :: fn() -> i32 {
   pair := produce();
-  return pair.left;
+  return pair.left
 };
 |};
   [%expect {| ok |}]
@@ -110,7 +110,7 @@ Pair :: struct { left: i32, right: i32 };
 produce : () -> Pair : extern "Ripe";
 main :: fn() -> i32 {
   pair := produce();
-  return pair.left;
+  return pair.left
 };
 |};
   [%expect {| ok |}]
@@ -124,7 +124,7 @@ main :: fn() -> i32 {
   addressed : i32 = 3;
   pointer := &addressed;
   pointer.* = value;
-  return addressed;
+  return addressed
 };
 |};
   [%expect {| ok |}]
@@ -137,7 +137,7 @@ takes_str : (str) -> i32 : extern "C";
 main :: fn() -> i32 {
   xs : [4]i32 = [1, 2, 3, 4];
   view : []i32 = xs[0..4];
-  return takes_slice(view) + takes_str("hi");
+  return takes_slice(view) + takes_str("hi")
 };
 |};
   [%expect {| ok |}]
@@ -168,7 +168,7 @@ Pair :: struct { left: i32, right: i32 };
 make :: extern "C" fn(x: i32) -> Pair { return Pair.{ left = x, right = x } };
 main :: fn() -> i32 {
   pair := make(2);
-  return pair.left + pair.right;
+  return pair.left + pair.right
 };
 |};
   [%expect {| ok |}]

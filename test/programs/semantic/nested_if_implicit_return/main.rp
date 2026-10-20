@@ -6,5 +6,5 @@ classify :: fn(x: i32) -> i32 {
   }
 };
 main :: fn() -> i32 {
-  return classify(-20) + classify(-5) + classify(5) + classify(20);
+  return classify(-20) + classify(-5) + classify(5) + classify(20)
 };

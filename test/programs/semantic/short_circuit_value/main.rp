@@ -2,20 +2,20 @@ count : i32 = 0;
 
 bump :: fn(v: bool) -> bool {
   count = count + 1;
-  return v;
+  return v
 };
 
 main :: fn() -> i32 {
   a : bool = false && bump(true);
   b : bool = true || bump(true);
-  if a { return 1 }
-  if !b { return 2 }
-  if count != 0 { return 3 }
+  if a { return 1 };
+  if !b { return 2 };
+  if count != 0 { return 3 };
 
   c : bool = true && bump(true);
   d : bool = false || bump(false);
-  if !c { return 4 }
-  if d { return 5 }
-  if count != 2 { return 6 }
-  return 0;
+  if !c { return 4 };
+  if d { return 5 };
+  if count != 2 { return 6 };
+  return 0
 };

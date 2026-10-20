@@ -5,11 +5,11 @@ main :: fn() -> i32 {
   s := 0;
   loop {
     i += 1;
-    if i > 6 { break }
-    if i % 2 == 0 { continue }
+    if i > 6 { break };
+    if i % 2 == 0 { continue };
     s += i;
-    printf("%d ", i);
-  }
+    _ := printf("%d ", i)
+  };
   printf("s=%d\n", s);
-  return s;
+  return s
 };

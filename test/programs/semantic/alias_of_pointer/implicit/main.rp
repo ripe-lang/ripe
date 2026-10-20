@@ -3,5 +3,5 @@ IntPtr :: *i32;
 main :: fn() -> i32 {
   x : i32 = 7;
   p : IntPtr = &x;
-  return p.*;
+  return p.*
 };

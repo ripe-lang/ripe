@@ -6,5 +6,5 @@ main :: fn() -> i32 {
     };
     inner * 4
   };
-  return x;
+  return x
 };

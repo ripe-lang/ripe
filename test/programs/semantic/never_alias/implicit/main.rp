@@ -11,5 +11,5 @@ pick :: fn(b: bool) -> i32 {
 };
 
 main :: fn() -> i32 {
-  return pick(false);
+  return pick(false)
 };

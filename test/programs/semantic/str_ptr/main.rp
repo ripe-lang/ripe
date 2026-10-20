@@ -1,7 +1,7 @@
 write : (i32, *u8, usize) -> i64 : extern "C";
 
 emit :: fn(s: str) -> i64 {
-  return write(1, s.ptr, s.len);
+  return write(1, s.ptr, s.len)
 };
 
 main :: fn() -> i32 {
@@ -10,5 +10,5 @@ main :: fn() -> i32 {
   write(1, annotated.ptr, annotated.len);
   first : u8 = annotated.ptr.*;
   empty : str = "";
-  return cast(i32, first) - cast(i32, empty.len);
+  return cast(i32, first) - cast(i32, empty.len)
 };

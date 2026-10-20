@@ -4,5 +4,5 @@ error: cannot infer type
                ^
 error: cannot infer type
   at main.rp:3:15
-      other := fn(b) => b;
+      other := fn(b) => b
                   ^

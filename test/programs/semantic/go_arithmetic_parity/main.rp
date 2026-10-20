@@ -1,32 +1,32 @@
 main :: fn() -> i32 {
   sh : u32 = 40;
   a : u32 = 1;
-  if (a << sh) != 0 { return 1 }
+  if (a << sh) != 0 { return 1 };
 
   b : i32 = -256;
   s4 : u32 = 4;
-  if (b >> s4) != -16 { return 2 }
+  if (b >> s4) != -16 { return 2 };
 
   c : u8 = 200;
   s2 : u32 = 2;
-  if (c >> s2) != 50 { return 3 }
+  if (c >> s2) != 50 { return 3 };
 
   d : i32 = -7;
-  if (d / 2) != -3 { return 4 }
-  if (d % 2) != -1 { return 5 }
+  if (d / 2) != -3 { return 4 };
+  if (d % 2) != -1 { return 5 };
 
   e : i32 = 7;
-  if (e % -2) != 1 { return 6 }
+  if (e % -2) != 1 { return 6 };
 
   f : u8 = 250;
-  if (f + 10) != 4 { return 7 }
+  if (f + 10) != 4 { return 7 };
 
   g : i8 = 120;
-  if (g + 20) != -116 { return 8 }
+  if (g + 20) != -116 { return 8 };
 
   h : i32 = 1;
   s31 : u32 = 31;
-  if (cast(i64, h << s31)) != -2147483648 { return 9 }
+  if (cast(i64, h << s31)) != -2147483648 { return 9 };
 
-  return 0;
+  return 0
 };

@@ -6,8 +6,8 @@ main :: fn() -> i32 {
   ];
   diagonal : i32 = 0;
   for i := 0..3 {
-    diagonal += grid[i][i];
-  }
+    diagonal += grid[i][i]
+  };
   grid[2][2] = 100;
-  return diagonal + grid[2][2] - 100;
+  return diagonal + grid[2][2] - 100
 };

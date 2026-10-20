@@ -18,5 +18,5 @@ main :: fn() -> i32 {
   free(p);
   printf("%llu %d %d %llu %d %d\n", a, b, cast(i32, c), d, cast(i32, buf.len),
     take(sizeof(i32)));
-  return 0;
+  return 0
 };

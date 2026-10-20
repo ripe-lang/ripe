@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:2:16
+      while true { 1 }
+                   ^ expected (), found i32
+  at main.rp:2:3
+      while true { 1 }
+      ^~~~~ a loop body gives ()
+help: ignore the value with `_ :=`

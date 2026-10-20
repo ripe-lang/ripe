@@ -9,5 +9,5 @@ main :: fn() -> i32 {
   _d : *Point = cast(*Point, true);
   _e : []i32 = cast([]i32, &p);
   _f : [2][2]i32 = cast([2][2]i32, &p);
-  return 0;
+  return 0
 };

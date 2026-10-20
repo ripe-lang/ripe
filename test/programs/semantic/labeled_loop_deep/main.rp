@@ -5,14 +5,14 @@ main :: fn() -> i32 {
   for @a i := 0..3 {
     for @b j := 0..3 {
       for k := 0..3 {
-        if k == 1 { continue @b }
-        if j == 2 { continue @a }
-        if i == 2 { break @a }
+        if k == 1 { continue @b };
+        if j == 2 { continue @a };
+        if i == 2 { break @a };
         n += 1;
-        printf("%d%d%d ", i, j, k);
+        _ := printf("%d%d%d ", i, j, k)
       }
     }
-  }
+  };
   printf("n=%d\n", n);
-  return n;
+  return n
 };

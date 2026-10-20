@@ -1,11 +1,11 @@
 g : i32 = 0;
 
 bump :: fn(c: bool) {
-  if c { g : i32 = 5 }
-  g = 10;
+  if c { g : i32 = 5 };
+  g = 10
 };
 
 main :: fn() -> i32 {
   bump(true);
-  return g;
+  return g
 };

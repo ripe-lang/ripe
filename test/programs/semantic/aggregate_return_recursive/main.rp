@@ -5,13 +5,13 @@ Pair :: struct {
 
 descend :: fn(n: i32) -> Pair {
   if n == 0 {
-    return Pair.{ x = 1, y = 2 };
-  }
+    return Pair.{ x = 1, y = 2 }
+  };
   previous := descend(n - 1);
-  return Pair.{ x = previous.x + 1, y = previous.y + 1 };
+  return Pair.{ x = previous.x + 1, y = previous.y + 1 }
 };
 
 main :: fn() -> i32 {
   value := descend(3);
-  return value.x + value.y;
+  return value.x + value.y
 };

@@ -11,5 +11,5 @@ pick : _ : fn(b: bool) -> i32 {
 };
 
 main : _ : fn() -> i32 {
-  return pick(false);
+  return pick(false)
 };

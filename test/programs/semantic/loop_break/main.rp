@@ -3,6 +3,6 @@ main :: fn() -> i32 {
   loop {
     n += 1;
     if n == 5 { break }
-  }
-  return n;
+  };
+  return n
 };

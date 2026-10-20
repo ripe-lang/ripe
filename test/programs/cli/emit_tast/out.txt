@@ -42,21 +42,21 @@
                       { tdesc =
                         (TIdent
                            { id = 0; name = "add"; link_name = "_R3add";
-                             kind = Func; entry_point = false; span = (0,52);
+                             kind = Func; entry_point = false; span = (0,51);
                              name_span = (0,3) });
                         ty =
                         (TFunc
                            { sig_params = [(TInt I32); (TInt I32)];
                              sig_ret = (TInt I32); sig_abi = Ripe;
                              sig_arity = Fixed });
-                        tspan = (86,89) },
+                        tspan = (85,88) },
                       [{ tdesc = (TIntLit 1L); ty = (TInt I32);
-                         tspan = (90,91) };
+                         tspan = (89,90) };
                         { tdesc = (TIntLit 2L); ty = (TInt I32);
-                          tspan = (93,94) }
+                          tspan = (92,93) }
                         ],
                       None));
-                   ty = (TInt I32); tspan = (86,95) }));
-        ty = TNever; tspan = (79,95) }
+                   ty = (TInt I32); tspan = (85,94) }));
+        ty = TNever; tspan = (78,94) }
        ];
      tfunc_export = false; tfunc_abi = Ripe })

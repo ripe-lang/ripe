@@ -1,0 +1,8 @@
+error: type mismatch
+  at main.rp:2:19
+      for i := 0..3 { i }
+                      ^ expected (), found i32
+  at main.rp:2:3
+      for i := 0..3 { i }
+      ^~~ a loop body gives ()
+help: ignore the value with `_ :=`

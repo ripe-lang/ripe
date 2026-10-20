@@ -5,7 +5,7 @@ add :: fn(a: i32, b: i32) -> i32 {
   a + b
 };
 seven :: fn -> i32 { 7 };
-hi :: fn() { printf("hi\n"); };
+hi :: fn() { _ := printf("hi\n") };
 
 main :: fn() -> i32 {
   twice :: fn(x: i32) -> i32 => x + x;

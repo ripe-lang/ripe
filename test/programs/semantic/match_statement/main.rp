@@ -7,13 +7,13 @@ announce :: fn(level: Level) {
     Level.Low => { printf("low\n") }
     Level.Mid => { printf("mid\n") }
     Level.High => { printf("high\n") }
-  }
-  return;
+  };
+  return
 };
 
 main :: fn() -> i32 {
   announce(Level.Mid);
   announce(Level.High);
   announce(Level.Low);
-  return 0;
+  return 0
 };

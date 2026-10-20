@@ -8,12 +8,12 @@ main :: fn() -> i32 {
     j := 0;
     while j < 5 {
       j += 1;
-      if i == 3 { continue @outer }
-      if i == 4 { break @outer }
-      steps += 1;
-    }
-    printf("%d", i);
-  }
+      if i == 3 { continue @outer };
+      if i == 4 { break @outer };
+      steps += 1
+    };
+    _ := printf("%d", i)
+  };
   printf(" steps=%d i=%d\n", steps, i);
-  return steps;
+  return steps
 };

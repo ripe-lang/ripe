@@ -2,9 +2,9 @@ classify :: fn(n: i32) -> i32 {
   return match n {
     0 => 100,
     1 => 200,
-  };
+  }
 };
 
 main :: fn() -> i32 {
-  return classify(7);
+  return classify(7)
 };

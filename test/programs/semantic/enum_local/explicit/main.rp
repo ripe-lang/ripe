@@ -4,5 +4,5 @@ main :: fn() -> i32 {
   Step : type : enum { First, Second };
   s := Step.Second;
   printf("%d\n", s == Step.Second);
-  return 0;
+  return 0
 };

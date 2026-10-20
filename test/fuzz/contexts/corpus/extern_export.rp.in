@@ -1,9 +1,9 @@
 doubled :: extern "C" fn(x: i32) -> i32 {
-  return x * 2;
+  return x * 2
 };
 
 printf : (cstr, ..) -> i32 : extern "C";
 
 main :: fn() -> i32 {
-  return doubled(printf("n"));
+  return doubled(printf("n"))
 };

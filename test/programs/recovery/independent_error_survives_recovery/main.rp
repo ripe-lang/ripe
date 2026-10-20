@@ -1,7 +1,7 @@
 // BROKEN: waiting on the new parser recovery
 helper :: fn(n: i32) -> i32
   a1 : i32 = n;
-  return a1;
+  return a1
 };
 bad :: fn() -> i32 { x : i32 = ; return x };
 main :: fn() -> i32 { return helper(2) + bad() };

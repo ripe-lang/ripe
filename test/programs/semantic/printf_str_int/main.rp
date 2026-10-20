@@ -2,5 +2,5 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 main :: fn() -> i32 {
   printf("hello %s, you are %d years old\n", "ramon", 22);
-  return 0;
+  return 0
 };

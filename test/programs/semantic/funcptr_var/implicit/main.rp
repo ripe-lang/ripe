@@ -6,5 +6,5 @@ main :: fn() -> i32 {
   h := f;
   r1 : i32 = h();
   h = g;
-  return r1 + h();
+  return r1 + h()
 };

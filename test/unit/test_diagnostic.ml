@@ -32,17 +32,17 @@ let%expect_test
     |}]
 
 let%expect_test "a return type mismatch shows the expected and actual types" =
-  Pipeline.run_src "main :: fn() -> i32 {\n  return true;\n};\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  return true\n};\n";
   [%expect
     {|
     error: type mismatch
       at <test>:2:10
-          return true;
+          return true
                  ^~~~ expected i32, found bool
     |}]
 
 let%expect_test "a parser error shows the token it found" =
-  Pipeline.run_src "main :: fn() -> i32 {\n  struct = 1;\n  return 0;\n};\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  struct = 1;\n  return 0\n};\n";
   [%expect
     {|
     error: expected `{`
@@ -52,12 +52,12 @@ let%expect_test "a parser error shows the token it found" =
     |}]
 
 let%expect_test "an undefined name after a tab keeps its caret aligned" =
-  Pipeline.run_src "main :: fn() -> i32 {\n\treturn missing;\n};\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n\treturn missing\n};\n";
   [%expect
     {|
     error: undefined variable
       at <test>:2:16
-                return missing;
+                return missing
                        ^~~~~~~
     |}]
 
@@ -221,19 +221,19 @@ let%expect_test
     |}]
 
 let%expect_test "an undefined name after UTF text keeps its caret aligned" =
-  Pipeline.run_src "main :: fn() -> i32 {\n  _s := \"é\"; return missing;\n};\n";
+  Pipeline.run_src "main :: fn() -> i32 {\n  _s := \"é\"; return missing\n};\n";
   [%expect
     {|
     error: undefined variable
       at <test>:2:21
-          _s := "é"; return missing;
+          _s := "é"; return missing
                             ^~~~~~~
     |}]
 
 let%expect_test "a long undefined name stops at the preview edge" =
   Pipeline.run_src
     {|main :: fn() -> i32 {
-  return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more;
+  return a_name_that_is_much_longer_than_the_whole_source_preview_and_then_some_more_and_more_and_more
 };
 |};
   [%expect
@@ -248,15 +248,15 @@ let%expect_test
     "an undefined name near the end of a long expression stays visible" =
   Pipeline.run_src
     {|main :: fn() -> i32 {
-  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing;
+  return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
 };
 |};
   [%expect
     {|
     error: undefined variable
       at <test>:2:101
-        ...+ 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing;
-                                                                                                ^~~~~~~
+        ... + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + missing
+                                                                                                 ^~~~~~~
     |}]
 
 let%expect_test

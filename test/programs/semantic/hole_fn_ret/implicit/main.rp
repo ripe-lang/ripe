@@ -1,5 +1,5 @@
 add :: fn(x: i32, y: i32) -> i32 => x + y;
-bump :: fn(p: *i32) { p.* = p.* + 1; };
+bump :: fn(p: *i32) { p.* = p.* + 1 };
 
 main :: fn -> i32 {
   x := add(3, 4);

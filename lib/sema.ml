@@ -6,7 +6,8 @@ open Typred
 open Tast
 open Option.Syntax
 
-type func_sig = { func : func_ty; param_hole : bool }
+type cause = Plain | NoElse of span | NoReturnType of span | LoopBody of span
+type func_sig = { func : func_ty; param_hole : bool; ret_cause : cause }
 
 type variant_info = {
   tag : int64;
@@ -17,7 +18,7 @@ type variant_info = {
 (* A struct is one variant named after itself *)
 type adt_info = { kind : adt_kind; variants : (name * variant_info) list }
 type 'a deferred = Unstarted | Running | Completed of 'a
-type result_use = Infer | Expect of ty | Discard
+type result_use = Infer | Expect of ty * cause | Discard
 type coverage = Covered | Missing of string list | Unbounded | Unknown
 
 (* The running mark catches a value that asks for itself *)
@@ -96,6 +97,7 @@ type local_env = {
   ctx : ctx;
   scopes : (Symbol.key * ty) list list;
   ret_ty : ty;
+  ret_cause : cause;
   loops : loop_ctx list;
   in_probe : bool;
 }
@@ -117,7 +119,14 @@ let make_ctx symbols decls =
   }
 
 let make_env ctx =
-  { ctx; scopes = []; ret_ty = TUnit; loops = []; in_probe = false }
+  {
+    ctx;
+    scopes = [];
+    ret_ty = TUnit;
+    ret_cause = Plain;
+    loops = [];
+    in_probe = false;
+  }
 
 let rec has_hole t =
   match t.edesc with
@@ -218,7 +227,13 @@ let poisoned_sig =
     func =
       { sig_params = []; sig_ret = TError; sig_abi = Ripe; sig_arity = Fixed };
     param_hole = true;
+    ret_cause = Plain;
   }
+
+let ret_cause l declared span =
+  match (l.lambda_ret, declared) with
+  | None, None -> NoReturnType span
+  | _ -> Plain
 
 let fixed_count f =
   match f.sig_arity with
@@ -297,12 +312,25 @@ let common_ty current candidate =
   | current, candidate ->
       Option.value (common_numeric_ty current candidate) ~default:current
 
+let unit_wanted span why d =
+  Diagnostic.secondary span why d
+  |> Diagnostic.help "ignore the value with `_ :=`"
+
+let because cause d =
+  match cause with
+  | Plain -> d
+  | NoElse span -> unit_wanted span "an `if` with no `else` gives ()" d
+  | NoReturnType span -> unit_wanted span "no `->` so it gives ()" d
+  | LoopBody span -> unit_wanted span "a loop body gives ()" d
+
+let type_mismatch ?(cause = Plain) span expected got =
+  Diagnostic.error span "type mismatch"
+  |> Diagnostic.label "expected %s, found %s" (show_ty expected) (show_ty got)
+  |> because cause
+
 let verify_unit_result span = function
-  | Expect want when not (ty_equal (resolve_ty want) TUnit) ->
-      Diagnostic.emit
-        (Diagnostic.error span "type mismatch"
-        |> Diagnostic.label "expected %s, found %s" (show_ty want)
-             (show_ty TUnit))
+  | Expect (want, cause) when not (ty_equal (resolve_ty want) TUnit) ->
+      Diagnostic.emit (type_mismatch ~cause span want TUnit)
   | Infer | Discard | Expect _ -> ()
 
 let new_loop label source =
@@ -444,26 +472,20 @@ let synth_conversion span te ty =
   if refused || has_error ty then error_expr span else mk span ty (TCast te)
 
 (* An untyped literal takes the wanted type and checks its base *)
-let check_int_lit e want target value =
+let check_int_lit ?cause e want target value =
   match adopt_int_lit e.espan want target false value with
   | Some typed -> typed
   | None when has_error want -> error_expr e.espan
   | None ->
-      Diagnostic.emit
-        (Diagnostic.error e.espan "type mismatch"
-        |> Diagnostic.label "expected %s, found %s" (show_ty want)
-             (show_ty (TInt I32)));
+      Diagnostic.emit (type_mismatch ?cause e.espan want (TInt I32));
       mk e.espan (TInt I32) (TIntLit value)
 
-let check_float_lit e want target value =
+let check_float_lit ?cause e want target value =
   match target with
   | TFloat _ | TError -> mk e.espan want (TFloatLit value)
   | _ when has_error want -> error_expr e.espan
   | _ ->
-      Diagnostic.emit
-        (Diagnostic.error e.espan "type mismatch"
-        |> Diagnostic.label "expected %s, found %s" (show_ty want)
-             (show_ty (TFloat F64)));
+      Diagnostic.emit (type_mismatch ?cause e.espan want (TFloat F64));
       mk e.espan (TFloat F64) (TFloatLit value)
 
 (* A qualified callee is one symbol so it still calls directly *)
@@ -642,7 +664,11 @@ and collect_func ctx item =
             Some (TFunc { f with sig_abi = abi })
         | declared -> declared
       in
-      { func = lambda_sig env l abi declared; param_hole = false }
+      {
+        func = lambda_sig env l abi declared;
+        param_hole = false;
+        ret_cause = ret_cause l declared def.func_name.span;
+      }
   | ExternItem { decl = b; abi = name; _ } -> (
       let abi = resolve_named_abi name.value name.span in
       match b.bind_form with
@@ -651,7 +677,12 @@ and collect_func ctx item =
           poisoned_sig
       | Typed (t, _) -> (
           match resolve_ty (ty_of_ast env t) with
-          | TFunc f -> { func = { f with sig_abi = abi }; param_hole = false }
+          | TFunc f ->
+              {
+                func = { f with sig_abi = abi };
+                param_hole = false;
+                ret_cause = Plain;
+              }
           | TError -> poisoned_sig
           | ty ->
               Diagnostic.emit
@@ -1117,7 +1148,7 @@ and reconcile_arms bodies =
 and check_value_for_use env e use =
   match (use, e.edesc) with
   | Infer, _ -> synth env e
-  | Expect want, _ -> check env e want
+  | Expect (want, cause), _ -> check ~cause env e want
   | Discard, If (branches, else_body) ->
       check_if_discarded env e.espan branches else_body
   | Discard, Match (scrutinee, arms) ->
@@ -1192,27 +1223,32 @@ and synth_return env span init =
   | Some e when is_never env.ret_ty ->
       mk span TNever (TReturn (Some (synth env e)))
   | Some e ->
-      let te = check env e env.ret_ty in
+      let te = check ~cause:env.ret_cause env e env.ret_ty in
       mk span TNever (TReturn (Some te))
 
 and check_loop_expr env span label source body want =
   let loop = new_loop label source in
   loop.result <-
     (match want with Some t -> ExpectLoopResult t | None -> InferLoopResult);
+  let keyword =
+    match source with
+    | PlainLoop -> Tokens.LOOP
+    | WhileLoop -> Tokens.WHILE
+    | ForLoop -> Tokens.FOR
+  in
+  let body_use = Expect (TUnit, LoopBody (keyword_span span keyword)) in
   let tb, _ =
-    check_scoped_block { env with loops = loop :: env.loops } span body Discard
+    check_scoped_block { env with loops = loop :: env.loops } span body body_use
   in
   let ty =
     match (loop.result, loop.bare_break) with
     | FlexibleLoopResult (t, _, _), _ | RigidLoopResult (t, _, _), _ -> t
     | (InferLoopResult | ExpectLoopResult _), None -> TNever
     | InferLoopResult, Some _ -> TUnit
+    | ExpectLoopResult want, Some _ when is_unit want -> TUnit
     | ExpectLoopResult want, Some _ when has_error want -> TError
     | ExpectLoopResult want, Some break_span ->
-        Diagnostic.emit
-          (Diagnostic.error break_span "type mismatch"
-          |> Diagnostic.label "expected %s, found %s" (show_ty want)
-               (show_ty TUnit));
+        Diagnostic.emit (type_mismatch break_span want TUnit);
         TUnit
   in
   mk span ty (TLoop tb)
@@ -1316,25 +1352,39 @@ and synth_for env span label nspan iter body =
   let loop = new_loop label ForLoop in
   let inner = push_scope { env with loops = loop :: env.loops } in
   let inner = extend_var inner nspan elem_ty in
-  let tb = check_block inner span body Discard in
+  let body_use = Expect (TUnit, LoopBody (keyword_span span Tokens.FOR)) in
+  let tb = check_block inner span body body_use in
   mk span TUnit (TFor (sym env nspan, elem_ty, titer, tb))
 
 (* A discarded arm checks its own trailing value *)
 and check_if_discarded env span branches else_body =
-  let arm body = fst (check_scoped_block env span body Discard) in
+  let arm_use =
+    if Option.is_some else_body then Discard
+    else Expect (TUnit, NoElse (keyword_span span Tokens.IF))
+  in
+  let arm body = fst (check_scoped_block env span body arm_use) in
   let tbranches =
     List.map
       (fun (c, { value = body; _ }) -> (check env c TBool, arm body))
       branches
   in
   let telse = Option.map (fun { value = body; _ } -> arm body) else_body in
-  let ty = if_result_ty tbranches telse TUnit in
+  let arm_gave_value (_, tb) =
+    let t = tblock_ty tb in
+    not (is_unit t || is_never t || has_error t)
+  in
+  let ty =
+    if Option.is_none else_body && List.exists arm_gave_value tbranches then
+      TError
+    else if_result_ty tbranches telse TUnit
+  in
   mk span ty (TIf (tbranches, telse))
 
 (* A probe only wants the type so we don't build the tree twice *)
-and check_if env span branches else_body want =
+and check_if ?(cause = Plain) env span branches else_body want =
   match (want, else_body) with
   | None, None -> check_if_discarded env span branches None
+  | Some w, None when is_unit w -> check_if_discarded env span branches None
   | None, Some { value = else_b; _ } ->
       let rty =
         reconcile_arms
@@ -1348,19 +1398,16 @@ and check_if env span branches else_body want =
         List.map
           (fun (c, { value = body; span = bspan }) ->
             ( check env c TBool,
-              fst (check_scoped_block env bspan body (Expect w)) ))
+              fst (check_scoped_block env bspan body (Expect (w, cause))) ))
           branches
       in
       let telse =
         match else_body with
         | Some { value = body; span = bspan } ->
-            Some (fst (check_scoped_block env bspan body (Expect w)))
+            Some (fst (check_scoped_block env bspan body (Expect (w, cause))))
         | None ->
-            if not (is_unit w || has_error w) then
-              Diagnostic.emit
-                (Diagnostic.error span "type mismatch"
-                |> Diagnostic.label "expected %s, found %s" (show_ty w)
-                     (show_ty TUnit));
+            if not (has_error w) then
+              Diagnostic.emit (type_mismatch ~cause span w TUnit);
             None
       in
       let ty = if_result_ty tbranches telse w in
@@ -1462,7 +1509,7 @@ and check_match env span scrutinee arms use =
   match use with
   | Infer when is_probing env -> mk span (reconcile_arms bodies) TErrorExpr
   | Infer -> check_match_arms env span ts arms (Some (reconcile_arms bodies))
-  | Expect w -> check_match_arms env span ts arms (Some w)
+  | Expect (w, cause) -> check_match_arms ~cause env span ts arms (Some w)
   | Discard -> check_match_arms env span ts arms None
 
 (* An alias can't spell its own variants so we name the enum itself *)
@@ -1515,8 +1562,10 @@ and report_coverage ts = function
         |> Diagnostic.help "add `_ => { }`")
 
 (* An arm lost to an earlier error looks like a hole so we skip coverage *)
-and check_match_arms env span ts arms want =
-  let arm_use = match want with Some w -> Expect w | None -> Discard in
+and check_match_arms ?(cause = Plain) env span ts arms want =
+  let arm_use =
+    match want with Some w -> Expect (w, cause) | None -> Discard
+  in
   let seen = Hashtbl.create 8 in
   let caught_all = ref false in
   let catches_all = function
@@ -1569,9 +1618,9 @@ and value_as_type env t =
     Diagnostic.emit (Diagnostic.error t.espan "invalid type");
   TError
 
-and check_by_synth env e want =
+and check_by_synth ?cause env e want =
   let typed = synth env e in
-  coerce_expr e want typed
+  coerce_expr ?cause e want typed
 
 (* A dot form builds the wanted type so a mismatch names that type *)
 and dot_target env span want variant =
@@ -1619,12 +1668,12 @@ and check_size_lit env e want target typ =
       | _ -> ());
       mk e.espan want (TSizeOf ty)
 
-and check_neg_int_lit env e want target value =
+and check_neg_int_lit ?cause env e want target value =
   match adopt_int_lit e.espan want target true value with
   | Some typed -> typed
-  | None -> check env { e with edesc = Int (Int64.neg value, None) } want
+  | None -> check ?cause env { e with edesc = Int (Int64.neg value, None) } want
 
-and check_array_lit env e want elems =
+and check_array_lit ?(cause = Plain) env e want elems =
   match (resolve_ty want, elems) with
   | TArray (elem, len), _ ->
       if List.compare_length_with elems len <> 0 then
@@ -1637,37 +1686,40 @@ and check_array_lit env e want elems =
   | TSlice elem, _ ->
       let typed = List.map (fun source -> check env source elem) elems in
       let array = TArray (elem, List.length typed) in
-      coerce_expr e want (mk e.espan array (TArrayLit typed))
+      coerce_expr ~cause e want (mk e.espan array (TArrayLit typed))
   | TError, _ ->
       List.iter (fun source -> ignore (check env source TError)) elems;
       error_expr e.espan
   | _, [] ->
       fail e.espan
         (Diagnostic.error e.espan "type mismatch"
-        |> Diagnostic.label "expected %s, found [0]_" (show_ty want))
-  | _ -> check_by_synth env e want
+        |> Diagnostic.label "expected %s, found [0]_" (show_ty want)
+        |> because cause)
+  | _ -> check_by_synth ~cause env e want
 
-and check env e want =
+and check ?(cause = Plain) env e want =
   let target = resolve_ty want in
   match e.edesc with
-  | Int (value, None) -> check_int_lit e want target value
-  | Float (value, None) -> check_float_lit e want target value
+  | Int (value, None) -> check_int_lit ~cause e want target value
+  | Float (value, None) -> check_float_lit ~cause e want target value
   | String value when target = TStr -> mk e.espan want (TStrLit value)
-  | String _ -> check_by_synth env e want
+  | String _ -> check_by_synth ~cause env e want
   | SizeOf typ when is_integer want -> check_size_lit env e want target typ
   | UnOp (Neg, { edesc = Int (value, None); _ }) ->
-      check_neg_int_lit env e want target value
+      check_neg_int_lit ~cause env e want target value
   | UnOp (Neg, { edesc = Float (f, suf); _ }) ->
-      check env { e with edesc = Float (-.f, suf) } want
-  | UnOp (Neg, { edesc = Int (_, Some _); _ }) -> check_by_synth env e want
+      check ~cause env { e with edesc = Float (-.f, suf) } want
+  | UnOp (Neg, { edesc = Int (_, Some _); _ }) ->
+      check_by_synth ~cause env e want
   | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
-      mk e.espan want (TUnOp (op, check env operand want))
-  | ArrayLit elems -> check_array_lit env e want elems
+      mk e.espan want (TUnOp (op, check ~cause env operand want))
+  | ArrayLit elems -> check_array_lit ~cause env e want elems
   | StructLit (None, inits) -> dot_struct_lit env e.espan e.espan want inits
   | DotVariant { value = name; span } -> (
       match dot_target env span want (Some name) with
       | Some (keyname, info) ->
-          coerce_expr e want (build_variant e.espan keyname info name span)
+          coerce_expr ~cause e want
+            (build_variant e.espan keyname info name span)
       | None -> error_expr e.espan)
   | Call (({ edesc = DotVariant { value = name; span }; _ } as callee), args)
     -> (
@@ -1683,40 +1735,39 @@ and check env e want =
       | (Add | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor)
         when binop_accepts op.value want ->
           mk e.espan want
-            (TBinOp (op.value, check env l want, check env r want))
+            (TBinOp (op.value, check ~cause env l want, check ~cause env r want))
       | (Lshift | Rshift) when is_integer want ->
-          let base = check env l want in
+          let base = check ~cause env l want in
           let count = synth env r in
           verify_shift_count r.espan count;
           mk e.espan want (TBinOp (op.value, base, count))
-      | _ -> check_by_synth env e want)
+      | _ -> check_by_synth ~cause env e want)
   | Block body ->
-      let tb, ty = check_scoped_block env e.espan body (Expect want) in
+      let tb, ty = check_scoped_block env e.espan body (Expect (want, cause)) in
       mk e.espan ty (TBlock tb)
   | If (branches, else_body) ->
-      check_if env e.espan branches else_body (Some want)
+      check_if ~cause env e.espan branches else_body (Some want)
   | Match (scrutinee, arms) ->
-      check_match env e.espan scrutinee arms (Expect want)
+      check_match env e.espan scrutinee arms (Expect (want, cause))
   | Loop (label, PlainLoop, body) ->
       check_loop_expr env e.espan label PlainLoop body (Some want)
   | Lambda l -> check_lambda env e l (Some want)
   | Cast (t, inner) when has_hole t ->
       synth_conversion e.espan (synth env inner) (fill_ty env t want)
-  | _ -> check_by_synth env e want
+  | _ -> check_by_synth ~cause env e want
 
-and coerce_expr e want te =
+and coerce_expr ?cause e want te =
   let got = te.ty in
   if compatible want got then adopt want te
   else if widens_to got want then mk e.espan want (TCast te)
   else begin
     let mismatch =
-      Diagnostic.error (adt_keyword_span e) "type mismatch"
-      |>
       match (resolve_ty want, resolve_ty got) with
       | TPtr, (TPointer _ | TCStr) | (TPointer _ | TCStr), TPtr ->
-          Diagnostic.label "%s needs a cast to %s" (show_ty got) (show_ty want)
-      | _ ->
-          Diagnostic.label "expected %s, found %s" (show_ty want) (show_ty got)
+          Diagnostic.error (adt_keyword_span e) "type mismatch"
+          |> Diagnostic.label "%s needs a cast to %s" (show_ty got)
+               (show_ty want)
+      | _ -> type_mismatch ?cause (adt_keyword_span e) want got
     in
     let mismatch =
       match (e.edesc, resolve_ty want) with
@@ -1940,7 +1991,11 @@ and apply_callee env span callee callee_texpr args =
   match resolve_ty callee_texpr.ty with
   | TError -> error_expr span
   | TFunc f -> (
-      let targs = check_args env span { func = f; param_hole = false } args in
+      let targs =
+        check_args env span
+          { func = f; param_hole = false; ret_cause = Plain }
+          args
+      in
       match callee_texpr.tdesc with
       | TVariant (name, tag) ->
           mk span f.sig_ret
@@ -2143,7 +2198,8 @@ and check_lambda env e l want =
       func_span = e.espan;
     }
   in
-  let fsig = ref (Completed { func; param_hole = false }) in
+  let ret_cause = ret_cause l want (keyword_span l.lambda_span Tokens.FUNC) in
+  let fsig = ref (Completed { func; param_hole = false; ret_cause }) in
   Symbol.Table.replace env.ctx.items key
     (FuncItem { def = fd; annot = None; fsig });
   if not (is_probing env) then begin
@@ -2160,11 +2216,13 @@ and check_func env fd =
   let is_entry_point =
     symbol_at env.ctx fd.func_span false (fun s -> s.Symbol.entry_point)
   in
-  let func =
+  let func, cause =
     match func_sig env fd.func_span key with
     | Some s when List.compare_lengths s.func.sig_params l.lambda_params = 0 ->
-        s.func
-    | _ -> lambda_sig env l (resolve_abi l.lambda_abi) None
+        (s.func, s.ret_cause)
+    | _ ->
+        ( lambda_sig env l (resolve_abi l.lambda_abi) None,
+          ret_cause l None fd.func_name.span )
   in
   let { sig_params = param_tys; sig_ret = ret_ty; _ } = func in
   let params_typed =
@@ -2189,7 +2247,7 @@ and check_func env fd =
            (show_ty (TInt I32)) (show_ty ret_ty))
   end;
 
-  let func_env = push_scope { env with ret_ty } in
+  let func_env = push_scope { env with ret_ty; ret_cause = cause } in
   let param_env =
     List.fold_right
       (fun (_, t, span) e -> extend_var e span t)
@@ -2197,11 +2255,12 @@ and check_func env fd =
   in
 
   let implicit_return = not (is_unit ret_ty) in
-  let body_use = if not implicit_return then Discard else Expect ret_ty in
   let body_span =
     match l.lambda_ret with Some t -> t.espan | None -> fd.func_name.span
   in
-  let tbody0 = check_block param_env body_span l.lambda_body body_use in
+  let tbody0 =
+    check_block param_env body_span l.lambda_body (Expect (ret_ty, cause))
+  in
   let tbody =
     match (implicit_return, List.rev tbody0) with
     | true, last :: rest when ty_equal last.ty ret_ty && not (is_never ret_ty)

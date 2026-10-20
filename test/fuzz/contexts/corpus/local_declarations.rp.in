@@ -5,5 +5,5 @@ main :: fn() -> i32 {
   helper :: fn(n: Small) -> i32 { return n + 1 };
   v := Pair.{ 1, 2 };
   s := Side.Right;
-  return helper(v.a) + v.b + match s { Side.Left => 0, _ => 1 };
+  return helper(v.a) + v.b + match s { Side.Left => 0, _ => 1 }
 };

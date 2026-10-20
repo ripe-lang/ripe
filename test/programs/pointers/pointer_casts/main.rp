@@ -34,5 +34,5 @@ main :: fn() -> i32 {
   printf("%d %d\n", rows.*[0], rows.*[1]);
   printf("%d %d\n", cast(i32, cast(usize, fp) - address), cast(i32, cast(usize, indirect) - address));
   printf("%d %d\n", cast(i32, cast(usize, erased) - address), call_through.*(1, 2));
-  return back.x + back.y;
+  return back.x + back.y
 };

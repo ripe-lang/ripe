@@ -1,6 +1,6 @@
 abs :: fn(n: i32) -> i32 {
-  if n < 0 { return -n }
-  return n;
+  if n < 0 { return -n };
+  return n
 };
 
 sign :: fn(n: i32) -> i32 {
@@ -12,14 +12,14 @@ sum_to :: fn(n: i32) -> i32 {
   i : i32 = 1;
   while i <= n {
     total += i;
-    i += 1;
-  }
-  return total;
+    i += 1
+  };
+  return total
 };
 
 main :: fn() -> i32 {
   a : i32 = abs(-7);
   s : i32 = sign(3);
   t : i32 = sum_to(10);
-  return t;
+  return t
 };

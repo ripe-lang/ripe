@@ -22,16 +22,16 @@ main :: fn() -> i32 {
   mixed_unsigned : u32 = 10;
   mixed := mixed_signed + mixed_unsigned;
 
-  if signed_wide != -5 { return 1 }
-  if unsigned_wide != 255 { return 2 }
-  if double != 2.5 { return 3 }
-  if sum != 250 { return 4 }
-  if values[0] != -5 || values[1] != 255 { return 5 }
-  if branch != -5 { return 6 }
-  if matched != 255 { return 7 }
-  if looped != 255 { return 8 }
-  if WIDE != 200 || GLOBAL != 200 { return 9 }
-  if loop_literal != 255 { return 10 }
-  if mixed != 5 { return 11 }
-  return 0;
+  if signed_wide != -5 { return 1 };
+  if unsigned_wide != 255 { return 2 };
+  if double != 2.5 { return 3 };
+  if sum != 250 { return 4 };
+  if values[0] != -5 || values[1] != 255 { return 5 };
+  if branch != -5 { return 6 };
+  if matched != 255 { return 7 };
+  if looped != 255 { return 8 };
+  if WIDE != 200 || GLOBAL != 200 { return 9 };
+  if loop_literal != 255 { return 10 };
+  if mixed != 5 { return 11 };
+  return 0
 };

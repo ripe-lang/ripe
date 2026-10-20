@@ -4,5 +4,5 @@ div : (i32, i32) -> Pair : extern "C";
 
 main :: fn() -> i32 {
   result := div(10, 3);
-  return result.quot * 10 + result.rem;
+  return result.quot * 10 + result.rem
 };

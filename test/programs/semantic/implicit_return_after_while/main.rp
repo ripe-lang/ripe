@@ -4,8 +4,8 @@ gcd :: fn(a: i32, b: i32) -> i32 {
   while y != 0 {
     t : i32 = y;
     y = x % y;
-    x = t;
-  }
+    x = t
+  };
   x
 };
 main :: fn() -> i32 { return gcd(48, 36) };

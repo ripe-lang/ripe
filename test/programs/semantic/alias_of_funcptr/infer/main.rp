@@ -4,5 +4,5 @@ add : _ : fn(a: i32, b: i32) -> i32 { return a + b };
 
 main : _ : fn() -> i32 {
   op : BinOp = add;
-  return op(2, 3);
+  return op(2, 3)
 };

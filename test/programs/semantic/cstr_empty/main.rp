@@ -3,5 +3,5 @@ strlen : (cstr) -> i32 : extern "C";
 main :: fn() -> i32 {
   empty : cstr = "";
   hello : cstr = "hello";
-  return strlen(empty) + strlen(hello);
+  return strlen(empty) + strlen(hello)
 };

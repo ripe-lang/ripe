@@ -1,17 +1,17 @@
 main :: fn() -> i32 {
   one : u8 = 1;
   over : u8 = 33;
-  if one << over != 0 { return 10 }
+  if one << over != 0 { return 10 };
 
   neg : i8 = -1;
   wide : u8 = 40;
-  if neg >> wide != -1 { return 11 }
+  if neg >> wide != -1 { return 11 };
 
   pos : i8 = 64;
-  if pos >> wide != 0 { return 12 }
+  if pos >> wide != 0 { return 12 };
 
   far : u64 = 4294967304;
-  if one << far != 0 { return 13 }
+  if one << far != 0 { return 13 };
 
-  return 1;
+  return 1
 };

@@ -1,10 +1,10 @@
 maybe :: fn(c: bool) {
-  if c { return }
-  return;
+  if c { return };
+  return
 };
 
 main :: fn() -> i32 {
   maybe(true);
   maybe(false);
-  return 7;
+  return 7
 };

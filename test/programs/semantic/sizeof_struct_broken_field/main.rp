@@ -3,5 +3,5 @@ Holder :: struct {
 };
 
 main :: fn() -> i32 {
-  return cast(i32, sizeof(Holder));
+  return cast(i32, sizeof(Holder))
 };

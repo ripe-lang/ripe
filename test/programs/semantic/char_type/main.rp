@@ -6,7 +6,7 @@ main :: fn() -> i32 {
   emoji : char = '😀';
   lo : char = '\0';
   printf("%d %d %d %d\n", cast(i32, a), cast(i32, newline), cast(i32, emoji), cast(i32, lo));
-  if a == 'A' { printf("eq\n") }
-  if a < 'B' { printf("lt\n") }
-  return cast(i32, a);
+  if a == 'A' { _ := printf("eq\n") };
+  if a < 'B' { _ := printf("lt\n") };
+  return cast(i32, a)
 };

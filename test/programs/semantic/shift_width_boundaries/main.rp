@@ -7,35 +7,35 @@ main :: fn() -> i32 {
   sixtyfour : u64 = 64;
 
   a : i8 = -128;
-  if a >> seven != -1 { return 10 }
-  if a >> eight != -1 { return 11 }
+  if a >> seven != -1 { return 10 };
+  if a >> eight != -1 { return 11 };
   b : i8 = 64;
-  if b >> seven != 0 { return 12 }
+  if b >> seven != 0 { return 12 };
   c : i8 = 1;
-  if c << seven != -128 { return 13 }
-  if c << eight != 0 { return 14 }
+  if c << seven != -128 { return 13 };
+  if c << eight != 0 { return 14 };
 
   d : u8 = 255;
-  if d >> seven != 1 { return 20 }
-  if d >> eight != 0 { return 21 }
+  if d >> seven != 1 { return 20 };
+  if d >> eight != 0 { return 21 };
 
   e : i32 = -1;
-  if e >> thirtyone != -1 { return 30 }
-  if e >> thirtytwo != -1 { return 31 }
+  if e >> thirtyone != -1 { return 30 };
+  if e >> thirtytwo != -1 { return 31 };
   f : i32 = 1;
-  if f << thirtyone != -2147483648 { return 32 }
-  if f << thirtytwo != 0 { return 33 }
+  if f << thirtyone != -2147483648 { return 32 };
+  if f << thirtytwo != 0 { return 33 };
 
   g : i64 = -1;
-  if g >> sixtythree != -1 { return 40 }
-  if g >> sixtyfour != -1 { return 41 }
+  if g >> sixtythree != -1 { return 40 };
+  if g >> sixtyfour != -1 { return 41 };
   h : i64 = 1;
-  if h << sixtythree != -9223372036854775808 { return 42 }
-  if h << sixtyfour != 0 { return 43 }
+  if h << sixtythree != -9223372036854775808 { return 42 };
+  if h << sixtyfour != 0 { return 43 };
 
   i : u64 = 18446744073709551615;
-  if i >> sixtythree != 1 { return 50 }
-  if i >> sixtyfour != 0 { return 51 }
+  if i >> sixtythree != 1 { return 50 };
+  if i >> sixtyfour != 0 { return 51 };
 
-  return 1;
+  return 1
 };

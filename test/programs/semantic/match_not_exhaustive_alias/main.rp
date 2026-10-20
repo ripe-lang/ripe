@@ -5,9 +5,9 @@ Shade :: Color;
 describe :: fn(s: Shade) -> i32 {
   return match s {
     Color.Red => 1,
-  };
+  }
 };
 
 main :: fn() -> i32 {
-  return describe(Color.Red);
+  return describe(Color.Red)
 };

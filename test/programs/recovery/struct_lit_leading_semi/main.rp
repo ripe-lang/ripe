@@ -1,0 +1,5 @@
+P :: struct { x: i32 };
+main :: fn -> i32 {
+  p := P.{ ; x = 1 };
+  p.x
+};

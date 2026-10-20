@@ -6,8 +6,8 @@ main :: fn() -> i32 {
   while i < 5 {
     i += 1;
     printf("%d", if i == 3 { continue } else { i });
-    seen += 1;
-  }
+    seen += 1
+  };
   printf(" seen=%d\n", seen);
-  return seen;
+  return seen
 };

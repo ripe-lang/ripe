@@ -1,4 +1,4 @@
 main : _ : fn() -> i32 {
   double : _ : fn(value: i32) -> i32 { value * 2 };
-  return double(12);
+  return double(12)
 };

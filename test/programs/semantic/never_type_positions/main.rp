@@ -10,5 +10,5 @@ main :: fn() -> i32 {
   _p : *never = null;
   n := if false { spin() } else { 7 };
   printf("%d %d\n", n, sizeof(never));
-  return 0;
+  return 0
 };

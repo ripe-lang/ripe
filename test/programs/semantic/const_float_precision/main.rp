@@ -8,14 +8,14 @@ main :: fn() -> i32 {
   add : f32 = 1.3 + 1.1;
   div : f32 = 1.3 / 8.9;
 
-  if a * a != mul { return 1 }
-  if b * c != mix { return 2 }
-  if a + b != add { return 3 }
-  if a / c != div { return 4 }
+  if a * a != mul { return 1 };
+  if b * c != mix { return 2 };
+  if a + b != add { return 3 };
+  if a / c != div { return 4 };
 
   d : f64 = 1.3;
   wide : f64 = 1.3 * 1.3;
-  if d * d != wide { return 5 }
+  if d * d != wide { return 5 };
 
-  return 0;
+  return 0
 };

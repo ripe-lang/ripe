@@ -4,5 +4,5 @@ Pt : _ : Point;
 
 main : _ : fn() -> i32 {
   p : Pt = Point.{ x = 2, y = 3 };
-  return p.x + p.y;
+  return p.x + p.y
 };

@@ -8,5 +8,5 @@ main :: fn() -> i32 {
   printf("%d %d\n", a == b, a != Suit.Spades);
   b = Suit.Spades;
   printf("%d %d\n", a == b, a != b);
-  return 0;
+  return 0
 };

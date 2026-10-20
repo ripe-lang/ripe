@@ -16,5 +16,5 @@ main :: fn() -> i32 {
     Size.Large => 5,
   };
   printf("%d %d\n", width, height);
-  return 0;
+  return 0
 };

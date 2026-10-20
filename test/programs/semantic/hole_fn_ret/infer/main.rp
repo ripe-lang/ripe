@@ -1,5 +1,5 @@
 add : (i32, i32) -> _ : fn(x, y) -> i32 => x + y;
-bump : _ : fn(p: *i32) -> _ { p.* = p.* + 1; };
+bump : _ : fn(p: *i32) -> _ { p.* = p.* + 1 };
 
 main : _ : fn -> i32 {
   x : _ = add(3, 4);

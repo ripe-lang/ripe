@@ -7,7 +7,7 @@ main :: fn() -> i32 {
       n += 1;
       if n == 4 { break @outer }
     }
-  }
+  };
   printf("n=%d\n", n);
-  return n;
+  return n
 };

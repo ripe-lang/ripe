@@ -3,6 +3,6 @@ main :: fn() -> i32 {
   loop @outer {
     n = n + 1;
     if n > 2 { break @outer }
-  }
-  return n;
+  };
+  return n
 };

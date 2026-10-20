@@ -2,15 +2,15 @@ printf : (cstr, ..) -> i32 : extern "C";
 
 a :: fn {
   twice :: extern "C" fn(x: i32) -> i32 { x * 2 };
-  printf("%d\n", twice(1));
+  _ := printf("%d\n", twice(1))
 };
 
 b :: fn {
   twice : (i32) -> i32 : extern "C" fn(x) { x * 3 };
-  printf("%d\n", twice(1));
+  _ := printf("%d\n", twice(1))
 };
 
 main :: fn {
   a();
-  b();
+  b()
 };

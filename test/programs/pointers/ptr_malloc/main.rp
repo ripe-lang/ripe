@@ -6,5 +6,5 @@ main :: fn() -> i32 {
   p : *Point = cast(*Point, malloc(sizeof(Point)));
   p.x = 40;
   p.y = 2;
-  return p.x + p.y;
+  return p.x + p.y
 };

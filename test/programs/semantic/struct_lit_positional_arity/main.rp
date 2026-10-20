@@ -4,17 +4,17 @@ Pair :: struct {
 };
 
 few :: fn() -> Pair {
-  return Pair.{ 1 };
+  return Pair.{ 1 }
 };
 
 many :: fn() -> Pair {
-  return Pair.{ 1, 2, 3 };
+  return Pair.{ 1, 2, 3 }
 };
 
 wrong_type :: fn() -> Pair {
-  return Pair.{ 1, true };
+  return Pair.{ 1, true }
 };
 
 main :: fn() -> i32 {
-  return few().x + many().x + wrong_type().x;
+  return few().x + many().x + wrong_type().x
 };

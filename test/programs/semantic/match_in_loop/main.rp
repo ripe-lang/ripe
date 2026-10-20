@@ -9,9 +9,9 @@ main :: fn() -> i32 {
       0 => continue,
       1 => { total += 10 }
       _ => { total += 1 }
-    }
-    total += 100;
-  }
+    };
+    total += 100
+  };
   last := 0;
   j := 0;
   loop {
@@ -20,7 +20,7 @@ main :: fn() -> i32 {
       0 => break,
       _ => { last = j }
     }
-  }
+  };
   printf("%d %d\n", total, last);
-  return 0;
+  return 0
 };

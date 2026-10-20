@@ -2,7 +2,7 @@ main :: fn() -> i32 {
   big : f64 = 16777217.0;
   narrow : f32 = 16777217.0;
   if big != 16777216.0 && (cast(f64, narrow)) == 16777216.0 {
-    return 3;
-  }
-  return 0;
+    return 3
+  };
+  return 0
 };

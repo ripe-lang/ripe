@@ -1,4 +1,4 @@
 error: expected `;`
-  at main.rp:4:22
+  at main.rp:3:22
       if n > 3 { n = 1 } n
                          ^ found n

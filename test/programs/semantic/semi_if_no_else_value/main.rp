@@ -1,0 +1,4 @@
+main :: fn {
+  c := true;
+  if c { 1 }
+};

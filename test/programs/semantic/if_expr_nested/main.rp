@@ -15,10 +15,10 @@ tier :: fn(n: i32) -> i32 {
   } else {
     1
   };
-  return t;
+  return t
 };
 
 main :: fn() -> i32 {
   printf("%d %d %d %d\n", tier(50), tier(150), tier(250), tier(350));
-  return 0;
+  return 0
 };

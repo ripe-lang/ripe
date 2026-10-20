@@ -6,9 +6,9 @@ pick :: fn(a: bool, b: bool) -> i32 {
   } else {
     20
   };
-  return y;
+  return y
 };
 
 main :: fn() -> i32 {
-  return pick(true, true);
+  return pick(true, true)
 };

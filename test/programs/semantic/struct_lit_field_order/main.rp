@@ -18,7 +18,7 @@ partial : Triple = Triple.{ c = 3, a = 1 };
 
 mark :: fn(v: i32) -> i32 {
   log = log * 10 + v;
-  return v;
+  return v
 };
 
 main :: fn() -> i32 {
@@ -27,5 +27,5 @@ main :: fn() -> i32 {
   printf("written %d %d\n", written.x, written.y);
   printf("global %d %d\n", reordered.x, reordered.y);
   printf("partial %d %d %d\n", partial.a, partial.b, partial.c);
-  return 0;
+  return 0
 };

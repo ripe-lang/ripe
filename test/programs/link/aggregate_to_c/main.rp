@@ -32,5 +32,5 @@ main :: fn() -> i32 {
   own : Wide = Wide.{a = 41, b = 51};
   c_bump(&own);
   printf("bump %ld %ld\n", own.a, own.b);
-  return 0;
+  return 0
 };

@@ -5,13 +5,13 @@ compute :: fn() -> i32 {
       s : i32 = 0;
       for j := 0..3 {
         if (i + j) % 2 == 0 {
-          s = s + 1;
+          s = s + 1
         }
-      }
+      };
       s
     };
-    total = total + sub;
-  }
-  return total;
+    total = total + sub
+  };
+  return total
 };
 main :: fn() -> i32 { return compute() };

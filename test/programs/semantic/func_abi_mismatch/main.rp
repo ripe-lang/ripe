@@ -1,5 +1,5 @@
 twice :: fn(n: i32) -> i32 { return n * 2 };
 main :: fn() -> i32 {
   g : extern "C" (i32) -> i32 = twice;
-  return g(1);
+  return g(1)
 };

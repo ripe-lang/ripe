@@ -1,5 +1,5 @@
 puts :: extern "C";
 
 main :: fn {
-  puts("import");
+  puts("import")
 };

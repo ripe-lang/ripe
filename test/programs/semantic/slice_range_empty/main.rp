@@ -11,5 +11,5 @@ main :: fn() -> i32 {
   e : [0]i32 = [];
   printf("%d %d %d\n", cast(i32, e[..].len), cast(i32, e[0..].len), cast(i32, e[..0].len));
 
-  return cast(i32, a[..0].len + a[3..].len + e[..].len);
+  return cast(i32, a[..0].len + a[3..].len + e[..].len)
 };

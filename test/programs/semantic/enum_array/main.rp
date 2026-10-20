@@ -6,5 +6,5 @@ main :: fn() -> i32 {
   route : [3]Dir = [Dir.North, Dir.West, Dir.East];
   route[1] = Dir.South;
   printf("%d %d %d\n", route[0] == Dir.North, route[1] == Dir.South, route[2] == Dir.East);
-  return 0;
+  return 0
 };

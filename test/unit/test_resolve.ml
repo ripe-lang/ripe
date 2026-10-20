@@ -75,8 +75,8 @@ let%expect_test "resolve: nested block shadow does not leak" =
     {|
 main :: fn() -> i32 {
   x : i32 = 1;
-  { x : i32 = 2 }
-  return x;
+  { x : i32 = 2 };
+  return x
 };
 |};
   [%expect {| ok |}]
@@ -87,7 +87,7 @@ let%expect_test "resolve: same scope redeclare reads old binding" =
 main :: fn() -> i32 {
   x : i32 = 1;
   x : i32 = x + 4;
-  return x;
+  return x
 };
 |};
   [%expect {| ok |}]
@@ -97,8 +97,8 @@ let%expect_test "resolve: loop variable is scoped to the loop" =
     {|
 main :: fn() -> i32 {
   i : i32 = 99;
-  for i := 0..3 { }
-  return i;
+  for i := 0..3 { };
+  return i
 };
 |};
   [%expect {| ok |}]
@@ -108,7 +108,7 @@ let%expect_test "resolve: cannot assign to a function name" =
 g :: fn() {};
 main :: fn() -> i32 {
   g = g;
-  return 0;
+  return 0
 };
 |};
   [%expect
@@ -125,7 +125,7 @@ let%expect_test "resolve: address of a function lowers" =
 g :: fn() -> i32 { return 7 };
 main :: fn() -> i32 {
   _p := &g;
-  return 0;
+  return 0
 };
 |};
   [%expect
@@ -157,7 +157,7 @@ C : i32 = 5;
 main :: fn() -> i32 {
   C : i32 = 1;
   C = 2;
-  return C;
+  return C
 };
 |};
   [%expect {| ok |}]
@@ -223,9 +223,9 @@ main :: fn() -> i32 {
   x : i32 = 1;
   if x > 0 {
     x : i32 = 2;
-    x = x + 1;
-  }
-  return x;
+    x = x + 1
+  };
+  return x
 };
 |};
   [%expect {| ok |}]
@@ -237,9 +237,9 @@ main :: fn() -> i32 {
   x : i32 = 0;
   while x < 3 {
     y : i32 = x;
-    x = y + 1;
-  }
-  return x;
+    x = y + 1
+  };
+  return x
 };
 |};
   [%expect {| ok |}]
@@ -251,9 +251,9 @@ main :: fn() -> i32 {
   sum : i32 = 0;
   for i := 0..3 {
     t : i32 = i;
-    sum = sum + t;
-  }
-  return sum;
+    sum = sum + t
+  };
+  return sum
 };
 |};
   [%expect {| ok |}]
@@ -263,15 +263,15 @@ let%expect_test "resolve: loop variable is not visible after the loop" =
     {|
 main :: fn() -> i32 {
   s : i32 = 0;
-  for i := 0..3 { s = s + i }
-  return i;
+  for i := 0..3 { s = s + i };
+  return i
 };
 |};
   [%expect
     {|
     error: undefined variable
       at <test>:5:10
-          return i;
+          return i
                  ^
     |}]
 
@@ -288,11 +288,11 @@ let%expect_test "resolve: same local name in two functions" =
     {|
 a :: fn() -> i32 {
   x : i32 = 1;
-  return x;
+  return x
 };
 b :: fn() -> i32 {
   x : i32 = 2;
-  return x;
+  return x
 };
 main :: fn() -> i32 { return a() + b() };
 |};
@@ -323,7 +323,7 @@ let%expect_test "resolve: nested block reads the enclosing param" =
 f :: fn(a: i32) -> i32 {
   {
     a : i32 = a + 1;
-    return a;
+    return a
   }
 };
 main :: fn() -> i32 { return f(1) };
@@ -384,14 +384,14 @@ let%expect_test "resolve: a local function cannot capture a variable" =
 
 let%expect_test "resolve: a local declaration stays in its block" =
   run_src {|f :: fn() {
-  { Coord :: i32 }
-  x : Coord = 1;
+  { Coord :: i32 };
+  x : Coord = 1
 };|};
   [%expect
     {|
     error: undefined type
       at <test>:3:7
-          x : Coord = 1;
+          x : Coord = 1
               ^~~~~
     |}]
 
@@ -448,7 +448,7 @@ let%expect_test "resolve: a function declared in a body is lifted out" =
   let src =
     {|outer :: fn() -> i32 {
   inner :: fn() -> i32 { return 1 };
-  return inner();
+  return inner()
 };|}
   in
   let decls, uses = resolve_src src in

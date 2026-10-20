@@ -1,8 +1,8 @@
 main :: fn() -> i32 {
   n : i32 = loop @outer { loop { break @outer 7 } };
   for @inner _i := 0..3 {
-    for _j := 0..3 { continue @inner }
-    n += 1;
-  }
-  return n;
+    for _j := 0..3 { continue @inner };
+    n += 1
+  };
+  return n
 };

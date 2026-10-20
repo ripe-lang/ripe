@@ -4,5 +4,5 @@ main :: fn() -> i32 {
     step := 3;
     base + step
   };
-  return y;
+  return y
 };

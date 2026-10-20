@@ -2,9 +2,9 @@ main :: fn() -> i32 {
   p : *i32 = null;
   n : i32 = 5;
   q : *i32 = &n;
-  if null == p { } else { return 1 }
-  if p == null { } else { return 2 }
-  if null == q { return 3 }
-  if q == null { return 4 }
-  return 0;
+  if null == p { } else { return 1 };
+  if p == null { } else { return 2 };
+  if null == q { return 3 };
+  if q == null { return 4 };
+  return 0
 };

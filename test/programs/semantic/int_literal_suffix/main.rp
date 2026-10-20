@@ -7,5 +7,5 @@ main :: fn() -> i32 {
   h : u16 = 0xffu16;
   o : u8 = 0o17u8;
   printf("%d %lld %d %d %d\n", cast(i32, a), b, cast(i32, c), cast(i32, h), cast(i32, o));
-  return 0;
+  return 0
 };

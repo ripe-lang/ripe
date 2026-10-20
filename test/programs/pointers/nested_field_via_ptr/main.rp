@@ -6,5 +6,5 @@ main :: fn() -> i32 {
   o : Outer = Outer.{ i = Inner.{ a = 1 }, b = 2 };
   po : *Outer = &o;
   po.i.a = 99;
-  return o.i.a;
+  return o.i.a
 };

@@ -3,19 +3,19 @@ WRITABLE : i32 = 2;
 USER : i32 = 4;
 
 has_flag :: fn(flags: i32, flag: i32) -> bool {
-  return flags & flag != 0;
+  return flags & flag != 0
 };
 
 set_flag :: fn(flags: i32, flag: i32) -> i32 {
-  return flags | flag;
+  return flags | flag
 };
 
 clear_flag :: fn(flags: i32, flag: i32) -> i32 {
-  return flags & ~flag;
+  return flags & ~flag
 };
 
 align_up :: fn(val: i32, align: i32) -> i32 {
-  return val + align - 1 & ~(align - 1);
+  return val + align - 1 & ~(align - 1)
 };
 
 main :: fn() -> i32 {
@@ -23,6 +23,6 @@ main :: fn() -> i32 {
   flags = set_flag(flags, PRESENT);
   flags = set_flag(flags, WRITABLE);
   flags = clear_flag(flags, WRITABLE);
-  if has_flag(flags, PRESENT) { return 1 }
-  return 0;
+  if has_flag(flags, PRESENT) { return 1 };
+  return 0
 };

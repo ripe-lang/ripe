@@ -5,5 +5,5 @@ main :: fn() -> i32 {
   printf("before\n");
   _x : never = exit(4);
   printf("after\n");
-  return 0;
+  return 0
 };

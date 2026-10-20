@@ -2,8 +2,8 @@ main :: fn() -> i32 {
   n := 7;
   cls := {
     r := 0;
-    if n > 5 { r = 100 } else { r = 1 }
+    if n > 5 { r = 100 } else { r = 1 };
     r
   };
-  return cls;
+  return cls
 };

@@ -1,5 +1,5 @@
 puts : (cstr) -> i32 : extern "C";
 
 main :: fn {
-  puts("import");
+  _ := puts("import")
 };

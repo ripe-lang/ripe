@@ -2,7 +2,7 @@ main :: fn() -> i32 {
   n : i32 = 0;
   {
     m : i32 = 2;
-    n = n + m;
-  }
-  return n;
+    n = n + m
+  };
+  return n
 };

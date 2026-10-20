@@ -5,5 +5,5 @@ main :: fn() -> i32 {
   f : f32 = 1.5f32;
   c : char = 'A';
   _s : str = "a\tb\n";
-  return h + b + cast(i32, w) + cast(i32, f) + cast(i32, c);
+  return h + b + cast(i32, w) + cast(i32, f) + cast(i32, c)
 };

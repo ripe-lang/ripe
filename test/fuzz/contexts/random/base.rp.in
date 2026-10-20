@@ -12,5 +12,5 @@ main :: fn() -> i32 {
   c := Col.Red;
   w : Mi = 9;
   s := add(idx(0), deep(2)) + K + p.x;
-  return match c { Col.Red => s, Col.Green => 0 };
+  return match c { Col.Red => s, Col.Green => 0 }
 };

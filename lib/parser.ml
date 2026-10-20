@@ -94,12 +94,6 @@ let starts_member st =
   match (cur_token st, peek_token st) with IDENT _, COLON -> true | _ -> false
 
 let at_value_end st = at st SEMI || at st RBRACE || at st EOF || at st COMMA
-
-let skip_semi st =
-  while at st SEMI do
-    advance st
-  done
-
 let has_arm st = not (at st RBRACE || at st EOF)
 
 let expect st t =
@@ -611,7 +605,6 @@ and parse_comma_list st stop = comma_sep st stop (fun st -> parse_expr st)
 
 (* x = 3, y = 4 or 3, 4 *)
 and parse_struct_lit_fields st =
-  skip_semi st;
   let field_form () =
     match (cur_token st, peek_token st) with
     | IDENT _, ASSIGN -> NamedField
@@ -659,16 +652,18 @@ and parse_block st =
 (* stmt; stmt *)
 and parse_stmts st =
   let[@tail_mod_cons] rec go () =
-    if at st EOF || at st RBRACE then []
-    else
-      let s = parse_stmt st in
-      if not (at st SEMI || at st RBRACE || at st EOF || ends_in_block s) then
+    let s = parse_stmt st in
+    if at st SEMI then begin
+      advance st;
+      if at st EOF then [ s ] else s :: go ()
+    end
+    else begin
+      if not (at st RBRACE || at st EOF) then
         Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail;
-      skip_semi st;
-      s :: go ()
+      [ s ]
+    end
   in
-  skip_semi st;
-  go ()
+  if at st EOF || at st RBRACE then [] else go ()
 
 (* n := 1, if c { }, return x *)
 and parse_stmt st =
@@ -834,13 +829,12 @@ let parse_decl st =
 
 (* n := 0; main :: fn { }; *)
 let parse_file st =
-  skip_semi st;
   let decls = ref [] in
   while not (at st EOF) do
     decls := parse_decl st :: !decls;
     if not (at st SEMI) then
       Diagnostic.error (cur_span st) "expected `;`" |> found st |> fail;
-    skip_semi st
+    advance st
   done;
   List.rev !decls
 

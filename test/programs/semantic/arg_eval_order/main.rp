@@ -8,5 +8,5 @@ take3 :: fn(a: i32, b: i32, c: i32) -> i32 { return 0 };
 
 main :: fn() -> i32 {
   take3(mark(1), mark(2), mark(3));
-  return log;
+  return log
 };

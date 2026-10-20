@@ -2,5 +2,5 @@ exit : (i32) -> never : extern "C";
 
 main :: fn() -> i32 {
   y := if false { 10 } else { exit(42) };
-  return y;
+  return y
 };

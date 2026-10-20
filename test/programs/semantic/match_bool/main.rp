@@ -5,10 +5,10 @@ pick :: fn(flag: bool) -> i32 {
   return match flag {
     true => 1,
     false => 0,
-  };
+  }
 };
 
 main :: fn() -> i32 {
   printf("%d %d\n", pick(true), pick(false));
-  return 0;
+  return 0
 };

@@ -1,15 +1,15 @@
 Point :: struct { x: i32, y: i32 };
 
 deref_sum :: fn(a: *i32, b: *i32) -> i32 {
-  return a.* + b.*;
+  return a.* + b.*
 };
 
 deref_negate :: fn(p: *i32) -> i32 {
-  return -p.*;
+  return -p.*
 };
 
 bump :: fn(p: *Point) {
-  p.x += 1;
+  p.x += 1
 };
 
 main :: fn() -> i32 {
@@ -20,5 +20,5 @@ main :: fn() -> i32 {
   p : Point = Point.{ x = 0, y = 0 };
   bump(&p);
   bump(&p);
-  return sum + neg + p.x;
+  return sum + neg + p.x
 };
