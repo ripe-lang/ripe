@@ -38,14 +38,12 @@ let qbe_base layouts t : qbe_base =
 let qbe_ty layouts t =
   match qbe_base layouts t with W -> "w" | L -> "l" | S -> "s" | D -> "d"
 
-(* The QBE mnemonic prefix, u for unsigned int types and pointers, s otherwise *)
 let signedness t =
   match resolve_ty t with
   | TPointer _ | TPtr | TNull | TCStr | TChar | TBool -> "u"
   | t -> if is_unsigned t then "u" else "s"
 
-(* This is the hard limit where libc call stops emitting one instruction per word *)
-let bulk_mem_threshold = 64
+let max_inline_mem_bytes = 64
 
 (* s_ for single, d_ for double *)
 let float_lit ty f =
@@ -107,7 +105,6 @@ let cached_name names spell n =
   done;
   Dynarray.get names n
 
-(* A fresh temp gets a name like %t0 *)
 let fresh ctx =
   let n = ctx.tmp in
   ctx.tmp <- n + 1;
@@ -158,13 +155,11 @@ let emit_store ctx store value addr =
   put ctx addr;
   put_char ctx '\n'
 
-(* The data pointer sits at offset 0 in the fat pointer *)
 let load_slice_ptr ctx addr =
   let ptr = fresh ctx in
   emit_op1 ctx ptr "l" "loadl" addr;
   ptr
 
-(* The length sits at offset 8 in the fat pointer *)
 let load_slice_len ctx addr =
   let lenp = fresh ctx in
   emit_op2 ctx lenp "l" "add" addr "8";
@@ -212,11 +207,10 @@ let widen_to_l ctx v ty =
     emit_op1 ctx t "l" ins v;
     t
 
-(* This writes a zero value of type t to dest *)
 let emit_zero_into ctx dest t =
   if Layout.is_aggregate ctx.layouts t then begin
     let size = Layout.ty_size ctx.layouts t in
-    if size > bulk_mem_threshold then
+    if size > max_inline_mem_bytes then
       emit ctx "call $memset(l %s, w 0, l %d)\n" dest size
     else begin
       let align = Layout.ty_align ctx.layouts t in
@@ -235,9 +229,8 @@ let emit_zero_into ctx dest t =
   end
   else emit_store ctx (qbe_store ctx.layouts t) "0" dest
 
-(* An aggregate suhc as a slice is moved by copying size bytes from src to dest *)
 let emit_aggregate_copy ctx dest src size =
-  if size > bulk_mem_threshold then
+  if size > max_inline_mem_bytes then
     emit ctx "call $memcpy(l %s, l %s, l %d)\n" dest src size
   else begin
     put ctx "blit ";
@@ -268,7 +261,6 @@ let rec emit_arith_binop ctx op ~result_ty:t ~operand_ty:lty ~count_ty lv rv =
   | Mir.Mul -> emit_op2 ctx tmp qt "mul" lv rv
   | Mir.Div -> emit_op2 ctx tmp qt (if unsigned then "udiv" else "div") lv rv
   | Mir.Mod -> emit_op2 ctx tmp qt (if unsigned then "urem" else "rem") lv rv
-  (* The float ones are ceqs and ceqd and the int ones are ceqw and ceql *)
   | Mir.Eq -> emit_op2 ctx tmp "w" ("ceq" ^ op_qt) lv rv
   | Mir.Neq -> emit_op2 ctx tmp "w" ("cne" ^ op_qt) lv rv
   | Mir.Lt -> compare "lt"
@@ -298,7 +290,6 @@ and word_count ctx count_ty rv =
       w
   | _ -> rv
 
-(* The extend that masks a narrow integer target back down to its width *)
 and narrow_int_instr t =
   match resolve_ty t with
   | TInt I8 -> Some "extsb"
@@ -349,7 +340,6 @@ let qbe_struct_name ctx name =
 let rec qbe_ext_ty ctx t =
   match (Layout.named_aggregate ctx.layouts t, resolve_ty t) with
   | Some name, _ -> ":" ^ qbe_struct_name ctx name
-  (* QBE repeats a field type so { w 3 } means three words *)
   | None, TArray (e, n) ->
       (* A QBE field cannot nest counts, so every dimension collapses into one *)
       let rec flatten t reps =
@@ -451,7 +441,7 @@ and widened_operand mctx operand =
   | Mir.Const (Mir.Char value) -> string_of_int value
   | _ -> widen_to_l mctx.qbe (emit_mir_operand mctx operand) operand.Mir.op_ty
 
-and emit_mir_index_addr mctx storage elem index_operand =
+and emit_mir_index_addr mctx storage elem index_operand index =
   let ctx = mctx.qbe in
   let elem_stride = Layout.stride ctx.layouts elem in
   match index_operand.Mir.op_desc with
@@ -464,7 +454,6 @@ and emit_mir_index_addr mctx storage elem index_operand =
         addr
       end
   | _ ->
-      let index = widened_operand mctx index_operand in
       let offset = fresh ctx in
       emit_op2 ctx offset "l" "mul" index (string_of_int elem_stride);
       let addr = fresh ctx in
@@ -508,7 +497,8 @@ and emit_mir_place mctx place =
               (elem, ptr)
           | _ -> Diagnostic.ice "MIR index on non indexed place"
         in
-        let addr = emit_mir_index_addr mctx storage elem index_operand in
+        let index = widened_operand mctx index_operand in
+        let addr = emit_mir_index_addr mctx storage elem index_operand index in
         project addr elem rest
   in
   let base_ty = mir_base_ty mctx place.Mir.place_base in
@@ -516,8 +506,9 @@ and emit_mir_place mctx place =
   let project_ptr ptr projection rest =
     match (resolve_ty base_ty, projection) with
     | TPointer elem, Mir.Deref -> project ptr elem rest
-    | TPointer elem, Mir.Index index ->
-        let addr = emit_mir_index_addr mctx ptr elem index in
+    | TPointer elem, Mir.Index index_operand ->
+        let index = widened_operand mctx index_operand in
+        let addr = emit_mir_index_addr mctx ptr elem index_operand index in
         project addr elem rest
     | _, _ -> Diagnostic.ice "MIR pointer projection on non pointer"
   in
@@ -629,7 +620,7 @@ let emit_mir_slice mctx destination source lo hi =
   in
   let lo_value = widened_operand mctx lo in
   let hi_value = widened_operand mctx hi in
-  let ptr = emit_mir_index_addr mctx storage elem lo in
+  let ptr = emit_mir_index_addr mctx storage elem lo lo_value in
   let len = fresh ctx in
   emit ctx "%s =l sub %s, %s\n" len hi_value lo_value;
   emit ctx "storel %s, %s\n" ptr destination_addr;
@@ -678,6 +669,7 @@ let c_result_slot ctx func bindings =
 
 let emit_mir_call mctx call =
   let ctx = mctx.qbe in
+  (* A Ripe aggregate comes back through a pointer the caller passes first *)
   let hidden_result =
     match (call.Mir.call_dest, call.Mir.call_ret, call.Mir.call_kind) with
     | Some destination, ret_ty, Mir.Internal
