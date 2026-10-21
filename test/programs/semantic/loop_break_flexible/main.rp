@@ -1,0 +1,5 @@
+main :: fn -> i32 {
+  x := loop { if false { break 1 }; break 2 };
+  y := loop { if true { break 3 }; break { return 9 } };
+  x + y
+};

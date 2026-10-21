@@ -1,0 +1,5 @@
+main :: fn -> i32 {
+  a := [null, null];
+  if a[1] != null { return 1 };
+  cast(i32, sizeof([2]*i32))
+};

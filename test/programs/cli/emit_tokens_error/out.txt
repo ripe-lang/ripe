@@ -1,0 +1,13 @@
+main
+:
+:
+fn
+{
+x
+:
+=
+1
+<error: unexpected character>
+}
+;
+<eof>

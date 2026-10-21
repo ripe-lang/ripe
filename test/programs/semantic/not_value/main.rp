@@ -1,0 +1,8 @@
+main :: fn -> i32 {
+  t : bool = true;
+  a := !t;
+  b := !a;
+  if a { return 1 };
+  if b { return 5 };
+  0
+};

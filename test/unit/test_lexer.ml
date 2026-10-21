@@ -575,3 +575,21 @@ let%expect_test "lexer: logical compound assignment" =
     =
     EOF
     |}]
+
+let%expect_test "lexer: a byte order mark only counts at the start" =
+  dump_tokens "\xEF\xBB\xBFx \xEF\xBB\xBF";
+  [%expect
+    {|
+    IDENT x
+    ERROR
+    EOF
+    error unexpected character
+    |}]
+
+let%expect_test "lexer: a char literal that isn't utf 8 is an error" =
+  dump_tokens "'\xff'";
+  [%expect {|
+    ERROR
+    EOF
+    error invalid char literal
+    |}]

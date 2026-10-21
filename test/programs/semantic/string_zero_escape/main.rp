@@ -1,0 +1,5 @@
+strlen : (cstr) -> usize : extern "C";
+main :: fn -> i32 {
+  s : cstr = "ab\0cd";
+  cast(i32, strlen(s))
+};

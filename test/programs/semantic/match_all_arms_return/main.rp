@@ -1,0 +1,5 @@
+pick :: fn(n: i32) -> i32 {
+  match n { 1 => return 10, _ => return 20 }
+};
+
+main :: fn -> i32 { pick(1) + pick(2) };

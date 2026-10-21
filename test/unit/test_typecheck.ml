@@ -4230,3 +4230,505 @@ let%expect_test "typecheck: a logical compound assign needs a bool" =
           n &&= 2 };
             ^~~ cannot apply `&&` to i32
     |}]
+
+let%expect_test "typecheck: array size error cascade" =
+  run_src {|main :: fn -> i32 {
+  a : [-1]i32 = [1];
+  0
+};
+|};
+  [%expect
+    {|
+    error: invalid array size
+      at <test>:2:8
+          a : [-1]i32 = [1];
+               ^~ expected a literal
+    |}]
+
+let%expect_test "typecheck: array size error once" =
+  run_src {|a : [-1]i32 = [1];
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: invalid array size
+      at <test>:1:6
+        a : [-1]i32 = [1];
+             ^~ expected a literal
+    |}]
+
+let%expect_test "typecheck: array size negative suffix" =
+  run_src {|a : [-1i32]i32;
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: invalid array size
+      at <test>:1:6
+        a : [-1i32]i32;
+             ^~~~~ -1 is negative
+    |}]
+
+let%expect_test "typecheck: array size too large" =
+  run_src
+    {|a : [18446744073709551615u64]i32;
+b : [3000000000u64]i32;
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: invalid array size
+      at <test>:1:6
+        a : [18446744073709551615u64]i32;
+             ^~~~~~~~~~~~~~~~~~~~~~~ 18446744073709551615 is too large
+    error: invalid array size
+      at <test>:2:6
+        b : [3000000000u64]i32;
+             ^~~~~~~~~~~~~ 3000000000 is too large
+    |}]
+
+let%expect_test "typecheck: enum size reads itself" =
+  run_src {|E :: enum { A([E.A(1)]i32) };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: recursive type
+      at <test>:1:18
+        E :: enum { A([E.A(1)]i32) };
+                         ^ E is still being defined
+    |}]
+
+let%expect_test "typecheck: extern bad abi assign" =
+  run_src
+    {|g :: fn(s: cstr) -> i32 { 0 };
+puts : (cstr) -> i32 : extern "bogus";
+main :: fn -> i32 {
+  p := puts;
+  p = g;
+  0
+};
+|};
+  [%expect
+    {|
+    error: unsupported ABI
+      at <test>:2:31
+        puts : (cstr) -> i32 : extern "bogus";
+                                      ^~~~~~~ not supported here
+    |}]
+
+let%expect_test "typecheck: field on variant chain" =
+  run_src {|E :: enum { A };
+main :: fn {
+  _ := E.A.B.C
+};
+|};
+  [%expect
+    {|
+    error: no fields
+      at <test>:3:8
+          _ := E.A.B.C
+               ^~~~~ on E
+    |}]
+
+let%expect_test "typecheck: float literal loses precision" =
+  run_src
+    {|main :: fn -> i32 {
+  _a : f64 = 18446744073709551615;
+  _b : f64 = -9007199254740993;
+  _c : f32 = -16777217;
+  0
+};
+|};
+  [%expect
+    {|
+    error: literal loses precision
+      at <test>:2:14
+          _a : f64 = 18446744073709551615;
+                     ^~~~~~~~~~~~~~~~~~~~ becomes 18446744073709551616
+    help: write 18446744073709551615.0 to round
+    error: literal loses precision
+      at <test>:3:14
+          _b : f64 = -9007199254740993;
+                     ^~~~~~~~~~~~~~~~~ becomes -9007199254740992
+    help: write -9007199254740993.0 to round
+    error: literal loses precision
+      at <test>:4:14
+          _c : f32 = -16777217;
+                     ^~~~~~~~~ becomes -16777216
+    help: write -16777217.0 to round
+    |}]
+
+let%expect_test "typecheck: fn sig cyclic global" =
+  run_src {|f :: fn(a: [g]i32) { };
+g := f;
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: cyclic initializer
+      at <test>:2:6
+        g := f;
+             ^
+    |}]
+
+let%expect_test "typecheck: global cyclic init" =
+  run_src {|a := b;
+b := a;
+
+main :: fn -> i32 { a };
+|};
+  [%expect
+    {|
+    error: cyclic initializer
+      at <test>:2:6
+        b := a;
+             ^
+    |}]
+
+let%expect_test "typecheck: hole fn ret error annot" =
+  run_src {|f : Nope : fn(x: i32) -> _ { };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: undefined type
+      at <test>:1:5
+        f : Nope : fn(x: i32) -> _ { };
+            ^~~~
+    |}]
+
+let%expect_test "typecheck: invalid operand rare ops" =
+  run_src
+    {|main :: fn {
+  _ := true / 1;
+  _ := true <= 1;
+  _ := true >= 1;
+  _ := true >> 1
+};
+|};
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:13
+          _ := true / 1;
+                    ^ cannot apply `/` to bool and i32
+    error: invalid operand
+      at <test>:3:13
+          _ := true <= 1;
+                    ^~ cannot apply `<=` to bool and i32
+    error: invalid operand
+      at <test>:4:13
+          _ := true >= 1;
+                    ^~ cannot apply `>=` to bool and i32
+    error: invalid operand
+      at <test>:5:13
+          _ := true >> 1
+                    ^~ cannot apply `>>` to bool
+    |}]
+
+let%expect_test "typecheck: invalid unary operand" =
+  run_src {|main :: fn -> i32 {
+  _a := -true;
+  _b := ~1.5;
+  0
+};
+|};
+  [%expect
+    {|
+    error: invalid operand
+      at <test>:2:10
+          _a := -true;
+                 ^~~~ cannot apply `-` to bool
+    error: invalid operand
+      at <test>:3:10
+          _b := ~1.5;
+                 ^~~ cannot apply `~` to f64
+    |}]
+
+let%expect_test "typecheck: literal into undefined type" =
+  run_src {|main :: fn -> i32 {
+  _x : Nope = 5.0;
+  0
+};
+|};
+  [%expect
+    {|
+    error: undefined type
+      at <test>:2:8
+          _x : Nope = 5.0;
+               ^~~~
+    |}]
+
+let%expect_test "typecheck: loop break bare after value" =
+  run_src
+    {|main :: fn -> i32 {
+  v : i32 = 1;
+  x := loop { if true { break v }; break };
+  x
+};
+|};
+  [%expect
+    {|
+    error: `break` values disagree
+      at <test>:3:36
+          x := loop { if true { break v }; break };
+                                           ^~~~~ no value here
+      at <test>:3:31
+          x := loop { if true { break v }; break };
+                                      ^ breaks with i32
+    |}]
+
+let%expect_test "typecheck: main return type annotation" =
+  run_src {|main : () -> i64 : fn { 0 };
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:1:14
+        main : () -> i64 : fn { 0 };
+                     ^~~ expected () or i32, found i64
+    |}]
+
+let%expect_test "typecheck: match payload variant on struct" =
+  run_src
+    {|P :: struct { x: i32 };
+
+main :: fn -> i32 {
+  p : P = .{ 1 };
+  match p { .A(x) => x, _ => 0 }
+};
+|};
+  [%expect
+    {|
+    error: no variant
+      at <test>:5:14
+          match p { .A(x) => x, _ => 0 }
+                     ^ on struct P
+    |}]
+
+let%expect_test "typecheck: payload pattern on error" =
+  run_src {|main :: fn -> i32 {
+  match nope { .A(x) => x, _ => 0 }
+};
+|};
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:9
+          match nope { .A(x) => x, _ => 0 }
+                ^~~~
+    |}]
+
+let%expect_test "typecheck: ptr needs cast" =
+  run_src
+    {|main :: fn -> i32 {
+  x : i32 = 1;
+  p : *i32 = &x;
+  _a : ptr = p;
+  o : ptr = cast(ptr, p);
+  _b : *i32 = o;
+  0
+};
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:4:14
+          _a : ptr = p;
+                     ^ *i32 needs a cast to ptr
+    error: type mismatch
+      at <test>:6:15
+          _b : *i32 = o;
+                      ^ ptr needs a cast to *i32
+    |}]
+
+let%expect_test "typecheck: ptr to cstr var" =
+  run_src
+    {|main :: fn -> i32 {
+  c : cstr = "x";
+  pc : **i8 = &c;
+  if pc.*.* != 120 { return 1 };
+  0
+};
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:15
+          pc : **i8 = &c;
+                      ^~ expected **i8, found *cstr
+    |}]
+
+let%expect_test "typecheck: ptr to null var" =
+  run_src
+    {|main :: fn -> i32 {
+  n := null;
+  pp : **i32 = &n;
+  if pp.* != null { return 1 };
+  0
+};
+|};
+  [%expect
+    {|
+    error: type mismatch
+      at <test>:3:16
+          pp : **i32 = &n;
+                       ^~ expected **i32, found *null
+    |}]
+
+let%expect_test "typecheck: struct compare before fill" =
+  run_src
+    {|A :: struct { x: [cast(i32, g.* == g.*)]i32 };
+g : *B = null;
+B :: struct { y: i64 };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: invalid array size
+      at <test>:1:19
+        A :: struct { x: [cast(i32, g.* == g.*)]i32 };
+                          ^~~~~~~~~~~~~~~~~~~~~ expected a literal
+    error: invalid operand
+      at <test>:1:33
+        A :: struct { x: [cast(i32, g.* == g.*)]i32 };
+                                        ^~ cannot apply `==` to B
+    |}]
+
+let%expect_test "typecheck: struct lit captured local" =
+  run_src
+    {|main :: fn -> i32 {
+  p : i32 = 1;
+  f :: fn -> i32 { _x := p.{ 1 }; 0 };
+  f()
+};
+|};
+  [%expect
+    {|
+    error: expected a struct
+      at <test>:3:26
+          f :: fn -> i32 { _x := p.{ 1 }; 0 };
+                                 ^ this names a value
+    |}]
+
+let%expect_test "typecheck: struct lit names function" =
+  run_src
+    {|exit : (i32) -> never : extern "C";
+make :: fn {};
+main :: fn {
+  local :: fn {};
+  _ := make.{ };
+  _ := local.{ };
+  _ := exit.{ }
+};
+|};
+  [%expect
+    {|
+    error: expected a struct
+      at <test>:5:8
+          _ := make.{ };
+               ^~~~ this names a function
+    error: expected a struct
+      at <test>:6:8
+          _ := local.{ };
+               ^~~~~ this names a function
+    error: expected a struct
+      at <test>:7:8
+          _ := exit.{ }
+               ^~~~ this names a function
+    |}]
+
+let%expect_test "typecheck: struct recursive three" =
+  run_src
+    {|A :: struct { b: B };
+B :: struct { c: C };
+C :: struct { a: A };
+D :: struct { a: A };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: recursive struct has infinite size
+      at <test>:1:1
+        A :: struct { b: B };
+        ^
+    error: recursive struct has infinite size
+      at <test>:2:1
+        B :: struct { c: C };
+        ^
+    error: recursive struct has infinite size
+      at <test>:3:1
+        C :: struct { a: A };
+        ^
+    |}]
+
+let%expect_test "typecheck: struct size reads itself" =
+  run_src
+    {|S :: struct { x: i32, a: [S.{ 1, [] }.x]i32 };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: recursive type
+      at <test>:1:27
+        S :: struct { x: i32, a: [S.{ 1, [] }.x]i32 };
+                                  ^ S is still being defined
+    |}]
+
+let%expect_test "typecheck: struct size reads own global" =
+  run_src
+    {|S :: struct { x: i32, a: [g.x]i32 };
+g : S = .{ 1, [] };
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: recursive type
+      at <test>:1:27
+        S :: struct { x: i32, a: [g.x]i32 };
+                                  ^~~ S is still being defined
+    |}]
+
+let%expect_test "typecheck: type declared no value" =
+  run_src {|h : type;
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: expected a value
+      at <test>:1:5
+        h : type;
+            ^~~~ found type
+    |}]
+
+let%expect_test "typecheck: zero init recursive struct" =
+  run_src
+    {|A :: struct { b: B };
+B :: struct { a: A };
+g : A;
+
+main :: fn -> i32 { 0 };
+|};
+  [%expect
+    {|
+    error: recursive struct has infinite size
+      at <test>:1:1
+        A :: struct { b: B };
+        ^
+    error: recursive struct has infinite size
+      at <test>:2:1
+        B :: struct { a: A };
+        ^
+    |}]

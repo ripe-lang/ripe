@@ -500,3 +500,39 @@ let%expect_test "resolve: the dump lists what each name resolved to" =
     (19,22) -> #-4 Type i32
     (32,33) -> #1 Param a
     |}]
+
+let%expect_test "resolve: a param, for var or match binding can't be captured" =
+  run_src
+    {|take :: fn(a: i32) {
+  f :: fn() -> i32 { a };
+  _ := f
+};
+walk :: fn(xs: [2]i32) {
+  for v := xs {
+    g :: fn() -> i32 { v };
+    _ := g
+  }
+};
+pick :: fn(n: i32) {
+  match n {
+    m => {
+      h :: fn() -> i32 { m };
+      _ := h
+    },
+  }
+};|};
+  [%expect
+    {|
+    error: cannot capture variable
+      at <test>:2:22
+          f :: fn() -> i32 { a };
+                             ^
+    error: cannot capture variable
+      at <test>:7:24
+            g :: fn() -> i32 { v };
+                               ^
+    error: cannot capture variable
+      at <test>:14:26
+              h :: fn() -> i32 { m };
+                                 ^
+    |}]

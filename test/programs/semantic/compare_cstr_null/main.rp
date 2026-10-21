@@ -1,0 +1,9 @@
+main :: fn -> i32 {
+  c : cstr = "x";
+  d := c;
+  n := null;
+  m := 0;
+  if c == d { m = m + 1 };
+  if n == null { m = m + 2 };
+  m
+};

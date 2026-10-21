@@ -1,0 +1,10 @@
+E :: enum { A(i32), B };
+F :: enum { C(E), D };
+
+main :: fn -> i32 {
+  e : E = .A(1);
+  f : F = .C(.B);
+  a := match e { .A(1) => 1, _ => 0 };
+  b := match f { .C(.B) => 2, _ => 0 };
+  a + b
+};

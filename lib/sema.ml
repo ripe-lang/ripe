@@ -530,7 +530,10 @@ let rec ty_of_ast env t =
   | ArrayType (n, t) -> (
       match ty_of_ast env t with
       | ty when has_error ty -> TError
-      | ty -> TArray (ty, eval_array_size env n))
+      | ty -> (
+          match eval_array_size env n with
+          | Some len -> TArray (ty, len)
+          | None -> TError))
   | SliceType t -> lift_ty (fun ty -> TSlice ty) (ty_of_ast env t)
   | FuncType (abi, ps, ret) ->
       func_ty_of_ast abi ps (fun _ p -> ty_of_ast env p) (ty_of_ast env ret)
@@ -567,9 +570,13 @@ and fill_ty env t actual =
   | PointerType t, TPointer a ->
       lift_ty (fun ty -> TPointer ty) (fill_ty env t a)
   | SliceType t, TSlice a -> lift_ty (fun ty -> TSlice ty) (fill_ty env t a)
-  | ArrayType (n, t), TArray (a, len) ->
-      let len = match n.edesc with Hole -> len | _ -> eval_array_size env n in
-      lift_ty (fun ty -> TArray (ty, len)) (fill_ty env t a)
+  | ArrayType (n, t), TArray (a, len) -> (
+      let len =
+        match n.edesc with Hole -> Some len | _ -> eval_array_size env n
+      in
+      match len with
+      | Some len -> lift_ty (fun ty -> TArray (ty, len)) (fill_ty env t a)
+      | None -> TError)
   | FuncType (abi, ps, ret), TFunc f ->
       let param_ty i p =
         fill_ty env p
@@ -786,19 +793,14 @@ and fill_adt ctx key body kind written =
     (List.map (fun (_, v) -> List.map snd v.field_tys) info.variants);
   info
 
-and find_struct env span key =
-  match Option.bind (adt_info env.ctx key) struct_variant with
+and find_struct env span keyname =
+  match Option.bind (adt_info env.ctx (Keyname.key keyname)) struct_variant with
   | Some _ as found -> found
   | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined struct");
+      Diagnostic.emit
+        (Diagnostic.error span "recursive type"
+        |> Diagnostic.label "%s is still being defined" (Keyname.show keyname));
       None
-
-and enum_of env ty =
-  match resolve_ty ty with
-  | TAdt (name, _) ->
-      let* info = adt_info env.ctx (Keyname.key name) in
-      if info.kind = Enum then Some (name, info) else None
-  | _ -> None
 
 (* A type holding never has no value either *)
 and is_uninhabited env ty =
@@ -849,7 +851,7 @@ and synth_struct_field env span te ty fname fspan =
         |> Diagnostic.label "on %s" (show_ty ty)
         |> Diagnostic.help "dereference with `.*` first")
   | Some (sname, _) -> (
-      match find_struct env span (Keyname.key sname) with
+      match find_struct env span sname with
       | None -> error_expr span
       | Some info -> (
           match find_field info fname with
@@ -1002,7 +1004,7 @@ and dot_struct_lit env span target_span ty inits =
             | _ -> named_fields env span variant inits
           in
           mk span (TAdt (keyname, [])) (TBuild (keyname, variant.tag, fields))
-      | None -> error_expr span)
+      | None -> Diagnostic.ice ~span "dot struct target isn't a struct")
   | None -> error_expr span
 
 (* A quiet probe lets a sibling anchor the block type *)
@@ -1441,10 +1443,12 @@ and check_pattern env sty pat =
       | _ -> not_a_lit ())
   | PatVariant (callee, subs) -> (
       let variant =
-        match (callee.edesc, enum_of env sty) with
-        | DotVariant { value; span }, Some (keyname, info) ->
-            build_variant callee.espan keyname info value span
-        | DotVariant _, None when has_error sty -> error_expr callee.espan
+        match callee.edesc with
+        | DotVariant { value; span } -> (
+            match dot_target env span sty (Some value) with
+            | Some (keyname, info) ->
+                build_variant callee.espan keyname info value span
+            | None -> error_expr callee.espan)
         | _ -> synth env callee
       in
       let check_subs env tys =
@@ -1631,7 +1635,11 @@ and dot_target env span want variant =
     None
   in
   match (resolve_ty want, variant, info) with
-  | TError, _, _ | TAdt _, _, None -> None
+  | TError, _, _ -> None
+  | TAdt (keyname, _), _, None ->
+      refuse
+        (Diagnostic.error span "recursive type"
+        |> Diagnostic.label "%s is still being defined" (Keyname.show keyname))
   | _, None, Some (_, { kind = Struct; _ })
   | _, Some _, Some (_, { kind = Enum; _ }) ->
       info
@@ -2071,7 +2079,10 @@ and global_typed_init env span fact =
 and type_global_init env span b =
   match b.bind_form with
   | Typed (t, e) ->
-      let want = written_want env t e in
+      let want =
+        if has_hole t then written_want env t e
+        else Diagnostic.quietly (fun () -> ty_of_ast env t)
+      in
       if want = TType then error_expr e.espan else check env e want
   | Inferred e ->
       let te = synth env e in
@@ -2093,8 +2104,8 @@ and eval_array_size env e =
            || (Int64.compare n 0L < 0 && is_unsigned te.ty) ->
         Error (shown n ^ " is too large")
     | TIntLit n when Int64.compare n 0L < 0 -> Error (shown n ^ " is negative")
-    | TIntLit n -> Ok (Int64.to_int n)
-    | _ when has_error te.ty -> Ok 0
+    | TIntLit n -> Ok (Some (Int64.to_int n))
+    | _ when has_error te.ty -> Ok None
     | _ -> Error "expected a literal"
   in
   match size with
@@ -2103,7 +2114,7 @@ and eval_array_size env e =
       Diagnostic.emit
         (Diagnostic.error e.espan "invalid array size"
         |> Diagnostic.label "%s" label);
-      0
+      None
 
 (* A param or return left out reads its type from the wanted fn type *)
 and lambda_sig env l abi declared =
@@ -2217,7 +2228,9 @@ and check_func env fd =
   in
   if invalid_entry_return then begin
     let span =
-      match l.lambda_ret with Some t -> t.espan | None -> fd.func_span
+      match (l.lambda_ret, fd.func_annot) with
+      | Some t, _ | None, Some { edesc = FuncType (_, _, t); _ } -> t.espan
+      | None, _ -> fd.func_name.span
     in
     Diagnostic.emit
       (Diagnostic.error span "type mismatch"

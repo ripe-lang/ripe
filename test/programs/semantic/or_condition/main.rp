@@ -1,0 +1,9 @@
+main :: fn -> i32 {
+  f : bool = false;
+  t : bool = true;
+  n : i32 = 0;
+  if f || f { return 1 };
+  if f || t { n = n + 2 };
+  if t || f { n = n + 4 };
+  n
+};

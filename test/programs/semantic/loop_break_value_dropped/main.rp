@@ -1,0 +1,6 @@
+count : i32 = 0;
+bump :: fn -> i32 { count = count + 1; count };
+main :: fn -> i32 {
+  loop { break bump() };
+  count
+};

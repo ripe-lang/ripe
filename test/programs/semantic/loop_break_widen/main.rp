@@ -1,0 +1,6 @@
+main :: fn -> i32 {
+  w : i64 = 7;
+  c : bool = false;
+  x := loop { if c { break 1 }; break w };
+  cast(i32, x)
+};

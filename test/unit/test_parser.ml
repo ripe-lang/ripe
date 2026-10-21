@@ -2207,3 +2207,130 @@ let%expect_test "parse: logical compound assign" =
   [%expect {| (&&= ok (call f)) |}];
   parse_expr "ok ||= f()";
   [%expect {| (||= ok (call f)) |}]
+
+let%expect_test "parse: found shows a float or string literal" =
+  run_parse "main :: fn { x := 1 1.5 };";
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:21
+        main :: fn { x := 1 1.5 };
+                            ^~~ found 1.5
+    |}];
+  run_parse {|main :: fn { x := 1 "s" };|};
+  [%expect
+    {|
+    error: expected `;`
+      at <test>:1:21
+        main :: fn { x := 1 "s" };
+                            ^~~ found "s"
+    |}]
+
+let%expect_test "parse: block open eof" =
+  run_parse {|main :: fn {
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:14
+        main :: fn {
+                     ^ found <eof>
+      at <test>:1:12
+        main :: fn {
+                   ^ to match this `{`
+    |}]
+
+let%expect_test "parse: block value eof" =
+  run_parse {|main :: fn { 1
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:16
+        main :: fn { 1
+                       ^ found <eof>
+      at <test>:1:12
+        main :: fn { 1
+                   ^ to match this `{`
+    |}]
+
+let%expect_test "parse: enum variants eof" =
+  run_parse {|E :: enum { A
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:15
+        E :: enum { A
+                      ^ found <eof>
+      at <test>:1:11
+        E :: enum { A
+                  ^ to match this `{`
+    |}]
+
+let%expect_test "parse: field type eof" =
+  run_parse {|S :: struct { a:
+|};
+  [%expect
+    {|
+    error: expected type
+      at <test>:1:18
+        S :: struct { a:
+                         ^ found <eof>
+    |}]
+
+let%expect_test "parse: match arms eof" =
+  run_parse {|main :: fn { match 1 { _ => 1
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:31
+        main :: fn { match 1 { _ => 1
+                                      ^ found <eof>
+      at <test>:1:22
+        main :: fn { match 1 { _ => 1
+                             ^ to match this `{`
+    |}]
+
+let%expect_test "parse: params eof" =
+  run_parse {|f :: fn(a: i32
+|};
+  [%expect
+    {|
+    error: expected `)`
+      at <test>:1:16
+        f :: fn(a: i32
+                       ^ found <eof>
+      at <test>:1:8
+        f :: fn(a: i32
+               ^ to match this `(`
+    |}]
+
+let%expect_test "parse: return eof" =
+  run_parse {|main :: fn { return
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:21
+        main :: fn { return
+                            ^ found <eof>
+      at <test>:1:12
+        main :: fn { return
+                   ^ to match this `{`
+    |}]
+
+let%expect_test "parse: struct fields eof" =
+  run_parse {|S :: struct { a: i32
+|};
+  [%expect
+    {|
+    error: expected `}`
+      at <test>:1:22
+        S :: struct { a: i32
+                             ^ found <eof>
+      at <test>:1:13
+        S :: struct { a: i32
+                    ^ to match this `{`
+    |}]

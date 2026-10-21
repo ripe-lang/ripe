@@ -67,7 +67,7 @@ let%expect_test "typred: a cstr and a byte pointer stand in for each other" =
     cstr accepts *i8 = true
     *i8 accepts cstr = true
     cstr accepts *u8 = false
-    **i8 accepts *cstr = true
+    **i8 accepts *cstr = false
     |}]
 
 let%expect_test "typred: never fits anywhere" =

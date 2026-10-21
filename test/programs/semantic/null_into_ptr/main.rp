@@ -1,0 +1,6 @@
+main :: fn -> i32 {
+  n := null;
+  p : ptr = null;
+  if p != n { return 1 };
+  4
+};
