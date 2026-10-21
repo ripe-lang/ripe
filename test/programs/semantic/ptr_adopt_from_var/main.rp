@@ -1,0 +1,11 @@
+strlen : (cstr) -> usize : extern "C";
+
+main :: fn -> i32 {
+  n := null;
+  p : ptr = n;
+  s : cstr = "hey";
+  b : *i8 = s;
+  c : cstr = b;
+  if p != null { return 1 };
+  cast(i32, strlen(c))
+};

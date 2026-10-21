@@ -116,8 +116,8 @@ let mint st kind name span link_name name_span =
 let enter_scope st = { st with scope = new_scope (Some st.scope) }
 
 (* The innermost scope holds params and top level body binders *)
-(* A param or arm name can't repeat and a :: keeps its name for the whole block *)
 let declare_local st kind name span =
+  (* A param or arm name can't repeat and a :: keeps its name for the whole block *)
   match Names.find_opt st.scope.names name with
   | Some prev
     when kind = Symbol.Param || kind = Symbol.MatchBind
@@ -139,7 +139,9 @@ let declare_in table st kind ident span link_name =
       Diagnostic.emit
         (Diagnostic.error ident.span "already defined"
         |> Diagnostic.secondary prev.Symbol.name_span "previous definition here"
-        )
+        );
+      (* The repeat stays out of the scope but still gets a key so its body is checked *)
+      ignore (mint st kind ident.value span link_name ident.span)
   | None ->
       Names.replace table ident.value
         (mint st kind ident.value span link_name ident.span)
@@ -165,14 +167,15 @@ let rec find_up pick scope =
   | None, Some parent -> find_up pick parent
   | found, _ -> found
 
-type lookup = Found of Symbol.t | Captured | Missing
+type lookup = Found of Symbol.t | Captured of Symbol.t | Missing
 
 (* A lookup past a fn's own scopes only sees what a :: or a global declared *)
 let find st name =
   let rec go outside scope =
     let outside = outside || Option.exists (( == ) scope) st.value_boundary in
     match (Names.find_opt scope.names name, scope.parent) with
-    | Some sym, _ when outside && Symbol.is_local sym.Symbol.kind -> Captured
+    | Some sym, _ when outside && Symbol.is_local sym.Symbol.kind ->
+        Captured sym
     | Some sym, _ -> Found sym
     | None, Some parent -> go outside parent
     | None, None -> Missing
@@ -184,24 +187,24 @@ let use_symbol st span sym = Span.Table.replace st.out.syms span sym
 (* The semantic pass reports what's wrong so a value is kept to say what it is *)
 let use_struct_lit_name st name span =
   match find st name with
-  | Found sym -> use_symbol st span sym
-  | Captured | Missing -> ()
+  | Found sym | Captured sym -> use_symbol st span sym
+  | Missing -> ()
 
 (* A type is a value too so semantic analysis says where it can't go *)
 let use st what name span =
   match find st name with
   | Found sym -> use_symbol st span sym
-  | (Captured | Missing) as missed ->
-      Diagnostic.emit
-        (if missed = Captured then
-           Diagnostic.error span "cannot capture variable"
-         else Diagnostic.error span "undefined %s" what);
+  | Captured _ ->
+      Diagnostic.emit (Diagnostic.error span "cannot capture variable");
+      ignore (mint st Symbol.Error name span (Interner.text name) span)
+  | Missing ->
+      Diagnostic.emit (Diagnostic.error span "undefined %s" what);
       ignore (mint st Symbol.Error name span (Interner.text name) span)
 
 (* Color.Red puts a type name where a value usually goes *)
-(* A nearer value wins so a local named str isn't the builtin type *)
 let rec resolve_path st p =
   let { value = name; span } = Nonempty.hd p.owner in
+  (* A nearer value wins so a local named str isn't the builtin type *)
   use st "variable" name span
 
 (* A fn no :: names still needs a symbol to be called through *)
@@ -221,7 +224,7 @@ and resolve_expr st e =
               (Span.Table.replace st.out.shadowed span)
               (find_up func st.scope);
           use_symbol st span sym
-      | Captured | Missing -> use st "function" name span
+      | Captured _ | Missing -> use st "function" name span
       end;
       List.iter (resolve_expr st) args
   | Call (callee, args) ->
@@ -351,7 +354,6 @@ and resolve_lambda st l =
   resolve_block_contents st l.lambda_body
 
 (* A top level name lands first so a body can forward reference *)
-(* An export is there for C to call so it keeps its own name *)
 let declare_decl st (Bind b) =
   let name = b.bind_name and span = b.bind_span in
   let text = Interner.text name.value in
@@ -359,6 +361,7 @@ let declare_decl st (Bind b) =
   match (b.binder, bind_value b) with
   | RunTime, _ -> declare_in st.top.names st Symbol.Global name span mangled
   | CompileTime, Some { edesc = Lambda { lambda_abi = NamedAbi _; _ }; _ } ->
+      (* An export is there for C to call so it keeps its own name *)
       declare_in st.top.names st Symbol.Func name span text
   | CompileTime, Some { edesc = Extern _; _ } ->
       declare_in st.top.names st Symbol.Extern name span text

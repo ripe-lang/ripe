@@ -119,7 +119,9 @@ and ty_measure t ty =
   | TAdt (name, _) when Option.is_some (named_aggregate t ty) ->
       let layout = layout_of t name in
       (layout.size, layout.align)
-  | TAdt _ -> ty_measure t tag_ty
+  | TAdt _ ->
+      (* TODO(f1ac): every enum is an i32 and flags don't exist *)
+      ty_measure t tag_ty
   | TChar -> (4, 4)
   | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> (8, 8)
   | TSlice _ | TStr -> (16, 8)

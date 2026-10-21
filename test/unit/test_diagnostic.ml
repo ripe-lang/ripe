@@ -286,3 +286,16 @@ let%expect_test "a quiet walk leaves the report as it found it" =
     inside true after false
     kept
     |}]
+
+let%expect_test "a long line cut inside a multibyte char keeps the whole char" =
+  Pipeline.run_src
+    ("main :: fn -> i32 {\n  x := nope + 1; // " ^ String.make 100 'a'
+    ^ String.concat "" (List.init 200 (Fun.const "é"))
+    ^ "\n  0\n};\n");
+  [%expect
+    {|
+    error: undefined variable
+      at <test>:2:8
+          x := nope + 1; // aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...
+               ^~~~
+    |}]

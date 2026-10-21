@@ -171,7 +171,6 @@ f :: fn() -> i32 {
       local %2 for.hi: i32 temp
       local %3: bool temp
       local %4: bool temp
-      local %5: i32 temp
 
       block0:
         %0 = 0
@@ -188,8 +187,7 @@ f :: fn() -> i32 {
         branch copy %4 block6 block7
 
       block3:
-        %5 = copy %1 + 1
-        %1 = copy %5
+        %1 = copy %1 + 1
         jump block1
 
       block4:
@@ -396,10 +394,10 @@ f :: fn(a: i32, b: i32) -> i32 {
       local %4: i32 temp
 
       block0:
-        %2 = zero
+        %2 = undef
         %2.field0 = copy %0
         %2.field1 = copy %1
-        %3 = zero
+        %3 = undef
         %3.field1 = copy %1
         %3.field0 = copy %0
         %4 = copy %2.field0 + copy %3.field1
@@ -431,7 +429,7 @@ f :: fn() -> Pair {
       local %0 result: Pair result
 
       block0:
-        %0 = zero
+        %0 = undef
         %0.field1 = call @_R4side(1)
         %0.field0 = call @_R4side(2)
         return
@@ -568,7 +566,6 @@ let%expect_test "mir: a range for counts without a bounds check" =
       local %1 i: i32 user
       local %2 for.hi: i32 temp
       local %3: bool temp
-      local %4: i32 temp
 
       block0:
         %0 = 0
@@ -585,8 +582,7 @@ let%expect_test "mir: a range for counts without a bounds check" =
         jump block3
 
       block3:
-        %4 = copy %1 + 1
-        %1 = copy %4
+        %1 = copy %1 + 1
         jump block1
 
       block4:
@@ -609,7 +605,6 @@ let%expect_test "mir: an inclusive range stops one step later" =
       local %2 for.hi: i32 temp
       local %3: bool temp
       local %4: bool temp
-      local %5: i32 temp
 
       block0:
         %0 = 0
@@ -633,8 +628,7 @@ let%expect_test "mir: an inclusive range stops one step later" =
         return copy %0
 
       block5:
-        %5 = copy %1 + 1
-        %1 = copy %5
+        %1 = copy %1 + 1
         jump block1
     }
     |}]
@@ -655,23 +649,18 @@ let%expect_test "mir: a for over an array walks it by index" =
       local %3: usize temp
       local %4: usize temp
       local %5 v: i32 user
-      local %6: *i32 temp
-      local %7: usize temp
-      local %8: bool temp
-      local %9: usize temp
+      local %6: bool temp
 
       block0:
         %1 = 0
-        %6 = data_ptr %0
-        %7 = len %0
-        %2 = copy %6
-        %3 = copy %7
+        %2 = data_ptr %0
+        %3 = len %0
         %4 = 0
         jump block1
 
       block1:
-        %8 = copy %4 < copy %3
-        branch copy %8 block2 block4
+        %6 = copy %4 < copy %3
+        branch copy %6 block2 block4
 
       block2:
         %5 = copy %2[copy %4]
@@ -679,8 +668,7 @@ let%expect_test "mir: a for over an array walks it by index" =
         jump block3
 
       block3:
-        %9 = copy %4 + 1
-        %4 = copy %9
+        %4 = copy %4 + 1
         jump block1
 
       block4:

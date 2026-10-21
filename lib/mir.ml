@@ -293,7 +293,6 @@ let constant_of expr =
         (Diagnostic.Errors
            [ Diagnostic.error expr.tspan "global is not a literal" ])
 
-(* The surviving source operators keep their meaning *)
 let unop_of = function
   | Ast.Neg -> Neg
   | Ast.Not -> Not
@@ -556,8 +555,7 @@ and lower_loop_body state span continue_block break_block result body =
      %3 = copy %1 < copy %2
      branch copy %3 block2 block4
    block3:
-     %4 = copy %1 + 1
-     %1 = copy %4
+     %1 = copy %1 + 1
      jump block1 *)
 and lower_counted_loop state span op ty counter limit elem body =
   let condition_block = new_block state in
@@ -583,7 +581,7 @@ and lower_counted_loop state span op ty counter limit elem body =
     switch state increment_block
   end;
   let one = const span ty (Int 1L) in
-  assign state counter (tmp_value state ty span (BinOp (Add, current, one)));
+  store state counter ty span (BinOp (Add, current, one));
   terminate state (Jump condition_block) span;
   switch state exit_block
 
@@ -608,33 +606,21 @@ and lower_range_for state span symbol elem_ty lo hi op body =
   assign state limit hi;
   lower_counted_loop state span op elem_ty counter limit None body
 
-(* %6 = data_ptr %0
-   %7 = len %0
-   %2 = copy %6
-   %3 = copy %7
+(* %2 = data_ptr %0
+   %3 = len %0
    %4 = 0
    ...
    %5 = copy %2[copy %4] *)
 and lower_each_for state span symbol elem_ty iter body =
   let usize = TInt Usize in
   let source = lower_expr state iter |> materialize state in
-  let source =
-    match resolve_ty iter.ty with
-    | TSlice _ ->
-        let snapshot = new_tmp state iter.tspan iter.ty in
-        assign state snapshot (copy iter.tspan iter.ty source);
-        snapshot
-    | _ -> source
-  in
   let ptr_ty = TPointer elem_ty in
   let ptr_place = new_tmp state span ptr_ty in
   let len_place = new_tmp state span usize in
   let index = new_tmp state span usize in
   let loop_id = declare state symbol User elem_ty symbol.Symbol.span in
-  let ptr = tmp_value state ptr_ty span (DataPtr source) in
-  let len = tmp_value state usize span (Len source) in
-  assign state ptr_place ptr;
-  assign state len_place len;
+  store state ptr_place ptr_ty span (DataPtr source);
+  store state len_place usize span (Len source);
   assign state index (const span usize (Int 0L));
   let at_index = add_projection ptr_place (Index (copy span usize index)) in
   let elem = (local_place span loop_id, copy span elem_ty at_index) in
@@ -664,7 +650,6 @@ and lower_arg state expr =
     Some (copy value.op_span value.op_ty (materialize state value))
   else Some value
 
-(* A literal or place read comes back as is and the rest lands in a temp *)
 (* 1, copy %0, copy %0.deref.field0, copy %1 *)
 and lower_expr state expr =
   match expr.tdesc with
@@ -805,11 +790,6 @@ and lower_place state expr =
       let base_value = lower_expr state base in
       let source = materialize state base_value in
       let index = lower_expr state index in
-      (match resolve_ty base.ty with
-      | TArray _ | TSlice _ -> ()
-      | _ ->
-          let message = "index on non indexed MIR place" in
-          Diagnostic.ice ~span:base.tspan message);
       add_projection source (Index index)
   | _ -> lower_expr state expr |> materialize state
 
@@ -838,7 +818,7 @@ and lower_array_lit state destination expr elems =
 and lower_build state destination expr tag fields =
   if Layout.has_payload state.layouts expr.ty then
     start_variant state destination expr.tspan expr.ty tag
-  else assign state destination (const expr.tspan expr.ty Zero);
+  else assign state destination (const expr.tspan expr.ty Undef);
   List.iter
     (fun (field, value) ->
       let part = add_projection destination (Field (Int64.to_int tag, field)) in

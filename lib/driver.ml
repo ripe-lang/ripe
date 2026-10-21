@@ -136,7 +136,6 @@ module Output = struct
 
   let make = function "" -> Stdout | filename -> File filename
 
-  (* This writes to -o if set or else stdout *)
   let text output s =
     match output with
     | Stdout -> print_string s

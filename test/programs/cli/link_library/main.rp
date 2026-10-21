@@ -1,0 +1,2 @@
+sqrt : (f64) -> f64 : extern "C";
+main :: fn -> i32 { cast(i32, sqrt(49.0)) };

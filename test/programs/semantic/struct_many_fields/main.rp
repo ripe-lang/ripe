@@ -1,0 +1,6 @@
+Big :: struct { a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i32 };
+
+main :: fn -> i32 {
+  x := Big.{ a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, g = 7, h = 8, i = 9 };
+  x.i + x.a
+};

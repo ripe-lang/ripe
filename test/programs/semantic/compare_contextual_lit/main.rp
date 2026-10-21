@@ -1,0 +1,9 @@
+E :: enum { A, B };
+
+main :: fn -> i32 {
+  e : E = .B;
+  n : i32 = 0;
+  if .B == e { n = n + 1 };
+  if .A != e { n = n + 2 };
+  n
+};

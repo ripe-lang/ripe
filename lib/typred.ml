@@ -4,14 +4,13 @@ open Ast
 open Types
 
 (* A type needs exact equality but NULL works with any pointer *)
-(* TODO(b8e1): Is **i32 compatible with **null? TInt I8 with a TInt I32 (without cast)? *)
 let rec compatible want got =
   match (resolve_ty want, resolve_ty got) with
   | a, b when has_error a || has_error b -> true
   | _, TNever -> true
   | (TPointer _ | TPtr), TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_ptr a b
+  | TPointer a, TPointer b -> ty_equal a b
   | TSlice a, TArray (b, _) -> compatible a b
   | TSlice a, TSlice b -> compatible a b
   | TFunc f, TFunc g ->
@@ -22,13 +21,6 @@ let rec compatible want got =
       && compatible f.sig_ret g.sig_ret
   | TAdt (n1, a1), TAdt (n2, a2) ->
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
-  | _, _ -> ty_equal want got
-
-and compatible_under_ptr want got =
-  match (resolve_ty want, resolve_ty got) with
-  | TPointer _, TNull -> true
-  | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
-  | TPointer a, TPointer b -> compatible_under_ptr a b
   | _, _ -> ty_equal want got
 
 let is_lvalue te =
