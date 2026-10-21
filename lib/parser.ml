@@ -26,7 +26,6 @@ type infix = {
 }
 
 type field_form = NamedField | PositionalField
-type binding_ctx = LocalBinding | GlobalBinding
 type expr_ctx = NormalExpression | HeaderExpression
 
 let cur_token st = st.current.token
@@ -65,18 +64,14 @@ let advance st =
       st.current <- info
   | [] -> st.current <- next_token st st.current
 
-let peek_nth st n =
-  let rec go ahead last n =
-    match ahead with
-    | info :: rest -> if n = 0 then info else go rest info (n - 1)
-    | [] ->
-        let info = next_token st last in
-        st.ahead <- st.ahead @ [ info ];
-        if n = 0 then info else go [] info (n - 1)
-  in
-  go st.ahead st.current n
+let peek_token st =
+  match st.ahead with
+  | info :: _ -> info.token
+  | [] ->
+      let info = next_token st st.current in
+      st.ahead <- [ info ];
+      info.token
 
-let peek_token st = (peek_nth st 0).token
 let at st t = cur_token st == t
 let found st d = Diagnostic.found (show_found_token (cur_token st)) d
 let fail d = raise (ParserError d)
@@ -144,6 +139,7 @@ let comma_sep st stop parse_one =
         item :: rest ()
     end
     else begin
+      (* A ; means the list never closed so the closer gets the blame *)
       if at st SEMI then expect st stop;
       []
     end
@@ -202,9 +198,9 @@ let rec typ_after st tok =
   if starts_member st then Diagnostic.error span "expected type" |> fail;
   parse_typ st
 
-and binding_name st ctx =
+and binding_name st =
   match cur_token st with
-  | UNDERSCORE when ctx = LocalBinding ->
+  | UNDERSCORE ->
       let span = cur_span st in
       advance st;
       spanned (Interner.intern "_") span
@@ -217,9 +213,9 @@ and parse_typ st =
   parse_prefix st NormalExpression
 
 (* x : i32, x : i32 = 42, x : _ = 42, x := 42, N :: 5, N : i32 : 5, N : _ : 5 *)
-and parse_binding st ctx =
+and parse_binding st =
   let lo = cur_pos st in
-  let name = binding_name st ctx in
+  let name = binding_name st in
   expect st COLON;
   let typ =
     match cur_token st with
@@ -306,6 +302,7 @@ and parse_params st =
 
 (* fn(a: i32) -> i32 => a, fn { }, extern "C" fn(p: Pair) -> i32 { p.a }, fn match { 0 => 1, _ => 2 } *)
 and parse_lambda st abi lo =
+  (* A fn match param is named after a keyword so no real param can clash *)
   let hidden = spanned (Interner.intern (show_token MATCH)) (cur_span st) in
   let params =
     match cur_token st with
@@ -428,7 +425,6 @@ and parse_path st lhs head =
       end
       else (List.rev owners, member)
     in
-    (* The last name is the member *)
     let owners, member = segments [] (expect_ident_span st) in
     path_expr { owner = Nonempty.make (spanned head lhs.espan) owners; member }
   end
@@ -480,7 +476,7 @@ and parse_paren st lo abi =
   | NoAbi, [ e ], _ -> e
   | _ -> Diagnostic.error (cur_span st) "expected `->`" |> found st |> fail
 
-(* 1, x, "str", foo(a, b), [1, 2, 3], [3]i32, []i32, _, .Green, .{ 1, 2 } *)
+(* 1, x, "str", [1, 2, 3], [3]i32, []i32, _, .Green, .{ 1, 2 } *)
 and parse_primary st ctx =
   let lo = cur_pos st in
   match cur_token st with
@@ -689,7 +685,7 @@ and parse_stmt st =
       let body = (parse_block st).value in
       mk lo st (Block body)
   | (IDENT _ | UNDERSCORE) when peek_token st == COLON ->
-      let b = parse_binding st LocalBinding in
+      let b = parse_binding st in
       mk lo st (Binding b)
   | BREAK ->
       advance st;
@@ -795,6 +791,7 @@ and parse_while st =
   let label = parse_loop_target st in
   let cond = parse_header_expr st in
   let body = parse_block st in
+  (* A while is a loop with an if break so it reuses all the loop code *)
   let stop = { edesc = Break (None, None); espan = cond.espan } in
   let check = If ([ (cond, body) ], Some (spanned [ stop ] cond.espan)) in
   mk lo st (Loop (label, WhileLoop, [ { edesc = check; espan = cond.espan } ]))
@@ -830,7 +827,7 @@ and parse_loop st =
 (* main :: fn { }, puts : (cstr) -> i32 : extern "C" *)
 let parse_decl st =
   match cur_token st with
-  | IDENT _ -> Bind (parse_binding st GlobalBinding)
+  | IDENT _ -> Bind (parse_binding st)
   | _ ->
       Diagnostic.error (cur_span st) "expected declaration" |> found st |> fail
 

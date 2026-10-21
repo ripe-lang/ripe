@@ -37,7 +37,12 @@ let force_deferred span cell (on_error : 'a) (compute : unit -> 'a) =
         cell := Completed on_error;
         raise e)
 
-type func_def = { func_name : ident; lambda : lambda; func_span : span }
+type func_def = {
+  func_name : ident;
+  func_annot : typ option;
+  lambda : lambda;
+  func_span : span;
+}
 
 type global_fact = {
   decl : binding;
@@ -47,11 +52,7 @@ type global_fact = {
 
 (* The thing a name stands for and what's been worked out about it so far *)
 type item =
-  | FuncItem of {
-      def : func_def;
-      annot : typ option;
-      fsig : func_sig deferred ref;
-    }
+  | FuncItem of { def : func_def; fsig : func_sig deferred ref }
   | ExternItem of {
       decl : binding;
       abi : string spanned;
@@ -65,7 +66,8 @@ type item =
       info : adt_info deferred ref;
     }
   | AliasItem of { decl : binding; body : typ; aliased : ty deferred ref }
-  | BuiltinItem of ty
+
+type named = Item of item | Builtin of ty
 
 type loop_result =
   (* value := loop { continue } *)
@@ -86,7 +88,7 @@ type loop_ctx = {
 
 type ctx = {
   decls : item list;
-  items : item Symbol.Table.t;
+  items : named Symbol.Table.t;
   lambdas : tfunc_def Symbol.Table.t;
   layouts : Layout.t;
   symbols : Resolve.t;
@@ -107,7 +109,7 @@ type coercion_input = Contextual of expr | Typed of expr * texpr
 let make_ctx symbols decls =
   let items = Symbol.Table.create 16 in
   List.iter
-    (fun (key, builtin) -> Symbol.Table.replace items key (BuiltinItem builtin))
+    (fun (key, builtin) -> Symbol.Table.replace items key (Builtin builtin))
     (Resolve.builtins symbols);
   {
     decls;
@@ -143,9 +145,13 @@ let item_of_decl (Bind b) =
       GlobalItem
         { decl = b; declared_ty = ref Unstarted; typed = ref Unstarted }
   | CompileTime, Some { edesc = Lambda lambda; _ } ->
-      let annot = match b.bind_form with Typed (t, _) -> Some t | _ -> None in
-      let def = { func_name = b.bind_name; lambda; func_span = b.bind_span } in
-      FuncItem { def; annot; fsig = ref Unstarted }
+      let func_annot =
+        match b.bind_form with Typed (t, _) -> Some t | _ -> None
+      in
+      let def =
+        { func_name = b.bind_name; func_annot; lambda; func_span = b.bind_span }
+      in
+      FuncItem { def; fsig = ref Unstarted }
   | CompileTime, Some { edesc = Extern abi; _ } ->
       ExternItem { decl = b; abi; fsig = ref Unstarted }
   | CompileTime, Some { edesc = StructType fields; _ } ->
@@ -161,6 +167,7 @@ let item_of_decl (Bind b) =
       let written = List.map variant variants in
       AdtItem { decl = b; kind = Enum; written; info = ref Unstarted }
   | CompileTime, Some value ->
+      (* TODO: a :: of a plain value like N :: 5 needs const eval *)
       AliasItem { decl = b; body = value; aliased = ref Unstarted }
   | CompileTime, None ->
       Diagnostic.ice ~span:b.bind_span "compile time binding has no value"
@@ -265,12 +272,10 @@ let resolve_named_abi name span =
         |> Diagnostic.label "not supported here");
       AbiError
 
-(* A signature without an ABI written on it is a plain Ripe function *)
 let resolve_abi = function
   | NoAbi -> Ripe
   | NamedAbi { value = name; span } -> resolve_named_abi name span
 
-(* The value of a block is its last element and unit when the block is empty *)
 let rec tblock_ty tb =
   match tb with [] -> TUnit | [ te ] -> te.ty | _ :: rest -> tblock_ty rest
 
@@ -475,7 +480,6 @@ let synth_conversion span te ty =
 let check_int_lit ?cause e want target value =
   match adopt_int_lit e.espan want target false value with
   | Some typed -> typed
-  | None when has_error want -> error_expr e.espan
   | None ->
       Diagnostic.emit (type_mismatch ?cause e.espan want (TInt I32));
       mk e.espan (TInt I32) (TIntLit value)
@@ -483,15 +487,14 @@ let check_int_lit ?cause e want target value =
 let check_float_lit ?cause e want target value =
   match target with
   | TFloat _ | TError -> mk e.espan want (TFloatLit value)
-  | _ when has_error want -> error_expr e.espan
   | _ ->
       Diagnostic.emit (type_mismatch ?cause e.espan want (TFloat F64));
       mk e.espan (TFloat F64) (TFloatLit value)
 
-(* A qualified callee is one symbol so it still calls directly *)
+(* TODO: a module path like math.add should call directly too *)
 let direct_callee env callee =
   match callee.edesc with
-  | Ident _ | Path _ ->
+  | Ident _ ->
       let* symbol = Resolve.sym_at_opt env.ctx.symbols callee.espan in
       if Symbol.is_func symbol.Symbol.kind then Some symbol else None
   | _ -> None
@@ -513,8 +516,8 @@ let type_as_value e =
 
 let type_item ctx key =
   match Symbol.Table.find_opt ctx.items key with
-  | Some ((AdtItem _ | AliasItem _ | BuiltinItem _) as item) -> Some item
-  | Some (FuncItem _ | ExternItem _ | GlobalItem _) | None -> None
+  | Some ((Item (AdtItem _ | AliasItem _) | Builtin _) as named) -> Some named
+  | Some (Item (FuncItem _ | ExternItem _ | GlobalItem _)) | None -> None
 
 let rec ty_of_ast env t =
   match t.edesc with
@@ -627,7 +630,7 @@ and find_var env span =
 and find_non_local env span =
   let key = key_at env.ctx span in
   match Symbol.Table.find_opt env.ctx.items key with
-  | Some (GlobalItem fact) -> pending_global_ty env span fact
+  | Some (Item (GlobalItem fact)) -> pending_global_ty env span fact
   | _ -> (
       match func_sig env span key with
       | Some fsig -> TFunc fsig.func
@@ -639,7 +642,7 @@ and find_non_local env span =
 and func_sig env span key =
   let* item, cell =
     match Symbol.Table.find_opt env.ctx.items key with
-    | Some ((FuncItem { fsig; _ } | ExternItem { fsig; _ }) as item) ->
+    | Some (Item ((FuncItem { fsig; _ } | ExternItem { fsig; _ }) as item)) ->
         Some (item, fsig)
     | _ -> None
   in
@@ -655,11 +658,11 @@ and func_sig env span key =
 and collect_func ctx item =
   let env = make_env ctx in
   match item with
-  | FuncItem { def; annot; _ } ->
+  | FuncItem { def; _ } ->
       let l = def.lambda in
       let abi = resolve_abi l.lambda_abi in
       let declared =
-        match Option.map (fun t -> lambda_want env t l) annot with
+        match Option.map (fun t -> lambda_want env t l) def.func_annot with
         | Some (TFunc ({ sig_abi = Ripe; _ } as f)) ->
             Some (TFunc { f with sig_abi = abi })
         | declared -> declared
@@ -690,24 +693,22 @@ and collect_func ctx item =
                 |> Diagnostic.label "expected function type, found %s"
                      (show_ty ty));
               poisoned_sig))
-  | GlobalItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ ->
+  | GlobalItem _ | AdtItem _ | AliasItem _ ->
       Diagnostic.ice "signature has no fn"
 
 and find_func env span =
   match func_sig env span (key_at env.ctx span) with
   | Some s -> s
-  | None ->
-      Diagnostic.emit (Diagnostic.error span "undefined function");
-      poisoned_sig
+  | None -> Diagnostic.ice ~span "fn has no signature"
 
 and named_ty env span shown = function
-  | BuiltinItem ty -> ty
-  | AdtItem _ -> TAdt (keyname_at env.ctx span shown, [])
-  | AliasItem { decl; body; aliased } -> (
+  | Builtin ty -> ty
+  | Item (AdtItem _) -> TAdt (keyname_at env.ctx span shown, [])
+  | Item (AliasItem { decl; body; aliased }) -> (
       match alias_body env.ctx decl body aliased with
       | Some aliased -> TAlias (keyname_at env.ctx span shown, aliased)
       | None -> TError)
-  | FuncItem _ | ExternItem _ | GlobalItem _ ->
+  | Item (FuncItem _ | ExternItem _ | GlobalItem _) ->
       Diagnostic.ice ~span "named type has no type"
 
 (* A pointer doesn't save a recursive alias like it saves a struct field *)
@@ -739,8 +740,11 @@ and declares_type env b =
 
 and adt_info ctx key =
   match Symbol.Table.find_opt ctx.items key with
-  | Some (AdtItem { info = { contents = Completed info }; _ }) -> Some info
-  | Some (AdtItem { kind; written; info = { contents = Unstarted } as info; _ })
+  | Some (Item (AdtItem { info = { contents = Completed info }; _ })) ->
+      Some info
+  | Some
+      (Item
+         (AdtItem { kind; written; info = { contents = Unstarted } as info; _ }))
     ->
       Some (fill_adt ctx key info kind written)
   | _ -> None
@@ -771,6 +775,7 @@ and fill_adt ctx key body kind written =
             (Option.map (fun n -> n.value) name, ty_of_ast env t))
           fields
       in
+      (* TODO(d737): a variant carries no explicit value *)
       let variant = { tag = next; field_tys; field_index = index field_tys } in
       (Int64.succ next, (name.value, variant) :: variants)
   in
@@ -872,8 +877,6 @@ and synth_field env span te fname fspan =
   | _, _ -> synth_struct_field env span te ty fname fspan
 
 (* This pass does the bidirectional type checking *)
-
-(* A while true with no break never ends *)
 and synth env e =
   match e.edesc with
   | Int (n, suf) ->
@@ -899,7 +902,7 @@ and synth env e =
               if has_error (named_ty env e.espan s.Symbol.name item) then
                 error_expr e.espan
               else mk e.espan TType TTypeExpr
-          | None -> mk e.espan TType TTypeExpr)
+          | None -> Diagnostic.ice ~span:e.espan "type name has no item")
       | Func | LocalFunc | Extern | Global | Local | Param | ForVar | MatchBind
         ->
           mk e.espan (find_var env e.espan) (TIdent s))
@@ -907,7 +910,10 @@ and synth env e =
   | BinOp (op, l, r) -> synth_binop env e.espan op l r
   | Assign (base, l, r) -> synth_assign env e.espan base l r
   | UnOp (op, operand) -> synth_unop env e.espan op operand
-  | Path p -> synth_path env e.espan p
+  | Path p -> (
+      match synth_value_path env p with
+      | Some typed -> typed
+      | None -> synth_path_type env e.espan p)
   | FieldAccess (inner_e, { value = fname; span = fspan }) ->
       synth_field env e.espan (synth env inner_e) fname fspan
   | Cast (t, inner) ->
@@ -934,8 +940,7 @@ and synth env e =
   | Match (scrutinee, arms) -> check_match env e.espan scrutinee arms Infer
   | For (label, { span = nspan; _ }, iter, body) ->
       synth_for env e.espan label nspan iter body
-  | Binding ({ binder = RunTime; _ } as b) -> snd (check_binding env b)
-  | Binding { binder = CompileTime; _ } -> mk e.espan TUnit TLocalDecl
+  | Binding _ -> Diagnostic.ice ~span:e.espan "binding outside a block"
   | Lambda l -> check_lambda env e l None
   | StructType _ | EnumType _ -> mk e.espan TType TTypeExpr
   | PointerType _ | FuncType _ | ArrayType _ | SliceType _ ->
@@ -968,18 +973,6 @@ and synth_path_type env span p =
       | Some (keyname, info) -> build_variant span keyname info name name_span
       | None -> error_expr span)
   | None -> synth_field env span (synth env inner) name name_span
-
-and synth_path env span p =
-  match Resolve.sym_at_opt env.ctx.symbols span with
-  | Some symbol when symbol.Symbol.kind = Symbol.Error -> error_expr span
-  | Some symbol
-    when Symbol.is_func symbol.Symbol.kind
-         || Symbol.is_global symbol.Symbol.kind ->
-      mk span (find_var env span) (TIdent symbol)
-  | Some _ | None -> (
-      match synth_value_path env p with
-      | Some typed -> typed
-      | None -> synth_path_type env span p)
 
 and synth_struct_lit env span name name_span inits =
   match type_item env.ctx (key_at env.ctx name_span) with
@@ -1157,6 +1150,7 @@ and check_value_for_use env e use =
 
 (* The env threads through so later lines see a binding *)
 and check_block env span body use =
+  (* Code after a never is dead so it isn't held to the block's use *)
   let rec go env diverged acc = function
     | [] ->
         verify_unit_result span use;
@@ -1540,7 +1534,7 @@ and coverage_of env ty seen =
           in
           in_declared_order (List.fold_right gather variants [])
       | Some { kind = Struct; _ } -> Unbounded
-      | None -> Unknown)
+      | None -> Diagnostic.ice "matched type was never filled")
   | _ -> Unbounded
 
 and report_coverage ts = function
@@ -1673,7 +1667,7 @@ and check_neg_int_lit ?cause env e want target value =
   | Some typed -> typed
   | None -> check ?cause env { e with edesc = Int (Int64.neg value, None) } want
 
-and check_array_lit ?(cause = Plain) env e want elems =
+and check_array_lit cause env e want elems =
   match (resolve_ty want, elems) with
   | TArray (elem, len), _ ->
       if List.compare_length_with elems len <> 0 then
@@ -1713,7 +1707,7 @@ and check ?(cause = Plain) env e want =
       check_by_synth ~cause env e want
   | UnOp (((Neg | BitNot) as op), operand) when unop_accepts op want ->
       mk e.espan want (TUnOp (op, check ~cause env operand want))
-  | ArrayLit elems -> check_array_lit ~cause env e want elems
+  | ArrayLit elems -> check_array_lit cause env e want elems
   | StructLit (None, inits) -> dot_struct_lit env e.espan e.espan want inits
   | DotVariant { value = name; span } -> (
       match dot_target env span want (Some name) with
@@ -2068,16 +2062,8 @@ and global_ty env fact =
   | Typed (t, e) when not (has_hole t) ->
       let ty = ty_of_ast env t in
       if ty = TType then (type_as_value e).ty else ty
-  | Typed (_, e) | Inferred e ->
-      let te =
-        try global_typed_init env e.espan fact
-        with Diagnostic.Errors ds ->
-          List.iter Diagnostic.emit ds;
-          error_expr e.espan
-      in
-      te.ty
+  | Typed (_, e) | Inferred e -> (global_typed_init env e.espan fact).ty
 
-(* The running initializer state catches recursive demand *)
 and global_typed_init env span fact =
   force_deferred span fact.typed (error_expr span) (fun () ->
       type_global_init (make_env env.ctx) span fact.decl)
@@ -2097,6 +2083,7 @@ and eval_array_size env e =
   let shown n =
     if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
   in
+  (* TODO: an array size only takes a literal until const eval lands *)
   let size =
     match te.tdesc with
     | _ when not (is_integer te.ty) ->
@@ -2194,36 +2181,26 @@ and check_lambda env e l want =
   let fd =
     {
       func_name = spanned (Interner.intern "fn") e.espan;
+      func_annot = None;
       lambda = l;
       func_span = e.espan;
     }
   in
   let ret_cause = ret_cause l want (keyword_span l.lambda_span Tokens.FUNC) in
   let fsig = ref (Completed { func; param_hole = false; ret_cause }) in
-  Symbol.Table.replace env.ctx.items key
-    (FuncItem { def = fd; annot = None; fsig });
+  Symbol.Table.replace env.ctx.items key (Item (FuncItem { def = fd; fsig }));
   if not (is_probing env) then begin
     Symbol.Table.replace env.ctx.lambdas key (check_func (make_env env.ctx) fd)
   end;
   mk e.espan (TFunc func) (TIdent (sym env e.espan))
 
-(* A local or inline export only reaches C as a pointer so it stays hidden *)
-(* The wrapper only knows how to turn nothing or an i32 into an exit code *)
-(* A repeated param name keeps the first one since params go in right to left *)
 and check_func env fd =
   let l = fd.lambda in
   let key = key_at env.ctx fd.func_span in
   let is_entry_point =
     symbol_at env.ctx fd.func_span false (fun s -> s.Symbol.entry_point)
   in
-  let func, cause =
-    match func_sig env fd.func_span key with
-    | Some s when List.compare_lengths s.func.sig_params l.lambda_params = 0 ->
-        (s.func, s.ret_cause)
-    | _ ->
-        ( lambda_sig env l (resolve_abi l.lambda_abi) None,
-          ret_cause l None fd.func_name.span )
-  in
+  let { func; ret_cause = cause; _ } = find_func env fd.func_span in
   let { sig_params = param_tys; sig_ret = ret_ty; _ } = func in
   let params_typed =
     List.map2
@@ -2232,6 +2209,7 @@ and check_func env fd =
   in
   let params = List.map (fun (_, t, span) -> (sym env span, t)) params_typed in
 
+  (* The wrapper only knows how to turn nothing or an i32 into an exit code *)
   let invalid_entry_return =
     match resolve_ty ret_ty with
     | TError | TUnit | TInt I32 -> false
@@ -2248,6 +2226,7 @@ and check_func env fd =
   end;
 
   let func_env = push_scope { env with ret_ty; ret_cause = cause } in
+  (* A repeated param name keeps the first one since params go in right to left *)
   let param_env =
     List.fold_right
       (fun (_, t, span) e -> extend_var e span t)
@@ -2270,6 +2249,12 @@ and check_func env fd =
     | _ -> tbody0
   in
 
+  (* A local or inline export only reaches C as a pointer so it stays hidden *)
+  let is_export =
+    l.lambda_abi <> NoAbi
+    && symbol_at env.ctx fd.func_span false (fun s ->
+        s.Symbol.kind = Symbol.Func)
+  in
   {
     tfunc_key = key;
     tfunc_name =
@@ -2278,33 +2263,27 @@ and check_func env fd =
     tfunc_params = params;
     tfunc_ret = ret_ty;
     tfunc_body = tbody;
-    tfunc_export =
-      l.lambda_abi <> NoAbi
-      && symbol_at env.ctx fd.func_span false (fun s ->
-          s.Symbol.kind = Symbol.Func);
+    tfunc_export = is_export;
     tfunc_abi = func.sig_abi;
   }
 
-(* A repeat name is already reported with both spans by the resolver *)
 let reserve_adt_name ctx b kind written =
   let key = key_at ctx b.bind_span in
-  if key <> Symbol.unresolved_key then begin
-    let check_duplicates message names =
-      let seen = Hashtbl.create 8 in
-      let check n =
-        if Hashtbl.mem seen n.value then
-          Diagnostic.emit (Diagnostic.error n.span message)
-        else Hashtbl.add seen n.value ()
-      in
-      List.iter check names
+  let check_duplicates message names =
+    let seen = Hashtbl.create 8 in
+    let check n =
+      if Hashtbl.mem seen n.value then
+        Diagnostic.emit (Diagnostic.error n.span message)
+      else Hashtbl.add seen n.value ()
     in
-    check_duplicates "duplicate variant" (List.map fst written);
-    List.iter
-      (fun (_, fields) ->
-        check_duplicates "duplicate field" (List.filter_map fst fields))
-      written;
-    if kind = Struct then Layout.set_variants ctx.layouts key Struct [ [] ]
-  end
+    List.iter check names
+  in
+  check_duplicates "duplicate variant" (List.map fst written);
+  List.iter
+    (fun (_, fields) ->
+      check_duplicates "duplicate field" (List.filter_map fst fields))
+    written;
+  if kind = Struct then Layout.set_variants ctx.layouts key Struct [ [] ]
 
 type visit = OnPath | Finished
 
@@ -2355,8 +2334,7 @@ let verify_type_cycles ctx =
     | AdtItem { decl; _ } ->
         let key = key_at ctx decl.bind_span in
         Option.iter (record key) (adt_info ctx key)
-    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
-        ()
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ -> ()
   in
   List.iter record_edges ctx.decls;
   let cyclic =
@@ -2370,21 +2348,16 @@ let verify_type_cycles ctx =
         Diagnostic.emit
           (Diagnostic.error decl.bind_name.span "recursive %s has infinite size"
              noun)
-    | AdtItem _ | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _
-    | BuiltinItem _ ->
-        ()
+    | AdtItem _ | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ -> ()
   in
   List.iter report_cycle ctx.decls
 
 (* The file order blames the same type every run *)
 let resolve_type_bodies ctx =
   let resolve = function
-    | AliasItem { decl; _ } -> (
-        match Symbol.Table.find_opt ctx.items (key_at ctx decl.bind_span) with
-        | Some (AliasItem { decl; body; aliased }) ->
-            ignore (alias_body ctx decl body aliased)
-        | _ -> ())
-    | FuncItem _ | ExternItem _ | GlobalItem _ | AdtItem _ | BuiltinItem _ -> ()
+    | AliasItem { decl; body; aliased } ->
+        ignore (alias_body ctx decl body aliased)
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AdtItem _ -> ()
   in
   List.iter resolve ctx.decls
 
@@ -2392,8 +2365,7 @@ let reserve_adt_names ctx =
   let reserve = function
     | AdtItem { decl; kind; written; _ } ->
         reserve_adt_name ctx decl kind written
-    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
-        ()
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ -> ()
   in
   List.iter reserve ctx.decls
 
@@ -2403,12 +2375,12 @@ let collect_decls ctx =
     | FuncItem { def = { func_span = span; _ }; _ }
     | ExternItem { decl = { bind_span = span; _ }; _ } ->
         ignore (func_sig (make_env ctx) span (key_at ctx span))
-    | GlobalItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ -> ()
+    | GlobalItem _ | AdtItem _ | AliasItem _ -> ()
   in
   let collect_global_ty = function
     | GlobalItem fact ->
         ignore (pending_global_ty (make_env ctx) fact.decl.bind_span fact)
-    | FuncItem _ | ExternItem _ | AdtItem _ | AliasItem _ | BuiltinItem _ -> ()
+    | FuncItem _ | ExternItem _ | AdtItem _ | AliasItem _ -> ()
   in
   List.iter collect_sig ctx.decls;
   List.iter collect_global_ty ctx.decls
@@ -2416,8 +2388,7 @@ let collect_decls ctx =
 let fill_type_layouts ctx =
   let fill = function
     | AdtItem { decl; _ } -> ignore (adt_info ctx (key_at ctx decl.bind_span))
-    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ | BuiltinItem _ ->
-        ()
+    | FuncItem _ | ExternItem _ | GlobalItem _ | AliasItem _ -> ()
   in
   List.iter fill ctx.decls
 
@@ -2426,7 +2397,9 @@ let check_global env fact =
   let b = fact.decl in
   let key = key_at env.ctx b.bind_span in
   let t =
-    match !(fact.declared_ty) with Completed t -> t | _ -> global_ty env fact
+    match !(fact.declared_ty) with
+    | Completed t -> t
+    | Unstarted | Running -> Diagnostic.ice "global type never collected"
   in
   let tinit =
     let* e = bind_value b in
@@ -2463,7 +2436,7 @@ let check_decls ctx =
           match adt_info ctx (key_at ctx b.bind_span) with
           | Some info ->
               List.map (fun (_, v) -> List.map snd v.field_tys) info.variants
-          | None -> []
+          | None -> Diagnostic.ice "type layout never filled"
         in
         let name =
           keyname_at ctx b.bind_span (Interner.text b.bind_name.value)
@@ -2473,17 +2446,14 @@ let check_decls ctx =
     | GlobalItem fact ->
         let env = make_env ctx in
         TGlobalDecl (check_global env fact)
-    | AliasItem { decl = b; body; aliased } ->
+    | AliasItem { decl = b; aliased; _ } ->
         let ty =
           match !aliased with
           | Completed ty -> ty
-          | _ ->
-              let env = make_env ctx in
-              ty_of_ast env body
+          | Unstarted | Running -> Diagnostic.ice "alias body never resolved"
         in
         TTypeAliasDecl
           (keyname_at ctx b.bind_span (Interner.text b.bind_name.value), ty)
-    | BuiltinItem _ -> Diagnostic.ice "builtin type in the decls"
   in
   let decls = List.map check_decl ctx.decls in
   let lambdas =
@@ -2506,11 +2476,8 @@ let register_items ctx =
       | AdtItem { decl; _ }
       | AliasItem { decl; _ } ->
           decl.bind_span
-      | BuiltinItem _ -> Diagnostic.ice "builtin type in the decls"
     in
-    let key = key_at ctx span in
-    if key <> Symbol.unresolved_key && not (Symbol.Table.mem ctx.items key) then
-      Symbol.Table.add ctx.items key item
+    Symbol.Table.add ctx.items (key_at ctx span) (Item item)
   in
   List.iter register ctx.decls
 

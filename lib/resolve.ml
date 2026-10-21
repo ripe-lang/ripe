@@ -116,8 +116,8 @@ let mint st kind name span link_name name_span =
 let enter_scope st = { st with scope = new_scope (Some st.scope) }
 
 (* The innermost scope holds params and top level body binders *)
-(* A param or arm name can't repeat and a :: keeps its name for the whole block *)
 let declare_local st kind name span =
+  (* A param or arm name can't repeat and a :: keeps its name for the whole block *)
   match Names.find_opt st.scope.names name with
   | Some prev
     when kind = Symbol.Param || kind = Symbol.MatchBind
@@ -139,7 +139,9 @@ let declare_in table st kind ident span link_name =
       Diagnostic.emit
         (Diagnostic.error ident.span "already defined"
         |> Diagnostic.secondary prev.Symbol.name_span "previous definition here"
-        )
+        );
+      (* The repeat stays out of the scope but still gets a key so its body is checked *)
+      ignore (mint st kind ident.value span link_name ident.span)
   | None ->
       Names.replace table ident.value
         (mint st kind ident.value span link_name ident.span)
@@ -199,9 +201,9 @@ let use st what name span =
       ignore (mint st Symbol.Error name span (Interner.text name) span)
 
 (* Color.Red puts a type name where a value usually goes *)
-(* A nearer value wins so a local named str isn't the builtin type *)
 let rec resolve_path st p =
   let { value = name; span } = Nonempty.hd p.owner in
+  (* A nearer value wins so a local named str isn't the builtin type *)
   use st "variable" name span
 
 (* A fn no :: names still needs a symbol to be called through *)
@@ -351,7 +353,6 @@ and resolve_lambda st l =
   resolve_block_contents st l.lambda_body
 
 (* A top level name lands first so a body can forward reference *)
-(* An export is there for C to call so it keeps its own name *)
 let declare_decl st (Bind b) =
   let name = b.bind_name and span = b.bind_span in
   let text = Interner.text name.value in
@@ -359,6 +360,7 @@ let declare_decl st (Bind b) =
   match (b.binder, bind_value b) with
   | RunTime, _ -> declare_in st.top.names st Symbol.Global name span mangled
   | CompileTime, Some { edesc = Lambda { lambda_abi = NamedAbi _; _ }; _ } ->
+      (* An export is there for C to call so it keeps its own name *)
       declare_in st.top.names st Symbol.Func name span text
   | CompileTime, Some { edesc = Extern _; _ } ->
       declare_in st.top.names st Symbol.Extern name span text

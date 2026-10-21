@@ -118,8 +118,6 @@ type expr_desc =
   | Unit
   | Lambda of lambda
   | StructType of field list
-  (* TODO(f1ac): every enum is an i32 and flags don't exist *)
-  (* TODO(d737): a variant carries no explicit value *)
   | EnumType of variant list
   | PointerType of expr
   | FuncType of abi * expr list * expr

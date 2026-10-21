@@ -14,7 +14,6 @@ let int_kind_is_unsigned = function
   | U8 | U16 | U32 | U64 | Usize -> true
   | I8 | I16 | I32 | I64 | Isize -> false
 
-(* A byte size of each integer kind: bit width / 8 *)
 let int_kind_size = function
   | I8 | U8 -> 1
   | I16 | U16 -> 2
@@ -68,6 +67,7 @@ let func_abi_of_string = function
   | "C" -> Some C
   | _ -> None
 
+(* TODO(39ca): the ty list stays empty until generics land *)
 type ty =
   | TInt of int_kind
   | TFloat of float_kind
@@ -79,7 +79,6 @@ type ty =
   | TNull
   | TPointer of ty
   | TPtr
-  (* TODO(39ca): the ty list stays empty until generics land *)
   | TAdt of Keyname.t * ty list
   | TFunc of func_ty
   | TArray of ty * int

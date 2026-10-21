@@ -2,6 +2,7 @@
 
 open Types
 
+(* A cast's target type is the node type *)
 type texpr_desc =
   | TErrorExpr
   | TIntLit of int64
@@ -17,7 +18,6 @@ type texpr_desc =
   | TAssign of Ast.binop option * texpr * texpr
   | TUnOp of Ast.unop * texpr
   | TFieldAccess of texpr * int
-  (* The target type is the node type *)
   | TCast of texpr
   | TSizeOf of ty
   | TRange of texpr * texpr
