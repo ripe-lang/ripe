@@ -16,7 +16,9 @@ WORKDIR /tmp/deps
 COPY ripe.opam ripe.opam
 COPY ripe.opam.locked ripe.opam.locked
 RUN opam repository set-url default https://opam.ocaml.org \
-  && opam update -y && opam install . --deps-only --locked --with-test --with-dev-setup --yes
+  && opam update -y \
+  && opam switch create 5.5.2 ocaml-base-compiler.5.5.2 \
+  && opam install . --deps-only --locked --with-test --with-dev-setup --yes
 
 WORKDIR /
 RUN rm -rf /tmp/deps
