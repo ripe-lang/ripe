@@ -1,5 +1,3 @@
-(dirs :standard \ vendor)
-
 (env
  (_
   (flags

@@ -41,7 +41,6 @@ jobs:
               - 'dune-project'
               - 'ripe.opam'
               - 'ripe.opam.locked'
-              - 'vendor/**'
       - if: steps.filter.outputs.code == 'true'
         run: opam install . --deps-only --locked --with-test --with-dev-setup --yes
       - if: steps.filter.outputs.code == 'true'
@@ -49,11 +48,7 @@ jobs:
       - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune build @fmt
       - if: steps.filter.outputs.code == 'true'
-        run: make -C vendor/qbe
-      - if: steps.filter.outputs.code == 'true'
         run: opam exec -- dune runtest
-        env:
-          QBE: ${{ github.workspace }}/vendor/qbe/qbe
 
   all:
     runs-on: ubuntu-latest

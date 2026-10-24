@@ -34,11 +34,8 @@ jobs:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: apt-get update && apt-get install --yes gh
       - run: opam install . --deps-only --locked --with-test --with-dev-setup --yes
-      - run: make -C vendor/qbe
       - run: opam exec -- dune build @install
       - run: opam exec -- dune runtest
-        env:
-          QBE: ${{ github.workspace }}/vendor/qbe/qbe
       - run: python3 ci/package-linux-release.py "$GITHUB_REF_NAME"
       - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz* --title "Ripe $GITHUB_REF_NAME" --generate-notes
         env:

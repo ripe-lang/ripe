@@ -3,7 +3,6 @@
 # This is for GitHub Actions and isn't meant to be ran directly
 # These need to run first
 # git submodule update --init --recursive
-# make -C vendor/qbe
 # dune build @install
 
 import hashlib
@@ -32,7 +31,6 @@ CHECKSUM = OUTPUT_DIR / f"{RELEASE_NAME}.tar.gz.sha256"
 if RELEASE_ROOT.exists() or ARCHIVE.exists() or CHECKSUM.exists():
     sys.exit("output exists")
 
-QBE = ROOT / "vendor/qbe/qbe"
 RIPEC = ROOT / "_build/install/default/bin/ripec"
 TOOLCHAIN = RELEASE_ROOT / "lib/ripe/toolchain/linux-x86_64"
 
@@ -41,12 +39,10 @@ TOOLCHAIN = RELEASE_ROOT / "lib/ripe/toolchain/linux-x86_64"
 (RELEASE_ROOT / "licenses").mkdir(parents=True)
 
 shutil.copy2(RIPEC, RELEASE_ROOT / "bin")
-shutil.copy2(QBE, TOOLCHAIN / "bin")
 
 shutil.copy2(ROOT / "COPYRIGHT.md", RELEASE_ROOT)
 shutil.copy2(ROOT / "LICENSE-APACHE", RELEASE_ROOT / "LICENSE_APACHE")
 shutil.copy2(ROOT / "LICENSE-MIT", RELEASE_ROOT / "LICENSE_MIT")
-shutil.copy2(ROOT / "vendor/qbe/LICENSE", RELEASE_ROOT / "licenses/QBE.txt")
 
 with tarfile.open(ARCHIVE, "w:gz") as output:
     output.add(RELEASE_ROOT, arcname=RELEASE_NAME)

@@ -1,3 +1,0 @@
-[submodule "vendor/qbe"]
-	path = vendor/qbe
-	url = https://github.com/ripe-lang/qbe.git
