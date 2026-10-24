@@ -11,9 +11,9 @@ type token_info = { token : token; span : span }
 type state = {
   read : unit -> token_info;
   mutable current : token_info;
-  mutable ahead : token_info list;
+  mutable lookahead : token_info list;
   mutable prev_end : int;
-  mutable opens : (token * span) list;
+  mutable open_delimiters : (token * span) list;
 }
 
 type chain = Comparison | Range
@@ -52,24 +52,27 @@ let advance st =
   st.prev_end <- Span.hi st.current.span;
   begin match st.current.token with
   | LPAREN | LBRACKET | LBRACE ->
-      st.opens <- (st.current.token, st.current.span) :: st.opens
+      st.open_delimiters <-
+        (st.current.token, st.current.span) :: st.open_delimiters
   | RPAREN | RBRACKET | RBRACE ->
-      begin match st.opens with _ :: rest -> st.opens <- rest | [] -> ()
+      begin match st.open_delimiters with
+      | _ :: rest -> st.open_delimiters <- rest
+      | [] -> ()
       end
   | _ -> ()
   end;
-  match st.ahead with
+  match st.lookahead with
   | info :: rest ->
-      st.ahead <- rest;
+      st.lookahead <- rest;
       st.current <- info
   | [] -> st.current <- next_token st st.current
 
 let peek_token st =
-  match st.ahead with
+  match st.lookahead with
   | info :: _ -> info.token
   | [] ->
       let info = next_token st st.current in
-      st.ahead <- [ info ];
+      st.lookahead <- [ info ];
       info.token
 
 let at st t = cur_token st == t
@@ -92,7 +95,7 @@ let expect st t =
     let d =
       Diagnostic.error (cur_span st) "expected `%s`" (show_token t) |> found st
     in
-    match st.opens with
+    match st.open_delimiters with
     | (opener, span) :: _ when closer_of opener == t ->
         Diagnostic.secondary span
           (Printf.sprintf "to match this `%s`" (show_token opener))
@@ -852,7 +855,13 @@ let parse lex lexbuf =
   let current = read () in
   try
     parse_file
-      { read; current; ahead = []; prev_end = Span.hi Span.dummy; opens = [] }
+      {
+        read;
+        current;
+        lookahead = [];
+        prev_end = Span.hi Span.dummy;
+        open_delimiters = [];
+      }
   with ParserError d ->
     Diagnostic.emit d;
     raise Failed
