@@ -58,19 +58,19 @@ let variants t key =
   | Some entry -> entry.variants
   | None -> Iarray.of_list []
 
-let field_ty t name variant index =
+let field_ty t name ~variant ~field =
   let unknown () =
     Diagnostic.ice
-      (Printf.sprintf "unknown field %d.%d on %s" variant index
+      (Printf.sprintf "unknown field %d.%d on %s" variant field
          (Keyname.show name))
   in
   let variants = variants t (Keyname.key name) in
   if variant >= Iarray.length variants then unknown ()
   else
     let tys = Iarray.get variants variant in
-    if index < Iarray.length tys then Iarray.get tys index else unknown ()
+    if field < Iarray.length tys then Iarray.get tys field else unknown ()
 
-let align_to n a = Int.cdiv n a * a
+let align_to n ~align = Int.cdiv n align * align
 
 (* A variant starts right after the tag so they all overlap like a C union *)
 let rec layout_of t name =
@@ -86,7 +86,7 @@ let rec layout_of t name =
   | _ ->
       let place (align, used) ft =
         let field_align = ty_align t ft in
-        let at = align_to used field_align in
+        let at = align_to used ~align:field_align in
         ((max align field_align, at + ty_size t ft), at)
       in
       let start =
@@ -102,7 +102,7 @@ let rec layout_of t name =
       let (align, used), offsets =
         Iarray.fold_left_map lay_out start entry.variants
       in
-      let layout = { size = align_to used align; align; offsets } in
+      let layout = { size = align_to used ~align; align; offsets } in
       entry.cached_layout <- Some (t.revision, layout);
       layout
 
@@ -131,17 +131,17 @@ and ty_measure t ty =
 
 and ty_size t ty = fst (ty_measure t ty)
 and ty_align t ty = snd (ty_measure t ty)
-and stride t elem = align_to (ty_size t elem) (ty_align t elem)
+and stride t elem = align_to (ty_size t elem) ~align:(ty_align t elem)
 
-let field_offset t name variant index =
+let field_offset t name ~variant ~field =
   let layout = layout_of t name in
   let offsets =
     if variant < Iarray.length layout.offsets then
       Iarray.get layout.offsets variant
     else Iarray.of_list []
   in
-  if index < Iarray.length offsets then Iarray.get offsets index
+  if field < Iarray.length offsets then Iarray.get offsets field
   else
     Diagnostic.ice
-      (Printf.sprintf "unknown field %d.%d on %s" variant index
+      (Printf.sprintf "unknown field %d.%d on %s" variant field
          (Keyname.show name))

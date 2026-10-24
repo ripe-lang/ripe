@@ -510,7 +510,7 @@ and lower_pattern state span subject ty tpat no =
       List.iteri
         (fun i sub ->
           let part = add_projection subject (Field (variant, i)) in
-          let part_ty = Layout.field_ty state.layouts name variant i in
+          let part_ty = Layout.field_ty state.layouts name ~variant ~field:i in
           lower_pattern state span part part_ty sub no)
         subs
   | (TPatConst value | TPatVariant (value, _)), _ ->
@@ -1291,7 +1291,7 @@ and verify_projection ctx span ty = function
       | _ -> fail ctx span "deref projection requires a pointer")
   | Field (variant, field) -> (
       match Layout.named_aggregate ctx.layouts ty with
-      | Some name -> Layout.field_ty ctx.layouts name variant field
+      | Some name -> Layout.field_ty ctx.layouts name ~variant ~field
       | None -> fail ctx span "field projection requires fields")
   | Tag ->
       if not (Layout.has_payload ctx.layouts ty) then

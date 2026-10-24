@@ -478,10 +478,10 @@ and emit_mir_place mctx place =
           | Some name -> name
           | None -> Diagnostic.ice "MIR field on a type without fields"
         in
-        let field_ty = Layout.field_ty ctx.layouts name variant field in
+        let field_ty = Layout.field_ty ctx.layouts name ~variant ~field in
         let addr =
           offset_addr ctx addr
-            (Layout.field_offset ctx.layouts name variant field)
+            (Layout.field_offset ctx.layouts name ~variant ~field)
         in
         project addr field_ty rest
     | Mir.Tag :: rest -> project addr Layout.tag_ty rest
@@ -915,8 +915,8 @@ let rec emit_mir_global_fields ctx expected = function
           parts := Printf.sprintf "z %d" (target - !offset) :: !parts
       in
       let field (field, value) =
-        let field_ty = Layout.field_ty ctx.layouts name variant field in
-        let at = Layout.field_offset ctx.layouts name variant field in
+        let field_ty = Layout.field_ty ctx.layouts name ~variant ~field in
+        let at = Layout.field_offset ctx.layouts name ~variant ~field in
         pad_to at;
         parts := emit_mir_global_fields ctx field_ty value :: !parts;
         offset := at + Layout.ty_size ctx.layouts field_ty

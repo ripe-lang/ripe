@@ -14,7 +14,9 @@ let measure structs t =
     (Layout.ty_align structs t)
 
 let offsets structs name count =
-  let at i = string_of_int (Layout.field_offset structs name 0 i) in
+  let at field =
+    string_of_int (Layout.field_offset structs name ~variant:0 ~field)
+  in
   print_endline (String.concat " " (List.init count at))
 
 let%expect_test "layout: scalars measure as wide as they align" =
@@ -174,7 +176,7 @@ let%expect_test "layout: redefining fields drops the cached measurement" =
     |}]
 
 let%expect_test "layout: align_to rounds up to the next multiple" =
-  let show n a = Printf.printf "%d -> %d\n" n (Layout.align_to n a) in
+  let show n align = Printf.printf "%d -> %d\n" n (Layout.align_to n ~align) in
   show 0 4;
   show 1 4;
   show 4 4;
@@ -214,7 +216,7 @@ let%expect_test "layout: a field type comes back by index" =
   let structs = Layout.create () in
   let name = keyname 1 "Mixed" in
   ignore (define structs name [ TInt I8; TFloat F64; TBool ]);
-  let at i = show_ty (Layout.field_ty structs name 0 i) in
+  let at field = show_ty (Layout.field_ty structs name ~variant:0 ~field) in
   Printf.printf "%s %s %s\n" (at 0) (at 1) (at 2);
   [%expect {| i8 f64 bool |}]
 
@@ -222,7 +224,7 @@ let%expect_test "layout: a field index past the end is a compiler bug" =
   let structs = Layout.create () in
   let name = keyname 1 "Mixed" in
   ignore (define structs name [ TInt I8 ]);
-  (try ignore (Layout.field_ty structs name 0 3)
+  (try ignore (Layout.field_ty structs name ~variant:0 ~field:3)
    with Diagnostic.Errors ds ->
      List.iter (fun d -> print_endline (Diagnostic.headline d)) ds);
   [%expect {| internal compiler error |}]
@@ -273,7 +275,7 @@ let%expect_test "layout: every variant starts right after the tag" =
     [ [ TInt I32 ]; [ point; TInt I32 ]; [] ];
   measure structs (TAdt (shape, []));
   let at variant i =
-    string_of_int (Layout.field_offset structs shape variant i)
+    string_of_int (Layout.field_offset structs shape ~variant ~field:i)
   in
   Printf.printf "%s | %s %s\n" (at 0 0) (at 1 0) (at 1 1);
   [%expect {|
@@ -288,7 +290,7 @@ let%expect_test "layout: the widest variant sets the alignment" =
     [ [ TInt U8 ]; [ TInt I64 ] ];
   measure structs (TAdt (wide, []));
   let at variant i =
-    string_of_int (Layout.field_offset structs wide variant i)
+    string_of_int (Layout.field_offset structs wide ~variant ~field:i)
   in
   Printf.printf "%s %s\n" (at 0 0) (at 1 0);
   [%expect {|
