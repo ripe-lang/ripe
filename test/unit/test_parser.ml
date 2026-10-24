@@ -1739,8 +1739,6 @@ let%expect_test "parse: an if with diverging arms is a value" =
   parse_expr "if c { return 1 } else { break }";
   [%expect {| (if (c (block (return 1))) (block (break))) |}]
 
-(* Expression oriented collapse: parse shapes *)
-
 let%expect_test "parse: value if binding shape" =
   parse_expr "if c { 1 } else { 2 }";
   [%expect {| (if (c (block 1)) (block 2)) |}]

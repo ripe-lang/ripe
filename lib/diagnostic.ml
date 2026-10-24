@@ -125,7 +125,7 @@ let severity_ansi severity text =
 
 let colored ctx sev s = if ctx.color then severity_ansi sev s else s
 
-let severity_label color sev =
+let severity_label ~color sev =
   if color then severity_ansi sev (severity_word sev) else severity_word sev
 
 let tab_width = 8
@@ -242,7 +242,9 @@ let render_snippet ctx buf span label severity =
 
 let render ctx d =
   let buf = Buffer.create 256 in
-  Printf.bprintf buf "%s: %s\n" (severity_label ctx.color d.severity) d.headline;
+  Printf.bprintf buf "%s: %s\n"
+    (severity_label ~color:ctx.color d.severity)
+    d.headline;
 
   (match d.primary with
   | Some span -> render_snippet ctx buf span d.primary_label d.severity
@@ -255,6 +257,6 @@ let render ctx d =
   Option.iter (Buffer.add_string buf) d.detail;
 
   Option.iter
-    (Printf.bprintf buf "%s: %s\n" (severity_label ctx.color Help))
+    (Printf.bprintf buf "%s: %s\n" (severity_label ~color:ctx.color Help))
     d.suggestion;
   Buffer.contents buf

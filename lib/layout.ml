@@ -120,7 +120,7 @@ and ty_measure t ty =
       let layout = layout_of t name in
       (layout.size, layout.align)
   | TAdt _ ->
-      (* TODO(f1ac): every enum is an i32 and flags don't exist *)
+      (* TODO(f1ac): unit only enums are still fixed ints and flags don't exist *)
       ty_measure t tag_ty
   | TChar -> (4, 4)
   | TPointer _ | TPtr | TNull | TCStr | TFunc _ -> (8, 8)

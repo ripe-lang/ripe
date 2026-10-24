@@ -2636,8 +2636,6 @@ let%expect_test
                                                                              ^~ found as
     |}]
 
-(* Expression oriented collapse edge cases *)
-
 let%expect_test "collapse: trailing if is an implicit return" =
   run_src "abs :: fn(x: i32) -> i32 { if x < 0 { -x } else { x } };";
   [%expect {| ok |}]

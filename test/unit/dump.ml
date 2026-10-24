@@ -18,7 +18,7 @@ let tok_str t =
 
 let dump_ident i = Ripe.Interner.text i.Ripe.Ast.value
 
-(* a compact s-expr for expr trees with no spans *)
+(* A compact s-expr keeps expr trees free of spans *)
 let rec dump_expr e =
   match e.Ripe.Ast.edesc with
   | Int (n, suf) -> Int64.to_string n ^ Option.value ~default:"" suf

@@ -21,6 +21,6 @@ val primary : t -> Ast.span option
 val quietly : (unit -> 'a) -> 'a
 val render : ctx -> t -> string
 val secondary : Ast.span -> string -> t -> t
-val severity_label : bool -> severity -> string
+val severity_label : color:bool -> severity -> string
 val take : unit -> t list
 val warning : Ast.span -> string -> t

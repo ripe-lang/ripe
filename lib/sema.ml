@@ -81,9 +81,9 @@ type loop_result =
 
 type loop_ctx = {
   lbl : name option;
-  valued : bool;
+  accepts_break_value : bool;
   mutable result : loop_result;
-  mutable bare_break : span option;
+  mutable first_bare_break : span option;
 }
 
 type ctx = {
@@ -200,9 +200,9 @@ let probing env =
   let copy loop =
     {
       lbl = loop.lbl;
-      valued = loop.valued;
+      accepts_break_value = loop.accepts_break_value;
       result = loop.result;
-      bare_break = loop.bare_break;
+      first_bare_break = loop.first_bare_break;
     }
   in
   { env with loops = List.map copy env.loops; in_probe = true }
@@ -341,9 +341,9 @@ let verify_unit_result span = function
 let new_loop label source =
   {
     lbl = Option.map (fun l -> l.value) label;
-    valued = source = PlainLoop;
+    accepts_break_value = source = PlainLoop;
     result = InferLoopResult;
-    bare_break = None;
+    first_bare_break = None;
   }
 
 (* A break says how many loops out it jumps so later phases never see labels *)
@@ -366,7 +366,7 @@ let find_loop_or_error env span headline label =
       (0, None)
 
 let verify_bare_break span lc =
-  if lc.bare_break = None then lc.bare_break <- Some span;
+  if lc.first_bare_break = None then lc.first_bare_break <- Some span;
   match lc.result with
   | InferLoopResult | ExpectLoopResult _ -> ()
   | FlexibleLoopResult (t, first, _) | RigidLoopResult (t, first, _) ->
@@ -419,7 +419,7 @@ let verify_operands layouts span op t operands =
 let adopt_int_lit span want target neg n =
   let signed = if neg then Int64.neg n else n in
   match target with
-  | TInt kind when not (int_kind_fits kind neg n) ->
+  | TInt kind when not (int_kind_fits kind ~neg n) ->
       Diagnostic.emit
         (Diagnostic.error span "literal out of range"
         |> Diagnostic.label "does not fit in %s" (show_ty want));
@@ -461,7 +461,7 @@ let build_variant span name info fname fspan =
         |> Diagnostic.label "on enum %s" (show_ty adt))
 
 let synth_conversion span te ty =
-  let refused = not (cast_ok te.ty ty) in
+  let refused = not (cast_ok ~src:te.ty ~tgt:ty) in
   if refused then begin
     let d =
       Diagnostic.error span "invalid conversion"
@@ -501,7 +501,7 @@ let direct_callee env callee =
 
 let keyword_span span keyword =
   let lo = Span.lo span in
-  Span.make lo (lo + String.length (Tokens.show_token keyword))
+  Span.make ~lo ~hi:(lo + String.length (Tokens.show_token keyword))
 
 let adt_keyword_span e =
   match e.edesc with
@@ -1152,7 +1152,7 @@ and check_value_for_use env e use =
 
 (* The env threads through so later lines see a binding *)
 and check_block env span body use =
-  (* Code after a never is dead so it isn't held to the block's use *)
+  (* The code after a never is dead so it isn't held to the block's use *)
   let rec go env diverged acc = function
     | [] ->
         verify_unit_result span use;
@@ -1237,7 +1237,7 @@ and check_loop_expr env span label source body want =
     check_scoped_block { env with loops = loop :: env.loops } span body body_use
   in
   let ty =
-    match (loop.result, loop.bare_break) with
+    match (loop.result, loop.first_bare_break) with
     | FlexibleLoopResult (t, _, _), _ | RigidLoopResult (t, _, _), _ -> t
     | (InferLoopResult | ExpectLoopResult _), None -> TNever
     | InferLoopResult, Some _ -> TUnit
@@ -1262,7 +1262,7 @@ and check_valued_break env lc ve =
         |> Diagnostic.label "breaks with %s" (show_ty ty)
         |> Diagnostic.secondary first "no value here")
     in
-    Option.iter report lc.bare_break
+    Option.iter report lc.first_bare_break
   in
   match (lc.result, flexible) with
   | InferLoopResult, _ ->
@@ -1316,7 +1316,7 @@ and synth_break env span label value =
         verify_bare_break span lc;
         None
     | Some ve, None -> Some (synth env ve)
-    | Some ve, Some lc when not lc.valued ->
+    | Some ve, Some lc when not lc.accepts_break_value ->
         Diagnostic.emit
           (Diagnostic.error ve.espan "`break` value outside `loop`"
           |> Diagnostic.help "use `loop` to break with a value");
@@ -1433,7 +1433,7 @@ and check_pattern env sty pat =
         (env, None)
       in
       match te.tdesc with
-      | _ when not (Typred.compatible sty te.ty) -> (env, None)
+      | _ when not (Typred.compatible ~want:sty ~got:te.ty) -> (env, None)
       | TBuild (_, tag, []) -> (env, Some (TPatVariant (tag, [])))
       | TIntLit n -> (env, Some (TPatConst n))
       | TBoolLit b -> (env, Some (TPatConst (if b then 1L else 0L)))
@@ -1663,7 +1663,7 @@ and check_size_lit env e want target typ =
   | ty ->
       let size = Int64.of_int (Layout.ty_size env.ctx.layouts ty) in
       (match target with
-      | TInt kind when not (int_kind_fits kind false size) ->
+      | TInt kind when not (int_kind_fits kind ~neg:false size) ->
           Diagnostic.emit
             (Diagnostic.error e.espan "size does not fit"
             |> Diagnostic.label "%Ld does not fit in %s" size (show_ty target))
@@ -1760,8 +1760,8 @@ and check ?(cause = Plain) env e want =
 
 and coerce_expr ?cause e want te =
   let got = te.ty in
-  if compatible want got then adopt want te
-  else if widens_to got want then mk e.espan want (TCast te)
+  if compatible ~want ~got then adopt want te
+  else if widens_to ~src:got ~tgt:want then mk e.espan want (TCast te)
   else begin
     let mismatch =
       match (resolve_ty want, resolve_ty got) with
@@ -1805,7 +1805,7 @@ and check_range_bounds env lo hi =
 (* A bad count drops the args so walk them or their errors never show *)
 and walk_unpaired_args env args = List.iter (fun a -> ignore (synth env a)) args
 
-(* C reads a float vararg as a double so we widen it first *)
+(* A C callee reads a float vararg as a double so we widen it first *)
 and check_args env span fsig args =
   let f = fsig.func in
   let n_params = List.length f.sig_params in
@@ -1963,7 +1963,7 @@ and synth_value_path env p =
       in
       let fields = List.tl (Nonempty.to_list p.owner) @ [ p.member ] in
       let step typed { value = field_name; span = field_span } =
-        let span = Span.make (Span.lo root_span) (Span.hi field_span) in
+        let span = Span.make ~lo:(Span.lo root_span) ~hi:(Span.hi field_span) in
         synth_field env span typed field_name field_span
       in
       Some (List.fold_left step root fields)

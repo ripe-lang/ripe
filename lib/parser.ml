@@ -31,7 +31,7 @@ type expr_ctx = NormalExpression | HeaderExpression
 let cur_token st = st.current.token
 let cur_span st = st.current.span
 let cur_pos st = Span.lo (cur_span st)
-let span_from lo st = Span.make lo st.prev_end
+let span_from lo st = Span.make ~lo ~hi:st.prev_end
 let mk lo st desc = { edesc = desc; espan = span_from lo st }
 let closer_of = function LPAREN -> RPAREN | LBRACKET -> RBRACKET | _ -> RBRACE
 

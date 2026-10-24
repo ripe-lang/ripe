@@ -201,13 +201,13 @@ let use st what name span =
       Diagnostic.emit (Diagnostic.error span "undefined %s" what);
       ignore (mint st Symbol.Error name span (Interner.text name) span)
 
-(* Color.Red puts a type name where a value usually goes *)
+(* The Color.Red form puts a type name where a value usually goes *)
 let rec resolve_path st p =
   let { value = name; span } = Nonempty.hd p.owner in
   (* A nearer value wins so a local named str isn't the builtin type *)
   use st "variable" name span
 
-(* A fn no :: names still needs a symbol to be called through *)
+(* A call keeps the visible value and remembers a shadowed function for type checking *)
 and resolve_expr st e =
   match e.edesc with
   | Ident name -> use st "variable" name e.espan
