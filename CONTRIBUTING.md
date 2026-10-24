@@ -6,8 +6,8 @@
 2. Run:
 
    ```sh
-   opam switch create 5.5.0 ocaml.5.5.0
-   opam install . --deps-only --yes
+   opam switch create . ocaml.5.5.2 --no-install
+   opam install . --deps-only --locked --with-test --with-dev-setup --yes
    dune build
    ```
 
