@@ -5,9 +5,6 @@ open Option.Syntax
 let realpath_or_original path =
   try Unix.realpath path with Unix.Unix_error _ -> path
 
-let executable_dir () =
-  Filename.dirname (realpath_or_original Sys.executable_name)
-
 let nonempty_environment name =
   match Sys.getenv_opt name with
   | Some path when not (String.is_empty (String.trim path)) -> Some path
@@ -28,7 +25,7 @@ let find_on_path name =
       let candidate = Filename.concat dir name in
       if is_executable_file candidate then Some candidate else None)
 
-(* The env var beats the bundled tool and PATH *)
+(* The env var beats PATH *)
 let find_tool environment name =
   match nonempty_environment environment with
   | Some path -> (
@@ -38,29 +35,7 @@ let find_tool environment name =
       match found with
       | Some path -> realpath_or_original path
       | None -> failwith (environment ^ " not found: " ^ path))
-  | None -> (
-      let dir = executable_dir () in
-      let toolchain = Filename.concat "toolchain" (Platform.host ()) in
-      let roots =
-        match nonempty_environment "RIPE_TOOLCHAIN" with
-        | Some root -> [ root ]
-        | None ->
-            [
-              Filename.concat (Sys.getcwd ())
-                (Filename.concat "vendor" toolchain);
-              Filename.concat dir (Filename.concat "../../../vendor" toolchain);
-              Filename.concat dir "..";
-              Filename.concat dir (Filename.concat "../lib/ripe" toolchain);
-              Filename.concat dir (Filename.concat "../share/ripe" toolchain);
-            ]
-      in
-      roots
-      |> List.map (fun root ->
-          Filename.concat root (Filename.concat "bin" name))
-      |> List.find_opt Sys.file_exists
-      |> function
-      | Some path -> realpath_or_original path
-      | None -> Option.value (find_on_path name) ~default:name)
+  | None -> Option.value (find_on_path name) ~default:name
 
 let qbe () = find_tool "QBE" "qbe"
 let assembler () = find_tool "RIPE_AS" "as"
