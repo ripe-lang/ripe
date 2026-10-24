@@ -46,5 +46,6 @@ jobs:
         with:
           context: .
           file: ci/Dockerfile
+          pull: true
           push: true
           tags: ghcr.io/${{ github.repository }}/ci:${{ steps.tag.outputs.tag }}
