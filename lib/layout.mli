@@ -12,9 +12,9 @@ val has_payload : t -> ty -> bool
 val named_aggregate : t -> ty -> Keyname.t option
 val is_aggregate : t -> ty -> bool
 val variants : t -> Symbol.key -> ty iarray iarray
-val field_ty : t -> Keyname.t -> int -> int -> ty
-val field_offset : t -> Keyname.t -> int -> int -> int
+val field_ty : t -> Keyname.t -> variant:int -> field:int -> ty
+val field_offset : t -> Keyname.t -> variant:int -> field:int -> int
 val ty_size : t -> ty -> int
 val ty_align : t -> ty -> int
 val stride : t -> ty -> int
-val align_to : int -> int -> int
+val align_to : int -> align:int -> int

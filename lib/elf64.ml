@@ -206,7 +206,7 @@ let place sections =
   let step (placed, at) section =
     let at =
       (* An alignment of zero or one needs no padding *)
-      if section.align > 1 then Layout.align_to at section.align else at
+      if section.align > 1 then Layout.align_to at ~align:section.align else at
     in
     ((section, at) :: placed, at + String.length section.data)
   in
@@ -239,7 +239,7 @@ let object_file text globals =
 
   let placed, ending = place sections in
 
-  let shoff = Layout.align_to ending 8 in
+  let shoff = Layout.align_to ending ~align:8 in
 
   let buffer =
     Buffer.create (shoff + (section_header_size * List.length sections))
