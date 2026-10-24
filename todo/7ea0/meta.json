@@ -8,6 +8,6 @@
   "source": "lib/ast.ml",
   "status": "open",
   "tags": [],
-  "title": "no ranges, alternatives or destructuring",
-  "updated_at": "2026-10-02 13:24:09.010893"
+  "title": "ranges and alternatives are not built yet",
+  "updated_at": "2026-10-24 04:02:43.045640"
 }

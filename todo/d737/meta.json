@@ -5,9 +5,9 @@
   "depends": [],
   "id": "d737",
   "priority": "low",
-  "source": "lib/ast.ml",
+  "source": "lib/sema.ml",
   "status": "open",
   "tags": [],
   "title": "a variant carries no explicit value",
-  "updated_at": "2026-10-19 17:28:26.080025"
+  "updated_at": "2026-10-24 04:02:43.047259"
 }

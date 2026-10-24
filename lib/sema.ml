@@ -167,7 +167,7 @@ let item_of_decl (Bind b) =
       let written = List.map variant variants in
       AdtItem { decl = b; kind = Enum; written; info = ref Unstarted }
   | CompileTime, Some value ->
-      (* TODO: a :: of a plain value like N :: 5 needs const eval *)
+      (* TODO(4a55): a :: of a plain value like N :: 5 needs const eval *)
       AliasItem { decl = b; body = value; aliased = ref Unstarted }
   | CompileTime, None ->
       Diagnostic.ice ~span:b.bind_span "compile time binding has no value"
@@ -491,7 +491,7 @@ let check_float_lit ?cause e want target value =
       Diagnostic.emit (type_mismatch ?cause e.espan want (TFloat F64));
       mk e.espan (TFloat F64) (TFloatLit value)
 
-(* TODO: a module path like math.add should call directly too *)
+(* TODO(60c5): a module path like math.add should call directly too *)
 let direct_callee env callee =
   match callee.edesc with
   | Ident _ ->
@@ -2094,7 +2094,7 @@ and eval_array_size env e =
   let shown n =
     if is_unsigned te.ty then Printf.sprintf "%Lu" n else Int64.to_string n
   in
-  (* TODO: an array size only takes a literal until const eval lands *)
+  (* TODO(e0a4): an array size only takes a literal until const eval lands *)
   let size =
     match te.tdesc with
     | _ when not (is_integer te.ty) ->
