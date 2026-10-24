@@ -8,7 +8,7 @@ USER root
 ENV OPAMROOT=/home/opam/.opam
 ENV OPAMROOTISOK=1
 
-RUN apt-get update -y && apt-get install -y nodejs python3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y nodejs python3 qbe && rm -rf /var/lib/apt/lists/*
 
 RUN ln -f /usr/bin/opam-2.6 /usr/bin/opam && opam init --reinit -ni
 
