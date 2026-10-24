@@ -13,5 +13,3 @@ Copyrights in the Ripe project are retained by their contributors. No copyright 
 ## Third-party software
 
 Ripe vendors the following:
-
-* QBE (vendor/qbe/), Copyright (c) 2015-2019 Quentin Carbonneaux, MIT license <LICENSE-MIT>.
