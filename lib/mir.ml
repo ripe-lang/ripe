@@ -62,7 +62,7 @@ and value_desc =
   | DataPtr of place
   | SizeOf of ty
 
-(* TODO(b597): This needs one value for a whole aggregate *)
+(* TODO(b597): A whole aggregate value would avoid assigning every field on its own *)
 
 type call_kind = Internal | External
 type callee = Direct of string | Indirect of operand
@@ -454,7 +454,7 @@ and lower_if state destination expr branches else_body =
   lower_branches branches;
   switch state join
 
-(* This does one test per arm because a jump table only pays off on a dense range *)
+(* The arms stay in order because a jump table only pays off on a dense range *)
 (* %2 = copy %0 == 1
    branch copy %2 block3 block2
    block2:
@@ -486,7 +486,7 @@ and lower_match state destination expr scrutinee arms =
 (* %2 = copy %0.tag == 1
    branch copy %2 block3 block2
    block3:
-     %3 = copy %0.variant1_field0 *)
+     %3 = copy %0.variant1.field0 *)
 and lower_pattern state span subject ty tpat no =
   let test found value =
     let yes = new_block state in

@@ -8,11 +8,22 @@ let point = struct_ty 1 "Point"
 let other = struct_ty 2 "Other"
 let byte_ptr = TPointer (TInt I8)
 
+let show_compatible ~want ~got =
+  print_binary_pred "accepts" want got (Typred.compatible ~want ~got)
+
+let show_widening ~src ~tgt =
+  print_binary_pred "widens to" src tgt (Typred.widens_to ~src ~tgt)
+
+let show_cast ~src ~tgt =
+  print_binary_pred "casts to" src tgt (Typred.cast_ok ~src ~tgt)
+
 let operand_tys =
   [ TInt I32; TFloat F64; TBool; TChar; byte_ptr; TStr; point; TUnit ]
 
 let show_binop op name =
-  List.iter (pred name (Typred.binop_accepts op)) operand_tys;
+  List.iter
+    (fun ty -> print_unary_pred name ty (Typred.binop_accepts op ty))
+    operand_tys;
   print_newline ()
 
 (* The typed nodes are built by hand so an lvalue check needs no front end *)
@@ -39,13 +50,12 @@ let place what te =
     | None -> "none")
 
 let%expect_test "typred: a null fits any pointer but not the other way" =
-  let show = pred2 "accepts" Typred.compatible in
-  show byte_ptr TNull;
-  show TNull byte_ptr;
-  show TPtr TNull;
-  show TPtr byte_ptr;
-  show byte_ptr TPtr;
-  show (TInt I64) TNull;
+  show_compatible ~want:byte_ptr ~got:TNull;
+  show_compatible ~want:TNull ~got:byte_ptr;
+  show_compatible ~want:TPtr ~got:TNull;
+  show_compatible ~want:TPtr ~got:byte_ptr;
+  show_compatible ~want:byte_ptr ~got:TPtr;
+  show_compatible ~want:(TInt I64) ~got:TNull;
   [%expect
     {|
     *i8 accepts null = true
@@ -57,11 +67,10 @@ let%expect_test "typred: a null fits any pointer but not the other way" =
     |}]
 
 let%expect_test "typred: a cstr and a byte pointer stand in for each other" =
-  let show = pred2 "accepts" Typred.compatible in
-  show TCStr byte_ptr;
-  show byte_ptr TCStr;
-  show TCStr (TPointer (TInt U8));
-  show (TPointer byte_ptr) (TPointer TCStr);
+  show_compatible ~want:TCStr ~got:byte_ptr;
+  show_compatible ~want:byte_ptr ~got:TCStr;
+  show_compatible ~want:TCStr ~got:(TPointer (TInt U8));
+  show_compatible ~want:(TPointer byte_ptr) ~got:(TPointer TCStr);
   [%expect
     {|
     cstr accepts *i8 = true
@@ -71,10 +80,9 @@ let%expect_test "typred: a cstr and a byte pointer stand in for each other" =
     |}]
 
 let%expect_test "typred: never fits anywhere" =
-  let show = pred2 "accepts" Typred.compatible in
-  show (TInt I32) TNever;
-  show TNever (TInt I32);
-  show TStr TNever;
+  show_compatible ~want:(TInt I32) ~got:TNever;
+  show_compatible ~want:TNever ~got:(TInt I32);
+  show_compatible ~want:TStr ~got:TNever;
   [%expect
     {|
     i32 accepts never = true
@@ -83,10 +91,9 @@ let%expect_test "typred: never fits anywhere" =
     |}]
 
 let%expect_test "typred: an error type swallows any mismatch" =
-  let show = pred2 "accepts" Typred.compatible in
-  show TError (TInt I32);
-  show (TInt I32) TError;
-  show (TPointer TError) (TPointer TStr);
+  show_compatible ~want:TError ~got:(TInt I32);
+  show_compatible ~want:(TInt I32) ~got:TError;
+  show_compatible ~want:(TPointer TError) ~got:(TPointer TStr);
   [%expect
     {|
     <unknown type> accepts i32 = true
@@ -95,11 +102,10 @@ let%expect_test "typred: an error type swallows any mismatch" =
     |}]
 
 let%expect_test "typred: a pointer needs the same pointee" =
-  let show = pred2 "accepts" Typred.compatible in
-  show byte_ptr (TPointer (TInt I8));
-  show byte_ptr (TPointer (TInt I32));
-  show (TPointer point) (TPointer point);
-  show (TPointer point) (TPointer other);
+  show_compatible ~want:byte_ptr ~got:(TPointer (TInt I8));
+  show_compatible ~want:byte_ptr ~got:(TPointer (TInt I32));
+  show_compatible ~want:(TPointer point) ~got:(TPointer point);
+  show_compatible ~want:(TPointer point) ~got:(TPointer other);
   [%expect
     {|
     *i8 accepts *i8 = true
@@ -109,12 +115,11 @@ let%expect_test "typred: a pointer needs the same pointee" =
     |}]
 
 let%expect_test "typred: a slice takes an array of the same element" =
-  let show = pred2 "accepts" Typred.compatible in
-  show (TSlice (TInt I32)) (TArray (TInt I32, 4));
-  show (TSlice (TInt I32)) (TArray (TInt I8, 4));
-  show (TSlice (TInt I32)) (TSlice (TInt I32));
-  show (TArray (TInt I32, 4)) (TSlice (TInt I32));
-  show (TArray (TInt I32, 4)) (TArray (TInt I32, 5));
+  show_compatible ~want:(TSlice (TInt I32)) ~got:(TArray (TInt I32, 4));
+  show_compatible ~want:(TSlice (TInt I32)) ~got:(TArray (TInt I8, 4));
+  show_compatible ~want:(TSlice (TInt I32)) ~got:(TSlice (TInt I32));
+  show_compatible ~want:(TArray (TInt I32, 4)) ~got:(TSlice (TInt I32));
+  show_compatible ~want:(TArray (TInt I32, 4)) ~got:(TArray (TInt I32, 5));
   [%expect
     {|
     []i32 accepts [4]i32 = true
@@ -126,21 +131,21 @@ let%expect_test "typred: a slice takes an array of the same element" =
 
 let%expect_test "typred: a fn matches on abi, params and result" =
   let f abi ps r = func_ty ps r abi Fixed in
-  let show a b =
+  let show ~want ~got =
     let spell t =
       match t with
       | TFunc { sig_abi = abi; _ } ->
           Printf.sprintf "%s %s" (show_func_abi abi) (show_ty t)
       | t -> show_ty t
     in
-    Printf.printf "%s accepts %s = %b\n" (spell a) (spell b)
-      (Typred.compatible a b)
+    Printf.printf "%s accepts %s = %b\n" (spell want) (spell got)
+      (Typred.compatible ~want ~got)
   in
-  show (f Ripe [ TInt I32 ] TUnit) (f Ripe [ TInt I32 ] TUnit);
-  show (f Ripe [ TInt I32 ] TUnit) (f C [ TInt I32 ] TUnit);
-  show (f Ripe [ TInt I32 ] TUnit) (f AbiError [ TInt I32 ] TUnit);
-  show (f Ripe [ TInt I32 ] TUnit) (f Ripe [] TUnit);
-  show (f Ripe [] (TInt I32)) (f Ripe [] (TInt I64));
+  show ~want:(f Ripe [ TInt I32 ] TUnit) ~got:(f Ripe [ TInt I32 ] TUnit);
+  show ~want:(f Ripe [ TInt I32 ] TUnit) ~got:(f C [ TInt I32 ] TUnit);
+  show ~want:(f Ripe [ TInt I32 ] TUnit) ~got:(f AbiError [ TInt I32 ] TUnit);
+  show ~want:(f Ripe [ TInt I32 ] TUnit) ~got:(f Ripe [] TUnit);
+  show ~want:(f Ripe [] (TInt I32)) ~got:(f Ripe [] (TInt I64));
   [%expect
     {|
     Ripe (i32) -> () accepts Ripe (i32) -> () = true
@@ -151,11 +156,10 @@ let%expect_test "typred: a fn matches on abi, params and result" =
     |}]
 
 let%expect_test "typred: an alias is the type behind it" =
-  let show = pred2 "accepts" Typred.compatible in
   let word = TAlias (keyname 3 "Word", TInt I64) in
-  show word (TInt I64);
-  show (TInt I64) word;
-  show word (TInt I32);
+  show_compatible ~want:word ~got:(TInt I64);
+  show_compatible ~want:(TInt I64) ~got:word;
+  show_compatible ~want:word ~got:(TInt I32);
   [%expect
     {|
     Word accepts i64 = true
@@ -164,16 +168,15 @@ let%expect_test "typred: an alias is the type behind it" =
     |}]
 
 let%expect_test "typred: widening keeps the sign it started with" =
-  let show = pred2 "widens to" Typred.widens_to in
-  show (TInt I8) (TInt I32);
-  show (TInt I32) (TInt I8);
-  show (TInt I32) (TInt I32);
-  show (TInt U8) (TInt U32);
-  show (TInt U8) (TInt I32);
-  show (TInt I8) (TInt U32);
-  show (TFloat F32) (TFloat F64);
-  show (TFloat F64) (TFloat F32);
-  show (TInt I32) (TFloat F64);
+  show_widening ~src:(TInt I8) ~tgt:(TInt I32);
+  show_widening ~src:(TInt I32) ~tgt:(TInt I8);
+  show_widening ~src:(TInt I32) ~tgt:(TInt I32);
+  show_widening ~src:(TInt U8) ~tgt:(TInt U32);
+  show_widening ~src:(TInt U8) ~tgt:(TInt I32);
+  show_widening ~src:(TInt I8) ~tgt:(TInt U32);
+  show_widening ~src:(TFloat F32) ~tgt:(TFloat F64);
+  show_widening ~src:(TFloat F64) ~tgt:(TFloat F32);
+  show_widening ~src:(TInt I32) ~tgt:(TFloat F64);
   [%expect
     {|
     i8 widens to i32 = true
@@ -188,11 +191,10 @@ let%expect_test "typred: widening keeps the sign it started with" =
     |}]
 
 let%expect_test "typred: usize and i64 are the same width so neither widens" =
-  let show = pred2 "widens to" Typred.widens_to in
-  show (TInt I64) (TInt Usize);
-  show (TInt Usize) (TInt I64);
-  show (TInt I32) (TInt Usize);
-  show (TInt U32) (TInt Isize);
+  show_widening ~src:(TInt I64) ~tgt:(TInt Usize);
+  show_widening ~src:(TInt Usize) ~tgt:(TInt I64);
+  show_widening ~src:(TInt I32) ~tgt:(TInt Usize);
+  show_widening ~src:(TInt U32) ~tgt:(TInt Isize);
   [%expect
     {|
     i64 widens to usize = false
@@ -229,10 +231,9 @@ let%expect_test "typred: a mixed sign pair climbs to the next signed width" =
     |}]
 
 let%expect_test "typred: only a bool casts to a bool" =
-  let show = pred2 "casts to" Typred.cast_ok in
-  show TBool TBool;
-  show (TInt I32) TBool;
-  show TBool (TInt I32);
+  show_cast ~src:TBool ~tgt:TBool;
+  show_cast ~src:(TInt I32) ~tgt:TBool;
+  show_cast ~src:TBool ~tgt:(TInt I32);
   [%expect
     {|
     bool casts to bool = true
@@ -241,12 +242,11 @@ let%expect_test "typred: only a bool casts to a bool" =
     |}]
 
 let%expect_test "typred: a char only crosses to an integer" =
-  let show = pred2 "casts to" Typred.cast_ok in
-  show TChar TChar;
-  show TChar (TInt I32);
-  show (TInt I32) TChar;
-  show TChar (TFloat F64);
-  show TChar byte_ptr;
+  show_cast ~src:TChar ~tgt:TChar;
+  show_cast ~src:TChar ~tgt:(TInt I32);
+  show_cast ~src:(TInt I32) ~tgt:TChar;
+  show_cast ~src:TChar ~tgt:(TFloat F64);
+  show_cast ~src:TChar ~tgt:byte_ptr;
   [%expect
     {|
     char casts to char = true
@@ -257,13 +257,12 @@ let%expect_test "typred: a char only crosses to an integer" =
     |}]
 
 let%expect_test "typred: a pointer crosses to a number but never to a float" =
-  let show = pred2 "casts to" Typred.cast_ok in
-  show (TInt I32) (TFloat F64);
-  show (TFloat F64) (TInt I64);
-  show byte_ptr TPtr;
-  show byte_ptr (TInt I64);
-  show (TInt I64) byte_ptr;
-  show (TFloat F64) byte_ptr;
+  show_cast ~src:(TInt I32) ~tgt:(TFloat F64);
+  show_cast ~src:(TFloat F64) ~tgt:(TInt I64);
+  show_cast ~src:byte_ptr ~tgt:TPtr;
+  show_cast ~src:byte_ptr ~tgt:(TInt I64);
+  show_cast ~src:(TInt I64) ~tgt:byte_ptr;
+  show_cast ~src:(TFloat F64) ~tgt:byte_ptr;
   [%expect
     {|
     i32 casts to f64 = true
@@ -275,13 +274,12 @@ let%expect_test "typred: a pointer crosses to a number but never to a float" =
     |}]
 
 let%expect_test "typred: an aggregate only casts to itself" =
-  let show = pred2 "casts to" Typred.cast_ok in
-  show point point;
-  show point other;
-  show TStr (TSlice (TInt U8));
-  show (TArray (TInt I32, 2)) (TSlice (TInt I32));
-  show (TPointer TError) (TInt I32);
-  show (TInt I32) (TArray (TError, 2));
+  show_cast ~src:point ~tgt:point;
+  show_cast ~src:point ~tgt:other;
+  show_cast ~src:TStr ~tgt:(TSlice (TInt U8));
+  show_cast ~src:(TArray (TInt I32, 2)) ~tgt:(TSlice (TInt I32));
+  show_cast ~src:(TPointer TError) ~tgt:(TInt I32);
+  show_cast ~src:(TInt I32) ~tgt:(TArray (TError, 2));
   [%expect
     {|
     Point casts to Point = true
@@ -293,16 +291,15 @@ let%expect_test "typred: an aggregate only casts to itself" =
     |}]
 
 let%expect_test "typred: an address needs an integer wide enough to hold it" =
-  let show = pred2 "casts to" Typred.cast_ok in
-  show (TInt I64) byte_ptr;
-  show byte_ptr (TInt I64);
-  show (TInt I32) byte_ptr;
-  show (TInt Usize) TPtr;
-  show TPtr byte_ptr;
-  show byte_ptr (TFloat F64);
-  show byte_ptr TBool;
-  show byte_ptr TChar;
-  show point byte_ptr;
+  show_cast ~src:(TInt I64) ~tgt:byte_ptr;
+  show_cast ~src:byte_ptr ~tgt:(TInt I64);
+  show_cast ~src:(TInt I32) ~tgt:byte_ptr;
+  show_cast ~src:(TInt Usize) ~tgt:TPtr;
+  show_cast ~src:TPtr ~tgt:byte_ptr;
+  show_cast ~src:byte_ptr ~tgt:(TFloat F64);
+  show_cast ~src:byte_ptr ~tgt:TBool;
+  show_cast ~src:byte_ptr ~tgt:TChar;
+  show_cast ~src:point ~tgt:byte_ptr;
   [%expect
     {|
     i64 casts to *i8 = true
@@ -387,7 +384,9 @@ let%expect_test "typred: equality reaches further than ordering" =
 let%expect_test "typred: negation takes numbers and bitnot takes integers" =
   let tys = [ TInt I32; TFloat F64; TBool; TChar; byte_ptr ] in
   let show op name =
-    List.iter (pred name (Typred.unop_accepts op)) tys;
+    List.iter
+      (fun ty -> print_unary_pred name ty (Typred.unop_accepts op ty))
+      tys;
     print_newline ()
   in
   show Ast.Neg "neg";
@@ -437,7 +436,7 @@ let%expect_test "typred: an unknown suffix falls back to the default kind" =
     |}]
 
 let%expect_test "typred: only integers and errors count as integer" =
-  let show = pred "integer" Typred.is_integer in
+  let show ty = print_unary_pred "integer" ty (Typred.is_integer ty) in
   show (TInt I8);
   show (TInt Usize);
   show TError;

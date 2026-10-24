@@ -134,7 +134,7 @@ and path = { owner : name spanned Nonempty.t; member : name spanned }
 and arm = { pat : pattern; arm_body : block spanned; arm_span : span }
 and pattern = { pdesc : pattern_desc; pspan : span }
 
-(* TODO(7ea0): no ranges, alternatives or destructuring *)
+(* TODO(7ea0): ranges and alternatives are not built yet *)
 and pattern_desc =
   | PatValue of expr
   | PatWild
@@ -180,7 +180,7 @@ type decl = Bind of binding [@@deriving show { with_path = false }]
 let path_expr p =
   let first = (Nonempty.hd p.owner).span in
   let last = p.member.span in
-  { edesc = Path p; espan = Span.make (Span.lo first) (Span.hi last) }
+  { edesc = Path p; espan = Span.make ~lo:(Span.lo first) ~hi:(Span.hi last) }
 
 let owner_expr p =
   match Nonempty.destruct_last p.owner with

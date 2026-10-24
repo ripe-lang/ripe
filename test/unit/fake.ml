@@ -28,8 +28,9 @@ let hex s =
   |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
   |> List.of_seq |> String.concat " "
 
-let pred name f t = Printf.printf "%s %s = %b\n" name (Types.show_ty t) (f t)
+let print_unary_pred name t result =
+  Printf.printf "%s %s = %b\n" name (Types.show_ty t) result
 
-let pred2 name f a b =
+let print_binary_pred name a b result =
   Printf.printf "%s %s %s = %b\n" (Types.show_ty a) name (Types.show_ty b)
-    (f a b)
+    result

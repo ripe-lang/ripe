@@ -51,7 +51,7 @@ let%expect_test "types: resolving walks down a chain of aliases" =
     |}]
 
 let%expect_test "types: an alias equals the type behind it" =
-  let show = pred2 "equals" ty_equal in
+  let show a b = print_binary_pred "equals" a b (ty_equal a b) in
   show word (TInt I64);
   show (TPointer word) (TPointer (TInt I64));
   show word (TInt I32);
@@ -87,7 +87,7 @@ let%expect_test "types: an alias equals the type behind it" =
     |}]
 
 let%expect_test "types: an error anywhere inside makes the type an error" =
-  let show = pred "has_error" has_error in
+  let show ty = print_unary_pred "has_error" ty (has_error ty) in
   show TError;
   show (TPointer TError);
   show (TArray (TError, 2));
@@ -112,8 +112,8 @@ let%expect_test "types: an error anywhere inside makes the type an error" =
 
 let%expect_test "types: only some kinds are unsigned or float" =
   let tys = [ TInt I32; TInt U32; TInt Isize; TInt Usize; TFloat F64; word ] in
-  List.iter (pred "unsigned" is_unsigned) tys;
-  List.iter (pred "float" is_float) tys;
+  List.iter (fun ty -> print_unary_pred "unsigned" ty (is_unsigned ty)) tys;
+  List.iter (fun ty -> print_unary_pred "float" ty (is_float ty)) tys;
   [%expect
     {|
     unsigned i32 = false
@@ -146,7 +146,7 @@ let%expect_test "types: a wide value takes the full eight bytes" =
       word;
     ]
   in
-  List.iter (pred "wide" is_wide) tys;
+  List.iter (fun ty -> print_unary_pred "wide" ty (is_wide ty)) tys;
   [%expect
     {|
     wide i32 = false
@@ -166,7 +166,9 @@ let%expect_test "types: a narrow signed divide needs the overflow check" =
   let tys =
     [ TInt I8; TInt I16; TInt I32; TInt I64; TInt Isize; TInt U32; TInt U64 ]
   in
-  List.iter (pred "checked divide" div_int_needs_check) tys;
+  List.iter
+    (fun ty -> print_unary_pred "checked divide" ty (div_int_needs_check ty))
+    tys;
   [%expect
     {|
     checked divide i8 = false

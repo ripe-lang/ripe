@@ -43,13 +43,17 @@ let use_color () =
   | _ -> Unix.isatty Unix.stderr
 
 let die msg =
-  let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
+  let label =
+    Diagnostic.severity_label ~color:(use_color ()) Diagnostic.Error
+  in
   Printf.eprintf "%s: %s\n" label msg;
   exit 2
 
 let run cmd =
   if Sys.command cmd <> 0 then begin
-    let label = Diagnostic.severity_label (use_color ()) Diagnostic.Error in
+    let label =
+      Diagnostic.severity_label ~color:(use_color ()) Diagnostic.Error
+    in
     Printf.eprintf "%s: command failed: %s\n" label cmd;
     exit 1
   end

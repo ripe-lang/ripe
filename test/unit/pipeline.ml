@@ -15,7 +15,6 @@ let resolve_src src =
   let decls, uses = front_src src in
   (decls, fst (Diag.finish uses))
 
-(* the front of the pipeline every runner shares *)
 let check_src src =
   let decls, uses = front_src src in
   Diag.finish (Ripe.Sema.analyze uses decls)
@@ -28,7 +27,7 @@ let mir_src src =
 
 let emit_src src = Ripe.Codegenqbe.emit (mir_src src)
 
-(* feed the il through qbe so malformed output fails the test *)
+(* The il goes through qbe so malformed output fails the test *)
 let check_qbe il =
   let ssa = Filename.temp_file "ripe_test" ".ssa" in
   let err = Filename.temp_file "ripe_test" ".err" in
@@ -70,7 +69,7 @@ let only_func_body src =
       | _ -> None)
   | _ -> None
 
-(* wrap src in `return ...` so callers can write bare expressions *)
+(* This wraps src in `return ...` so callers can write bare expressions *)
 let parse_expr src =
   let wrapped = "_f :: fn() { return " ^ src ^ " };" in
   try

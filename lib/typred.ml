@@ -4,21 +4,23 @@ open Ast
 open Types
 
 (* A type needs exact equality but NULL works with any pointer *)
-let rec compatible want got =
+let rec compatible ~want ~got =
   match (resolve_ty want, resolve_ty got) with
   | a, b when has_error a || has_error b -> true
   | _, TNever -> true
   | (TPointer _ | TPtr), TNull -> true
   | TCStr, TPointer (TInt I8) | TPointer (TInt I8), TCStr -> true
   | TPointer a, TPointer b -> ty_equal a b
-  | TSlice a, TArray (b, _) -> compatible a b
-  | TSlice a, TSlice b -> compatible a b
+  | TSlice a, TArray (b, _) -> compatible ~want:a ~got:b
+  | TSlice a, TSlice b -> compatible ~want:a ~got:b
   | TFunc f, TFunc g ->
       (f.sig_abi = g.sig_abi || f.sig_abi = AbiError || g.sig_abi = AbiError)
       && f.sig_arity = g.sig_arity
       && List.compare_lengths f.sig_params g.sig_params = 0
-      && List.for_all2 compatible f.sig_params g.sig_params
-      && compatible f.sig_ret g.sig_ret
+      && List.for_all2
+           (fun want got -> compatible ~want ~got)
+           f.sig_params g.sig_params
+      && compatible ~want:f.sig_ret ~got:g.sig_ret
   | TAdt (n1, a1), TAdt (n2, a2) ->
       n1 = n2 && List.compare_lengths a1 a2 = 0 && List.for_all2 ty_equal a1 a2
   | _, _ -> ty_equal want got
@@ -93,7 +95,7 @@ let rec is_num_lit e =
   | UnOp (Neg, operand) -> is_num_lit operand
   | _ -> false
 
-let widens_to src tgt =
+let widens_to ~src ~tgt =
   match (resolve_ty src, resolve_ty tgt) with
   | TInt src_kind, TInt tgt_kind ->
       int_kind_size src_kind < int_kind_size tgt_kind
@@ -109,8 +111,8 @@ let signed_ty_above = function
 
 let common_numeric_ty left right =
   if ty_equal left right then Some left
-  else if widens_to left right then Some right
-  else if widens_to right left then Some left
+  else if widens_to ~src:left ~tgt:right then Some right
+  else if widens_to ~src:right ~tgt:left then Some left
   else
     match (resolve_ty left, resolve_ty right) with
     | TInt left_kind, TInt right_kind when is_unsigned left <> is_unsigned right
@@ -137,7 +139,7 @@ let cast_class t =
 let holds_address t = match resolve_ty t with TInt _ -> is_wide t | _ -> false
 
 (* A pointer bit pattern is not a float and an aggregate only casts to itself *)
-let cast_ok src tgt =
+let cast_ok ~src ~tgt =
   let cast_classes_ok () =
     match (cast_class src, cast_class tgt) with
     | Aggregate, _ | _, Aggregate -> ty_equal src tgt

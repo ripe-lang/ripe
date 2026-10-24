@@ -2,7 +2,7 @@
 
 type t
 
-val make : int -> int -> t
+val make : lo:int -> hi:int -> t
 val lo : t -> int
 val hi : t -> int
 val pp : Format.formatter -> t -> unit

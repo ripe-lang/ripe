@@ -7,10 +7,10 @@ let substring_offset src sub =
 
 let span src sub =
   let lo = substring_offset src sub in
-  Ripe.Span.make lo (lo + String.length sub)
+  Ripe.Span.make ~lo ~hi:(lo + String.length sub)
 
 let point src sub =
   let offset = substring_offset src sub in
-  Ripe.Span.make offset offset
+  Ripe.Span.make ~lo:offset ~hi:offset
 
 let replace s old rep = String.replace_all ~sub:old ~by:rep s

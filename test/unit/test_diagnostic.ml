@@ -194,8 +194,8 @@ let%expect_test "an ice raises instead of returning" =
 let%expect_test "the severity word gains color only when asked" =
   let show sev =
     Printf.printf "%S %S\n"
-      (Diagnostic.severity_label false sev)
-      (Diagnostic.severity_label true sev)
+      (Diagnostic.severity_label ~color:false sev)
+      (Diagnostic.severity_label ~color:true sev)
   in
   show Diagnostic.Error;
   show Diagnostic.Warning;

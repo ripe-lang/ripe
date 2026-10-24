@@ -12,10 +12,10 @@ let max_offset = offset_mask - 1
 
 (* The start packs above the length so a span stays out of the heap and two of
    them compare on where they start *)
-let make lo hi = ((lo + 1) lsl offset_bits) lor (hi - lo)
+let make ~lo ~hi = ((lo + 1) lsl offset_bits) lor (hi - lo)
 let lo t = (t lsr offset_bits) - 1
 let hi t = lo t + (t land offset_mask)
-let dummy = make (-1) (-1)
+let dummy = make ~lo:(-1) ~hi:(-1)
 let pp fmt t = Format.fprintf fmt "(%d,%d)" (lo t) (hi t)
 let show t = Format.asprintf "%a" pp t
 

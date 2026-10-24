@@ -31,7 +31,7 @@ let scalar_letter = function
 
 type qbe_base = W | L | S | D
 
-(* QBE doesn't have sub word reg so a byte and a half word both live in a w *)
+(* A QBE reg has no sub word form so a byte and a half word both live in a w *)
 let qbe_base layouts t : qbe_base =
   match qbe_scalar layouts t with B | H | W -> W | L -> L | S -> S | D -> D
 
@@ -45,7 +45,6 @@ let signedness t =
 
 let max_inline_mem_bytes = 64
 
-(* s_ for single, d_ for double *)
 let float_lit ty f =
   let prefix, digits =
     match resolve_ty ty with
@@ -654,7 +653,7 @@ let qbe_call_ty ctx kind ty =
   | Mir.External when Layout.is_aggregate ctx.layouts ty -> qbe_abi_ty ctx ty
   | _ -> qbe_ty ctx.layouts ty
 
-(* C hands an aggregate over by value so QBE has to see the layout *)
+(* A C caller hands an aggregate over by value so QBE has to see the layout *)
 let qbe_param_ty ctx abi ty =
   if abi = C && Layout.is_aggregate ctx.layouts ty then qbe_abi_ty ctx ty
   else qbe_ty ctx.layouts ty
