@@ -1,0 +1,13 @@
+{
+  "assignee": "",
+  "blocks": [],
+  "created_at": "2026-10-24 04:02:43.041904",
+  "depends": [],
+  "id": "e0a4",
+  "priority": "low",
+  "source": "lib/sema.ml",
+  "status": "open",
+  "tags": [],
+  "title": "an array size only takes a literal until const eval lands",
+  "updated_at": "2026-10-24 04:02:43.041904"
+}

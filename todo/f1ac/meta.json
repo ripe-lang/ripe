@@ -5,9 +5,9 @@
   "depends": [],
   "id": "f1ac",
   "priority": "low",
-  "source": "lib/ast.ml",
+  "source": "lib/layout.ml",
   "status": "open",
   "tags": [],
-  "title": "every enum is an i32 and flags don't exist",
-  "updated_at": "2026-08-24 02:40:23.205744"
+  "title": "unit only enums are still fixed ints and flags don't exist",
+  "updated_at": "2026-10-24 04:02:43.047376"
 }
