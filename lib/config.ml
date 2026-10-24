@@ -37,7 +37,7 @@ let find_tool environment name =
       | None -> failwith (environment ^ " not found: " ^ path))
   | None -> Option.value (find_on_path name) ~default:name
 
-let qbe () = find_tool "QBE" "qbe"
+let qbe () = "qbe"
 let assembler () = find_tool "RIPE_AS" "as"
 let linker () = find_tool "RIPE_CC" "cc"
 
