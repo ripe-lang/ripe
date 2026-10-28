@@ -1,0 +1,25 @@
+name: Set up ripe
+description: Install qbe, OCaml and the locked opam dependencies
+
+outputs:
+  cache-hit:
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-key:
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: sudo apt-get update && sudo apt-get install --yes qbe
+    - uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: "5.5.2"
+    - id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: _opam
+        key: opam-${{ runner.os }}-${{ hashFiles('ripe.opam.locked') }}
+        restore-keys: opam-${{ runner.os }}-
+    - shell: bash
+      run: opam install . --deps-only --locked --with-test --with-dev-setup --yes
