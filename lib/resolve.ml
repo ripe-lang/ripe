@@ -131,8 +131,6 @@ let declare_local st kind name span =
       Names.replace st.scope.names name
         (mint st kind name span (Interner.text name) span)
 
-let decl_link_name name = "_R" ^ string_of_int (String.length name) ^ name
-
 let declare_in table st kind ident span link_name =
   match Names.find_opt table ident.value with
   | Some prev ->
@@ -157,8 +155,7 @@ let declare_local_bound st b =
       declare_in st.scope.names st Symbol.LocalFunc b.bind_name b.bind_span
         link_name
   | Some _ | None ->
-      declare_in st.scope.names st Symbol.LocalType b.bind_name b.bind_span
-        (decl_link_name text)
+      declare_in st.scope.names st Symbol.LocalType b.bind_name b.bind_span text
   end;
   st.out.local_decls <- Bind b :: st.out.local_decls
 
@@ -356,19 +353,14 @@ and resolve_lambda st l =
 (* A top level name lands first so a body can forward reference *)
 let declare_decl st (Bind b) =
   let name = b.bind_name and span = b.bind_span in
-  let text = Interner.text name.value in
-  let mangled = decl_link_name text in
-  match (b.binder, bind_value b) with
-  | RunTime, _ -> declare_in st.top.names st Symbol.Global name span mangled
-  | CompileTime, Some { edesc = Lambda { lambda_abi = NamedAbi _; _ }; _ } ->
-      (* An export is there for C to call so it keeps its own name *)
-      declare_in st.top.names st Symbol.Func name span text
-  | CompileTime, Some { edesc = Extern _; _ } ->
-      declare_in st.top.names st Symbol.Extern name span text
-  | CompileTime, Some { edesc = Lambda _; _ } ->
-      declare_in st.top.names st Symbol.Func name span mangled
-  | CompileTime, (Some _ | None) ->
-      declare_in st.top.names st Symbol.Type name span mangled
+  let kind =
+    match (b.binder, bind_value b) with
+    | RunTime, _ -> Symbol.Global
+    | CompileTime, Some { edesc = Extern _; _ } -> Symbol.Extern
+    | CompileTime, Some { edesc = Lambda _; _ } -> Symbol.Func
+    | CompileTime, (Some _ | None) -> Symbol.Type
+  in
+  declare_in st.top.names st kind name span (Interner.text name.value)
 
 let resolve decls =
   let out = make_output () in

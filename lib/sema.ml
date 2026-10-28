@@ -2220,7 +2220,7 @@ and check_func env fd =
   in
   let params = List.map (fun (_, t, span) -> (sym env span, t)) params_typed in
 
-  (* The wrapper only knows how to turn nothing or an i32 into an exit code *)
+  (* Codegen only knows how to turn nothing or an i32 into an exit code *)
   let invalid_entry_return =
     match resolve_ty ret_ty with
     | TError | TUnit | TInt I32 -> false

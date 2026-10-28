@@ -724,6 +724,7 @@ let emit_mir_terminator mctx terminator =
   | Mir.ReturnValue None -> (
       match c_result_slot ctx mctx.func mctx.bindings with
       | Some slot -> emit ctx "ret %s\n" slot
+      | None when mctx.func.Mir.func_entry_point -> put ctx "ret 0\n"
       | None -> put ctx "ret\n")
   | Mir.ReturnValue (Some returned) ->
       let returned = emit_mir_operand mctx returned in
@@ -820,14 +821,16 @@ let emit_mir_func ctx global_types func =
         params
   in
   let return_text =
-    if
+    (* The C runtime wants an int from main even if ripe's main gives nothing *)
+    if func.Mir.func_entry_point then "w "
+    else if
       is_unit func.Mir.func_ret || is_never func.Mir.func_ret
       || Option.is_some result_tmp
     then ""
     else qbe_abi_ty ctx func.Mir.func_ret ^ " "
   in
   emit ctx "%sfunction %s$%s(%s) {\n"
-    (if func.Mir.func_export then "export " else "")
+    (if func.Mir.func_export || func.Mir.func_entry_point then "export " else "")
     return_text func.Mir.func_name
     (String.concat ", " params_text);
   emit_label ctx "@start";
@@ -861,21 +864,6 @@ let emit_mir_func ctx global_types func =
       | Some terminator -> emit_mir_terminator mctx terminator
       | None -> Diagnostic.ice "unterminated verified MIR block")
     func.Mir.func_blocks;
-  emit ctx "}\n\n"
-
-(* The C runtime wants an int from main even if ripe's main gives nothing *)
-let emit_entry_wrapper ctx func =
-  emit ctx "export function w $main() {\n";
-  emit_label ctx "@start";
-  if resolve_ty func.Mir.func_ret = TInt I32 then begin
-    let code = fresh ctx in
-    emit ctx "%s =w call $%s()\n" code func.Mir.func_name;
-    emit ctx "ret %s\n" code
-  end
-  else begin
-    emit ctx "call $%s()\n" func.Mir.func_name;
-    emit ctx "ret 0\n"
-  end;
   emit ctx "}\n\n"
 
 let rec emit_mir_global_fields ctx expected = function
@@ -1001,8 +989,6 @@ let emit program =
   List.iter (emit_mir_global ctx) program.Mir.prog_globals;
   if not (List.is_empty program.Mir.prog_globals) then emit ctx "\n";
   List.iter (emit_mir_func ctx global_types) program.Mir.prog_funcs;
-  List.find_opt (fun func -> func.Mir.func_entry_point) program.Mir.prog_funcs
-  |> Option.iter (emit_entry_wrapper ctx);
   List.iter
     (fun (label, content) -> emit_string_data ctx label content)
     (List.rev ctx.strings);
