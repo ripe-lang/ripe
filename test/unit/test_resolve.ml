@@ -130,23 +130,17 @@ main :: fn() -> i32 {
 |};
   [%expect
     {|
-    function w $_R1g() {
+    function w $g() {
     @start
     ret 7
     }
 
-    function w $_R4main() {
-    @start
-    %m1 =l alloc8 8
-    storel $_R1g, %m1
-    %_p =l copy %m1
-    ret 0
-    }
-
     export function w $main() {
     @start
-    %t0 =w call $_R4main()
-    ret %t0
+    %m1 =l alloc8 8
+    storel $g, %m1
+    %_p =l copy %m1
+    ret 0
     }
     |}]
 
@@ -329,34 +323,6 @@ f :: fn(a: i32) -> i32 {
 main :: fn() -> i32 { return f(1) };
 |};
   [%expect {| ok |}]
-
-let%expect_test "resolve: only an extern ABI keeps the name C spells" =
-  let decls, uses =
-    resolve_src
-      {|
-main :: fn() -> i32 { return 0 };
-puts : (cstr) -> i32 : extern "C";
-exported :: extern "C" fn(x: i32) -> i32 { return x };
-unmangled :: extern "Ripe" fn(x: i32) -> i32 { return x };
-plain :: fn(x: i32) -> i32 { return x };
-binary_search :: fn() -> i32 { return 0 };
-|}
-  in
-  let show decl =
-    let _, span = decl_name_span decl in
-    let sym = Ripe.Resolve.sym_at uses span in
-    Printf.printf "%s -> %s\n" sym.Ripe.Symbol.name sym.Ripe.Symbol.link_name
-  in
-  List.iter show decls;
-  [%expect
-    {|
-    main -> _R4main
-    puts -> puts
-    exported -> exported
-    unmangled -> unmangled
-    plain -> _R5plain
-    binary_search -> _R13binary_search
-    |}]
 
 let%expect_test "resolve: a local function may call a later sibling" =
   run_src

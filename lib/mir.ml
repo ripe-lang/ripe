@@ -1061,7 +1061,7 @@ let with_entry program =
     let main =
       {
         tfunc_key = Symbol.unresolved_key;
-        tfunc_name = Resolve.decl_link_name "main";
+        tfunc_name = "main";
         tfunc_entry_point = true;
         tfunc_params = [];
         tfunc_ret = TUnit;
