@@ -1,0 +1,25 @@
+name: Opam Cache
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ripe.opam.locked
+      - .github/actions/setup-ripe/action.yml
+      - .github/workflows/opam-cache.yml
+  schedule:
+    - cron: 0 1 * * MON
+  workflow_dispatch:
+
+jobs:
+  save:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: ./.github/actions/setup-ripe
+      - if: steps.setup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: _opam
+          key: ${{ steps.setup.outputs.cache-key }}
