@@ -1,11 +1,11 @@
 <div align="center">
-  <img alt="Ripe: A systems programming language" width="50%"
+  <img alt="Ripe: A programming language" width="50%"
        src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_light.png#gh-dark-mode-only">
-  <img alt="Ripe: A systems programming language" width="50%"
+  <img alt="Ripe: A programming language" width="50%"
        src="https://raw.githubusercontent.com/ripe-lang/www.ripe-lang.org/main/static/images/combination_dark.png#gh-light-mode-only">
 </div>
 
-A systems programming language.
+A programming language.
 
 > [!WARNING]
 > Ripe is in early development and is far from ready for real use. Expect breaking changes, missing features, and bugs.

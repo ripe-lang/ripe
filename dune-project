@@ -19,7 +19,7 @@
  (name ripe)
  (synopsis "Ripe compiler and language tooling")
  (description
-  "Ripe is a systems programming language with an OCaml compiler and QBE backend.")
+  "Ripe is a programming language with an OCaml compiler and QBE backend.")
  (depends
   (ocaml
    (>= 5.5.0))
@@ -29,4 +29,4 @@
   (ppx_expect :with-test)
   (ppx_inline_test :with-test))
  (tags
-  ("compiler" "language" "systems" "qbe")))
+  ("compiler" "language" "qbe")))
